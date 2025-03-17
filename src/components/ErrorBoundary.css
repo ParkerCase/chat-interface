@@ -1,0 +1,133 @@
+/* ErrorBoundary.css */
+.error-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  padding: 2rem;
+  text-align: center;
+  background-color: #f9fafb;
+}
+
+.error-screen h2 {
+  color: #b91c1c;
+  margin-bottom: 1rem;
+  font-size: 1.75rem;
+}
+
+.error-screen p {
+  margin-bottom: 1.5rem;
+  color: #4b5563;
+  max-width: 500px;
+}
+
+.error-actions {
+  margin-bottom: 2rem;
+}
+
+.refresh-button {
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.refresh-button:hover {
+  background-color: #4338ca;
+}
+
+/* ErrorBoundary.css (continued) */
+.error-details {
+  width: 100%;
+  max-width: 800px;
+  text-align: left;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 0;
+  margin-top: 1rem;
+  background-color: white;
+  overflow: hidden;
+}
+
+.error-details summary {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  background-color: #f3f4f6;
+  font-weight: 500;
+  color: #4b5563;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.error-details summary:hover {
+  background-color: #e5e7eb;
+}
+
+.error-details p {
+  margin: 1rem;
+  color: #b91c1c;
+  font-weight: 500;
+}
+
+.error-details pre {
+  margin: 0 1rem 1rem;
+  padding: 1rem;
+  background-color: #f3f4f6;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #4b5563;
+}
+
+/* Media queries for responsiveness */
+@media (max-width: 768px) {
+  .error-screen h2 {
+    font-size: 1.5rem;
+  }
+
+  .error-screen p {
+    font-size: 0.95rem;
+  }
+
+  .refresh-button {
+    padding: 0.6rem 1.25rem;
+    font-size: 0.95rem;
+  }
+
+  .error-details summary {
+    padding: 0.6rem 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  .error-details pre {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .error-screen {
+    padding: 1.5rem;
+  }
+
+  .error-screen h2 {
+    font-size: 1.25rem;
+  }
+
+  .error-screen p {
+    font-size: 0.9rem;
+  }
+
+  .refresh-button {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .error-details {
+    font-size: 0.85rem;
+  }
+}

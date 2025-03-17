@@ -1,0 +1,139 @@
+/* Message.css */
+.message {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 8px;
+  max-width: 90%;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.message-sender {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.message-content {
+  font-size: 1rem;
+  word-break: break-word;
+}
+
+.message-content a {
+  color: #4f46e5;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.message-content a:hover {
+  text-decoration: none;
+}
+
+.message.user {
+  align-self: flex-end;
+  background-color: #eef2ff;
+  border-bottom-right-radius: 2px;
+  margin-left: auto;
+}
+
+.message.user .message-sender {
+  color: #4338ca;
+}
+
+.message.assistant {
+  align-self: flex-start;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-bottom-left-radius: 2px;
+  margin-right: auto;
+}
+
+.message.assistant .message-sender {
+  color: #059669;
+}
+
+.message.system {
+  align-self: center;
+  background-color: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  font-size: 0.9rem;
+  max-width: 80%;
+  text-align: center;
+}
+
+.message.system .message-sender {
+  color: #64748b;
+}
+
+/* Error state */
+.message-content.error {
+  color: #b91c1c;
+  background-color: #fee2e2;
+  padding: 0.5rem;
+  border-radius: 4px;
+}
+
+/* Image message */
+.message-image {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Media queries for responsiveness */
+@media (max-width: 768px) {
+  .message {
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+    max-width: 95%;
+  }
+
+  .message-content {
+    font-size: 0.95rem;
+  }
+
+  .message-sender {
+    font-size: 0.85rem;
+  }
+
+  .message-image {
+    max-height: 250px;
+  }
+}
+
+@media (max-width: 480px) {
+  .message {
+    padding: 0.6rem;
+    margin-bottom: 0.6rem;
+    max-width: 98%;
+  }
+
+  .message-content {
+    font-size: 0.9rem;
+  }
+
+  .message-sender {
+    font-size: 0.8rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .message-image {
+    max-height: 200px;
+  }
+
+  .message.system {
+    max-width: 95%;
+    font-size: 0.8rem;
+  }
+}

@@ -1,0 +1,110 @@
+/* ExportButton.css */
+.export-container {
+  position: fixed;
+  bottom: 5.5rem;
+  right: 1rem;
+  z-index: 100;
+}
+
+.export-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.3s;
+}
+
+.export-button:hover {
+  background-color: #4338ca;
+}
+
+.export-button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.export-options {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  min-width: 180px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.export-options button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.export-options button:hover {
+  background-color: #f3f4f6;
+}
+
+.export-options button:disabled {
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Media queries for responsiveness */
+@media (max-width: 768px) {
+  .export-container {
+    bottom: 4.5rem;
+  }
+
+  .export-button {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .export-container {
+    bottom: 4rem;
+    right: 0.5rem;
+  }
+
+  .export-button {
+    padding: 0.5rem;
+  }
+
+  .export-button span {
+    display: none;
+  }
+
+  .export-options {
+    min-width: 160px;
+  }
+}

@@ -1,0 +1,160 @@
+/* Header.css - Updated with theme support */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background-color: var(--color-primary, #4f46e5);
+  color: white;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.logo {
+  height: 40px;
+  width: auto;
+}
+
+.app-header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text-inverse, white);
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.logout-button,
+.theme-toggle,
+.theme-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: rgba(255, 255, 255, 0.2);
+  border: none;
+  padding: 0.5rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--color-text-inverse, white);
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.theme-button,
+.logout-button {
+  padding: 0.5rem 1rem;
+}
+
+.logout-button:hover,
+.theme-toggle:hover,
+.theme-button:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-selector {
+  position: relative;
+}
+
+.theme-options {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.5rem;
+  z-index: 100;
+  min-width: 180px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.theme-options button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.theme-options button:hover {
+  background-color: #f3f4f6;
+}
+
+.theme-options button.active {
+  background-color: #f3f4f6;
+  font-weight: 500;
+}
+
+.theme-color-indicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: var(--theme-color, #4f46e5);
+}
+
+/* Media queries for responsiveness */
+@media (max-width: 768px) {
+  .app-header {
+    padding: 0.75rem;
+  }
+
+  .logo {
+    height: 32px;
+  }
+
+  .app-header h1 {
+    font-size: 1.2rem;
+  }
+
+  .logout-button,
+  .theme-button {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header {
+    padding: 0.6rem;
+  }
+
+  .logo {
+    height: 28px;
+  }
+
+  .app-header h1 {
+    font-size: 1rem;
+  }
+
+  .logout-button span,
+  .theme-button span {
+    display: none;
+  }
+
+  .logout-button,
+  .theme-button,
+  .theme-toggle {
+    padding: 0.5rem;
+  }
+
+  .header-actions {
+    gap: 0.5rem;
+  }
+}
