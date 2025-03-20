@@ -204,7 +204,8 @@ export function AuthProvider({ children }) {
 
       if (response.data && response.data.success) {
         // Save new tokens
-        const { accessToken, refreshToken: newRefreshToken } = response.data;
+        const { token: accessToken, refreshToken: newRefreshToken } =
+          response.data;
 
         localStorage.setItem("authToken", accessToken);
         localStorage.setItem("refreshToken", newRefreshToken || refreshToken);
@@ -290,7 +291,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Passcode login function (simplified)
+  // Passcode login function
   const loginWithPasscode = async (passcode) => {
     try {
       setError("");
@@ -298,8 +299,19 @@ export function AuthProvider({ children }) {
 
       if (response.data && response.data.success) {
         localStorage.setItem("isAuthenticated", "true");
-        // Typically we'd still set a token or session, but for passcode login
-        // it might just be a Boolean flag that allows basic access
+        // If the backend returns a token for passcode logins
+        if (response.data.token) {
+          localStorage.setItem("authToken", response.data.token);
+          setToken(response.data.token);
+
+          // Extract user from token if available
+          if (response.data.token) {
+            const user = extractUserFromToken(response.data.token);
+            if (user) {
+              setCurrentUser(user);
+            }
+          }
+        }
         return true;
       } else {
         setError(response.data?.error || "Invalid passcode");
@@ -323,7 +335,7 @@ export function AuthProvider({ children }) {
       if (response.data && response.data.success) {
         // Save tokens and session ID to localStorage
         const {
-          accessToken,
+          token: accessToken,
           refreshToken: newRefreshToken,
           sessionId: newSessionId,
         } = response.data;
@@ -500,7 +512,7 @@ export function AuthProvider({ children }) {
   // Get active sessions
   const getSessions = async () => {
     try {
-      const response = await apiService.auth.getSessions();
+      const response = await apiService.sessions.getSessions();
 
       if (response.data && response.data.success) {
         return response.data.sessions;
@@ -517,7 +529,7 @@ export function AuthProvider({ children }) {
   // Terminate session
   const terminateSession = async (sessionId) => {
     try {
-      const response = await apiService.auth.terminateSession(sessionId);
+      const response = await apiService.sessions.terminateSession(sessionId);
       return response.data?.success || false;
     } catch (error) {
       console.error("Terminate session error:", error);
@@ -529,7 +541,7 @@ export function AuthProvider({ children }) {
   // Terminate all other sessions
   const terminateAllSessions = async () => {
     try {
-      const response = await apiService.auth.terminateAllSessions();
+      const response = await apiService.sessions.terminateAllSessions();
       return response.data?.success || false;
     } catch (error) {
       console.error("Terminate all sessions error:", error);
@@ -552,7 +564,7 @@ export function AuthProvider({ children }) {
 
   const confirmMfa = async (methodId, verificationCode) => {
     try {
-      const response = await apiService.mfa.verify(methodId, verificationCode);
+      const response = await apiService.mfa.confirm(methodId, verificationCode);
 
       if (response.data && response.data.success) {
         // Refresh user data to get updated MFA methods
@@ -589,7 +601,7 @@ export function AuthProvider({ children }) {
   // Verify MFA during login
   const verifyMfa = async (verificationCode, methodId) => {
     try {
-      const response = await apiService.mfa.login(methodId, verificationCode);
+      const response = await apiService.mfa.verify(methodId, verificationCode);
 
       if (response.data && response.data.success) {
         // If MFA verification returns new tokens, update them
@@ -682,7 +694,7 @@ export function AuthProvider({ children }) {
   const updateProfile = async (profileData) => {
     try {
       setError("");
-      const response = await apiService.user.updateProfile(profileData);
+      const response = await apiService.users.updateProfile(profileData);
 
       if (response.data && response.data.success) {
         // Update user data in state

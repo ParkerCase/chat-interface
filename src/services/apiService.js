@@ -1,5 +1,3 @@
-// src/services/apiService.js
-
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 
@@ -138,7 +136,7 @@ apiClient.interceptors.response.use(
           if (response.data.success) {
             // Save the new tokens
             const {
-              accessToken,
+              token: accessToken,
               refreshToken: newRefreshToken,
               sessionId: newSessionId,
             } = response.data;
@@ -306,42 +304,46 @@ const apiService = {
 
     verifyEmail: (token) => apiClient.post("/api/auth/verify-email", { token }),
 
-    getSessions: () => apiClient.get("/api/auth/sessions"),
+    exchangeToken: (code) => apiClient.post("/api/auth/exchange", { code }),
+  },
+
+  // Session management endpoints
+  sessions: {
+    getSessions: () => apiClient.get("/api/sessions"),
 
     terminateSession: (sessionId) =>
-      apiClient.delete(`/api/auth/sessions/${sessionId}`),
+      apiClient.delete(`/api/sessions/${sessionId}`),
 
-    terminateAllSessions: () =>
-      apiClient.post("/api/auth/sessions/terminate-all"),
+    terminateAllSessions: () => apiClient.delete("/api/sessions"),
 
-    exchangeToken: (code) =>
-      apiClient.post("/api/auth/token-exchange", { code }),
+    extendSession: (sessionId) =>
+      apiClient.put(`/api/sessions/${sessionId}/extend`),
   },
 
   // MFA endpoints
   mfa: {
-    getMethods: () => apiClient.get("/api/mfa/methods"),
+    getMethods: () => apiClient.get("/api/mfa"),
 
     setup: (type, data = {}) =>
       apiClient.post("/api/mfa/setup", { type, ...data }),
 
-    verify: (methodId, code) =>
-      apiClient.post("/api/mfa/verify", { methodId, code }),
+    confirm: (methodId, verificationCode) =>
+      apiClient.post("/api/mfa/confirm", { methodId, verificationCode }),
 
-    remove: (methodId) => apiClient.delete(`/api/mfa/methods/${methodId}`),
+    verify: (methodId, verificationCode) =>
+      apiClient.post("/api/mfa/verify", { methodId, verificationCode }),
+
+    remove: (methodId) => apiClient.delete(`/api/mfa/${methodId}`),
 
     challenge: (methodId) => apiClient.post("/api/mfa/challenge", { methodId }),
-
-    login: (methodId, code) =>
-      apiClient.post("/api/mfa/login-verify", { methodId, code }),
   },
 
   // User profile endpoints
-  user: {
-    getProfile: () => apiClient.get("/api/user/profile"),
+  users: {
+    getProfile: () => apiClient.get("/api/users/profile"),
 
     updateProfile: (profileData) =>
-      apiClient.post("/api/user/profile", profileData),
+      apiClient.put("/api/users/profile", profileData),
   },
 
   // Chat endpoints
