@@ -1,128 +1,225 @@
 // src/components/UpgradePrompt.jsx
 import React from "react";
-import { X, CheckCircle, ArrowUp } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  Badge,
+} from "@/components/ui";
+import {
+  X,
+  CheckCircle,
+  ChevronRight,
+  Crown,
+  Rocket,
+  Star,
+} from "lucide-react";
 import { useFeatureFlags } from "../utils/featureFlags";
-import "./UpgradePrompt.css";
+
+// Feature descriptions for the upgrade prompts
+const featureDescriptions = {
+  custom_workflows: {
+    title: "Custom Workflows",
+    description: "Automate business processes with custom workflows",
+    tier: "enterprise",
+    icon: <Rocket className="h-5 w-5 text-indigo-500" />,
+  },
+  advanced_analytics: {
+    title: "Advanced Analytics",
+    description: "Gain deeper insights with comprehensive analytics",
+    tier: "enterprise",
+    icon: <Rocket className="h-5 w-5 text-indigo-500" />,
+  },
+  automated_alerts: {
+    title: "Automated Alerts",
+    description: "Configure custom alerts based on system metrics",
+    tier: "enterprise",
+    icon: <Rocket className="h-5 w-5 text-indigo-500" />,
+  },
+  custom_integrations: {
+    title: "Custom Integrations",
+    description: "Connect with additional external systems",
+    tier: "enterprise",
+    icon: <Rocket className="h-5 w-5 text-indigo-500" />,
+  },
+  advanced_search: {
+    title: "Advanced Search",
+    description: "Powerful search capabilities across all content",
+    tier: "professional",
+    icon: <Star className="h-5 w-5 text-yellow-500" />,
+  },
+  image_search: {
+    title: "Image Search",
+    description: "Search by uploading or selecting images",
+    tier: "professional",
+    icon: <Star className="h-5 w-5 text-yellow-500" />,
+  },
+  file_upload: {
+    title: "Enhanced File Upload",
+    description: "Upload and process larger files with more formats",
+    tier: "professional",
+    icon: <Star className="h-5 w-5 text-yellow-500" />,
+  },
+  data_export: {
+    title: "Data Export",
+    description: "Export data in various formats for analysis",
+    tier: "professional",
+    icon: <Star className="h-5 w-5 text-yellow-500" />,
+  },
+};
+
+// Default descriptions for generic features
+const defaultFeatureDescriptions = {
+  enterprise: {
+    title: "Enterprise Feature",
+    description: "This feature is only available in the Enterprise tier",
+    icon: <Crown className="h-5 w-5 text-indigo-500" />,
+  },
+  professional: {
+    title: "Professional Feature",
+    description:
+      "This feature is only available in the Professional tier or higher",
+    icon: <Star className="h-5 w-5 text-yellow-500" />,
+  },
+};
 
 const UpgradePrompt = ({ feature, onClose }) => {
-  const { getFeatureDescription, getUserTier, getTierUpgradeBenefits } =
-    useFeatureFlags();
+  const { tier } = useFeatureFlags();
 
-  // Get current tier and required tier information
-  const currentTier = getUserTier();
-  const upgradeBenefits = getTierUpgradeBenefits(currentTier);
+  // Get feature info or default info based on required tier
+  const featureInfo =
+    featureDescriptions[feature] ||
+    (feature?.includes("enterprise")
+      ? defaultFeatureDescriptions.enterprise
+      : defaultFeatureDescriptions.professional);
 
-  // Get information about the specific feature that triggered this prompt
-  const featureDescription = getFeatureDescription(feature);
+  const tierRequired = featureInfo.tier || "professional";
+  const currentTierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
 
-  // Determine which tier is needed for this feature
-  let requiredTier = "professional"; // Default to professional
-  if (currentTier === "professional") {
-    requiredTier = "enterprise"; // If already on professional, must be enterprise feature
-  }
-
-  // Get the list of benefits for the next tier up
-  const nextTierBenefits = upgradeBenefits[requiredTier] || [];
-
-  // Pricing information based on tiers
-  const pricingInfo = {
-    basic: {
-      price: "$2,500",
-      period: "one-time setup",
-    },
-    professional: {
-      price: "$5,000-10,000",
-      period: "one-time setup",
-    },
-    enterprise: {
-      price: "$15,000-25,000",
-      period: "one-time setup",
-    },
-  };
-
-  // Get the next tier pricing info
-  const pricing = pricingInfo[requiredTier] || pricingInfo.professional;
+  // Determine which plans to show based on current tier
+  const showEnterprise = tier !== "enterprise";
+  const showProfessional = tier === "basic" && tierRequired === "professional";
 
   return (
-    <div className="upgrade-overlay">
-      <div className="upgrade-modal">
-        <div className="upgrade-modal-header">
-          <h2>Upgrade Required</h2>
-          <button className="close-button" onClick={onClose}>
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="upgrade-modal-content">
-          <div className="feature-info">
-            <h3>This feature requires an upgrade</h3>
-            <p>
-              <span className="feature-name">
-                {feature
-                  .replace(/_/g, " ")
-                  .split(" ")
-                  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                  .join(" ")}
-              </span>{" "}
-              is available in the{" "}
-              <strong>
-                {requiredTier.charAt(0).toUpperCase() + requiredTier.slice(1)}
-              </strong>{" "}
-              tier.
-            </p>
-            <p className="feature-description">{featureDescription}</p>
-          </div>
-
-          <div className="tier-comparison">
-            <div className="current-tier">
-              <h4>Your Current Tier</h4>
-              <div className="tier-badge">
-                {currentTier.charAt(0).toUpperCase() + currentTier.slice(1)}
-              </div>
-            </div>
-
-            <div className="tier-upgrade-arrow">
-              <ArrowUp size={24} />
-            </div>
-
-            <div className="upgrade-tier">
-              <h4>Upgrade To</h4>
-              <div className="tier-badge upgrade">
-                {requiredTier.charAt(0).toUpperCase() + requiredTier.slice(1)}
-              </div>
-              <div className="pricing-info">
-                <span className="price">{pricing.price}</span>
-                <span className="period">{pricing.period}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="tier-benefits">
-            <h4>Additional Benefits Include:</h4>
-            <ul>
-              {nextTierBenefits.map((benefit, index) => (
-                <li key={index}>
-                  <CheckCircle className="benefit-icon" size={16} />
-                  <span>{benefit.description}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        <div className="upgrade-modal-footer">
-          <button className="cancel-button" onClick={onClose}>
-            Not Now
-          </button>
-          <a
-            href="mailto:sales@tatt2away.com?subject=Tier%20Upgrade%20Request&body=I'm%20interested%20in%20upgrading%20my%20Tatt2Away%20AI%20Bot%20subscription.%20Please%20provide%20more%20information."
-            className="upgrade-button"
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {featureInfo.icon}
+            {featureInfo.title} - Upgrade Required
+          </DialogTitle>
+          <button
+            onClick={onClose}
+            className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100"
           >
-            Contact Sales
-          </a>
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </button>
+        </DialogHeader>
+
+        <div className="mt-2 space-y-6">
+          <div className="text-center">
+            <p className="text-lg font-medium">
+              You're currently on the{" "}
+              <Badge variant="outline">{currentTierLabel}</Badge> plan
+            </p>
+            <p className="mt-2 text-muted-foreground">
+              To access {featureInfo.title}, you need to upgrade to the{" "}
+              {tierRequired.charAt(0).toUpperCase() + tierRequired.slice(1)}{" "}
+              plan.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {showProfessional && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Star className="h-5 w-5 text-yellow-500" />
+                    Professional
+                  </CardTitle>
+                  <CardDescription>$5,000 - $10,000</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                      <span>Everything in Basic, plus:</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                      <span>Custom knowledge base structure</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                      <span>2-3 system integrations</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                      <span>Customized UI and branding</span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
+            {showEnterprise && (
+              <Card className={!showProfessional ? "sm:col-span-2" : ""}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Crown className="h-5 w-5 text-indigo-500" />
+                    Enterprise
+                  </CardTitle>
+                  <CardDescription>$15,000 - $25,000</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                      <span>Everything in Professional, plus:</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                      <span>Fully customized implementation</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                      <span>Unlimited system integrations</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                      <span>Advanced security features (SSO)</span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
-      </div>
-    </div>
+
+        <DialogFooter className="flex flex-col sm:flex-row gap-3 mt-6">
+          <Button
+            onClick={onClose}
+            variant="outline"
+            className="sm:w-auto w-full"
+          >
+            Continue with current plan
+          </Button>
+          <Button className="sm:w-auto w-full">
+            Contact sales for upgrade
+            <ChevronRight className="ml-2 h-4 w-4" />
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 
