@@ -54,6 +54,37 @@ const CRMContactLookup = ({
   const [error, setError] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [providerStatus, setProviderStatus] = useState({});
+
+  const checkProviderStatus = async () => {
+    if (!selectedProvider) return;
+
+    try {
+      // For Zenoti provider
+      if (selectedProvider === "zenoti") {
+        const response = await apiService.zenoti.checkConnectionStatus();
+        setProviderStatus((prev) => ({
+          ...prev,
+          [selectedProvider]: response.data.status === "connected",
+        }));
+      } else {
+        // Generic check for other providers
+        const response = await apiService.crm.getConfiguration(
+          selectedProvider
+        );
+        setProviderStatus((prev) => ({
+          ...prev,
+          [selectedProvider]: response.data.success,
+        }));
+      }
+    } catch (err) {
+      console.error(`Error checking ${selectedProvider} status:`, err);
+      setProviderStatus((prev) => ({
+        ...prev,
+        [selectedProvider]: false,
+      }));
+    }
+  };
 
   // Debounced search function
   const debouncedSearch = useCallback(
@@ -153,6 +184,12 @@ const CRMContactLookup = ({
     });
   };
 
+  useEffect(() => {
+    if (selectedProvider) {
+      checkProviderStatus();
+    }
+  }, [selectedProvider]);
+
   // Render loading state for CRM providers
   if (crmLoading && providers.length === 0) {
     return (
@@ -178,17 +215,40 @@ const CRMContactLookup = ({
         {/* Provider selector and search bar */}
         <div className="flex space-x-2">
           {allowProviderChange && providers.length > 0 && (
-            <Select
-              value={selectedProvider}
-              onChange={handleProviderChange}
-              className="w-40"
-            >
-              {providers.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.displayName || p.name}
-                </option>
-              ))}
-            </Select>
+            <div className="flex items-center">
+              <Select
+                value={selectedProvider}
+                onChange={handleProviderChange}
+                className="w-40"
+              >
+                {providers.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.displayName || p.name}
+                  </option>
+                ))}
+              </Select>
+              {selectedProvider && (
+                <div className="ml-2">
+                  {providerStatus[selectedProvider] ? (
+                    <Badge
+                      variant="outline"
+                      className="bg-green-50 text-green-700 border-green-200"
+                    >
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Connected
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="bg-red-50 text-red-700 border-red-200"
+                    >
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      Disconnected
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           <div className="relative flex-1">
