@@ -7,6 +7,7 @@ import ChatContainer from "./ChatContainer";
 import InputBar from "./InputBar";
 import AnalysisResult from "./AnalysisResult";
 import AdvancedSearch from "./AdvancedSearch";
+import ExportButton from "./ExportButton";
 import { useAuth } from "../context/AuthContext";
 import { useFeatureFlags, FeatureGate } from "../utils/featureFlags";
 import apiService from "../services/apiService";
@@ -29,6 +30,7 @@ function MainApp() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [upgradeTrigger, setUpgradeTrigger] = useState("");
+  const [currentTheme, setCurrentTheme] = useState("default");
 
   const messagesEndRef = useRef(null);
 
@@ -54,6 +56,33 @@ function MainApp() {
     }
   }, []);
 
+  // Load theme preference
+  useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        // Check for stored theme
+        const savedTheme = localStorage.getItem("preferredTheme");
+        if (savedTheme) {
+          setCurrentTheme(savedTheme);
+          loadThemeCSS(savedTheme);
+        } else if (currentUser) {
+          // Try to get theme from server
+          const response = await apiService.themes.getPreference();
+          if (response.data && response.data.success) {
+            const themeId = response.data.themeId || "default";
+            setCurrentTheme(themeId);
+            loadThemeCSS(themeId);
+            localStorage.setItem("preferredTheme", themeId);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading theme:", error);
+      }
+    };
+
+    loadTheme();
+  }, [currentUser]);
+
   // Save messages when they change
   useEffect(() => {
     localStorage.setItem("chatMessages", JSON.stringify(messages));
@@ -65,6 +94,46 @@ function MainApp() {
     localStorage.removeItem("chatMessages");
     setMessages([]);
     navigate("/login");
+  };
+
+  // Load theme CSS
+  const loadThemeCSS = async (themeId) => {
+    try {
+      const response = await apiService.themes.getCSS(themeId);
+
+      if (response.data) {
+        // Create or update style element
+        const styleEl =
+          document.getElementById("theme-style") ||
+          document.createElement("style");
+        styleEl.id = "theme-style";
+        styleEl.textContent = response.data;
+
+        if (!document.getElementById("theme-style")) {
+          document.head.appendChild(styleEl);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading theme CSS:", error);
+    }
+  };
+
+  // Change theme
+  const changeTheme = async (themeId) => {
+    setCurrentTheme(themeId);
+    localStorage.setItem("preferredTheme", themeId);
+
+    try {
+      // Update server preference if user is logged in
+      if (currentUser) {
+        await apiService.themes.setPreference(themeId);
+      }
+
+      // Load theme CSS
+      loadThemeCSS(themeId);
+    } catch (error) {
+      console.error("Error setting theme:", error);
+    }
   };
 
   const [userId] = useState(() => {
@@ -83,7 +152,11 @@ function MainApp() {
     const checkConnection = async () => {
       try {
         const response = await apiService.status.check();
-        setConnectionError(false);
+        if (response.data && response.data.success) {
+          setConnectionError(false);
+        } else {
+          setConnectionError(true);
+        }
       } catch (error) {
         console.error("Connection check failed:", error);
         setConnectionError(true);
@@ -331,7 +404,8 @@ function MainApp() {
         },
       ]);
 
-      const { data } = await apiService.image.analyze(imagePath);
+      const response = await apiService.image.analyze(imagePath);
+      const data = response.data;
 
       if (data && data.success) {
         // Add assistant response to chat
@@ -375,7 +449,8 @@ function MainApp() {
       setIsAnalyzing(true);
       setAnalysisError(null);
 
-      const { data } = await apiService.image.analyzeSearchResult(imagePath);
+      const response = await apiService.image.analyzeSearchResult(imagePath);
+      const data = response.data;
 
       if (data && data.success) {
         setAnalysisResult(data);
@@ -443,11 +518,12 @@ function MainApp() {
           },
         ]);
 
-        const { data } = await apiService.chat.analyzeImagePath(
+        const response = await apiService.chat.analyzeImagePath(
           imagePath,
           text,
           userId
         );
+        const data = response.data;
 
         setMessages((prev) => [
           ...prev,
@@ -473,7 +549,8 @@ function MainApp() {
         },
       ]);
 
-      const { data } = await apiService.chat.sendMessage(text, userId);
+      const response = await apiService.chat.sendMessage(text, userId);
+      const data = response.data;
 
       let processedResponse = data.response;
 
@@ -520,6 +597,13 @@ function MainApp() {
 
   // File upload handler
   const handleFileUpload = async (file) => {
+    // Check if file upload is available for this user's tier
+    if (!isFeatureEnabled("file_upload")) {
+      setShowUpgradePrompt(true);
+      setUpgradeTrigger("file_upload");
+      return;
+    }
+
     try {
       setIsLoading(true);
       setUploadProgress(0);
@@ -599,7 +683,8 @@ function MainApp() {
         },
       ]);
 
-      const { data } = await apiService.search.advanced(query, type, limit);
+      const response = await apiService.search.advanced(query, type, limit);
+      const data = response.data;
 
       // Format results for display
       let resultsText = `Search results for "${query}":\n\n`;
@@ -711,7 +796,12 @@ function MainApp() {
 
   return (
     <div className="app">
-      <Header onLogout={handleLogout} currentUser={currentUser} />
+      <Header
+        onLogout={handleLogout}
+        currentUser={currentUser}
+        currentTheme={currentTheme}
+        onChangeTheme={changeTheme}
+      />
 
       {connectionError && (
         <div className="alert alert-error" role="alert">
@@ -757,6 +847,11 @@ function MainApp() {
         uploadProgress={uploadProgress}
         showImageSearch={isFeatureEnabled("image_search")}
       />
+
+      {/* Export feature for Professional and Enterprise tiers */}
+      <FeatureGate feature="data_export">
+        <ExportButton messages={messages} analysisResult={analysisResult} />
+      </FeatureGate>
 
       <div ref={messagesEndRef} />
 

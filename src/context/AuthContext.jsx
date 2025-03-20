@@ -1,4 +1,4 @@
-// src/context/AuthContext.jsx
+// src/context/AuthContext.jsx - Enhanced with tier support
 import React, {
   createContext,
   useState,
@@ -27,6 +27,8 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState("");
   const [tokenExpiry, setTokenExpiry] = useState(null);
   const refreshTimerRef = useRef(null);
+  const [userTier, setUserTier] = useState("basic");
+  const [tierFeatures, setTierFeatures] = useState({});
 
   // Check if token is expired
   const isTokenExpired = useCallback(() => {
@@ -55,7 +57,6 @@ export function AuthProvider({ children }) {
       refreshUserToken();
     }, refreshTime);
 
-    // For debugging
     console.log(
       `Token refresh scheduled in ${Math.round(refreshTime / 1000)} seconds`
     );
@@ -65,8 +66,19 @@ export function AuthProvider({ children }) {
   const extractUserFromToken = useCallback((token) => {
     try {
       const decodedToken = jwtDecode(token);
-
       setTokenExpiry(decodedToken.exp * 1000);
+
+      // Extract tier information
+      const tier = decodedToken.tier || "basic";
+      setUserTier(tier);
+
+      // Extract features
+      if (decodedToken.features) {
+        setTierFeatures(decodedToken.features);
+      } else {
+        // Set default features based on tier
+        setTierFeatures(getDefaultFeaturesForTier(tier));
+      }
 
       return {
         id: decodedToken.sub,
@@ -76,7 +88,7 @@ export function AuthProvider({ children }) {
         tenantId: decodedToken.tenantId,
         exp: decodedToken.exp,
         mfaMethods: decodedToken.mfaMethods || [],
-        tier: decodedToken.tier || "basic",
+        tier: tier,
         features: decodedToken.features || {},
         passwordLastChanged: decodedToken.passwordLastChanged,
       };
@@ -85,6 +97,51 @@ export function AuthProvider({ children }) {
       return null;
     }
   }, []);
+
+  // Get default features for a tier
+  const getDefaultFeaturesForTier = (tier) => {
+    // Basic tier features
+    const basicFeatures = {
+      chatbot: true,
+      basic_search: true,
+      file_upload: true,
+      image_analysis: true,
+    };
+
+    // Professional tier features
+    const professionalFeatures = {
+      ...basicFeatures,
+      advanced_search: true,
+      image_search: true,
+      custom_branding: true,
+      multi_user: true,
+      data_export: true,
+      analytics_basic: true,
+    };
+
+    // Enterprise tier features
+    const enterpriseFeatures = {
+      ...professionalFeatures,
+      custom_workflows: true,
+      advanced_analytics: true,
+      multi_department: true,
+      automated_alerts: true,
+      custom_integrations: true,
+      advanced_security: true,
+      sso: true,
+      advanced_roles: true,
+    };
+
+    switch (tier.toLowerCase()) {
+      case "enterprise":
+        return enterpriseFeatures;
+      case "professional":
+        return professionalFeatures;
+      case "basic":
+      default:
+        return basicFeatures;
+    }
+  };
 
   // Initialize auth state
   useEffect(() => {
@@ -233,6 +290,28 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Passcode login function (simplified)
+  const loginWithPasscode = async (passcode) => {
+    try {
+      setError("");
+      const response = await apiService.auth.verifyPasscode(passcode);
+
+      if (response.data && response.data.success) {
+        localStorage.setItem("isAuthenticated", "true");
+        // Typically we'd still set a token or session, but for passcode login
+        // it might just be a Boolean flag that allows basic access
+        return true;
+      } else {
+        setError(response.data?.error || "Invalid passcode");
+        return false;
+      }
+    } catch (error) {
+      console.error("Passcode login error:", error);
+      setError("Invalid passcode. Please try again.");
+      return false;
+    }
+  };
+
   // Process token exchange from SSO
   const processTokenExchange = async (code) => {
     try {
@@ -302,6 +381,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("authToken");
     localStorage.removeItem("refreshToken");
     localStorage.removeItem("sessionId");
+    localStorage.removeItem("isAuthenticated");
 
     // Clear state
     setToken(null);
@@ -309,6 +389,8 @@ export function AuthProvider({ children }) {
     setSessionId(null);
     setCurrentUser(null);
     setTokenExpiry(null);
+    setUserTier("basic");
+    setTierFeatures({});
   };
 
   // Register function (admin only)
@@ -416,7 +498,7 @@ export function AuthProvider({ children }) {
   };
 
   // Get active sessions
-  const getActiveSessions = async () => {
+  const getSessions = async () => {
     try {
       const response = await apiService.auth.getSessions();
 
@@ -432,26 +514,26 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Revoke session
-  const revokeSession = async (sessionId) => {
+  // Terminate session
+  const terminateSession = async (sessionId) => {
     try {
       const response = await apiService.auth.terminateSession(sessionId);
       return response.data?.success || false;
     } catch (error) {
-      console.error("Revoke session error:", error);
-      setError(error.response?.data?.error || "Failed to revoke session");
+      console.error("Terminate session error:", error);
+      setError(error.response?.data?.error || "Failed to terminate session");
       return false;
     }
   };
 
-  // Revoke all other sessions
-  const revokeAllOtherSessions = async () => {
+  // Terminate all other sessions
+  const terminateAllSessions = async () => {
     try {
       const response = await apiService.auth.terminateAllSessions();
       return response.data?.success || false;
     } catch (error) {
-      console.error("Revoke all sessions error:", error);
-      setError(error.response?.data?.error || "Failed to revoke sessions");
+      console.error("Terminate all sessions error:", error);
+      setError(error.response?.data?.error || "Failed to terminate sessions");
       return false;
     }
   };
@@ -500,6 +582,39 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error("MFA removal error:", error);
       setError(error.response?.data?.error || "Failed to remove MFA method");
+      return false;
+    }
+  };
+
+  // Verify MFA during login
+  const verifyMfa = async (verificationCode, methodId) => {
+    try {
+      const response = await apiService.mfa.login(methodId, verificationCode);
+
+      if (response.data && response.data.success) {
+        // If MFA verification returns new tokens, update them
+        if (response.data.token) {
+          localStorage.setItem("authToken", response.data.token);
+          setToken(response.data.token);
+
+          const user = extractUserFromToken(response.data.token);
+          setCurrentUser(user);
+
+          if (response.data.refreshToken) {
+            localStorage.setItem("refreshToken", response.data.refreshToken);
+            setRefreshToken(response.data.refreshToken);
+          }
+
+          scheduleTokenRefresh();
+        }
+
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error("MFA verification error:", error);
+      setError(error.response?.data?.error || "Failed to verify MFA");
       return false;
     }
   };
@@ -555,27 +670,36 @@ export function AuthProvider({ children }) {
     }
 
     // Check based on tier
-    const tier = currentUser.tier || "basic";
-
-    switch (tier.toLowerCase()) {
-      case "enterprise":
-        // Enterprise tier has all features
-        return true;
-
-      case "professional":
-        // Professional has most features except enterprise-only
-        return !ENTERPRISE_ONLY_FEATURES.includes(featureName);
-
-      case "basic":
-      default:
-        // Basic tier has limited features
-        return BASIC_FEATURES.includes(featureName);
-    }
+    return tierFeatures[featureName] === true;
   };
 
   // Check user tier level
   const getUserTier = () => {
-    return currentUser?.tier || "basic";
+    return userTier;
+  };
+
+  // Update user profile
+  const updateProfile = async (profileData) => {
+    try {
+      setError("");
+      const response = await apiService.user.updateProfile(profileData);
+
+      if (response.data && response.data.success) {
+        // Update user data in state
+        setCurrentUser((prev) => ({
+          ...prev,
+          ...profileData,
+        }));
+        return true;
+      } else {
+        setError(response.data?.error || "Failed to update profile");
+        return false;
+      }
+    } catch (error) {
+      console.error("Profile update error:", error);
+      setError(error.response?.data?.error || "Failed to update profile");
+      return false;
+    }
   };
 
   // Check if user has specific role
@@ -592,23 +716,6 @@ export function AuthProvider({ children }) {
     return currentUser.roles.includes(roleCode);
   };
 
-  // Feature configuration
-  const BASIC_FEATURES = [
-    "chatbot",
-    "basic_search",
-    "file_upload",
-    "image_analysis",
-  ];
-
-  const ENTERPRISE_ONLY_FEATURES = [
-    "custom_workflows",
-    "advanced_analytics",
-    "multi_department",
-    "automated_alerts",
-    "custom_integrations",
-    "advanced_security",
-  ];
-
   const isAdmin =
     currentUser?.roles?.includes("admin") ||
     currentUser?.roles?.includes("super_admin") ||
@@ -622,6 +729,7 @@ export function AuthProvider({ children }) {
     error,
     setError,
     login,
+    loginWithPasscode,
     logout,
     register,
     isAdmin,
@@ -630,18 +738,20 @@ export function AuthProvider({ children }) {
     hasRole,
     hasFeatureAccess,
     getUserTier,
+    tierFeatures,
     refreshUserToken,
     processTokenExchange,
     requestPasswordReset,
     resetPassword,
     changePassword,
-    getActiveSessions,
-    revokeSession,
-    revokeAllOtherSessions,
-    tokenExpiry,
+    getSessions,
+    terminateSession,
+    terminateAllSessions,
     setupMfa,
     confirmMfa,
     removeMfa,
+    verifyMfa,
+    updateProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
