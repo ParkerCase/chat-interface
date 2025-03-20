@@ -17,7 +17,7 @@ import {
   Send,
   Save,
 } from "lucide-react";
-import "./Login.css"; // We'll keep using the existing CSS
+import "./auth.css";
 
 function AuthPage() {
   const [authMode, setAuthMode] = useState("login"); // login, passcode, forgot, reset

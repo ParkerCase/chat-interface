@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import { AlertCircle, CheckCircle, Shield } from "lucide-react";
-import "./MfaVerify.css";
+import "./auth.css";
 
 function MfaVerify() {
   const [code, setCode] = useState("");
