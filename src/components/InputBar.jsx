@@ -1,5 +1,7 @@
+// src/components/InputBar.jsx
 import React, { useState, useRef } from "react";
 import { Loader2, X, Upload, Send } from "lucide-react";
+import { useFeatureFlags } from "../utils/featureFlags";
 import "./InputBar.css";
 
 function InputBar({
@@ -10,12 +12,17 @@ function InputBar({
   isLoading,
   disabled,
   uploadProgress,
+  showImageSearch = true,
 }) {
+  const { isFeatureEnabled } = useFeatureFlags();
   const [text, setText] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Check if file upload is available for this user's tier
+  const canUploadFiles = isFeatureEnabled("file_upload");
 
   const handleSend = () => {
     if (selectedImage) {
@@ -66,8 +73,13 @@ function InputBar({
       };
       reader.readAsDataURL(file);
 
-      // Show search modal
-      setShowSearchModal(true);
+      // If image search is enabled, show search modal
+      // Otherwise, proceed with regular file upload
+      if (showImageSearch) {
+        setShowSearchModal(true);
+      } else {
+        onFileUpload(file);
+      }
 
       // Reset file input
       if (fileInputRef.current) {
@@ -134,28 +146,32 @@ function InputBar({
           aria-label="Message input"
         />
 
-        <input
-          type="file"
-          id="file-upload"
-          onChange={handleFileChange}
-          ref={fileInputRef}
-          accept="image/*"
-          disabled={isLoading || disabled}
-          aria-label="Upload image"
-          className="file-input-hidden"
-        />
+        {canUploadFiles && (
+          <>
+            <input
+              type="file"
+              id="file-upload"
+              onChange={handleFileChange}
+              ref={fileInputRef}
+              accept="image/*"
+              disabled={isLoading || disabled}
+              aria-label="Upload image"
+              className="file-input-hidden"
+            />
 
-        <label
-          htmlFor="file-upload"
-          className={`upload-btn ${disabled ? "disabled" : ""} ${
-            selectedImage ? "hidden" : ""
-          }`}
-          role="button"
-          aria-label="Upload image"
-          tabIndex="0"
-        >
-          <Upload size={20} />
-        </label>
+            <label
+              htmlFor="file-upload"
+              className={`upload-btn ${disabled ? "disabled" : ""} ${
+                selectedImage ? "hidden" : ""
+              }`}
+              role="button"
+              aria-label="Upload image"
+              tabIndex="0"
+            >
+              <Upload size={20} />
+            </label>
+          </>
+        )}
 
         <button
           onClick={handleSend}

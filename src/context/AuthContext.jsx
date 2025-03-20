@@ -5,9 +5,10 @@ import React, {
   useEffect,
   useContext,
   useCallback,
+  useRef,
 } from "react";
-import api from "../services/api";
-import { jwtDecode } from "jwt-decode"; // Add this dependency
+import apiService from "../services/apiService";
+import { jwtDecode } from "jwt-decode";
 
 const AuthContext = createContext(null);
 
@@ -25,27 +26,18 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tokenExpiry, setTokenExpiry] = useState(null);
-  const [refreshTimer, setRefreshTimer] = useState(null);
+  const refreshTimerRef = useRef(null);
 
   // Check if token is expired
   const isTokenExpired = useCallback(() => {
-    if (!token) return true;
-
-    try {
-      const decodedToken = jwtDecode(token);
-      // Return true if token expires in less than 60 seconds or is already expired
-      return decodedToken.exp * 1000 < Date.now() + 60000;
-    } catch (error) {
-      console.error("Token decode error:", error);
-      return true;
-    }
+    return apiService.utils.isTokenExpired(token);
   }, [token]);
 
   // Schedule token refresh
   const scheduleTokenRefresh = useCallback(() => {
     // Clear any existing timers
-    if (refreshTimer) {
-      clearTimeout(refreshTimer);
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
     }
 
     // If no token or no expiry, don't schedule
@@ -59,17 +51,15 @@ export function AuthProvider({ children }) {
     const refreshTime = Math.max(timeUntilExpiry * 0.75, 0);
 
     // Set timer to refresh token before it expires
-    const timer = setTimeout(() => {
+    refreshTimerRef.current = setTimeout(() => {
       refreshUserToken();
     }, refreshTime);
-
-    setRefreshTimer(timer);
 
     // For debugging
     console.log(
       `Token refresh scheduled in ${Math.round(refreshTime / 1000)} seconds`
     );
-  }, [token, tokenExpiry, refreshTimer]);
+  }, [token, tokenExpiry]);
 
   // Extract user from token
   const extractUserFromToken = useCallback((token) => {
@@ -85,6 +75,10 @@ export function AuthProvider({ children }) {
         roles: decodedToken.roles || ["user"],
         tenantId: decodedToken.tenantId,
         exp: decodedToken.exp,
+        mfaMethods: decodedToken.mfaMethods || [],
+        tier: decodedToken.tier || "basic",
+        features: decodedToken.features || {},
+        passwordLastChanged: decodedToken.passwordLastChanged,
       };
     } catch (error) {
       console.error("Token decode error:", error);
@@ -115,11 +109,6 @@ export function AuthProvider({ children }) {
 
           if (user) {
             setCurrentUser(user);
-
-            // Set authorization header for all requests
-            api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-            // Schedule token refresh
             scheduleTokenRefresh();
           } else {
             logout();
@@ -138,17 +127,11 @@ export function AuthProvider({ children }) {
 
     // Cleanup refresh timer on unmount
     return () => {
-      if (refreshTimer) {
-        clearTimeout(refreshTimer);
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
       }
     };
-  }, [
-    token,
-    isTokenExpired,
-    extractUserFromToken,
-    scheduleTokenRefresh,
-    refreshTimer,
-  ]);
+  }, [token, isTokenExpired, extractUserFromToken, scheduleTokenRefresh]);
 
   // Refresh token
   const refreshUserToken = async () => {
@@ -157,41 +140,42 @@ export function AuthProvider({ children }) {
         return false;
       }
 
-      const response = await api.post("/api/auth/refresh", {
+      const response = await apiService.auth.refreshToken(
         refreshToken,
-        sessionId,
-      });
+        sessionId
+      );
 
-      if (response.data.success) {
+      if (response.data && response.data.success) {
         // Save new tokens
-        localStorage.setItem("authToken", response.data.accessToken);
-        localStorage.setItem("refreshToken", response.data.refreshToken);
+        const { accessToken, refreshToken: newRefreshToken } = response.data;
+
+        localStorage.setItem("authToken", accessToken);
+        localStorage.setItem("refreshToken", newRefreshToken || refreshToken);
+        if (response.data.sessionId) {
+          localStorage.setItem("sessionId", response.data.sessionId);
+          setSessionId(response.data.sessionId);
+        }
 
         // Update state
-        setToken(response.data.accessToken);
-        setRefreshToken(response.data.refreshToken);
+        setToken(accessToken);
+        if (newRefreshToken) setRefreshToken(newRefreshToken);
 
         // Extract and set user
-        const user = extractUserFromToken(response.data.accessToken);
+        const user = extractUserFromToken(accessToken);
         setCurrentUser(user);
-
-        // Set authorization header for all requests
-        api.defaults.headers.common[
-          "Authorization"
-        ] = `Bearer ${response.data.accessToken}`;
 
         // Schedule next refresh
         scheduleTokenRefresh();
 
         return true;
       } else {
-        throw new Error(response.data.error || "Token refresh failed");
+        throw new Error(response.data?.error || "Token refresh failed");
       }
     } catch (error) {
       console.error("Token refresh error:", error);
 
       // If refresh fails, clear auth state
-      logout();
+      logout(false); // Don't call server logout
       setError("Your session has expired. Please login again.");
 
       return false;
@@ -209,32 +193,35 @@ export function AuthProvider({ children }) {
         return false;
       }
 
-      const response = await api.post("/api/auth/login", { email, password });
+      const response = await apiService.auth.login(email, password);
 
-      if (response.data.success) {
+      if (response.data && response.data.success) {
         // Save tokens and session ID to localStorage
-        localStorage.setItem("authToken", response.data.token);
-        localStorage.setItem("refreshToken", response.data.refreshToken || "");
-        localStorage.setItem("sessionId", response.data.sessionId || "");
+        const {
+          token: accessToken,
+          refreshToken: newRefreshToken,
+          sessionId: newSessionId,
+        } = response.data;
+
+        localStorage.setItem("authToken", accessToken);
+        localStorage.setItem("refreshToken", newRefreshToken || "");
+        localStorage.setItem("sessionId", newSessionId || "");
 
         // Update state
-        setToken(response.data.token);
-        setRefreshToken(response.data.refreshToken || "");
-        setSessionId(response.data.sessionId || "");
-        setCurrentUser(response.data.user);
+        setToken(accessToken);
+        setRefreshToken(newRefreshToken || "");
+        setSessionId(newSessionId || "");
 
-        // Set default auth header for future requests
-        api.defaults.headers.common[
-          "Authorization"
-        ] = `Bearer ${response.data.token}`;
+        // Set user from token
+        const user = extractUserFromToken(accessToken);
+        setCurrentUser(user);
 
-        // Extract token expiry for refresh scheduling
-        const user = extractUserFromToken(response.data.token);
+        // Schedule token refresh
         scheduleTokenRefresh();
 
         return true;
       } else {
-        setError(response.data.error || "Login failed");
+        setError(response.data?.error || "Login failed");
         return false;
       }
     } catch (error) {
@@ -252,34 +239,35 @@ export function AuthProvider({ children }) {
       setError("");
       setLoading(true);
 
-      const response = await api.post("/api/auth/exchange", { code });
+      const response = await apiService.auth.exchangeToken(code);
 
-      if (response.data.success) {
+      if (response.data && response.data.success) {
         // Save tokens and session ID to localStorage
-        localStorage.setItem("authToken", response.data.accessToken);
-        localStorage.setItem("refreshToken", response.data.refreshToken || "");
-        localStorage.setItem("sessionId", response.data.sessionId || "");
+        const {
+          accessToken,
+          refreshToken: newRefreshToken,
+          sessionId: newSessionId,
+        } = response.data;
+
+        localStorage.setItem("authToken", accessToken);
+        localStorage.setItem("refreshToken", newRefreshToken || "");
+        localStorage.setItem("sessionId", newSessionId || "");
 
         // Update state
-        setToken(response.data.accessToken);
-        setRefreshToken(response.data.refreshToken || "");
-        setSessionId(response.data.sessionId || "");
+        setToken(accessToken);
+        setRefreshToken(newRefreshToken || "");
+        setSessionId(newSessionId || "");
 
         // Extract and set user
-        const user = extractUserFromToken(response.data.accessToken);
+        const user = extractUserFromToken(accessToken);
         setCurrentUser(user);
-
-        // Set authorization header for all requests
-        api.defaults.headers.common[
-          "Authorization"
-        ] = `Bearer ${response.data.accessToken}`;
 
         // Schedule token refresh
         scheduleTokenRefresh();
 
         return true;
       } else {
-        throw new Error(response.data.error || "Token exchange failed");
+        throw new Error(response.data?.error || "Token exchange failed");
       }
     } catch (error) {
       console.error("Token exchange error:", error);
@@ -296,15 +284,15 @@ export function AuthProvider({ children }) {
   // Logout function
   const logout = async (serverSide = true) => {
     // Clear refresh timer
-    if (refreshTimer) {
-      clearTimeout(refreshTimer);
-      setRefreshTimer(null);
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
     }
 
-    if (serverSide) {
+    if (serverSide && refreshToken) {
       try {
         // Call server to invalidate token
-        await api.post("/api/auth/logout", { refreshToken });
+        await apiService.auth.logout();
       } catch (error) {
         console.error("Logout error:", error);
       }
@@ -321,9 +309,6 @@ export function AuthProvider({ children }) {
     setSessionId(null);
     setCurrentUser(null);
     setTokenExpiry(null);
-
-    // Clear authorization header
-    delete api.defaults.headers.common["Authorization"];
   };
 
   // Register function (admin only)
@@ -337,12 +322,12 @@ export function AuthProvider({ children }) {
         return false;
       }
 
-      const response = await api.post("/api/auth/register", userData);
+      const response = await apiService.auth.register(userData);
 
-      if (response.data.success) {
+      if (response.data && response.data.success) {
         return response.data;
       } else {
-        setError(response.data.error || "Registration failed");
+        setError(response.data?.error || "Registration failed");
         return false;
       }
     } catch (error) {
@@ -364,12 +349,10 @@ export function AuthProvider({ children }) {
         return false;
       }
 
-      const response = await api.post("/api/auth/password/reset-request", {
-        email,
-      });
+      const response = await apiService.auth.requestPasswordReset(email);
 
       // Usually returns success whether email exists or not to prevent enumeration
-      return response.data.success;
+      return response.data?.success || true;
     } catch (error) {
       console.error("Password reset request error:", error);
       setError(
@@ -389,15 +372,12 @@ export function AuthProvider({ children }) {
         return false;
       }
 
-      const response = await api.post("/api/auth/password/reset", {
-        password,
-        token,
-      });
+      const response = await apiService.auth.resetPassword(token, password);
 
-      if (response.data.success) {
+      if (response.data && response.data.success) {
         return true;
       } else {
-        setError(response.data.error || "Password reset failed");
+        setError(response.data?.error || "Password reset failed");
         return false;
       }
     } catch (error) {
@@ -417,15 +397,15 @@ export function AuthProvider({ children }) {
         return false;
       }
 
-      const response = await api.post("/api/auth/password/change", {
+      const response = await apiService.auth.changePassword(
         currentPassword,
-        newPassword,
-      });
+        newPassword
+      );
 
-      if (response.data.success) {
+      if (response.data && response.data.success) {
         return true;
       } else {
-        setError(response.data.error || "Password change failed");
+        setError(response.data?.error || "Password change failed");
         return false;
       }
     } catch (error) {
@@ -438,12 +418,12 @@ export function AuthProvider({ children }) {
   // Get active sessions
   const getActiveSessions = async () => {
     try {
-      const response = await api.get("/api/auth/sessions");
+      const response = await apiService.auth.getSessions();
 
-      if (response.data.success) {
+      if (response.data && response.data.success) {
         return response.data.sessions;
       } else {
-        throw new Error(response.data.error || "Failed to retrieve sessions");
+        throw new Error(response.data?.error || "Failed to retrieve sessions");
       }
     } catch (error) {
       console.error("Get sessions error:", error);
@@ -455,9 +435,8 @@ export function AuthProvider({ children }) {
   // Revoke session
   const revokeSession = async (sessionId) => {
     try {
-      const response = await api.delete(`/api/auth/sessions/${sessionId}`);
-
-      return response.data.success;
+      const response = await apiService.auth.terminateSession(sessionId);
+      return response.data?.success || false;
     } catch (error) {
       console.error("Revoke session error:", error);
       setError(error.response?.data?.error || "Failed to revoke session");
@@ -468,12 +447,59 @@ export function AuthProvider({ children }) {
   // Revoke all other sessions
   const revokeAllOtherSessions = async () => {
     try {
-      const response = await api.post("/api/auth/sessions/terminate-all");
-
-      return response.data.success;
+      const response = await apiService.auth.terminateAllSessions();
+      return response.data?.success || false;
     } catch (error) {
       console.error("Revoke all sessions error:", error);
       setError(error.response?.data?.error || "Failed to revoke sessions");
+      return false;
+    }
+  };
+
+  // MFA setup functions
+  const setupMfa = async (type, data = {}) => {
+    try {
+      const response = await apiService.mfa.setup(type, data);
+      return response.data;
+    } catch (error) {
+      console.error("MFA setup error:", error);
+      setError(error.response?.data?.error || "Failed to set up MFA");
+      return null;
+    }
+  };
+
+  const confirmMfa = async (methodId, verificationCode) => {
+    try {
+      const response = await apiService.mfa.verify(methodId, verificationCode);
+
+      if (response.data && response.data.success) {
+        // Refresh user data to get updated MFA methods
+        refreshUserToken();
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error("MFA verification error:", error);
+      setError(error.response?.data?.error || "Failed to verify MFA");
+      return false;
+    }
+  };
+
+  const removeMfa = async (methodId) => {
+    try {
+      const response = await apiService.mfa.remove(methodId);
+
+      if (response.data && response.data.success) {
+        // Refresh user data to get updated MFA methods
+        refreshUserToken();
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error("MFA removal error:", error);
+      setError(error.response?.data?.error || "Failed to remove MFA method");
       return false;
     }
   };
@@ -489,13 +515,8 @@ export function AuthProvider({ children }) {
       return true;
     }
 
-    // This is a simplified check - the actual permission check is done server-side
-    // For UX purposes, we can implement a more complex check that mirrors the server logic
-    // For now, we only check common permissions based on role
-
-    // Admin has most permissions
+    // Admin has most permissions except system level ones
     if (currentUser.roles.includes("admin")) {
-      // Block only critical super_admin permissions
       return !permissionCode.startsWith("system.");
     }
 
@@ -507,7 +528,54 @@ export function AuthProvider({ children }) {
       return true;
     }
 
+    // Check feature access based on tier
+    if (permissionCode.startsWith("feature.")) {
+      const featureName = permissionCode.substring("feature.".length);
+      return hasFeatureAccess(featureName);
+    }
+
     return false;
+  };
+
+  // Check if feature is available based on subscription tier
+  const hasFeatureAccess = (featureName) => {
+    if (!currentUser) return false;
+
+    // Super admin and admin have access to all features
+    if (
+      currentUser.roles.includes("super_admin") ||
+      currentUser.roles.includes("admin")
+    ) {
+      return true;
+    }
+
+    // Check if feature is explicitly enabled for this user
+    if (currentUser.features && currentUser.features[featureName] === true) {
+      return true;
+    }
+
+    // Check based on tier
+    const tier = currentUser.tier || "basic";
+
+    switch (tier.toLowerCase()) {
+      case "enterprise":
+        // Enterprise tier has all features
+        return true;
+
+      case "professional":
+        // Professional has most features except enterprise-only
+        return !ENTERPRISE_ONLY_FEATURES.includes(featureName);
+
+      case "basic":
+      default:
+        // Basic tier has limited features
+        return BASIC_FEATURES.includes(featureName);
+    }
+  };
+
+  // Check user tier level
+  const getUserTier = () => {
+    return currentUser?.tier || "basic";
   };
 
   // Check if user has specific role
@@ -524,6 +592,30 @@ export function AuthProvider({ children }) {
     return currentUser.roles.includes(roleCode);
   };
 
+  // Feature configuration
+  const BASIC_FEATURES = [
+    "chatbot",
+    "basic_search",
+    "file_upload",
+    "image_analysis",
+  ];
+
+  const ENTERPRISE_ONLY_FEATURES = [
+    "custom_workflows",
+    "advanced_analytics",
+    "multi_department",
+    "automated_alerts",
+    "custom_integrations",
+    "advanced_security",
+  ];
+
+  const isAdmin =
+    currentUser?.roles?.includes("admin") ||
+    currentUser?.roles?.includes("super_admin") ||
+    false;
+
+  const isSuperAdmin = currentUser?.roles?.includes("super_admin") || false;
+
   const value = {
     currentUser,
     loading,
@@ -532,13 +624,12 @@ export function AuthProvider({ children }) {
     login,
     logout,
     register,
-    isAdmin:
-      currentUser?.roles?.includes("admin") ||
-      currentUser?.roles?.includes("super_admin") ||
-      false,
-    isSuperAdmin: currentUser?.roles?.includes("super_admin") || false,
+    isAdmin,
+    isSuperAdmin,
     hasPermission,
     hasRole,
+    hasFeatureAccess,
+    getUserTier,
     refreshUserToken,
     processTokenExchange,
     requestPasswordReset,
@@ -548,6 +639,9 @@ export function AuthProvider({ children }) {
     revokeSession,
     revokeAllOtherSessions,
     tokenExpiry,
+    setupMfa,
+    confirmMfa,
+    removeMfa,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
