@@ -150,11 +150,17 @@ export function useCRM(initialProvider = null) {
         setIsLoading(true);
         setError(null);
 
-        const response = await apiService.crm.linkDocument(contactId, {
-          provider: selectedProvider,
+        // Adjust data format to match backend expectations
+        const requestData = {
           documentPath: documentData.documentPath,
-          documentMetadata: documentData,
-        });
+          documentMetadata: documentData.documentMetadata || documentData,
+          provider: selectedProvider,
+        };
+
+        const response = await apiService.crm.linkDocument(
+          contactId,
+          requestData
+        );
 
         if (response.data.success) {
           toast({
@@ -196,7 +202,6 @@ export function useCRM(initialProvider = null) {
     [selectedProvider, toast]
   );
 
-  // Create contact
   const createContact = useCallback(
     async (contactData) => {
       if (!selectedProvider) {
@@ -208,8 +213,8 @@ export function useCRM(initialProvider = null) {
         setError(null);
 
         const response = await apiService.crm.createContact(
-          selectedProvider,
-          contactData
+          contactData,
+          selectedProvider
         );
 
         if (response.data.success) {

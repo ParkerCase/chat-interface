@@ -307,6 +307,75 @@ const apiService = {
     exchangeToken: (code) => apiClient.post("/api/auth/exchange", { code }),
   },
 
+  // CRM endpoints
+  crm: {
+    getProviders: () => apiClient.get("/api/crm/providers"),
+
+    getContacts: (provider, query, limit = 10) =>
+      apiClient.get(
+        `/api/crm/contacts?provider=${encodeURIComponent(
+          provider
+        )}&query=${encodeURIComponent(query)}&limit=${limit}`
+      ),
+
+    createContact: (contact, provider) =>
+      apiClient.post("/api/crm/contacts", { contact, provider }),
+
+    getContactDocuments: (contactId, provider) =>
+      apiClient.get(
+        `/api/crm/contacts/${contactId}/documents?provider=${encodeURIComponent(
+          provider
+        )}`
+      ),
+
+    linkDocument: (contactId, data) =>
+      apiClient.post(`/api/crm/contacts/${contactId}/documents`, data),
+
+    syncEntity: (provider, entity, options) =>
+      apiClient.post("/api/crm/sync", { provider, entity, options }),
+
+    getConfiguration: (provider) =>
+      apiClient.get(`/api/crm/config?provider=${encodeURIComponent(provider)}`),
+
+    updateConfiguration: (provider, config) =>
+      apiClient.post("/api/crm/config", { provider, config }),
+  },
+
+  // Zenoti specific endpoints (if needed separately from CRM abstraction)
+  zenoti: {
+    getAppointments: (params) => {
+      const query = new URLSearchParams(params).toString();
+      return apiClient.get(`/api/zenoti/appointments?${query}`);
+    },
+
+    searchClients: (params) => {
+      const query = new URLSearchParams(params).toString();
+      return apiClient.get(`/api/zenoti/clients?${query}`);
+    },
+
+    getClient: (id) => apiClient.get(`/api/zenoti/client/${id}`),
+
+    getCenters: () => apiClient.get("/api/zenoti/centers"),
+
+    getServices: (centerCode) =>
+      apiClient.get(
+        `/api/zenoti/services${centerCode ? `?centerCode=${centerCode}` : ""}`
+      ),
+
+    createAppointment: (appointmentData) =>
+      apiClient.post("/api/zenoti/appointment", appointmentData),
+
+    checkConnectionStatus: () => apiClient.get("/api/zenoti/status"),
+
+    getClientHistory: (clientId) =>
+      apiClient.get(`/api/zenoti/client/${clientId}/history`),
+
+    getAvailability: (params) => {
+      const query = new URLSearchParams(params).toString();
+      return apiClient.get(`/api/zenoti/availability?${query}`);
+    },
+  },
+
   // Session management endpoints
   sessions: {
     getSessions: () => apiClient.get("/api/sessions"),
