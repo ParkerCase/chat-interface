@@ -1,4 +1,4 @@
-// src/router.jsx
+// src/router.jsx (updated version)
 import React from "react";
 import { createBrowserRouter, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
@@ -9,19 +9,14 @@ import AppLayout from "./components/layouts/AppLayout";
 import AuthLayout from "./components/layouts/AuthLayout";
 
 // Pages
-import LoginPage from "./pages/auth/LoginPage";
-import RegisterPage from "./pages/auth/RegisterPage";
-import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
-import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
-import MfaVerifyPage from "./pages/auth/MfaVerifyPage";
-
-import DashboardPage from "./pages/DashboardPage";
-import ProfilePage from "./pages/ProfilePage";
-import SecurityPage from "./pages/SecurityPage";
+import AuthPage from "./components/AuthPage"; // Updated to match your actual component
+import MfaVerify from "./components/MfaVerify"; // Updated to match your actual component
+import MainApp from "./components/MainApp";
+import AccountSettings from "./components/account/AccountSettings";
 
 // Admin pages
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import UserManagement from "./pages/admin/UserManagement";
+import AdminPanel from "./components/admin/AdminPanel";
+import Register from "./components/admin/Register";
 
 // Enterprise pages
 import WorkflowManagement from "./components/enterprise/WorkflowManagement";
@@ -29,9 +24,20 @@ import IntegrationSettings from "./components/enterprise/IntegrationSettings";
 import AlertsManagement from "./components/enterprise/AlertsManagement";
 import AnalyticsDashboard from "./components/enterprise/AnalyticsDashboard";
 
-// Error pages
-import NotFoundPage from "./pages/errors/NotFoundPage";
-import ForbiddenPage from "./pages/errors/ForbiddenPage";
+// Error fallback components
+const NotFoundPage = () => (
+  <div className="error-page">
+    <h1>404 - Page Not Found</h1>
+    <p>The page you are looking for does not exist.</p>
+  </div>
+);
+
+const ForbiddenPage = () => (
+  <div className="error-page">
+    <h1>403 - Forbidden</h1>
+    <p>You don't have permission to access this resource.</p>
+  </div>
+);
 
 // Protected route component
 const ProtectedRoute = ({ children }) => {
@@ -59,6 +65,11 @@ const ProtectedRoute = ({ children }) => {
 // Role protected route component
 const RoleProtectedRoute = ({ roles, children }) => {
   const { currentUser, hasRole } = useAuth();
+
+  // Super admin always has access
+  if (hasRole("super_admin")) {
+    return children;
+  }
 
   // Check if user has any of the required roles
   const hasRequiredRole = roles.some((role) => hasRole(role));
@@ -91,23 +102,23 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/login",
-        element: <LoginPage />,
-      },
-      {
-        path: "/register",
-        element: <RegisterPage />,
+        element: <AuthPage />,
       },
       {
         path: "/forgot-password",
-        element: <ForgotPasswordPage />,
+        element: <AuthPage />,
       },
       {
         path: "/reset-password",
-        element: <ResetPasswordPage />,
+        element: <AuthPage />,
+      },
+      {
+        path: "/passcode",
+        element: <AuthPage />,
       },
       {
         path: "/mfa/verify",
-        element: <MfaVerifyPage />,
+        element: <MfaVerify />,
       },
       {
         path: "/auth/callback",
@@ -127,15 +138,23 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/",
-        element: <DashboardPage />,
+        element: <MainApp />,
       },
       {
         path: "/profile",
-        element: <ProfilePage />,
+        element: <AccountSettings tab="profile" />,
       },
       {
         path: "/security",
-        element: <SecurityPage />,
+        element: <AccountSettings tab="security" />,
+      },
+      {
+        path: "/password",
+        element: <AccountSettings tab="password" />,
+      },
+      {
+        path: "/sessions",
+        element: <AccountSettings tab="sessions" />,
       },
 
       // Admin routes
@@ -143,15 +162,15 @@ const router = createBrowserRouter([
         path: "/admin",
         element: (
           <RoleProtectedRoute roles={["admin", "super_admin"]}>
-            <AdminDashboard />
+            <AdminPanel />
           </RoleProtectedRoute>
         ),
       },
       {
-        path: "/admin/users",
+        path: "/admin/register",
         element: (
           <RoleProtectedRoute roles={["admin", "super_admin"]}>
-            <UserManagement />
+            <Register />
           </RoleProtectedRoute>
         ),
       },
