@@ -1,5 +1,9 @@
 // src/components/UpgradePrompt.jsx
 import React from "react";
+import { useFeatureFlags } from "../utils/featureFlags";
+import "./UpgradePrompt.css";
+
+// Using relative imports instead of aliases
 import {
   Dialog,
   DialogContent,
@@ -13,7 +17,8 @@ import {
   CardTitle,
   CardDescription,
   Badge,
-} from "@/components/ui";
+} from "../ui/index.js";
+
 import {
   X,
   CheckCircle,
@@ -22,7 +27,6 @@ import {
   Rocket,
   Star,
 } from "lucide-react";
-import { useFeatureFlags } from "../utils/featureFlags";
 
 // Feature descriptions for the upgrade prompts
 const featureDescriptions = {

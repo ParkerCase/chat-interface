@@ -15,6 +15,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import AuthPage from "./components/AuthPage";
+import AdminPanel from "./components/admin/AdminPanel";
 
 // Professional Tier Features
 import APIKeyManagement from "./components/APIKeyManagement";
