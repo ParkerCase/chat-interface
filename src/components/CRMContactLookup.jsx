@@ -1,3 +1,4 @@
+// src/components/crm/CRMContactLookup.jsx - Fixed import paths
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Input,
@@ -9,10 +10,7 @@ import {
   Spinner,
   Badge,
   Table,
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui";
+} from "../../ui/index.js";
 import {
   Search,
   User,
@@ -21,8 +19,13 @@ import {
   FileText,
   ExternalLink,
   RefreshCw,
+  UserPlus,
+  AlertCircle,
+  CheckCircle,
 } from "lucide-react";
 import { debounce } from "lodash";
+import { useCRM } from "../../hooks/useCRM";
+import CreateContactForm from "./CreateContactForm";
 
 const CRMContactLookup = ({
   onSelectContact,
@@ -31,39 +34,56 @@ const CRMContactLookup = ({
   allowProviderChange = true,
   className = "",
 }) => {
-  const [providers, setProviders] = useState([]);
-  const [selectedProvider, setSelectedProvider] = useState(provider);
-  const [isLoading, setIsLoading] = useState(false);
+  const {
+    providers,
+    selectedProvider,
+    defaultProvider,
+    isLoading: crmLoading,
+    error: crmError,
+    setSelectedProvider,
+    searchContacts,
+    getContactDocuments,
+  } = useCRM(provider);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [contacts, setContacts] = useState([]);
   const [documents, setDocuments] = useState({});
   const [error, setError] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [providerStatus, setProviderStatus] = useState({});
 
-  // Load providers on mount
-  useEffect(() => {
-    const loadProviders = async () => {
-      try {
-        const response = await fetch("/api/crm/providers");
+  const checkProviderStatus = async () => {
+    if (!selectedProvider) return;
+
+    try {
+      // For Zenoti provider
+      if (selectedProvider === "zenoti") {
+        const response = await fetch("/api/zenoti/status");
         const data = await response.json();
-
-        if (data.success && data.providers.length > 0) {
-          setProviders(data.providers);
-
-          // Set default provider if not already set
-          if (!selectedProvider) {
-            setSelectedProvider(data.defaultProvider || data.providers[0].name);
-          }
-        } else {
-          setError("No CRM providers available");
-        }
-      } catch (err) {
-        setError("Failed to load CRM providers");
-        console.error("Error loading CRM providers:", err);
+        setProviderStatus((prev) => ({
+          ...prev,
+          [selectedProvider]: data.status === "connected",
+        }));
+      } else {
+        // Generic check for other providers
+        const response = await fetch(
+          `/api/crm/config?provider=${selectedProvider}`
+        );
+        const data = await response.json();
+        setProviderStatus((prev) => ({
+          ...prev,
+          [selectedProvider]: data.success,
+        }));
       }
-    };
-
-    loadProviders();
-  }, []);
+    } catch (err) {
+      console.error(`Error checking ${selectedProvider} status:`, err);
+      setProviderStatus((prev) => ({
+        ...prev,
+        [selectedProvider]: false,
+      }));
+    }
+  };
 
   // Debounced search function
   const debouncedSearch = useCallback(
@@ -73,32 +93,24 @@ const CRMContactLookup = ({
         return;
       }
 
-      setIsLoading(true);
+      setIsSearching(true);
       setError(null);
 
       try {
-        const response = await fetch(
-          `/api/crm/contacts?provider=${provider}&query=${encodeURIComponent(
-            term
-          )}&limit=10`
-        );
-        const data = await response.json();
+        const result = await searchContacts(term, { provider });
+        setContacts(result.contacts || []);
 
-        if (data.success) {
-          setContacts(data.contacts || []);
-        } else {
-          setError(data.error || "Failed to search contacts");
-          setContacts([]);
+        if (result.contacts?.length === 0) {
+          setError("No contacts found");
         }
       } catch (err) {
-        setError("Failed to search contacts");
+        setError(err.message || "Failed to search contacts");
         setContacts([]);
-        console.error("Error searching contacts:", err);
       } finally {
-        setIsLoading(false);
+        setIsSearching(false);
       }
     }, 500),
-    []
+    [searchContacts]
   );
 
   // Handle search input change
@@ -121,7 +133,11 @@ const CRMContactLookup = ({
   // Handle contact selection
   const handleSelectContact = (contact) => {
     if (onSelectContact) {
-      onSelectContact(contact);
+      // Add provider information to contact
+      onSelectContact({
+        ...contact,
+        provider: selectedProvider,
+      });
     }
 
     // Load documents if needed
@@ -135,24 +151,37 @@ const CRMContactLookup = ({
     if (documents[contactId]) return;
 
     try {
-      const response = await fetch(
-        `/api/crm/contacts/${contactId}/documents?provider=${selectedProvider}`
-      );
-      const data = await response.json();
+      const result = await getContactDocuments(contactId);
 
-      if (data.success) {
-        setDocuments((prev) => ({
-          ...prev,
-          [contactId]: data.documents || [],
-        }));
-      }
+      setDocuments((prev) => ({
+        ...prev,
+        [contactId]: result.documents || [],
+      }));
     } catch (err) {
       console.error("Error loading contact documents:", err);
     }
   };
 
-  // Render loading state
-  if (providers.length === 0 && !error) {
+  // Handle creating new contact
+  const handleCreateNewContact = () => {
+    setShowCreateForm(true);
+  };
+
+  // Handle contact creation success
+  const handleContactCreated = (newContact) => {
+    setShowCreateForm(false);
+    setContacts([newContact, ...contacts]);
+    handleSelectContact(newContact);
+  };
+
+  useEffect(() => {
+    if (selectedProvider) {
+      checkProviderStatus();
+    }
+  }, [selectedProvider]);
+
+  // Render loading state for CRM providers
+  if (crmLoading && providers.length === 0) {
     return (
       <div className="flex items-center justify-center p-4">
         <Spinner size="md" />
@@ -161,11 +190,11 @@ const CRMContactLookup = ({
     );
   }
 
-  // Render error state
-  if (error && providers.length === 0) {
+  // Render error state for CRM providers
+  if (crmError && providers.length === 0) {
     return (
       <div className="text-red-500 p-4 border border-red-300 rounded">
-        {error}
+        {crmError}
       </div>
     );
   }
@@ -175,18 +204,41 @@ const CRMContactLookup = ({
       <div className="flex flex-col space-y-4">
         {/* Provider selector and search bar */}
         <div className="flex space-x-2">
-          {allowProviderChange && (
-            <Select
-              value={selectedProvider}
-              onChange={handleProviderChange}
-              className="w-40"
-            >
-              {providers.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.displayName || p.name}
-                </option>
-              ))}
-            </Select>
+          {allowProviderChange && providers.length > 0 && (
+            <div className="flex items-center">
+              <Select
+                value={selectedProvider}
+                onChange={handleProviderChange}
+                className="w-40"
+              >
+                {providers.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.displayName || p.name}
+                  </option>
+                ))}
+              </Select>
+              {selectedProvider && (
+                <div className="ml-2">
+                  {providerStatus[selectedProvider] ? (
+                    <Badge
+                      variant="outline"
+                      className="bg-green-50 text-green-700 border-green-200"
+                    >
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Connected
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="bg-red-50 text-red-700 border-red-200"
+                    >
+                      <AlertCircle className="h-3 w-3 mr-1" />
+                      Disconnected
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           <div className="relative flex-1">
@@ -195,10 +247,10 @@ const CRMContactLookup = ({
               value={searchTerm}
               onChange={handleSearchChange}
               className="w-full pl-10"
-              disabled={isLoading}
+              disabled={isSearching || !selectedProvider}
             />
             <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              {isLoading ? (
+              {isSearching ? (
                 <Spinner size="sm" />
               ) : (
                 <Search className="h-4 w-4 text-gray-400" />
@@ -301,24 +353,36 @@ const CRMContactLookup = ({
               </Card>
             ))}
           </div>
-        ) : searchTerm.length > 0 && !isLoading ? (
+        ) : searchTerm.length > 0 && !isSearching ? (
           <div className="text-center py-4 text-gray-500">
             No contacts found matching "{searchTerm}"
             <div className="mt-2">
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => {
-                  // Implement create contact functionality
-                  console.log("Create contact:", searchTerm);
-                }}
+                onClick={handleCreateNewContact}
               >
+                <UserPlus className="h-4 w-4 mr-2" />
                 Create New Contact
               </Button>
             </div>
           </div>
         ) : null}
       </div>
+
+      {/* Create contact form modal */}
+      {showCreateForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <CreateContactForm
+              provider={selectedProvider}
+              initialData={{ name: searchTerm }}
+              onSuccess={handleContactCreated}
+              onCancel={() => setShowCreateForm(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

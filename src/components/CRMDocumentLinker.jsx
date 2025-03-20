@@ -1,18 +1,21 @@
+// src/components/crm/CRMDocumentLinker.jsx - Fixed import paths
 import React, { useState, useEffect } from "react";
 import {
   Button,
   Input,
   Textarea,
   Alert,
-  AlertTitle,
   Card,
   CardHeader,
   CardTitle,
   CardContent,
   CardFooter,
-} from "@/components/ui";
+  Spinner,
+} from "../../ui/index.js";
 import { Paperclip, Link, Check, AlertCircle } from "lucide-react";
 import CRMContactLookup from "./CRMContactLookup";
+import { useCRM } from "../../hooks/useCRM";
+import apiService from "../../services/apiService";
 
 const CRMDocumentLinker = ({
   documentPath,
@@ -21,24 +24,23 @@ const CRMDocumentLinker = ({
   onCancel,
   className = "",
 }) => {
+  const { linkDocumentToContact } = useCRM();
   const [selectedContact, setSelectedContact] = useState(null);
   const [description, setDescription] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [metadata, setDocumentMetadata] = useState(documentMetadata);
 
   // Load document metadata if not provided
   useEffect(() => {
-    if (!documentMetadata && documentPath) {
+    if (!metadata && documentPath) {
       const loadMetadata = async () => {
         try {
-          const response = await fetch(
-            `/api/storage/metadata?path=${encodeURIComponent(documentPath)}`
-          );
-          const data = await response.json();
+          const response = await apiService.storage.getMetadata(documentPath);
 
-          if (data.success) {
-            setDocumentMetadata(data.metadata);
+          if (response.data.success) {
+            setDocumentMetadata(response.data.metadata);
           }
         } catch (err) {
           console.error("Error loading document metadata:", err);
@@ -47,7 +49,7 @@ const CRMDocumentLinker = ({
 
       loadMetadata();
     }
-  }, [documentPath, documentMetadata]);
+  }, [documentPath, metadata]);
 
   // Handle contact selection from lookup
   const handleSelectContact = (contact) => {
@@ -71,42 +73,36 @@ const CRMDocumentLinker = ({
     setError(null);
 
     try {
-      const response = await fetch(
-        `/api/crm/contacts/${selectedContact.id}/documents`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            documentPath,
-            provider: selectedContact.provider,
-            documentMetadata: {
-              ...documentMetadata,
-              description,
-            },
-          }),
-        }
-      );
+      // Prepare document metadata
+      const docMetadata = {
+        ...metadata,
+        description,
+      };
 
-      const data = await response.json();
+      // Link document to contact
+      const result = await linkDocumentToContact(selectedContact.id, {
+        documentPath,
+        documentMetadata: docMetadata,
+      });
 
-      if (data.success || data.id) {
+      if (result.success) {
         setSuccess(true);
 
-        if (onSuccess) {
-          onSuccess({
-            contact: selectedContact,
-            documentPath,
-            result: data,
-          });
-        }
+        // Call success callback after a short delay for better UX
+        setTimeout(() => {
+          if (onSuccess) {
+            onSuccess({
+              contact: selectedContact,
+              documentPath,
+              result: result.document,
+            });
+          }
+        }, 1500);
       } else {
-        setError(data.error || "Failed to link document");
+        setError(result.error || "Failed to link document");
       }
     } catch (err) {
-      setError("Failed to link document to contact");
-      console.error("Error linking document:", err);
+      setError(err.message || "Failed to link document to contact");
     } finally {
       setIsLoading(false);
     }
@@ -128,7 +124,7 @@ const CRMDocumentLinker = ({
             <Paperclip className="h-5 w-5 mr-2 mt-0.5" />
             <div>
               <p className="font-medium">
-                {documentMetadata?.name || documentPath.split("/").pop()}
+                {metadata?.name || documentPath.split("/").pop()}
               </p>
               <p className="text-sm text-gray-500 truncate">{documentPath}</p>
             </div>
@@ -150,7 +146,7 @@ const CRMDocumentLinker = ({
               <Check className="h-4 w-4 text-green-500 mr-2" />
               <span className="font-medium">{selectedContact.name}</span>
               <span className="ml-2 text-sm text-gray-500">
-                ({selectedContact.email})
+                ({selectedContact.email || selectedContact.phone || ""})
               </span>
             </div>
           )}
@@ -166,6 +162,7 @@ const CRMDocumentLinker = ({
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Add a description about this document..."
             rows={3}
+            disabled={isLoading || success}
           />
         </div>
 
@@ -173,7 +170,6 @@ const CRMDocumentLinker = ({
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
             <p>{error}</p>
           </Alert>
         )}
@@ -182,7 +178,6 @@ const CRMDocumentLinker = ({
         {success && (
           <Alert variant="success">
             <Check className="h-4 w-4" />
-            <AlertTitle>Success</AlertTitle>
             <p>Document successfully linked to contact</p>
           </Alert>
         )}
@@ -190,7 +185,11 @@ const CRMDocumentLinker = ({
 
       <CardFooter className="border-t pt-4 flex justify-end space-x-2">
         {onCancel && (
-          <Button variant="outline" onClick={onCancel} disabled={isLoading}>
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            disabled={isLoading || success}
+          >
             Cancel
           </Button>
         )}
@@ -199,7 +198,19 @@ const CRMDocumentLinker = ({
           onClick={handleLinkDocument}
           disabled={!selectedContact || isLoading || success}
         >
-          {isLoading ? "Linking..." : success ? "Linked" : "Link Document"}
+          {isLoading ? (
+            <>
+              <Spinner className="mr-2 h-4 w-4" />
+              Linking...
+            </>
+          ) : success ? (
+            <>
+              <Check className="mr-2 h-4 w-4" />
+              Linked
+            </>
+          ) : (
+            "Link Document"
+          )}
         </Button>
       </CardFooter>
     </Card>
