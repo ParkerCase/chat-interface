@@ -7,16 +7,10 @@ import {
   Navigate,
 } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
-import { FeatureFlagsProvider } from "./utils/featureFlags";
-import Login from "./components/Login";
+import { FeatureFlagProvider } from "./utils/featureFlags";
 import MainApp from "./components/MainApp";
-import AdminPanel from "./components/admin/AdminPanel";
 import Register from "./components/admin/Register";
-import PasscodeLogin from "./components/PasscodeLogin";
 import MfaVerify from "./components/MfaVerify";
-import ForgotPassword from "./components/ForgotPassword";
-import ResetPassword from "./components/ResetPassword";
-import AccountSettings from "./components/account/AccountSettings";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
@@ -109,35 +103,32 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <FeatureFlagsProvider>
+        <FeatureFlagProvider>
           <Router>
             <div className="app-container">
               <Routes>
                 {/* Public routes */}
                 <Route path="/login" element={<AuthPage />} />
-                <Route path="/passcode" element={<PasscodeLogin />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/passcode" element={<AuthPage />} />
+                <Route path="/forgot-password" element={<AuthPage />} />
+                <Route path="/reset-password" element={<AuthPage />} />
                 <Route path="/mfa/verify" element={<MfaVerify />} />
 
                 {/* Protected routes */}
                 <Route element={<ProtectedRoute />}>
                   <Route path="/" element={<MainApp />} />
-                  <Route
-                    path="/profile"
-                    element={<AccountSettings tab="profile" />}
-                  />
+                  <Route path="/profile" element={<AuthPage tab="profile" />} />
                   <Route
                     path="/security"
-                    element={<AccountSettings tab="security" />}
+                    element={<AuthPage tab="security" />}
                   />
                   <Route
                     path="/sessions"
-                    element={<AccountSettings tab="sessions" />}
+                    element={<AuthPage tab="sessions" />}
                   />
                   <Route
                     path="/password"
-                    element={<AccountSettings tab="password" />}
+                    element={<AuthPage tab="password" />}
                   />
 
                   {/* Professional tier features */}
@@ -164,7 +155,7 @@ function App() {
               </Routes>
             </div>
           </Router>
-        </FeatureFlagsProvider>
+        </FeatureFlagProvider>
       </AuthProvider>
     </ErrorBoundary>
   );
