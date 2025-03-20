@@ -7,16 +7,18 @@
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",
     "cra-template": "1.2.0",
+    "jwt-decode": "^4.0.0",
     "lucide-react": "^0.474.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-router-dom": "^7.4.0",
     "react-scripts": "^5.0.1",
     "web-vitals": "^4.2.4"
   },
   "scripts": {
-    "start": "PORT=9000 react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "start": "craco start",
+    "build": "craco build",
+    "test": "craco test",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -43,6 +45,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@craco/craco": "^7.1.0",
     "@shadcn/ui": "^0.0.4"
   }
 }

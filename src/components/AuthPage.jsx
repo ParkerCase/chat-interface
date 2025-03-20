@@ -20,7 +20,8 @@ import {
 import "./auth.css";
 
 function AuthPage() {
-  const [authMode, setAuthMode] = useState("login"); // login, passcode, forgot, reset
+  const [authMode, setAuthMode] = useState("login");
+  const [resetToken, setResetToken] = useState(""); // Add this line
   const location = useLocation();
   const navigate = useNavigate();
 
