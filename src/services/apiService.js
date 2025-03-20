@@ -281,6 +281,9 @@ const apiService = {
 
     register: (userData) => apiClient.post("/api/auth/register", userData),
 
+    verifyPasscode: (passcode) =>
+      apiClient.post("/api/auth/passcode", { passcode }),
+
     logout: () =>
       apiClient.post("/api/auth/logout", {
         refreshToken: localStorage.getItem("refreshToken"),
@@ -310,6 +313,9 @@ const apiService = {
 
     terminateAllSessions: () =>
       apiClient.post("/api/auth/sessions/terminate-all"),
+
+    exchangeToken: (code) =>
+      apiClient.post("/api/auth/token-exchange", { code }),
   },
 
   // MFA endpoints
@@ -325,6 +331,17 @@ const apiService = {
     remove: (methodId) => apiClient.delete(`/api/mfa/methods/${methodId}`),
 
     challenge: (methodId) => apiClient.post("/api/mfa/challenge", { methodId }),
+
+    login: (methodId, code) =>
+      apiClient.post("/api/mfa/login-verify", { methodId, code }),
+  },
+
+  // User profile endpoints
+  user: {
+    getProfile: () => apiClient.get("/api/user/profile"),
+
+    updateProfile: (profileData) =>
+      apiClient.post("/api/user/profile", profileData),
   },
 
   // Chat endpoints
@@ -360,12 +377,39 @@ const apiService = {
 
     analyzeSearchResult: (imagePath) =>
       apiClient.post("/api/analyze-search-result", { imagePath }),
+
+    processImage: (file, options = {}, onProgress) => {
+      const formData = new FormData();
+      formData.append("image", file);
+
+      if (options) {
+        Object.entries(options).forEach(([key, value]) => {
+          formData.append(
+            key,
+            typeof value === "object" ? JSON.stringify(value) : value
+          );
+        });
+      }
+
+      return uploadWithProgress("/api/image/process", formData, { onProgress });
+    },
+
+    getImageMetadata: (imagePath) =>
+      apiClient.get(
+        `/api/image/metadata?path=${encodeURIComponent(imagePath)}`
+      ),
   },
 
   // Search endpoints
   search: {
+    basic: (query) =>
+      apiClient.get(`/api/search?q=${encodeURIComponent(query)}`),
+
     advanced: (query, type = "all", limit = 20) =>
       apiClient.post("/api/search/dropbox", { query, type, limit }),
+
+    semantic: (query, options = {}) =>
+      apiClient.post("/api/search/semantic", { query, ...options }),
   },
 
   // Export endpoints
@@ -411,6 +455,65 @@ const apiService = {
 
     export: (themeId, format = "json") =>
       `${API_CONFIG.baseUrl}/api/themes/${themeId}/export?format=${format}`,
+  },
+
+  // Analytics endpoints (Professional and Enterprise tiers)
+  analytics: {
+    getStats: (timeframe = "week") =>
+      apiClient.get(`/api/analytics/stats?timeframe=${timeframe}`),
+
+    getUserActivity: (userId, timeframe = "week") =>
+      apiClient.get(`/api/analytics/user/${userId}?timeframe=${timeframe}`),
+
+    getSystemMetrics: () => apiClient.get("/api/analytics/system"),
+
+    getUsageReports: () => apiClient.get("/api/analytics/usage"),
+  },
+
+  // Workflows (Enterprise tier)
+  workflows: {
+    getAll: () => apiClient.get("/api/workflows"),
+
+    get: (workflowId) => apiClient.get(`/api/workflows/${workflowId}`),
+
+    create: (workflow) => apiClient.post("/api/workflows", workflow),
+
+    update: (workflowId, workflow) =>
+      apiClient.put(`/api/workflows/${workflowId}`, workflow),
+
+    delete: (workflowId) => apiClient.delete(`/api/workflows/${workflowId}`),
+
+    trigger: (workflowId, data) =>
+      apiClient.post(`/api/workflows/${workflowId}/trigger`, data),
+  },
+
+  // Alerts (Enterprise tier)
+  alerts: {
+    getAll: () => apiClient.get("/api/alerts"),
+
+    get: (alertId) => apiClient.get(`/api/alerts/${alertId}`),
+
+    create: (alert) => apiClient.post("/api/alerts", alert),
+
+    update: (alertId, alert) => apiClient.put(`/api/alerts/${alertId}`, alert),
+
+    delete: (alertId) => apiClient.delete(`/api/alerts/${alertId}`),
+
+    dismiss: (alertId) => apiClient.post(`/api/alerts/${alertId}/dismiss`),
+  },
+
+  // Integration endpoints (Professional and Enterprise tiers)
+  integrations: {
+    getAll: () => apiClient.get("/api/integrations"),
+
+    configure: (integrationType, config) =>
+      apiClient.post(`/api/integrations/${integrationType}/configure`, config),
+
+    test: (integrationType) =>
+      apiClient.post(`/api/integrations/${integrationType}/test`),
+
+    sync: (integrationType) =>
+      apiClient.post(`/api/integrations/${integrationType}/sync`),
   },
 
   // Server status
