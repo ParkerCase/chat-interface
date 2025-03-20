@@ -7,10 +7,17 @@ import ChatContainer from "./ChatContainer";
 import InputBar from "./InputBar";
 import AnalysisResult from "./AnalysisResult";
 import AdvancedSearch from "./AdvancedSearch";
-import { fetchWithTimeout, API_CONFIG } from "../utils/api-utils";
+import { useAuth } from "../context/AuthContext";
+import { useFeatureFlags, FeatureGate } from "../utils/featureFlags";
+import apiService from "../services/apiService";
+import UpgradePrompt from "./UpgradePrompt";
+import "./MainApp.css";
 
 function MainApp() {
   const navigate = useNavigate();
+  const { currentUser, logout } = useAuth();
+  const { isFeatureEnabled } = useFeatureFlags();
+
   const [messages, setMessages] = useState([]);
   const [file, setFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -20,6 +27,8 @@ function MainApp() {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisError, setAnalysisError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [upgradeTrigger, setUpgradeTrigger] = useState("");
 
   const messagesEndRef = useRef(null);
 
@@ -52,9 +61,10 @@ function MainApp() {
 
   // Handle logout
   const handleLogout = () => {
-    localStorage.removeItem("isAuthenticated");
+    logout();
+    localStorage.removeItem("chatMessages");
     setMessages([]);
-    navigate("/passcode");
+    navigate("/login");
   };
 
   const [userId] = useState(() => {
@@ -68,24 +78,12 @@ function MainApp() {
     return newId;
   });
 
-  // Connection checking logic (unchanged from App.jsx)
+  // Connection checking logic
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        const response = await fetchWithTimeout(
-          `${API_CONFIG.baseUrl}/status/check`,
-          {
-            method: "GET",
-            headers: { Accept: "application/json" },
-          },
-          10000
-        );
-
-        if (response.ok) {
-          setConnectionError(false);
-        } else {
-          throw new Error("Server returned error status");
-        }
+        const response = await apiService.status.check();
+        setConnectionError(false);
       } catch (error) {
         console.error("Connection check failed:", error);
         setConnectionError(true);
@@ -101,18 +99,7 @@ function MainApp() {
   const retryConnection = async () => {
     try {
       setConnectionError(false);
-      const response = await fetchWithTimeout(
-        `${API_CONFIG.baseUrl}/status/check`,
-        {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        },
-        10000
-      );
-
-      if (!response.ok) {
-        setConnectionError(true);
-      }
+      await apiService.status.check();
     } catch (error) {
       setConnectionError(true);
     }
@@ -124,6 +111,13 @@ function MainApp() {
     message = "",
     mode = "tensor"
   ) => {
+    // Check if image search is available for this user's tier
+    if (!isFeatureEnabled("image_search")) {
+      setShowUpgradePrompt(true);
+      setUpgradeTrigger("image_search");
+      return;
+    }
+
     try {
       setIsLoading(true);
       setUploadProgress(0);
@@ -150,16 +144,8 @@ function MainApp() {
         },
       ]);
 
-      // Create form data
-      const formData = new FormData();
-      formData.append("image", imageFile);
-      formData.append("mode", mode);
-
-      // Handle follow-up query with the image
       if (isFollowUpQuery) {
-        formData.append("message", message);
-        formData.append("userId", userId);
-
+        // Handle follow-up query with the image
         setMessages((prev) => [
           ...prev,
           {
@@ -169,113 +155,63 @@ function MainApp() {
           },
         ]);
 
-        // Use XHR for progress tracking
-        const xhr = new XMLHttpRequest();
-        const promise = new Promise((resolve, reject) => {
-          xhr.open("POST", `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.chat}`);
-
-          xhr.upload.addEventListener("progress", (event) => {
-            if (event.lengthComputable) {
-              const progress = Math.round((event.loaded / event.total) * 100);
-              setUploadProgress(progress);
-            }
-          });
-
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve(JSON.parse(xhr.responseText));
-            } else {
-              try {
-                reject(JSON.parse(xhr.responseText));
-              } catch (e) {
-                reject({ error: `Server error: ${xhr.status}` });
-              }
-            }
-          };
-
-          xhr.onerror = () => reject({ error: "Network error" });
-          xhr.send(formData);
-        });
-
-        const chatData = await promise;
+        const data = await apiService.chat.uploadImage(
+          imageFile,
+          userId,
+          message,
+          (progress) => setUploadProgress(progress)
+        );
 
         // Add assistant response to chat
         setMessages((prev) => [
           ...prev,
           {
             sender: "assistant",
-            text: chatData.response,
+            text: data.response,
             timestamp: new Date().toISOString(),
-            threadId: chatData.threadId,
+            threadId: data.threadId,
+          },
+        ]);
+      } else {
+        // For visual search
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "system",
+            text: `Searching with ${
+              mode === "tensor" ? "Full Image Match" : "Partial Image Match"
+            } mode...`,
+            timestamp: new Date().toISOString(),
           },
         ]);
 
-        return;
-      }
-
-      // For visual search
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "system",
-          text: `Searching with ${
-            mode === "tensor" ? "Full Image Match" : "Partial Image Match"
-          } mode...`,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-
-      // Track upload progress
-      const xhr = new XMLHttpRequest();
-      const promise = new Promise((resolve, reject) => {
-        xhr.open(
-          "POST",
-          `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.visualSearch}`
+        const data = await apiService.chat.visualSearch(
+          imageFile,
+          mode,
+          (progress) => setUploadProgress(progress)
         );
 
-        xhr.upload.addEventListener("progress", (event) => {
-          if (event.lengthComputable) {
-            const progress = Math.round((event.loaded / event.total) * 100);
-            setUploadProgress(progress);
-          }
-        });
+        setSearchResults(data);
 
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(JSON.parse(xhr.responseText));
-          } else {
-            try {
-              reject(JSON.parse(xhr.responseText));
-            } catch (e) {
-              reject({ error: `Server error: ${xhr.status}` });
-            }
-          }
-        };
+        // Format the response for chat
+        const formattedResponse = formatSearchResults(data, mode);
 
-        xhr.onerror = () => reject({ error: "Network error" });
-        xhr.send(formData);
-      });
-
-      const data = await promise;
-      setSearchResults(data);
-
-      // Format the response for chat
-      const formattedResponse = formatSearchResults(data, mode);
-
-      // Add search results to chat
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "assistant",
-          text: formattedResponse,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+        // Add search results to chat
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "assistant",
+            text: formattedResponse,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      }
     } catch (error) {
-      const userMessage =
-        error.message === "Network error"
-          ? "Network connection error. Please check your internet connection and try again."
-          : `Error searching for similar images: ${error.message}`;
+      const userMessage = error.isNetworkError
+        ? "Network connection error. Please check your internet connection and try again."
+        : `Error searching for similar images: ${
+            error.message || "Unknown error"
+          }`;
 
       setMessages((prev) => [
         ...prev,
@@ -355,7 +291,9 @@ function MainApp() {
 
         // Create clickable link for the full path
         const encodedPath = encodeURIComponent(match.path);
-        response += ` - Full path: <a href="${API_CONFIG.baseUrl}/image-viewer?path=${encodedPath}" target="_blank">${match.path}</a>\n`;
+        response += ` - Full path: <a href="${apiService.utils.getBaseUrl()}/image-viewer?path=${encodedPath}" target="_blank">${
+          match.path
+        }</a>\n`;
 
         // Add analyze link with properly escaped data attribute
         const escapedPath = match.path
@@ -393,26 +331,10 @@ function MainApp() {
         },
       ]);
 
-      const response = await fetchWithTimeout(
-        `${API_CONFIG.baseUrl}/api/analyze-image`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imagePath }),
-        },
-        30000
-      );
+      const { data } = await apiService.image.analyze(imagePath);
 
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ error: `Server error: ${response.status}` }));
-        throw new Error(errorData.error || `Server error: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
+      if (data && data.success) {
+        // Add assistant response to chat
         setMessages((prev) => [
           ...prev,
           {
@@ -424,13 +346,12 @@ function MainApp() {
 
         setAnalysisResult(data);
       } else {
-        throw new Error(data.error || "Unknown error analyzing image");
+        throw new Error(data?.error || "Unknown error analyzing image");
       }
     } catch (error) {
-      const userMessage =
-        error.message === "Failed to fetch"
-          ? "Network connection error. Please check your internet connection and try again."
-          : `Error analyzing image: ${error.message}`;
+      const userMessage = error.isNetworkError
+        ? "Network connection error. Please check your internet connection and try again."
+        : `Error analyzing image: ${error.message || "Unknown error"}`;
 
       setMessages((prev) => [
         ...prev,
@@ -454,23 +375,9 @@ function MainApp() {
       setIsAnalyzing(true);
       setAnalysisError(null);
 
-      const response = await fetchWithTimeout(
-        `${API_CONFIG.baseUrl}/api/analyze-search-result`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imagePath }),
-        },
-        30000
-      );
+      const { data } = await apiService.image.analyzeSearchResult(imagePath);
 
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
+      if (data && data.success) {
         setAnalysisResult(data);
 
         setMessages((prev) => [
@@ -484,10 +391,9 @@ function MainApp() {
         ]);
       }
     } catch (error) {
-      const userMessage =
-        error.message === "Failed to fetch"
-          ? "Network connection error. Please check your internet connection and try again."
-          : `Error analyzing image: ${error.message}`;
+      const userMessage = error.isNetworkError
+        ? "Network connection error. Please check your internet connection and try again."
+        : `Error analyzing image: ${error.message || "Unknown error"}`;
 
       setAnalysisError(userMessage);
 
@@ -537,30 +443,11 @@ function MainApp() {
           },
         ]);
 
-        const response = await fetchWithTimeout(
-          `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.analyzePath}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              imagePath: imagePath,
-              message: text,
-              userId: userId,
-            }),
-          },
-          180000
+        const { data } = await apiService.chat.analyzeImagePath(
+          imagePath,
+          text,
+          userId
         );
-
-        if (!response.ok) {
-          const errorData = await response
-            .json()
-            .catch(() => ({ error: `Server error: ${response.status}` }));
-          throw new Error(
-            errorData.error || `Server error: ${response.status}`
-          );
-        }
-
-        const data = await response.json();
 
         setMessages((prev) => [
           ...prev,
@@ -586,27 +473,7 @@ function MainApp() {
         },
       ]);
 
-      const formData = new FormData();
-      formData.append("message", text);
-      formData.append("userId", userId);
-
-      const response = await fetchWithTimeout(
-        `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.chat}`,
-        {
-          method: "POST",
-          body: formData,
-        },
-        120000
-      );
-
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ error: `Server error: ${response.status}` }));
-        throw new Error(errorData.error || `Server error: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const { data } = await apiService.chat.sendMessage(text, userId);
 
       let processedResponse = data.response;
 
@@ -615,7 +482,7 @@ function MainApp() {
         /\/(photos|marketing)[^\s"']+\.(jpg|jpeg|png|gif|webp)/gi,
         (match) => {
           const encodedPath = encodeURIComponent(match);
-          return `<a href="${API_CONFIG.baseUrl}/image-viewer?path=${encodedPath}" target="_blank">${match}</a>`;
+          return `<a href="${apiService.utils.getBaseUrl()}/image-viewer?path=${encodedPath}" target="_blank">${match}</a>`;
         }
       );
 
@@ -630,10 +497,11 @@ function MainApp() {
         },
       ]);
     } catch (error) {
-      const userMessage =
-        error.message === "Failed to fetch"
-          ? "Network connection error. Please check your internet connection and try again."
-          : `I apologize, but I encountered an error: ${error.message}. Please try again with a simpler query.`;
+      const userMessage = error.isNetworkError
+        ? "Network connection error. Please check your internet connection and try again."
+        : `I apologize, but I encountered an error: ${
+            error.message || "Unknown error"
+          }. Please try again with a simpler query.`;
 
       setMessages((prev) => [
         ...prev,
@@ -673,39 +541,12 @@ function MainApp() {
         },
       ]);
 
-      const formData = new FormData();
-      formData.append("image", file);
-      formData.append("userId", userId);
-      formData.append("message", "Analyze this image");
-
-      const xhr = new XMLHttpRequest();
-      const promise = new Promise((resolve, reject) => {
-        xhr.open("POST", `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.chat}`);
-
-        xhr.upload.addEventListener("progress", (event) => {
-          if (event.lengthComputable) {
-            const progress = Math.round((event.loaded / event.total) * 100);
-            setUploadProgress(progress);
-          }
-        });
-
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(JSON.parse(xhr.responseText));
-          } else {
-            try {
-              reject(JSON.parse(xhr.responseText));
-            } catch (e) {
-              reject({ error: `Server error: ${xhr.status}` });
-            }
-          }
-        };
-
-        xhr.onerror = () => reject({ error: "Network error" });
-        xhr.send(formData);
-      });
-
-      const data = await promise;
+      const data = await apiService.chat.uploadImage(
+        file,
+        userId,
+        "Analyze this image",
+        (progress) => setUploadProgress(progress)
+      );
 
       setMessages((prev) => [
         ...prev,
@@ -717,10 +558,9 @@ function MainApp() {
         },
       ]);
     } catch (error) {
-      const userMessage =
-        error.message === "Network error"
-          ? "Network connection error. Please check your internet connection and try again."
-          : `Error processing image: ${error.message}`;
+      const userMessage = error.isNetworkError
+        ? "Network connection error. Please check your internet connection and try again."
+        : `Error processing image: ${error.message || "Unknown error"}`;
 
       setMessages((prev) => [
         ...prev,
@@ -735,6 +575,88 @@ function MainApp() {
       setIsLoading(false);
       setUploadProgress(0);
       setFile(null);
+    }
+  };
+
+  // Handle advanced search
+  const handleAdvancedSearch = async (query, type, limit) => {
+    // Check if advanced search is available for this user's tier
+    if (!isFeatureEnabled("advanced_search")) {
+      setShowUpgradePrompt(true);
+      setUpgradeTrigger("advanced_search");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "system",
+          text: `Performing advanced search for "${query}"...`,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+
+      const { data } = await apiService.search.advanced(query, type, limit);
+
+      // Format results for display
+      let resultsText = `Search results for "${query}":\n\n`;
+
+      if (data.results && data.results.length > 0) {
+        data.results.forEach((result, index) => {
+          resultsText += `${index + 1}. ${
+            result.title || result.path || "Untitled"
+          }\n`;
+
+          if (result.path) {
+            const encodedPath = encodeURIComponent(result.path);
+            resultsText += `Path: <a href="/image-viewer?path=${encodedPath}" target="_blank">${result.path}</a>\n`;
+          }
+
+          if (result.text) {
+            resultsText += `Content: ${result.text.substring(0, 150)}${
+              result.text.length > 150 ? "..." : ""
+            }\n`;
+          }
+
+          if (result.score) {
+            resultsText += `Relevance: ${(result.score * 100).toFixed(1)}%\n`;
+          }
+
+          resultsText += "\n";
+        });
+      } else {
+        resultsText +=
+          "No results found. Try different search terms or categories.";
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "assistant",
+          text: resultsText,
+          timestamp: new Date().toISOString(),
+          isHtml: true,
+        },
+      ]);
+    } catch (error) {
+      const userMessage = error.isNetworkError
+        ? "Network connection error. Please check your internet connection and try again."
+        : `Error performing search: ${error.message || "Unknown error"}`;
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "assistant",
+          text: userMessage,
+          type: "error",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -789,7 +711,8 @@ function MainApp() {
 
   return (
     <div className="app">
-      <Header onLogout={handleLogout} />
+      <Header onLogout={handleLogout} currentUser={currentUser} />
+
       {connectionError && (
         <div className="alert alert-error" role="alert">
           <AlertCircle className="h-4 w-4" />
@@ -803,23 +726,11 @@ function MainApp() {
         </div>
       )}
 
-      <AdvancedSearch
-        onResults={(results) => {
-          setMessages((prev) => [
-            ...prev,
-            {
-              sender: "system",
-              text: "Advanced search results:",
-              timestamp: new Date().toISOString(),
-            },
-            {
-              sender: "assistant",
-              text: results,
-              timestamp: new Date().toISOString(),
-            },
-          ]);
-        }}
-      />
+      {/* Advanced Search with feature gate */}
+      <FeatureGate feature="advanced_search">
+        <AdvancedSearch onResults={handleAdvancedSearch} />
+      </FeatureGate>
+
       <ChatContainer messages={messages} />
 
       {isAnalyzing && (
@@ -844,7 +755,9 @@ function MainApp() {
         isLoading={isLoading}
         disabled={connectionError}
         uploadProgress={uploadProgress}
+        showImageSearch={isFeatureEnabled("image_search")}
       />
+
       <div ref={messagesEndRef} />
 
       {isLoading && uploadProgress > 0 && (
@@ -864,6 +777,13 @@ function MainApp() {
             <span>{uploadProgress}% uploaded</span>
           </div>
         </div>
+      )}
+
+      {showUpgradePrompt && (
+        <UpgradePrompt
+          feature={upgradeTrigger}
+          onClose={() => setShowUpgradePrompt(false)}
+        />
       )}
     </div>
   );
