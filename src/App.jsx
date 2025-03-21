@@ -16,6 +16,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import AuthPage from "./components/AuthPage";
 import AdminPanel from "./components/admin/AdminPanel";
+import FilePermissionsManager from "./components/admin/FilePermissionsManager";
 
 // Professional Tier Features
 import APIKeyManagement from "./components/APIKeyManagement";
@@ -114,7 +115,6 @@ function App() {
                 <Route path="/forgot-password" element={<AuthPage />} />
                 <Route path="/reset-password" element={<AuthPage />} />
                 <Route path="/mfa/verify" element={<MfaVerify />} />
-
                 {/* Protected routes */}
                 <Route element={<ProtectedRoute />}>
                   <Route path="/" element={<MainApp />} />
@@ -150,7 +150,17 @@ function App() {
                     <Route path="/admin/register" element={<Register />} />
                   </Route>
                 </Route>
-
+                // In your App.jsx or router.jsx file
+                <Route
+                  path="/admin/permissions"
+                  element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <FilePermissionsManager />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  }
+                />
                 {/* Fallback route */}
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>

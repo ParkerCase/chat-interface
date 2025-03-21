@@ -18,6 +18,7 @@ import {
   Save,
 } from "lucide-react";
 import "./auth.css";
+import apiService from "../services/apiService";
 
 function AuthPage() {
   const [authMode, setAuthMode] = useState("login");
@@ -78,20 +79,22 @@ function LoginForm() {
     const fetchProviders = async () => {
       try {
         setLoadingProviders(true);
-        // API request to get auth providers
-        const response = await fetch("/api/auth/providers");
+        console.log("Fetching auth providers...");
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setProviders(Object.values(data.providers));
-            setDefaultProvider(data.defaultProvider);
+        // Fix: Use apiService instead of direct fetch
+        const response = await apiService.auth.getProviders();
 
-            // If SSO providers exist, default to the first one
-            if (Object.keys(data.providers).length > 0) {
-              setLoginMethod("sso");
-            }
+        if (response.data && response.data.success) {
+          setProviders(Object.values(response.data.providers || {}));
+          setDefaultProvider(response.data.defaultProvider);
+
+          // If SSO providers exist, default to the first one
+          if (Object.keys(response.data.providers || {}).length > 0) {
+            setLoginMethod("sso");
           }
+        } else {
+          // Fallback to password login if no providers
+          setLoginMethod("password");
         }
       } catch (error) {
         console.error("Failed to fetch providers:", error);
@@ -130,43 +133,34 @@ function LoginForm() {
     }
   }, [location, navigate, processTokenExchange]);
 
+  // In the handleSubmit function of LoginForm
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError("");
 
-    // Validate email
-    if (!email) {
-      setFormError("Email is required");
-      return;
-    }
-
-    // Validate email domain
-    if (!email.endsWith("@tatt2away.com")) {
-      setFormError("Only @tatt2away.com email addresses are allowed");
-      return;
-    }
-
-    // Validate password
-    if (!password) {
-      setFormError("Password is required");
-      return;
-    }
-
     try {
       setIsLoading(true);
+      console.log("Attempting login with:", email); // Debug logging
 
       // Call the login function
       const success = await login(email, password);
+      console.log("Login result:", success); // Debug the result
 
       if (success) {
+        // Debug what's in localStorage after login
+        console.log("Auth state after login:", {
+          token: localStorage.getItem("authToken"),
+          isAuthenticated: localStorage.getItem("isAuthenticated"),
+        });
+
         // Get return URL from query params or default to home
         const params = new URLSearchParams(location.search);
         const returnUrl = params.get("returnUrl") || "/";
         navigate(returnUrl);
       }
     } catch (error) {
-      setFormError("An unexpected error occurred. Please try again.");
       console.error("Login error:", error);
+      setFormError("An unexpected error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -414,13 +408,26 @@ function PasscodeForm() {
   // Use environment variable for security or fallback to hardcoded value
   const TEAM_PASSCODE = process.env.REACT_APP_TEAM_PASSCODE || "R3m0v@al$Ru$";
 
+  // Fix in AuthPage.jsx - PasscodeForm component
   const handlePasscodeSubmit = async (e) => {
     e.preventDefault();
 
+    // Debug info
+    console.log({
+      inputPassword: passcode,
+      expectedPassword: TEAM_PASSCODE,
+      match: passcode === TEAM_PASSCODE,
+    });
+
     if (passcode === TEAM_PASSCODE) {
+      // Store auth state in localStorage
       localStorage.setItem("isAuthenticated", "true");
+
+      // Log success for debugging
+      console.log("Passcode authentication successful");
+
+      // Navigate to home page
       navigate("/");
-      setError("");
     } else {
       setError("Incorrect passcode");
       setPasscode("");

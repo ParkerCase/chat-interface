@@ -3,13 +3,15 @@ import React from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-/**
- * A wrapper around routes that require authentication
- * Redirects to login if user is not authenticated
- */
 const ProtectedRoute = () => {
   const { currentUser, loading } = useAuth();
   const location = useLocation();
+
+  console.log("Protected route check:", {
+    currentUser,
+    loading,
+    path: location.pathname,
+  });
 
   // Show loading state while checking authentication
   if (loading) {
@@ -21,9 +23,13 @@ const ProtectedRoute = () => {
     );
   }
 
-  // Redirect to login if not authenticated
-  if (!currentUser) {
-    // Save the current location they were trying to go to for redirection after login
+  // Check if authenticated via token OR passcode
+  const isBasicAuth = localStorage.getItem("isAuthenticated") === "true";
+
+  // Allow access if user has JWT auth OR basic auth (passcode)
+  if (!currentUser && !isBasicAuth) {
+    console.log("Redirecting to login from protected route");
+    // Save the current location for redirect after login
     return (
       <Navigate
         to={`/login?redirect=${encodeURIComponent(location.pathname)}`}

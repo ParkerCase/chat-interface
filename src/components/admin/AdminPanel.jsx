@@ -276,6 +276,10 @@ const AdminPanel = () => {
                   <Link to="/admin/users">
                     View All Users <ArrowRight size={14} />
                   </Link>
+                  <Link to="/admin/permissions" className="admin-button">
+                    <Shield size={18} />
+                    Manage File Permissions
+                  </Link>
                 </div>
               </div>
             </div>

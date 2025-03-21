@@ -1,5 +1,6 @@
+// src/index.js
 import React from "react";
-import ReactDOM from "react-dom";
+import { createRoot } from "react-dom/client"; // Change this import
 import "./index.css";
 import "./base.css";
 
@@ -7,13 +8,15 @@ import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
 import * as serviceWorkerRegistration from "./serviceWorkerRegistration";
 
-ReactDOM.render(
+// Replace ReactDOM.render with createRoot
+const container = document.getElementById("root");
+const root = createRoot(container);
+root.render(
   <React.StrictMode>
     <ErrorBoundary>
       <App />
     </ErrorBoundary>
-  </React.StrictMode>,
-  document.getElementById("root")
+  </React.StrictMode>
 );
 
 // If you want your app to work offline and load faster, you can change

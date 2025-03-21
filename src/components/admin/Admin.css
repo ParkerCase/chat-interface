@@ -293,6 +293,251 @@
   margin-bottom: 2rem;
 }
 
+.admin-content-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.file-browser-section,
+.permissions-section {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+}
+
+.file-browser-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.file-browser-header h3 {
+  margin: 0;
+}
+
+.file-browser-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.browser-button {
+  background: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #6b7280;
+}
+
+.browser-button:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.browser-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.file-path-bar {
+  background-color: #f9fafb;
+  padding: 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  border: 1px solid #e5e7eb;
+}
+
+.current-path {
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.file-search-bar {
+  display: flex;
+  margin-bottom: 1rem;
+}
+
+.search-input {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-right: none;
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.search-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+  cursor: pointer;
+}
+
+.search-button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.file-list {
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.file-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.file-item:hover {
+  background-color: #f9fafb;
+}
+
+.file-item.selected {
+  background-color: #eef2ff;
+}
+
+.file-icon {
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+
+.file-icon.folder {
+  color: #3b82f6;
+}
+
+.file-icon.file {
+  color: #6b7280;
+}
+
+.file-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.loading-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: #6b7280;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+.empty-state {
+  padding: 2rem;
+  text-align: center;
+  color: #6b7280;
+}
+
+.no-selection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  color: #9ca3af;
+}
+
+.no-selection-icon {
+  opacity: 0.3;
+  margin-bottom: 1rem;
+}
+
+.permissions-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.selected-file-info {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.selected-file-info h4 {
+  display: flex;
+  align-items: center;
+  margin: 0 0 0.5rem 0;
+}
+
+.file-path {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+  word-break: break-all;
+}
+
+.multi-select {
+  height: 150px;
+  padding: 0.5rem;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.cancel-button {
+  padding: 0.5rem 1rem;
+  background-color: white;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.save-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.save-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .stat-card {
   background-color: white;
   border-radius: 8px;
@@ -406,6 +651,10 @@
 @media (max-width: 768px) {
   .admin-container {
     padding: 1rem;
+  }
+
+  .admin-content-grid {
+    grid-template-columns: 1fr;
   }
 
   .admin-stats {

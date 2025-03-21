@@ -65,7 +65,9 @@ export function AuthProvider({ children }) {
   // Extract user from token
   const extractUserFromToken = useCallback((token) => {
     try {
+      console.log("Extracting user from token");
       const decodedToken = jwtDecode(token);
+      console.log("Decoded token:", decodedToken);
       setTokenExpiry(decodedToken.exp * 1000);
 
       // Extract tier information
