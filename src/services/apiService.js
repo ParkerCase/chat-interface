@@ -38,21 +38,19 @@ const processQueue = (error, token = null) => {
 };
 
 // Add request interceptor
+// In apiClient.interceptors.request.use
 apiClient.interceptors.request.use(
   (config) => {
-    // Set auth token if available
+    // Dev bypass
+    if (process.env.NODE_ENV !== "production") {
+      config.headers["x-dev-bypass"] = "true";
+    }
+
+    // Existing auth token logic
     const token = localStorage.getItem("authToken");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-
-    // For file uploads, don't set Content-Type (browser will set with boundary)
-    if (config.data instanceof FormData) {
-      delete config.headers["Content-Type"];
-    }
-
-    // Add request ID for tracking
-    config.headers["X-Request-ID"] = Math.random().toString(36).substr(2, 9);
 
     return config;
   },

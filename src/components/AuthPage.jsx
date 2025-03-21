@@ -339,8 +339,49 @@ function LoginForm() {
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
-          </div>
+            // Add this right after your regular login form
+            <div
+              style={{
+                margin: "20px 0",
+                padding: "10px",
+                border: "1px dashed #ccc",
+              }}
+            >
+              <h4>Development Login</h4>
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await fetch(
+                      "http://147.182.247.128:4000/api/auth/dev-access",
+                      {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
+                      }
+                    );
 
+                    const data = await response.json();
+
+                    if (data.success) {
+                      localStorage.setItem("authToken", data.token);
+                      localStorage.setItem(
+                        "currentUser",
+                        JSON.stringify(data.user)
+                      );
+                      window.location.href = "/admin";
+                    } else {
+                      console.error("Dev login failed", data);
+                    }
+                  } catch (error) {
+                    console.error("Error:", error);
+                  }
+                }}
+              >
+                Quick Admin Access
+              </button>
+            </div>
+          </div>
           {/* Submit Button */}
           <button type="submit" className="login-button" disabled={isLoading}>
             {isLoading ? (
