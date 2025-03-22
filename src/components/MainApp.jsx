@@ -152,11 +152,7 @@ function MainApp() {
     const checkConnection = async () => {
       try {
         const response = await apiService.status.check();
-        if (response.data && response.data.success) {
-          setConnectionError(false);
-        } else {
-          setConnectionError(true);
-        }
+        setConnectionError(false); // Even if not "success", if we get a response, consider connected
       } catch (error) {
         console.error("Connection check failed:", error);
         setConnectionError(true);

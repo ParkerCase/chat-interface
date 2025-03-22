@@ -36,16 +36,12 @@ function ExportButton({ messages, analysisResult }) {
 
         // Create a download link
         const blob = new Blob([text], {
-          type: response.headers.get("Content-Type"),
+          type: response.headers.get("Content-Type") || getContentType(format),
         });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download =
-          response.headers
-            .get("Content-Disposition")
-            ?.split("filename=")[1]
-            .replace(/"/g, "") || `export-${Date.now()}.${format}`;
+        a.download = getFileName(format);
         a.click();
         URL.revokeObjectURL(url);
       } else if (format === "pdf") {
@@ -54,7 +50,27 @@ function ExportButton({ messages, analysisResult }) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `export-${Date.now()}.pdf`;
+        a.download = getFileName("pdf");
+        a.click();
+        URL.revokeObjectURL(url);
+      } else if (format === "image") {
+        // For image, get as blob and create download
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+
+        // Extract file extension from the image path
+        let extension = ".jpg"; // Default extension
+        if (content.imagePath) {
+          const imagePath = content.imagePath;
+          const lastDotIndex = imagePath.lastIndexOf(".");
+          if (lastDotIndex !== -1) {
+            extension = imagePath.substring(lastDotIndex);
+          }
+        }
+
+        a.download = `image-export-${Date.now()}${extension}`;
         a.click();
         URL.revokeObjectURL(url);
       } else if (format === "clipboard") {
@@ -74,6 +90,29 @@ function ExportButton({ messages, analysisResult }) {
     } finally {
       setIsExporting(false);
     }
+  };
+
+  // Helper function to get appropriate content type
+  const getContentType = (format) => {
+    switch (format) {
+      case "txt":
+        return "text/plain";
+      case "csv":
+        return "text/csv";
+      case "json":
+        return "application/json";
+      case "pdf":
+        return "application/pdf";
+      default:
+        return "application/octet-stream";
+    }
+  };
+
+  // Helper function to get appropriate filename
+  const getFileName = (format) => {
+    const prefix = analysisResult ? "analysis" : "chat";
+    const timestamp = Date.now();
+    return `${prefix}-export-${timestamp}.${format}`;
   };
 
   // If there's nothing to export, don't render
@@ -99,19 +138,25 @@ function ExportButton({ messages, analysisResult }) {
             <FileText size={16} />
             <span>Export as PDF</span>
           </button>
-
           <button onClick={() => handleExport("txt")} disabled={isExporting}>
             <FileText size={16} />
             <span>Export as Text</span>
           </button>
-
           {analysisResult && (
             <button onClick={() => handleExport("csv")} disabled={isExporting}>
               <FileText size={16} />
               <span>Export as CSV</span>
             </button>
           )}
-
+          {analysisResult && analysisResult.imagePath && (
+            <button
+              onClick={() => handleExport("image")}
+              disabled={isExporting}
+            >
+              <FileImage size={16} />
+              <span>Export as Image</span>
+            </button>
+          )}
           <button
             onClick={() => handleExport("clipboard")}
             disabled={isExporting}
