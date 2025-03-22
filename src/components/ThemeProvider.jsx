@@ -17,9 +17,16 @@ export const ThemeProvider = ({ children }) => {
   const [themeData, setThemeData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [enterpriseEnabled, setEnterpriseEnabled] = useState(false);
 
   // Load user's theme preference on initial mount
   useEffect(() => {
+    // In ThemeProvider.jsx useEffect
+    console.log(
+      "Enterprise mode enabled:",
+      process.env.TIER === "enterprise" || global.enterpriseInitialized
+    );
+    console.log("Enterprise features enabled:", enterpriseEnabled);
     const loadUserPreference = async () => {
       try {
         setLoading(true);
@@ -68,7 +75,11 @@ export const ThemeProvider = ({ children }) => {
 
         // Load the theme CSS
         loadThemeCSS(currentTheme);
-      } catch (err) {
+        const hasEnterpriseThemes = themeList.some(
+          (theme) => theme.id === "tatt2away" || theme.id === "dark"
+        );
+        setEnterpriseEnabled(hasEnterpriseThemes);
+      } catch (error) {
         console.error("Error loading theme data:", err);
         setError("Failed to load theme data");
       }
@@ -138,6 +149,8 @@ export const ThemeProvider = ({ children }) => {
     loading,
     error,
     setTheme,
+    enterpriseEnabled,
+
     toggleDarkMode,
   };
 

@@ -1,6 +1,8 @@
 // src/components/layouts/AppLayout.jsx
 import React, { useState } from "react";
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
+import ThemeCustomizer from "../ThemeCustomizer";
+import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import {
   Menu,
@@ -24,6 +26,7 @@ const AppLayout = () => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { enterpriseEnabled } = useTheme();
 
   const handleLogout = async () => {
     await logout();
@@ -211,6 +214,7 @@ const AppLayout = () => {
           <Outlet />
         </main>
       </div>
+      {enterpriseEnabled && <ThemeCustomizer />}
     </div>
   );
 };

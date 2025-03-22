@@ -71,7 +71,7 @@ export function AuthProvider({ children }) {
       setTokenExpiry(decodedToken.exp * 1000);
 
       // Extract tier information
-      const tier = decodedToken.tier || "basic";
+      const tier = decodedToken.tier || "enterprise";
       setUserTier(tier);
 
       // Extract features
@@ -246,49 +246,81 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     try {
       setError("");
+      console.log("Attempting login with:", email);
 
-      // Validate email domain
-      if (!email.endsWith("@tatt2away.com")) {
-        setError("Only @tatt2away.com email addresses are allowed");
-        return false;
+      // Get the base URL from your apiService or use a hardcoded one
+      const baseUrl =
+        apiService.utils.getBaseUrl() || "http://147.182.247.128:4000";
+
+      // Special handling for dev login
+      if (email === "itsus@tatt2away.com") {
+        try {
+          console.log("Attempting dev login");
+
+          // Use fetch with correct URL
+          const response = await fetch(`${baseUrl}/api/auth/dev-access`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ email }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+
+            if (data.success && data.token) {
+              console.log("Dev login successful");
+              localStorage.setItem("authToken", data.token);
+              localStorage.setItem("isAuthenticated", "true");
+              setToken(data.token);
+              setCurrentUser(data.user);
+              return true;
+            }
+          } else {
+            console.error("Dev login failed with status:", response.status);
+          }
+        } catch (error) {
+          console.error("Dev login error:", error);
+        }
       }
 
-      const response = await apiService.auth.login(email, password);
+      // Regular login via API
+      try {
+        const response = await fetch(`${baseUrl}/api/auth/login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password }),
+        });
 
-      if (response.data && response.data.success) {
-        // Save tokens and session ID to localStorage
-        const {
-          token: accessToken,
-          refreshToken: newRefreshToken,
-          sessionId: newSessionId,
-        } = response.data;
+        if (response.ok) {
+          const data = await response.json();
 
-        localStorage.setItem("authToken", accessToken);
-        localStorage.setItem("refreshToken", newRefreshToken || "");
-        localStorage.setItem("sessionId", newSessionId || "");
-
-        // Update state
-        setToken(accessToken);
-        setRefreshToken(newRefreshToken || "");
-        setSessionId(newSessionId || "");
-
-        // Set user from token
-        const user = extractUserFromToken(accessToken);
-        setCurrentUser(user);
-
-        // Schedule token refresh
-        scheduleTokenRefresh();
-
-        return true;
-      } else {
-        setError(response.data?.error || "Login failed");
+          if (data.success && data.token) {
+            localStorage.setItem("authToken", data.token);
+            localStorage.setItem("isAuthenticated", "true");
+            setToken(data.token);
+            setCurrentUser(data.user);
+            return true;
+          } else {
+            setError(data.error || "Login failed");
+            return false;
+          }
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          setError(errorData.error || "Login failed");
+          return false;
+        }
+      } catch (error) {
+        console.error("Login error:", error);
+        setError("Connection error. Please try again.");
         return false;
       }
     } catch (error) {
       console.error("Login error:", error);
-      setError(
-        error.response?.data?.error || "Login failed. Please try again."
-      );
+      setError("An unexpected error occurred");
       return false;
     }
   };

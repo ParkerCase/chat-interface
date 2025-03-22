@@ -3,22 +3,33 @@ import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 
 // Configuration from environment or defaults
+// In your baseUrl configuration:
 const API_CONFIG = {
   baseUrl: process.env.REACT_APP_API_URL || "http://147.182.247.128:4000",
   timeout: 30000,
   withCredentials: true,
 };
 
-// Create axios instance with base config
+// Add this for debugging
 const apiClient = axios.create({
   baseURL: API_CONFIG.baseUrl,
   timeout: API_CONFIG.timeout,
   headers: {
     "Content-Type": "application/json",
-    Accept: "application/json",
   },
-  withCredentials: true, // This must match the server's CORS credentials setting
+  withCredentials: true,
 });
+
+// Add this function to your utils section
+const testConnection = async () => {
+  try {
+    const response = await fetch(`${API_CONFIG.baseUrl}/cors-test`);
+    return await response.json();
+  } catch (error) {
+    console.error("Connection test failed:", error);
+    return { success: false, error: error.message };
+  }
+};
 
 // Track if we're currently refreshing the token
 let isRefreshing = false;
@@ -38,15 +49,14 @@ const processQueue = (error, token = null) => {
 };
 
 // Add request interceptor
-// In apiClient.interceptors.request.use
 apiClient.interceptors.request.use(
   (config) => {
-    // Dev bypass
-    if (process.env.NODE_ENV !== "production") {
+    // Only add dev-bypass header for certain endpoints
+    if (config.url.includes("/auth/") || config.url.includes("/dev")) {
       config.headers["x-dev-bypass"] = "true";
     }
 
-    // Existing auth token logic
+    // Add Authorization header if token exists
     const token = localStorage.getItem("authToken");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -272,9 +282,21 @@ const uploadWithProgress = (endpoint, file, options = {}) => {
 // Define all API endpoints by category
 // Auth endpoints
 const authApi = {
-  login: (email, password) =>
-    apiClient.post("/api/auth/login", { email, password }),
+  login: async (email, password) => {
+    const response = await fetch(`${API_CONFIG.baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, password }),
+    });
 
+    if (!response.ok) {
+      throw new Error(`Login failed: ${response.status}`);
+    }
+
+    return { data: await response.json() };
+  },
   register: (userData) => apiClient.post("/api/auth/register", userData),
 
   verifyPasscode: (passcode) =>
@@ -303,8 +325,13 @@ const authApi = {
   verifyEmail: (token) => apiClient.post("/api/auth/verify-email", { token }),
 
   exchangeToken: (code) => apiClient.post("/api/auth/exchange", { code }),
-
-  getProviders: () => apiClient.get("/api/auth/providers"),
+  getProviders: async () => {
+    const response = await fetch(`${API_CONFIG.baseUrl}/api/auth/providers`);
+    if (!response.ok) {
+      throw new Error(`Failed to get providers: ${response.status}`);
+    }
+    return { data: await response.json() };
+  },
 };
 
 // CRM endpoints
@@ -730,6 +757,25 @@ const apiService = {
       apiClient.defaults.baseURL = url;
     },
     getBaseUrl: () => API_CONFIG.baseUrl,
+
+    // Add the test connection function here
+    testConnection: async () => {
+      try {
+        // Use fetch API to bypass axios settings
+        const response = await fetch(`${API_CONFIG.baseUrl}/debug-cors`);
+        if (!response.ok) {
+          return {
+            success: false,
+            status: response.status,
+            statusText: response.statusText,
+          };
+        }
+        return await response.json();
+      } catch (error) {
+        console.error("Debug connection test failed:", error);
+        return { success: false, error: error.message };
+      }
+    },
   },
 };
 

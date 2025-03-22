@@ -11,6 +11,7 @@ const ProtectedRoute = () => {
     currentUser,
     loading,
     path: location.pathname,
+    isAuthenticated: localStorage.getItem("isAuthenticated") === "true",
   });
 
   // Show loading state while checking authentication
@@ -23,11 +24,12 @@ const ProtectedRoute = () => {
     );
   }
 
-  // Check if authenticated via token OR passcode
-  const isBasicAuth = localStorage.getItem("isAuthenticated") === "true";
+  // Check if authenticated via token OR basic auth (passcode)
+  const isAuthenticated =
+    currentUser || localStorage.getItem("isAuthenticated") === "true";
 
   // Allow access if user has JWT auth OR basic auth (passcode)
-  if (!currentUser && !isBasicAuth) {
+  if (!isAuthenticated) {
     console.log("Redirecting to login from protected route");
     // Save the current location for redirect after login
     return (
