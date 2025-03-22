@@ -133,6 +133,62 @@ function LoginForm() {
     }
   }, [location, navigate, processTokenExchange]);
 
+  // In AuthPage.jsx or Login component
+  useEffect(() => {
+    const fetchProviders = async () => {
+      try {
+        setLoadingProviders(true);
+        console.log("Fetching auth providers...");
+
+        // First try the API endpoint
+        try {
+          const response = await apiService.auth.getProviders();
+          if (response.data && response.data.success) {
+            setProviders(Object.values(response.data.providers || {}));
+            setDefaultProvider(response.data.defaultProvider);
+            return;
+          }
+        } catch (error) {
+          console.warn("Provider API failed, using fallback:", error.message);
+        }
+
+        // If that fails, use a direct fetch with no credentials
+        try {
+          const response = await fetch(
+            `${apiService.utils.getBaseUrl()}/api/auth/providers`
+          );
+          const data = await response.json();
+
+          if (data.success) {
+            setProviders(Object.values(data.providers || {}));
+            setDefaultProvider(data.defaultProvider);
+            return;
+          }
+        } catch (error) {
+          console.warn("Fallback fetch failed:", error.message);
+        }
+
+        // If both fail, use hardcoded fallback
+        setProviders([
+          {
+            id: "password",
+            name: "Password",
+            type: "password",
+          },
+        ]);
+        setDefaultProvider("password");
+        setLoginMethod("password");
+      } catch (error) {
+        console.error("Failed to fetch providers:", error);
+        setLoginMethod("password"); // Fall back to password login
+      } finally {
+        setLoadingProviders(false);
+      }
+    };
+
+    fetchProviders();
+  }, []);
+
   // In the handleSubmit function of LoginForm
   const handleSubmit = async (e) => {
     e.preventDefault();
