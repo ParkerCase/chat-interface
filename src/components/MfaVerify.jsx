@@ -3,13 +3,14 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import { AlertCircle, CheckCircle, Shield } from "lucide-react";
+import { supabase } from "../lib/supabase";
 import "./auth.css";
 
 function MfaVerify() {
   const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [mfaMethods, setMfaMethods] = useState([]);
-  const [selectedMethod, setSelectedMethod] = useState(null);
+  const [factorId, setFactorId] = useState(null);
+  const [challengeId, setChallengeId] = useState(null);
   const [countdown, setCountdown] = useState(30);
   const [isResending, setIsResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
@@ -17,58 +18,33 @@ function MfaVerify() {
   const codeInputRef = useRef(null);
   const timerRef = useRef(null);
 
-  const { verifyMfa, error: authError, currentUser } = useAuth();
+  const {
+    verifyMfa,
+    error: authError,
+    setError: setAuthError,
+    currentUser,
+  } = useAuth();
   const [formError, setFormError] = useState("");
 
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Get MFA methods and initialize component
+  // Extract MFA parameters from URL
   useEffect(() => {
-    const fetchMfaMethods = async () => {
-      try {
-        // If currentUser is not set, we need to wait or redirect
-        if (!currentUser) {
-          // Check if we're in the middle of authentication
-          const params = new URLSearchParams(location.search);
-          const pendingAuth = params.get("pending");
+    const params = new URLSearchParams(location.search);
 
-          if (!pendingAuth) {
-            // No user and not pending auth, redirect to login
-            navigate("/login");
-            return;
-          }
-        }
+    const factorIdParam = params.get("factorId");
+    if (factorIdParam) {
+      setFactorId(factorIdParam);
+    }
 
-        // Normally we'd fetch MFA methods from the backend
-        // For this example, we'll use mock data if not available
-        // In a real implementation, you would get this data during login
-        if (currentUser?.mfaMethods) {
-          setMfaMethods(currentUser.mfaMethods);
-          // Set first method as selected
-          if (currentUser.mfaMethods.length > 0) {
-            setSelectedMethod(currentUser.mfaMethods[0].id);
-          }
-        } else {
-          // Mock data for demonstration
-          const mockMethods = [
-            {
-              id: "totp-1",
-              type: "totp",
-              identifier: null,
-            },
-          ];
-          setMfaMethods(mockMethods);
-          setSelectedMethod("totp-1");
-        }
-      } catch (error) {
-        console.error("Error fetching MFA methods:", error);
-        setFormError("Unable to load MFA methods. Please try again.");
-      }
-    };
-
-    fetchMfaMethods();
-  }, [currentUser, navigate, location]);
+    // Check if we're in the middle of authentication
+    const pendingAuth = params.get("pending");
+    if (!pendingAuth && !currentUser) {
+      // No user and not pending auth, redirect to login
+      navigate("/login");
+    }
+  }, [location, navigate, currentUser]);
 
   // Focus the code input when component mounts
   useEffect(() => {
@@ -76,6 +52,33 @@ function MfaVerify() {
       codeInputRef.current.focus();
     }
   }, []);
+
+  // Create MFA challenge when factor ID is available
+  useEffect(() => {
+    const createChallenge = async () => {
+      if (!factorId) return;
+
+      try {
+        setIsLoading(true);
+
+        // Create MFA challenge with Supabase
+        const { data, error } = await supabase.auth.mfa.challenge({
+          factorId: factorId,
+        });
+
+        if (error) throw error;
+
+        setChallengeId(data.id);
+      } catch (err) {
+        console.error("Error creating MFA challenge:", err);
+        setFormError("Failed to start verification. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    createChallenge();
+  }, [factorId]);
 
   // Countdown timer for resend code
   useEffect(() => {
@@ -95,6 +98,7 @@ function MfaVerify() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError("");
+    setAuthError("");
 
     if (!code) {
       setFormError("Please enter verification code");
@@ -103,7 +107,26 @@ function MfaVerify() {
 
     try {
       setIsLoading(true);
-      const success = await verifyMfa(code, selectedMethod);
+
+      // For Supabase MFA verification
+      if (factorId && challengeId) {
+        const { data, error } = await supabase.auth.mfa.verify({
+          factorId,
+          challengeId,
+          code,
+        });
+
+        if (error) throw error;
+
+        // Get redirect URL from query params or use default
+        const params = new URLSearchParams(location.search);
+        const redirectTo = params.get("redirect") || "/";
+        navigate(redirectTo);
+        return;
+      }
+
+      // Fallback to our custom MFA verification
+      const success = await verifyMfa(code, factorId);
 
       if (success) {
         // Get redirect URL from query params or use default
@@ -114,27 +137,27 @@ function MfaVerify() {
         setFormError("Invalid verification code. Please try again.");
       }
     } catch (error) {
-      setFormError("Failed to verify code. Please try again.");
       console.error("MFA verification error:", error);
+      setFormError(error.message || "Failed to verify code. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleResendCode = async () => {
-    // Only for email/SMS MFA types
-    const method = mfaMethods.find((m) => m.id === selectedMethod);
-
-    if (!method || method.type === "totp") {
-      return; // Can't resend TOTP codes
-    }
-
     try {
       setIsResending(true);
 
-      // We'd make an API call here to resend the code
-      // For demo purposes we'll just simulate success
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (factorId) {
+        // Create a new challenge for the factor
+        const { data, error } = await supabase.auth.mfa.challenge({
+          factorId: factorId,
+        });
+
+        if (error) throw error;
+
+        setChallengeId(data.id);
+      }
 
       setResendSuccess(true);
       setCountdown(30);
@@ -150,10 +173,6 @@ function MfaVerify() {
       setIsResending(false);
     }
   };
-
-  // Determine which type of MFA method is selected
-  const selectedMfaType =
-    mfaMethods.find((m) => m.id === selectedMethod)?.type || "totp";
 
   return (
     <div className="mfa-verify-container">
@@ -181,37 +200,9 @@ function MfaVerify() {
         )}
 
         <form onSubmit={handleSubmit} className="mfa-verify-form">
-          {/* MFA Method Selector (if multiple methods) */}
-          {mfaMethods.length > 1 && (
-            <div className="form-group">
-              <label htmlFor="mfa-method">Verification Method</label>
-              <select
-                id="mfa-method"
-                value={selectedMethod || ""}
-                onChange={(e) => setSelectedMethod(e.target.value)}
-                className="mfa-method-select"
-                disabled={isLoading}
-              >
-                {mfaMethods.map((method) => (
-                  <option key={method.id} value={method.id}>
-                    {method.type === "totp"
-                      ? "Authenticator App"
-                      : method.type === "email"
-                      ? `Email (${method.identifier})`
-                      : `SMS (${method.identifier})`}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {/* Code Field */}
           <div className="form-group">
-            <label htmlFor="verification-code">
-              {selectedMfaType === "totp"
-                ? "Enter code from your authenticator app"
-                : "Enter verification code"}
-            </label>
+            <label htmlFor="verification-code">Enter verification code</label>
             <input
               type="text"
               id="verification-code"
@@ -229,29 +220,25 @@ function MfaVerify() {
 
             {/* Helper text */}
             <p className="mfa-helper-text">
-              {selectedMfaType === "totp"
-                ? "Open your authenticator app to view your verification code"
-                : "We sent a verification code to your " + selectedMfaType}
+              Open your authenticator app to view your verification code
             </p>
           </div>
 
-          {/* Resend option for email/SMS */}
-          {selectedMfaType !== "totp" && (
-            <div className="mfa-resend-container">
-              <button
-                type="button"
-                className="mfa-resend-button"
-                onClick={handleResendCode}
-                disabled={isResending || countdown > 0}
-              >
-                {isResending
-                  ? "Sending..."
-                  : countdown > 0
-                  ? `Resend code (${countdown}s)`
-                  : "Resend code"}
-              </button>
-            </div>
-          )}
+          {/* Resend option */}
+          <div className="mfa-resend-container">
+            <button
+              type="button"
+              className="mfa-resend-button"
+              onClick={handleResendCode}
+              disabled={isResending || countdown > 0}
+            >
+              {isResending
+                ? "Sending..."
+                : countdown > 0
+                ? `Resend code (${countdown}s)`
+                : "Resend code"}
+            </button>
+          </div>
 
           {/* Submit Button */}
           <button
