@@ -30,31 +30,25 @@ const AnalyticsDashboard = () => {
   const [timeframe, setTimeframe] = useState("week");
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
+  // Fetch dashboard data when component mounts or timeframe changes
   useEffect(() => {
-    // Check if user has access to this feature
-    // For analytics, check if they have at least basic analytics (Pro tier)
-    // or advanced analytics (Enterprise tier)
-    if (
-      !isFeatureEnabled("analytics_basic") &&
-      !isFeatureEnabled("advanced_analytics")
-    ) {
-      setShowUpgradePrompt(true);
-      return;
-    }
-
-    // Check if they have advanced analytics for the full dashboard
-    const hasAdvancedAnalytics = isFeatureEnabled("advanced_analytics");
-
-    // Load analytics data
-    const fetchAnalytics = async () => {
+    const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        const response = await apiService.analytics.getStats(timeframe);
+        setError(null);
+
+        // Call the API to get dashboard data
+        const response = await apiService.analytics.getDashboard(
+          timeframe,
+          currentUser?.clientId
+        );
 
         if (response.data && response.data.success) {
-          setStats(response.data.stats || {});
+          setStats(response.data.dashboard || {});
         } else {
-          setError("Failed to load analytics data");
+          throw new Error(
+            response.data?.error || "Failed to load analytics data"
+          );
         }
       } catch (err) {
         console.error("Error loading analytics:", err);
@@ -64,22 +58,82 @@ const AnalyticsDashboard = () => {
       }
     };
 
-    fetchAnalytics();
-  }, [timeframe, isFeatureEnabled]);
+    // Only fetch if feature is enabled
+    if (
+      isFeatureEnabled("analytics_basic") ||
+      isFeatureEnabled("advanced_analytics")
+    ) {
+      fetchDashboardData();
+    } else {
+      setShowUpgradePrompt(true);
+    }
+  }, [timeframe, currentUser, isFeatureEnabled]);
 
-  const handleRefresh = () => {
-    setLoading(true);
-    // Refetch the data
-    // Implementation would go here
+  const handleRefresh = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Call the API to get fresh dashboard data
+      const response = await apiService.analytics.getDashboard(
+        timeframe,
+        currentUser?.clientId
+      );
+
+      if (response.data && response.data.success) {
+        setStats(response.data.dashboard || {});
+      } else {
+        throw new Error(
+          response.data?.error || "Failed to refresh analytics data"
+        );
+      }
+    } catch (err) {
+      console.error("Error refreshing analytics:", err);
+      setError("Failed to refresh analytics data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleTimeframeChange = (newTimeframe) => {
     setTimeframe(newTimeframe);
   };
 
-  const handleExport = (format) => {
-    // Implementation would go here
-    console.log("Export analytics as", format);
+  const handleExport = async (format) => {
+    try {
+      setLoading(true);
+
+      // Call the export endpoint
+      const response = await apiService.analytics.exportDashboard(
+        timeframe,
+        currentUser?.clientId,
+        format
+      );
+
+      // Create a download link for the exported file
+      const blob = new Blob([response.data], {
+        type:
+          format === "csv"
+            ? "text/csv"
+            : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `analytics-dashboard-${timeframe}-${
+        new Date().toISOString().split("T")[0]
+      }.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error("Error exporting dashboard:", err);
+      setError("Failed to export dashboard data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Show upgrade prompt if feature not available
@@ -158,16 +212,16 @@ const AnalyticsDashboard = () => {
               <div className="stat-card">
                 <h3>Total Queries</h3>
                 <div className="stat-value">
-                  {stats?.totalQueries?.toLocaleString() || 0}
+                  {stats?.summary?.totalSearches?.toLocaleString() || 0}
                 </div>
                 <div className="stat-change positive">
-                  ↑ {stats?.queryChange || 0}%
+                  ↑ {stats?.searchChange || 0}%
                 </div>
               </div>
               <div className="stat-card">
                 <h3>Images Processed</h3>
                 <div className="stat-value">
-                  {stats?.imagesProcessed?.toLocaleString() || 0}
+                  {stats?.summary?.imagesProcessed?.toLocaleString() || 0}
                 </div>
                 <div className="stat-change positive">
                   ↑ {stats?.imageChange || 0}%
@@ -176,7 +230,7 @@ const AnalyticsDashboard = () => {
               <div className="stat-card">
                 <h3>Active Users</h3>
                 <div className="stat-value">
-                  {stats?.activeUsers?.toLocaleString() || 0}
+                  {stats?.realtime?.activeUsers?.toLocaleString() || 0}
                 </div>
                 <div className="stat-change negative">
                   ↓ {stats?.userChange || 0}%
@@ -185,7 +239,7 @@ const AnalyticsDashboard = () => {
               <div className="stat-card">
                 <h3>Avg. Response Time</h3>
                 <div className="stat-value">
-                  {stats?.avgResponseTime?.toFixed(2) || 0}s
+                  {stats?.summary?.avgResponseTime?.toFixed(2) || 0}s
                 </div>
                 <div className="stat-change positive">
                   ↑ {stats?.responseTimeChange || 0}%
@@ -199,6 +253,12 @@ const AnalyticsDashboard = () => {
                 <div className="chart-placeholder">
                   <LineChart size={32} />
                   <p>Usage trend visualization would appear here</p>
+                  {stats?.charts?.searchesOverTime && (
+                    <div className="chart-data">
+                      {/* Render chart with data from stats.charts.searchesOverTime */}
+                      {/* You can use recharts or another chart library here */}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="chart-card">

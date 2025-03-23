@@ -3,6 +3,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import Header from "./Header";
+import { Link } from "react-router-dom";
+import { Settings } from "lucide-react";
 import ChatContainer from "./ChatContainer";
 import InputBar from "./InputBar";
 import AnalysisResult from "./AnalysisResult";
@@ -798,6 +800,12 @@ function MainApp() {
         currentTheme={currentTheme}
         onChangeTheme={changeTheme}
       />
+      <div className="dashboard-link">
+        <Link to="/admin" className="admin-link-button">
+          <Settings size={16} />
+          <span>Admin Dashboard</span>
+        </Link>
+      </div>
 
       {connectionError && (
         <div className="alert alert-error" role="alert">

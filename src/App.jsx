@@ -17,6 +17,8 @@ import AdminRoute from "./components/AdminRoute";
 import AuthPage from "./components/AuthPage";
 import AdminPanel from "./components/admin/AdminPanel";
 import FilePermissionsManager from "./components/admin/FilePermissionsManager";
+// In App.jsx, add this import
+import FeatureProtectedRoute from "./components/FeatureProtectedRoute";
 
 // Professional Tier Features
 import APIKeyManagement from "./components/APIKeyManagement";
@@ -115,9 +117,16 @@ function App() {
                 <Route path="/forgot-password" element={<AuthPage />} />
                 <Route path="/reset-password" element={<AuthPage />} />
                 <Route path="/mfa/verify" element={<MfaVerify />} />
+                <Route
+                  path="/auth/callback"
+                  element={<div>Processing authentication...</div>}
+                />
+
                 {/* Protected routes */}
                 <Route element={<ProtectedRoute />}>
+                  {/* Main app routes */}
                   <Route path="/" element={<MainApp />} />
+                  <Route path="/chat" element={<MainApp />} />
                   <Route path="/profile" element={<AuthPage tab="profile" />} />
                   <Route
                     path="/security"
@@ -133,34 +142,78 @@ function App() {
                   />
 
                   {/* Professional tier features */}
-                  <Route path="/api-keys" element={<APIKeyManagement />} />
-
-                  {/* Enterprise tier features */}
-                  <Route path="/workflows" element={<WorkflowManagement />} />
-                  <Route path="/analytics" element={<AnalyticsDashboard />} />
                   <Route
-                    path="/integrations"
-                    element={<IntegrationSettings />}
+                    path="/api-keys"
+                    element={
+                      <FeatureProtectedRoute feature="data_export">
+                        <APIKeyManagement />
+                      </FeatureProtectedRoute>
+                    }
                   />
-                  <Route path="/alerts" element={<AlertsManagement />} />
 
                   {/* Admin routes */}
                   <Route element={<AdminRoute />}>
                     <Route path="/admin" element={<AdminPanel />} />
                     <Route path="/admin/register" element={<Register />} />
+                    <Route
+                      path="/admin/users"
+                      element={<AdminPanel tab="users" />}
+                    />
+                    <Route
+                      path="/admin/permissions"
+                      element={<FilePermissionsManager />}
+                    />
+                    <Route
+                      path="/admin/settings"
+                      element={<AdminPanel tab="settings" />}
+                    />
                   </Route>
+
+                  {/* Analytics routes */}
+                  <Route
+                    path="/analytics"
+                    element={
+                      <FeatureProtectedRoute feature="analytics_basic">
+                        <AnalyticsDashboard />
+                      </FeatureProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/analytics/advanced"
+                    element={
+                      <FeatureProtectedRoute feature="advanced_analytics">
+                        <AnalyticsDashboard advanced={true} />
+                      </FeatureProtectedRoute>
+                    }
+                  />
+
+                  {/* Enterprise tier features */}
+                  <Route
+                    path="/workflows"
+                    element={
+                      <FeatureProtectedRoute feature="custom_workflows">
+                        <WorkflowManagement />
+                      </FeatureProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/integrations"
+                    element={
+                      <FeatureProtectedRoute feature="custom_integrations">
+                        <IntegrationSettings />
+                      </FeatureProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/alerts"
+                    element={
+                      <FeatureProtectedRoute feature="automated_alerts">
+                        <AlertsManagement />
+                      </FeatureProtectedRoute>
+                    }
+                  />
                 </Route>
-                // In your App.jsx or router.jsx file
-                <Route
-                  path="/admin/permissions"
-                  element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <FilePermissionsManager />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  }
-                />
+
                 {/* Fallback route */}
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>

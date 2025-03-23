@@ -4,6 +4,7 @@ import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
 import ThemeCustomizer from "../ThemeCustomizer";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
+import { useFeatureFlags } from "../../utils/featureFlags";
 import {
   Menu,
   X,
@@ -14,6 +15,10 @@ import {
   Users,
   LogOut,
   Bell,
+  BarChart4,
+  Workflow,
+  Cloud,
+  MessageSquare,
 } from "lucide-react";
 import "./AppLayout.css";
 
@@ -22,6 +27,7 @@ import "./AppLayout.css";
  */
 const AppLayout = () => {
   const { currentUser, logout, isAdmin } = useAuth();
+  const { isFeatureEnabled } = useFeatureFlags();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const navigate = useNavigate();
@@ -93,6 +99,7 @@ const AppLayout = () => {
                 <span>Profile</span>
               </Link>
             </li>
+
             <li>
               <Link
                 to="/security"
@@ -103,6 +110,82 @@ const AppLayout = () => {
                 <span>Security</span>
               </Link>
             </li>
+            <li>
+              <Link
+                to="/chat"
+                className={isActive("/chat") ? "active" : ""}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <MessageSquare size={20} />
+                <span>Chatbot</span>
+              </Link>
+            </li>
+
+            {/* Analytics section */}
+            {isFeatureEnabled("analytics_basic") && (
+              <li className="sidebar-section">Analytics</li>
+            )}
+
+            {/* Basic analytics for Professional tier */}
+            {isFeatureEnabled("analytics_basic") && (
+              <li>
+                <Link
+                  to="/analytics"
+                  className={isActive("/analytics") ? "active" : ""}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <BarChart4 size={20} />
+                  <span>Analytics Dashboard</span>
+                </Link>
+              </li>
+            )}
+
+            {/* Advanced analytics for Enterprise tier */}
+            {isFeatureEnabled("advanced_analytics") && (
+              <li>
+                <Link
+                  to="/analytics/advanced"
+                  className={isActive("/analytics/advanced") ? "active" : ""}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <BarChart4 size={20} />
+                  <span>Advanced Analytics</span>
+                </Link>
+              </li>
+            )}
+
+            {/* Enterprise features section */}
+            {isFeatureEnabled("custom_workflows") && (
+              <li className="sidebar-section">Enterprise</li>
+            )}
+
+            {/* Workflows for Enterprise tier */}
+            {isFeatureEnabled("custom_workflows") && (
+              <li>
+                <Link
+                  to="/workflows"
+                  className={isActive("/workflows") ? "active" : ""}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <Workflow size={20} />
+                  <span>Workflows</span>
+                </Link>
+              </li>
+            )}
+
+            {/* Integrations for Enterprise tier */}
+            {isFeatureEnabled("custom_integrations") && (
+              <li>
+                <Link
+                  to="/integrations"
+                  className={isActive("/integrations") ? "active" : ""}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <Cloud size={20} />
+                  <span>Integrations</span>
+                </Link>
+              </li>
+            )}
 
             {/* Admin section */}
             {isAdmin && (
