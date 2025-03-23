@@ -8,7 +8,7 @@ import {
   Alert,
   AlertTitle,
   Spinner,
-} from "@/components/ui";
+} from "../../ui/index.js";
 import { AlertCircle, CheckCircle } from "lucide-react";
 import { useCRM } from "../../hooks/useCRM";
 

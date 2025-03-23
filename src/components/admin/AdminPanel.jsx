@@ -1,26 +1,42 @@
-// src/components/admin/AdminPanel.jsx
+// src/components/admin/EnhancedAdminPanel.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useFeatureFlags } from "../../utils/featureFlags";
+import { useTheme } from "../../context/ThemeContext";
 import apiService from "../../services/apiService";
 import {
   User,
   Users,
   Settings,
+  MessageSquare,
+  Sliders,
+  CreditCard,
   Shield,
   Database,
   BarChart,
   UserPlus,
+  Trash2,
   Bell,
   ArrowRight,
+  BarChart4,
   AlertCircle,
   Clock,
   Loader,
+  Save,
+  Key,
+  Trash,
+  Globe,
+  Smartphone,
 } from "lucide-react";
+import CRMContactLookup from "../crm/CRMContactLookup";
 import "./Admin.css";
+import ThemeCustomizer from "../ThemeCustomizer";
 
 const AdminPanel = () => {
-  const { currentUser, isAdmin, isSuperAdmin } = useAuth();
+  const { currentUser, isAdmin, logout } = useAuth();
+  const { isFeatureEnabled } = useFeatureFlags();
+
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -31,6 +47,19 @@ const AdminPanel = () => {
     filesProcessed: 0,
   });
   const [recentUsers, setRecentUsers] = useState([]);
+  const [userProfile, setUserProfile] = useState(null);
+  // We'll maintain a basic list of themes
+  const [availableThemes, setAvailableThemes] = useState([
+    { id: "default", name: "Default", description: "Default system theme" },
+    { id: "dark", name: "Dark Mode", description: "Dark interface theme" },
+    {
+      id: "enterprise",
+      name: "Enterprise",
+      description: "Professional enterprise theme",
+    },
+  ]);
+  const [currentTheme, setCurrentTheme] = useState("default");
+
   const navigate = useNavigate();
 
   // Load admin data
@@ -44,19 +73,28 @@ const AdminPanel = () => {
       try {
         setIsLoading(true);
 
+        // Fetch current user profile (we'll use the currentUser for now)
+        setUserProfile(
+          currentUser || {
+            name: "Admin User",
+            email: "admin@tatt2away.com",
+            role: "admin",
+          }
+        );
+
         // Fetch admin stats (in a real app, this would be an API call)
-        // For the demo, we'll simulate data
         const statsData = {
           totalUsers: 25,
           activeUsers: 18,
           totalMessages: 1248,
           filesProcessed: 352,
+          averageResponseTime: 0.8,
+          lastUpdateTime: new Date().toISOString(),
         };
 
         setStats(statsData);
 
         // Fetch recent users (in a real app, this would be an API call)
-        // For the demo, we'll simulate data
         const usersData = [
           {
             id: 1,
@@ -105,7 +143,7 @@ const AdminPanel = () => {
     };
 
     loadAdminData();
-  }, [isAdmin, navigate]);
+  }, [isAdmin, navigate, currentUser]);
 
   // Format date
   const formatDate = (dateString) => {
@@ -121,6 +159,13 @@ const AdminPanel = () => {
     } else {
       return `${Math.floor(diffMin / 1440)} days ago`;
     }
+  };
+
+  // Handle theme change
+  const handleThemeChange = (themeId) => {
+    setCurrentTheme(themeId);
+    // In a real app, this would make an API call to save the preference
+    localStorage.setItem("preferredTheme", themeId);
   };
 
   // If user is not an admin, show unauthorized message
@@ -153,6 +198,34 @@ const AdminPanel = () => {
           onClick={() => setActiveTab("users")}
         >
           Users
+        </div>
+        <div
+          className={`admin-nav-item ${
+            activeTab === "profile" ? "active" : ""
+          }`}
+          onClick={() => setActiveTab("profile")}
+        >
+          My Profile
+        </div>
+        <div
+          className={`admin-nav-item ${activeTab === "crm" ? "active" : ""}`}
+          onClick={() => setActiveTab("crm")}
+        >
+          CRM
+        </div>
+        <div
+          className={`admin-nav-item ${
+            activeTab === "chatbot" ? "active" : ""
+          }`}
+          onClick={() => setActiveTab("chatbot")}
+        >
+          Chatbot
+        </div>
+        <div
+          className={`admin-nav-item ${activeTab === "themes" ? "active" : ""}`}
+          onClick={() => setActiveTab("themes")}
+        >
+          Themes
         </div>
         <div
           className={`admin-nav-item ${
@@ -214,6 +287,32 @@ const AdminPanel = () => {
                 </div>
               </div>
 
+              {/* Analytics preview section (conditionally rendered based on tier) */}
+              {isFeatureEnabled("analytics_basic") && (
+                <div className="admin-section">
+                  <h2 className="admin-section-title">Analytics Preview</h2>
+                  <div className="analytics-preview">
+                    <div className="analytics-chart-placeholder">
+                      <BarChart4 size={48} />
+                      <p>Usage statistics chart would appear here</p>
+                    </div>
+                    <div className="analytics-summary">
+                      <p>
+                        Average response time:{" "}
+                        <strong>{stats.averageResponseTime}s</strong>
+                      </p>
+                      <p>
+                        Last updated:{" "}
+                        <strong>{formatDate(stats.lastUpdateTime)}</strong>
+                      </p>
+                    </div>
+                    <Link to="/analytics" className="view-analytics-button">
+                      View Full Analytics Dashboard
+                    </Link>
+                  </div>
+                </div>
+              )}
+
               {/* Quick actions section */}
               <div className="admin-section">
                 <h2 className="admin-section-title">Quick Actions</h2>
@@ -222,6 +321,16 @@ const AdminPanel = () => {
                   <Link to="/admin/register" className="admin-button">
                     <UserPlus size={18} />
                     Register New User
+                  </Link>
+
+                  <Link to="/chat" className="admin-button">
+                    <MessageSquare size={18} />
+                    Open Chatbot
+                  </Link>
+
+                  <Link to="/admin/permissions" className="admin-button">
+                    <Shield size={18} />
+                    Manage File Permissions
                   </Link>
                 </div>
               </div>
@@ -276,10 +385,6 @@ const AdminPanel = () => {
                   <Link to="/admin/users">
                     View All Users <ArrowRight size={14} />
                   </Link>
-                  <Link to="/admin/permissions" className="admin-button">
-                    <Shield size={18} />
-                    Manage File Permissions
-                  </Link>
                 </div>
               </div>
             </div>
@@ -298,10 +403,349 @@ const AdminPanel = () => {
                   </Link>
                 </div>
 
-                {/* Users would be listed here */}
-                <p className="placeholder-message">
-                  User management interface would be displayed here.
-                </p>
+                <div className="users-list-container">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Last Login</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentUsers.map((user) => (
+                        <tr key={user.id}>
+                          <td>{user.name}</td>
+                          <td>{user.email}</td>
+                          <td>
+                            <span
+                              className={`user-badge ${
+                                user.role === "admin" ? "admin-badge" : ""
+                              }`}
+                            >
+                              {user.role}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="user-status active">Active</span>
+                          </td>
+                          <td>{formatDate(user.lastActive)}</td>
+                          <td>
+                            <div className="action-buttons">
+                              <button className="action-button edit-button">
+                                <Settings size={14} title="Edit User" />
+                              </button>
+                              <button className="action-button reset-password-button">
+                                <Key size={14} title="Reset Password" />
+                              </button>
+                              {user.role !== "admin" && (
+                                <button className="action-button delete-button">
+                                  <Trash2 size={14} title="Delete User" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Profile Tab */}
+          {activeTab === "profile" && userProfile && (
+            <div className="admin-profile">
+              <div className="admin-section">
+                <h2 className="admin-section-title">My Profile</h2>
+
+                <div className="profile-details">
+                  <div className="profile-avatar">
+                    {userProfile.name?.charAt(0) || "U"}
+                  </div>
+
+                  <div className="profile-info">
+                    <form className="profile-form">
+                      <div className="form-group">
+                        <label htmlFor="name">Full Name</label>
+                        <input
+                          type="text"
+                          id="name"
+                          name="name"
+                          defaultValue={userProfile.name}
+                          className="form-input"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="email">Email Address</label>
+                        <input
+                          type="email"
+                          id="email"
+                          name="email"
+                          defaultValue={userProfile.email}
+                          className="form-input"
+                          disabled
+                        />
+                        <p className="input-help">
+                          Email address cannot be changed
+                        </p>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="role">Role</label>
+                        <input
+                          type="text"
+                          id="role"
+                          name="role"
+                          defaultValue={userProfile.role || "Admin"}
+                          className="form-input"
+                          disabled
+                        />
+                      </div>
+
+                      <button type="submit" className="save-button">
+                        Save Changes
+                      </button>
+                    </form>
+                  </div>
+                </div>
+
+                <div className="profile-security">
+                  <h3>Security Settings</h3>
+
+                  <div className="security-options">
+                    <Link to="/security" className="security-option">
+                      <Shield size={18} />
+                      <span>Change Password</span>
+                    </Link>
+
+                    <Link to="/sessions" className="security-option">
+                      <Globe size={18} />
+                      <span>Manage Active Sessions</span>
+                    </Link>
+
+                    <Link to="/security" className="security-option">
+                      <Smartphone size={18} />
+                      <span>Two-Factor Authentication</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CRM Tab */}
+          {activeTab === "crm" && (
+            <div className="admin-crm">
+              <div className="admin-section">
+                <h2 className="admin-section-title">CRM Integration</h2>
+
+                <div className="crm-section">
+                  <h3>Contact Management</h3>
+                  <p>
+                    Access the CRM system to manage contacts and client
+                    information.
+                  </p>
+
+                  <div className="admin-actions">
+                    <Link to="/crm" className="admin-button">
+                      <User size={18} />
+                      Open CRM System
+                    </Link>
+
+                    <button className="admin-button">
+                      <Database size={18} />
+                      Import Contacts
+                    </button>
+                  </div>
+                </div>
+
+                <div className="crm-section">
+                  <h3>Recent Contacts</h3>
+                  <p>Your most recently accessed contacts will appear here.</p>
+
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Last Contact</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Alex Thompson</td>
+                        <td>alex@example.com</td>
+                        <td>555-123-4567</td>
+                        <td>2 days ago</td>
+                        <td>
+                          <button className="action-button edit-button">
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Emma Wilson</td>
+                        <td>emma@example.com</td>
+                        <td>555-765-4321</td>
+                        <td>1 week ago</td>
+                        <td>
+                          <button className="action-button edit-button">
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Chatbot Tab */}
+          {activeTab === "chatbot" && (
+            <div className="admin-chatbot">
+              <div className="admin-section">
+                <h2 className="admin-section-title">Chatbot Interface</h2>
+
+                <div className="chatbot-actions">
+                  <Link to="/chat" className="chatbot-action">
+                    <MessageSquare size={18} />
+                    <span>Open Chatbot Interface</span>
+                  </Link>
+                </div>
+
+                <div className="crm-section">
+                  <h3>Chatbot Configuration</h3>
+
+                  <form className="chatbot-config-form">
+                    <div className="form-group">
+                      <label htmlFor="chatbot-name">Chatbot Name</label>
+                      <input
+                        type="text"
+                        id="chatbot-name"
+                        defaultValue="Tatt2Away AI"
+                        className="form-input"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="welcome-message">Welcome Message</label>
+                      <textarea
+                        id="welcome-message"
+                        defaultValue="Welcome to Tatt2Away AI! How can I help you today?"
+                        className="form-textarea"
+                        rows={3}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Features Enabled</label>
+                      <div className="checkbox-group">
+                        <label className="checkbox-label">
+                          <input type="checkbox" defaultChecked={true} />
+                          Image Analysis
+                        </label>
+
+                        <label className="checkbox-label">
+                          <input type="checkbox" defaultChecked={true} />
+                          File Upload
+                        </label>
+
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            defaultChecked={isFeatureEnabled("image_search")}
+                          />
+                          Image Search
+                        </label>
+
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            defaultChecked={isFeatureEnabled("advanced_search")}
+                          />
+                          Advanced Search
+                        </label>
+                      </div>
+                    </div>
+
+                    <button type="submit" className="save-button">
+                      Save Configuration
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Themes Tab */}
+          {activeTab === "themes" && (
+            <div className="admin-themes">
+              <div className="admin-section">
+                <h2 className="admin-section-title">Theme Management</h2>
+
+                <div className="crm-section">
+                  <h3>Select Theme</h3>
+                  <p>Choose a theme for your Tatt2Away AI interface.</p>
+
+                  <div className="themes-grid">
+                    {availableThemes.map((theme) => (
+                      <div
+                        key={theme.id}
+                        className={`theme-card ${
+                          theme.id === currentTheme ? "active" : ""
+                        }`}
+                        onClick={() => handleThemeChange(theme.id)}
+                      >
+                        <div className="theme-info">
+                          <h4>{theme.name}</h4>
+                          <p>{theme.description}</p>
+                          {theme.id === currentTheme && (
+                            <span className="current-theme-badge">Current</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {isFeatureEnabled("custom_branding") && (
+                  <div className="crm-section">
+                    <h3>Custom Branding</h3>
+                    <p>
+                      Customize your theme colors and branding (available on
+                      Professional and Enterprise tiers).
+                    </p>
+
+                    <div className="form-group">
+                      <label>Primary Color</label>
+                      <input
+                        type="color"
+                        defaultValue="#4f46e5"
+                        className="form-input"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Secondary Color</label>
+                      <input
+                        type="color"
+                        defaultValue="#10b981"
+                        className="form-input"
+                      />
+                    </div>
+
+                    <button className="save-button">Save Theme</button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -312,10 +756,153 @@ const AdminPanel = () => {
               <div className="admin-section">
                 <h2 className="admin-section-title">System Settings</h2>
 
-                {/* Settings would be displayed here */}
-                <p className="placeholder-message">
-                  System settings interface would be displayed here.
-                </p>
+                <div className="settings-grid">
+                  <div className="settings-card">
+                    <div className="settings-header">
+                      <Sliders size={20} />
+                      <h3>General Settings</h3>
+                    </div>
+
+                    <form className="settings-form">
+                      <div className="form-group">
+                        <label htmlFor="site-name">Site Name</label>
+                        <input
+                          type="text"
+                          id="site-name"
+                          defaultValue="Tatt2Away AI Assistant"
+                          className="form-input"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="timezone">Timezone</label>
+                        <select
+                          id="timezone"
+                          className="form-select"
+                          defaultValue="America/New_York"
+                        >
+                          <option value="America/New_York">
+                            Eastern Time (ET)
+                          </option>
+                          <option value="America/Chicago">
+                            Central Time (CT)
+                          </option>
+                          <option value="America/Denver">
+                            Mountain Time (MT)
+                          </option>
+                          <option value="America/Los_Angeles">
+                            Pacific Time (PT)
+                          </option>
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label>File Upload Settings</label>
+                        <div className="input-group">
+                          <label htmlFor="max-file-size">
+                            Max File Size (MB)
+                          </label>
+                          <input
+                            type="number"
+                            id="max-file-size"
+                            defaultValue={10}
+                            min={1}
+                            max={50}
+                            className="form-input"
+                          />
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+
+                  <div className="settings-card">
+                    <div className="settings-header">
+                      <Shield size={20} />
+                      <h3>Security Settings</h3>
+                    </div>
+
+                    <form className="settings-form">
+                      <div className="form-group">
+                        <label htmlFor="session-timeout">
+                          Session Timeout (minutes)
+                        </label>
+                        <input
+                          type="number"
+                          id="session-timeout"
+                          defaultValue={60}
+                          min={15}
+                          max={1440}
+                          className="form-input"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Security Policies</label>
+                        <div className="checkbox-group">
+                          <label className="checkbox-label">
+                            <input type="checkbox" defaultChecked={true} />
+                            Require Strong Passwords
+                          </label>
+
+                          <label className="checkbox-label">
+                            <input type="checkbox" defaultChecked={true} />
+                            Password Expiry (90 days)
+                          </label>
+
+                          <label className="checkbox-label">
+                            <input
+                              type="checkbox"
+                              defaultChecked={isFeatureEnabled(
+                                "advanced_security"
+                              )}
+                            />
+                            Force MFA for all users
+                          </label>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+
+                  <div className="settings-card">
+                    <div className="settings-header">
+                      <Database size={20} />
+                      <h3>Storage Settings</h3>
+                    </div>
+
+                    <form className="settings-form">
+                      <div className="form-group">
+                        <label htmlFor="storage-path">
+                          Default Storage Path
+                        </label>
+                        <input
+                          type="text"
+                          id="storage-path"
+                          defaultValue="/data/uploads"
+                          className="form-input"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="storage-quota">
+                          Storage Quota (GB)
+                        </label>
+                        <input
+                          type="number"
+                          id="storage-quota"
+                          defaultValue={50}
+                          min={1}
+                          className="form-input"
+                        />
+                      </div>
+                    </form>
+                  </div>
+                </div>
+
+                <div className="admin-actions">
+                  <button type="button" className="admin-button">
+                    Save All Settings
+                  </button>
+                </div>
               </div>
             </div>
           )}
