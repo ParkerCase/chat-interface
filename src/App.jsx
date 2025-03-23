@@ -17,7 +17,6 @@ import AdminRoute from "./components/AdminRoute";
 import AuthPage from "./components/AuthPage";
 import AdminPanel from "./components/admin/AdminPanel";
 import FilePermissionsManager from "./components/admin/FilePermissionsManager";
-// In App.jsx, add this import
 import FeatureProtectedRoute from "./components/FeatureProtectedRoute";
 
 // Professional Tier Features
