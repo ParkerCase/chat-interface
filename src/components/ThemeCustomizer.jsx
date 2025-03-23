@@ -12,6 +12,8 @@ import {
   Check,
   Loader,
 } from "lucide-react";
+import { X } from "lucide-react";
+
 import "./ThemeCustomizer.css";
 
 const ThemeCustomizer = () => {

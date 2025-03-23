@@ -292,7 +292,7 @@ const AdminPanel = () => {
                 <h2 className="admin-section-title">User Management</h2>
 
                 <div className="admin-actions">
-                  <Link to="/admin/register" className="admin-button">
+                  <Link to="/admin/register" className="action-button">
                     <UserPlus size={18} />
                     Register New User
                   </Link>

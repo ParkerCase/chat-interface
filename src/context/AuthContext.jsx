@@ -101,7 +101,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   // Get default features for a tier
-  const getDefaultFeaturesForTier = (tier) => {
+  function getDefaultFeaturesForTier(tier) {
     // Basic tier features
     const basicFeatures = {
       chatbot: true,
@@ -143,7 +143,7 @@ export function AuthProvider({ children }) {
       default:
         return basicFeatures;
     }
-  };
+  }
 
   // Initialize auth state
   useEffect(() => {

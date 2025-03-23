@@ -1,136 +1,231 @@
-require("dotenv").config();
-const express = require("express");
-const path = require("path");
-const logger = require("./logger");
-const crypto = require("crypto");
-const fs = require("fs");
-const dependencyManager = require("./DependencyManager");
+const logger = require("../logger");
+const AnalyticsManager = require("../analytics/AnalyticsManager");
+const AlertManager = require("../analytics/AlertManager");
+const DashboardPresets = require("../analytics/DashboardPresets");
 
-// Make sure JWT secret is available
-if (!process.env.JWT_SECRET) {
-  process.env.JWT_SECRET = crypto.randomBytes(32).toString("hex");
-  console.log("Warning: JWT_SECRET not set, using auto-generated secret");
+/**
+ * Creates a minimal ThemeManager with fallback functionality
+ * @returns {Object} Simple theme manager with basic methods
+ */
+function createFallbackThemeManager() {
+  return {
+    initialized: true,
+    getTheme: () => ({
+      colors: {
+        primary: "#1976D2",
+        background: "#FFFFFF",
+        text: { primary: "#212121" },
+      },
+    }),
+    getAllThemes: () => [
+      {
+        id: "default",
+        name: "Default Theme",
+        description: "Default system theme",
+        preview: {
+          primary: "#1976D2",
+          background: "#FFFFFF",
+          text: "#212121",
+        },
+        isDefault: true,
+      },
+    ],
+    getThemeCSS: () => `:root {
+      --color-primary: #1976D2;
+      --color-background: #FFFFFF;
+      --color-text-primary: #212121;
+    }`,
+    getUserPreference: () => Promise.resolve("default"),
+    setUserPreference: () => Promise.resolve(true),
+  };
 }
 
-// Initialize express app
-const app = express();
+/**
+ * Initialize application services
+ * @param {Express} app - Express application
+ * @param {Object} imageMatcher - Initialized image matcher
+ * @returns {Promise<boolean>} Success status
+ */
+async function initialize(app, imageMatcher) {
+  try {
+    logger.info("Initializing application services...");
 
-// Register core dependencies with dependency manager
-dependencyManager.register("logger", logger);
-dependencyManager.register("config", require("./config"));
-dependencyManager.register("supabase", require("./supabase"), ["logger"]);
+    try {
+      const themeManager =
+        app.get("themeManager") || require("../ui/ThemeManager");
+      if (themeManager && typeof themeManager.initialize === "function") {
+        const success = await themeManager.initialize();
+        if (success) {
+          logger.info("Theme Manager initialized successfully");
+          app.set("themeManager", themeManager);
+        } else {
+          logger.warn("Theme Manager initialization returned false");
+        }
+      } else {
+        logger.warn("Theme Manager doesn't have an initialize method");
+      }
+    } catch (themeErr) {
+      logger.error("Failed to initialize Theme Manager:", {
+        error: themeErr.message,
+        stack: themeErr.stack,
+      });
+      // Create basic theme manager with minimal functionality
+      app.set("themeManager", createFallbackThemeManager());
+    }
 
-// Make global for backward compatibility
-global.supabase = dependencyManager.get("supabase");
-global.supabaseClient = global.supabase; // Set both for compatibility
+    try {
+      logger.info("Initializing analytics services...");
 
-dependencyManager.register(
-  "storageManager",
-  require("./storage/StorageManager"),
-  ["logger", "config"]
-);
-dependencyManager.register("visionEnhancer", require("./visionEnhancer"), [
-  "logger",
-  "config",
-]);
-dependencyManager.register("imageMatcher", null, [
-  "logger",
-  "config",
-  "storageManager",
-]); // Will be set after initialization
-dependencyManager.register("themeManager", require("./ui/ThemeManager"), [
-  "logger",
-  "supabase",
-]);
-dependencyManager.register(
-  "analyticsManager",
-  require("./analytics/AnalyticsManager"),
-  ["logger", "supabase"]
-);
-dependencyManager.register("rbacManager", require("./auth/RBACManager"), [
-  "logger",
-  "supabase",
-]);
-dependencyManager.register(
-  "workflowEngine",
-  require("./workflow/WorkflowEngine"),
-  ["logger", "supabase"]
-);
-dependencyManager.register(
-  "alertManager",
-  require("./analytics/AlertManager"),
-  ["logger", "supabase", "analyticsManager"]
-);
-dependencyManager.register("openaiClient", require("./openaiClient"), [
-  "logger",
-  "config",
-]);
+      // Initialize analytics manager
+      const analyticsManager = new AnalyticsManager({
+        collectSearchMetrics: true,
+        collectUserMetrics: true,
+        collectSystemMetrics: true,
+        collectContentMetrics: true,
+      });
+      await analyticsManager.initialize();
+      app.set("analyticsManager", analyticsManager);
+      global.analyticsManager = analyticsManager;
+      logger.info("Analytics Manager initialized successfully");
 
-// Initialize middleware
-require("./middleware")(app, dependencyManager);
+      // Initialize dashboard presets
+      const dashboardPresets = new DashboardPresets(global.supabaseClient);
+      app.set("dashboardPresets", dashboardPresets);
+      logger.info("Dashboard Presets initialized successfully");
 
-// Initialize routes
-const routes = require("./routes");
-routes.initRoutes(app, dependencyManager);
+      // Initialize alert manager
+      const alertManager = new AlertManager(
+        global.supabaseClient,
+        analyticsManager
+      );
+      await alertManager.initialize();
+      app.set("alertManager", alertManager);
+      logger.info("Alert Manager initialized successfully");
+    } catch (analyticsErr) {
+      logger.error("Failed to initialize analytics services:", {
+        error: analyticsErr.message,
+        stack: analyticsErr.stack,
+      });
+      // Continue despite analytics initialization failure
+    }
 
-// Start the server
-const init = require("./init");
-init
-  .startServer(app, dependencyManager)
-  .then(({ httpServer, httpsServer }) => {
-    // Store servers for graceful shutdown
-    global.httpServer = httpServer;
-    global.httpsServer = httpsServer;
+    // Try to load DependencyManager if available
+    let dependencyManager;
+    try {
+      const DependencyManager = require("../DependencyManager");
+      if (typeof DependencyManager === "function") {
+        dependencyManager = new DependencyManager();
+        logger.info("Dependency manager initialized");
+      } else if (typeof DependencyManager.getInstance === "function") {
+        dependencyManager = DependencyManager.getInstance();
+        logger.info("Dependency manager singleton accessed");
+      } else {
+        dependencyManager = DependencyManager;
+        logger.info("Using Dependency manager instance");
+      }
+    } catch (err) {
+      logger.warn("Dependency manager not available:", {
+        error: err.message,
+      });
+      // Create simple dependency manager
+      dependencyManager = {
+        register(name, service) {
+          this[name] = service;
+          return service;
+        },
+        get(name) {
+          return this[name];
+        },
+      };
+    }
 
-    logger.info("Server started successfully", {
-      service: "tatt2awai-bot",
-      signatureCount: global.imageMatcher?.signatureCache?.size || 0,
-      memoryUsage: Math.round(process.memoryUsage().heapUsed / (1024 * 1024)),
-      enterpriseFeaturesEnabled: global.enterpriseInitialized || false,
-    });
-  })
-  .catch((error) => {
-    logger.error(`Server failed to start: ${error.message}`, {
-      service: "tatt2awai-bot",
+    // Register services with dependency manager if available
+    if (dependencyManager && typeof dependencyManager.register === "function") {
+      // Register image matcher
+      dependencyManager.register("imageMatcher", imageMatcher);
+
+      // Register analytics services if available
+      if (app.get("analyticsManager")) {
+        dependencyManager.register(
+          "analyticsManager",
+          app.get("analyticsManager")
+        );
+      }
+      if (app.get("alertManager")) {
+        dependencyManager.register("alertManager", app.get("alertManager"));
+      }
+      if (app.get("dashboardPresets")) {
+        dependencyManager.register(
+          "dashboardPresets",
+          app.get("dashboardPresets")
+        );
+      }
+    }
+
+    // Try to load services from services directory
+    try {
+      const fs = require("fs");
+      const path = require("path");
+      const servicesDir = path.join(__dirname, "../services");
+
+      if (fs.existsSync(servicesDir)) {
+        const serviceFiles = fs
+          .readdirSync(servicesDir)
+          .filter((file) => file.endsWith(".js"));
+
+        for (const file of serviceFiles) {
+          try {
+            const servicePath = path.join(servicesDir, file);
+            const service = require(servicePath);
+
+            // Get service name from filename
+            const serviceName = file.replace(".js", "");
+
+            // Initialize service if it has an initialize method
+            if (typeof service.initialize === "function") {
+              await service.initialize(app);
+              logger.info(`Initialized service: ${serviceName}`);
+            }
+
+            // Register with dependency manager
+            if (
+              dependencyManager &&
+              typeof dependencyManager.register === "function"
+            ) {
+              dependencyManager.register(serviceName, service);
+            }
+
+            // Set on app for middleware to access
+            app.set(serviceName, service);
+          } catch (serviceErr) {
+            logger.warn(`Failed to initialize service: ${file}`, {
+              error: serviceErr.message,
+            });
+          }
+        }
+      }
+    } catch (servicesErr) {
+      logger.warn("Error loading services directory:", {
+        error: servicesErr.message,
+      });
+    }
+
+    // Set dependency manager on app
+    if (dependencyManager) {
+      app.set("dependencyManager", dependencyManager);
+    }
+
+    logger.info("Application services initialized successfully");
+    return true;
+  } catch (error) {
+    logger.error("Failed to initialize services:", {
       error: error.message,
       stack: error.stack,
     });
-    process.exit(1);
-  });
-
-// Handle process events
-process.on("SIGTERM", () => init.gracefulShutdown("SIGTERM"));
-process.on("SIGINT", () => init.gracefulShutdown("SIGINT"));
-process.on("uncaughtException", (error) => {
-  logger.error("Uncaught exception:", {
-    service: "server",
-    error: error.message,
-    stack: error.stack,
-  });
-
-  setTimeout(() => {
-    process.exit(1);
-  }, 1000);
-});
-
-process.on("unhandledRejection", (reason, promise) => {
-  logger.error("Unhandled rejection:", {
-    service: "server",
-    error: reason.message || reason,
-    stack: reason.stack || "No stack trace",
-  });
-});
-
-// Add to the end of server.js temporarily
-function printRoutes() {
-  console.log("ROUTES:");
-  app._router.stack.forEach(function (middleware) {
-    if (middleware.route) {
-      console.log(middleware.route.path, Object.keys(middleware.route.methods));
-    }
-  });
+    return false;
+  }
 }
-printRoutes();
 
-// For testing
-module.exports = { app };
+module.exports = {
+  initialize,
+};

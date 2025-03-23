@@ -582,6 +582,52 @@ const themesApi = {
 
 // Analytics endpoints
 const analyticsApi = {
+  getDashboard: (timeframe = "week", clientId = null) =>
+    apiClient.get(
+      `/api/analytics/dashboard?timeframe=${timeframe}${
+        clientId ? `&clientId=${clientId}` : ""
+      }`
+    ),
+
+  getSearchAnalytics: (options = {}) => {
+    const params = new URLSearchParams();
+    if (options.startDate) params.append("startDate", options.startDate);
+    if (options.endDate) params.append("endDate", options.endDate);
+    if (options.clientId) params.append("clientId", options.clientId);
+    if (options.searchType) params.append("searchType", options.searchType);
+    if (options.limit) params.append("limit", options.limit);
+
+    return apiClient.get(`/api/analytics/search?${params}`);
+  },
+
+  getSystemPerformance: (options = {}) => {
+    const params = new URLSearchParams();
+    if (options.startDate) params.append("startDate", options.startDate);
+    if (options.endDate) params.append("endDate", options.endDate);
+    if (options.resolution) params.append("resolution", options.resolution);
+
+    return apiClient.get(`/api/analytics/system?${params}`);
+  },
+
+  getUsageReport: (clientId, period = "month") =>
+    apiClient.get(`/api/analytics/report/${clientId}?period=${period}`),
+
+  getDashboardPresets: () => apiClient.get("/api/analytics/presets"),
+
+  savePreset: (preset) => apiClient.post("/api/analytics/presets", preset),
+
+  updatePreset: (id, preset) =>
+    apiClient.put(`/api/analytics/presets/${id}`, preset),
+
+  deletePreset: (id) => apiClient.delete(`/api/analytics/presets/${id}`),
+
+  exportDashboard: (timeframe, clientId, format = "csv") =>
+    apiClient.get(
+      `/api/analytics/export/dashboard?timeframe=${timeframe}&clientId=${clientId}&format=${format}`,
+      {
+        responseType: "blob",
+      }
+    ),
   getStats: (timeframe = "week") =>
     apiClient.get(`/api/analytics/stats?timeframe=${timeframe}`),
 
@@ -589,8 +635,6 @@ const analyticsApi = {
     apiClient.get(`/api/analytics/user/${userId}?timeframe=${timeframe}`),
 
   getSystemMetrics: () => apiClient.get("/api/analytics/system"),
-
-  getUsageReports: () => apiClient.get("/api/analytics/usage"),
 };
 
 // Workflows
