@@ -17,7 +17,7 @@ import {
   Loader,
   RefreshCw,
 } from "lucide-react";
-import "./MFAModule.css"; // You'll need to create this CSS file by combining from MfaSetup.css and MFAManagement.css
+import "./MFAModule.css"; // Use your existing CSS file
 
 function MFAModule({
   isStandalone = false,
@@ -150,14 +150,20 @@ function MFAModule({
           );
         }
 
-        // Add the new method to the list
+        // Add the new method to the list if not already present
         const newMethod = {
           id: setupData.methodId,
           type: selectedMethod,
           identifier: selectedMethod === "email" ? setupData.email : null,
         };
 
-        setUserMfaMethods((prev) => [...prev, newMethod]);
+        setUserMfaMethods((prev) => {
+          // Check if this method already exists
+          const exists = prev.some((m) => m.id === newMethod.id);
+          if (exists) return prev;
+          return [...prev, newMethod];
+        });
+
         setActiveStep(3);
       } else {
         setErrorMessage("Invalid verification code. Please try again.");
@@ -236,6 +242,18 @@ function MFAModule({
         return "SMS Authentication";
       default:
         return "Two-Factor Authentication";
+    }
+  };
+
+  // Helper function to get method icon
+  const getMethodIcon = (type) => {
+    switch (type) {
+      case "totp":
+        return <Smartphone size={20} />;
+      case "email":
+        return <Mail size={20} />;
+      default:
+        return <Shield size={20} />;
     }
   };
 
@@ -671,10 +689,10 @@ function MFAModule({
                     <div className="method-info">
                       {method.identifier && <span>{method.identifier}</span>}
                       <span className="method-date">
-                        Last Used:{" "}
-                        {method.lastUsed
-                          ? new Date(method.lastUsed).toLocaleString()
-                          : "Never"}
+                        Added:{" "}
+                        {new Date(
+                          method.createdAt || Date.now()
+                        ).toLocaleString()}
                       </span>
                     </div>
                   </div>

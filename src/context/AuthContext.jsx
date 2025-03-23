@@ -1,4 +1,4 @@
-// src/context/AuthContext.jsx - Enhanced with tier support
+// src/context/AuthContext.jsx
 import React, {
   createContext,
   useState,
@@ -7,8 +7,12 @@ import React, {
   useCallback,
   useRef,
 } from "react";
+import {
+  supabase,
+  getUserData,
+  getDefaultFeaturesForTier,
+} from "../lib/supabase";
 import apiService from "../services/apiService";
-import { jwtDecode } from "jwt-decode";
 
 const AuthContext = createContext(null);
 
@@ -18,337 +22,124 @@ export function useAuth() {
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem("authToken"));
-  const [refreshToken, setRefreshToken] = useState(
-    localStorage.getItem("refreshToken")
-  );
-  const [sessionId, setSessionId] = useState(localStorage.getItem("sessionId"));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tokenExpiry, setTokenExpiry] = useState(null);
-  const refreshTimerRef = useRef(null);
+  const [session, setSession] = useState(null);
   const [userTier, setUserTier] = useState("basic");
-  const [tierFeatures, setTierFeatures] = useState({});
+  const [tierFeatures, setTierFeatures] = useState(
+    getDefaultFeaturesForTier("basic")
+  );
 
-  // Check if token is expired
-  const isTokenExpired = useCallback(() => {
-    return apiService.utils.isTokenExpired(token);
-  }, [token]);
-
-  // Schedule token refresh
-  const scheduleTokenRefresh = useCallback(() => {
-    // Clear any existing timers
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-    }
-
-    // If no token or no expiry, don't schedule
-    if (!token || !tokenExpiry) {
-      return;
-    }
-
-    // Calculate time until refresh (75% of time until expiry)
-    const now = Date.now();
-    const timeUntilExpiry = tokenExpiry - now;
-    const refreshTime = Math.max(timeUntilExpiry * 0.75, 0);
-
-    // Set timer to refresh token before it expires
-    refreshTimerRef.current = setTimeout(() => {
-      refreshUserToken();
-    }, refreshTime);
-
-    console.log(
-      `Token refresh scheduled in ${Math.round(refreshTime / 1000)} seconds`
-    );
-  }, [token, tokenExpiry]);
-
-  // Extract user from token
-  const extractUserFromToken = useCallback((token) => {
-    try {
-      console.log("Extracting user from token");
-      const decodedToken = jwtDecode(token);
-      console.log("Decoded token:", decodedToken);
-      setTokenExpiry(decodedToken.exp * 1000);
-
-      // Extract tier information
-      const tier = decodedToken.tier || "enterprise";
-      setUserTier(tier);
-
-      // Extract features
-      if (decodedToken.features) {
-        setTierFeatures(decodedToken.features);
-      } else {
-        // Set default features based on tier
-        setTierFeatures(getDefaultFeaturesForTier(tier));
-      }
-
-      return {
-        id: decodedToken.sub,
-        email: decodedToken.email,
-        name: decodedToken.name,
-        roles: decodedToken.roles || ["user"],
-        tenantId: decodedToken.tenantId,
-        exp: decodedToken.exp,
-        mfaMethods: decodedToken.mfaMethods || [],
-        tier: tier,
-        features: decodedToken.features || {},
-        passwordLastChanged: decodedToken.passwordLastChanged,
-      };
-    } catch (error) {
-      console.error("Token decode error:", error);
-      return null;
-    }
-  }, []);
-
-  // Get default features for a tier
-  function getDefaultFeaturesForTier(tier) {
-    // Basic tier features
-    const basicFeatures = {
-      chatbot: true,
-      basic_search: true,
-      file_upload: true,
-      image_analysis: true,
-    };
-
-    // Professional tier features
-    const professionalFeatures = {
-      ...basicFeatures,
-      advanced_search: true,
-      image_search: true,
-      custom_branding: true,
-      multi_user: true,
-      data_export: true,
-      analytics_basic: true,
-    };
-
-    // Enterprise tier features
-    const enterpriseFeatures = {
-      ...professionalFeatures,
-      custom_workflows: true,
-      advanced_analytics: true,
-      multi_department: true,
-      automated_alerts: true,
-      custom_integrations: true,
-      advanced_security: true,
-      sso: true,
-      advanced_roles: true,
-    };
-
-    switch (tier.toLowerCase()) {
-      case "enterprise":
-        return enterpriseFeatures;
-      case "professional":
-        return professionalFeatures;
-      case "basic":
-      default:
-        return basicFeatures;
-    }
-  }
-
-  // Initialize auth state
+  // Initialize auth state from Supabase session
   useEffect(() => {
-    async function loadUser() {
-      if (!token) {
-        setLoading(false);
-        return;
+    // Set up auth state listener
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        setSession(session);
+        const userData = await getUserData();
+        setCurrentUser(userData);
+        setUserTier(userData?.tier || "basic");
+        setTierFeatures(
+          userData?.features ||
+            getDefaultFeaturesForTier(userData?.tier || "basic")
+        );
+      } else {
+        setCurrentUser(null);
+        setSession(null);
+        setUserTier("basic");
+        setTierFeatures(getDefaultFeaturesForTier("basic"));
       }
+      setLoading(false);
+    });
 
+    // Initial session check
+    const initializeAuth = async () => {
       try {
-        // Check if token is expired
-        if (isTokenExpired()) {
-          // Try to refresh token
-          const refreshed = await refreshUserToken();
-          if (!refreshed) {
-            logout();
-            return;
-          }
-        } else {
-          // Extract user from token
-          const user = extractUserFromToken(token);
-
-          if (user) {
-            setCurrentUser(user);
-            scheduleTokenRefresh();
-          } else {
-            logout();
-          }
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session) {
+          setSession(session);
+          const userData = await getUserData();
+          setCurrentUser(userData);
+          setUserTier(userData?.tier || "basic");
+          setTierFeatures(
+            userData?.features ||
+              getDefaultFeaturesForTier(userData?.tier || "basic")
+          );
         }
       } catch (error) {
-        console.error("Error loading user:", error);
-        logout();
-        setError("Session expired. Please login again.");
+        console.error("Error initializing auth:", error);
       } finally {
         setLoading(false);
       }
-    }
-
-    loadUser();
-
-    // Cleanup refresh timer on unmount
-    return () => {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-      }
     };
-  }, [token, isTokenExpired, extractUserFromToken, scheduleTokenRefresh]);
 
-  // Refresh token
-  const refreshUserToken = async () => {
-    try {
-      if (!refreshToken) {
-        return false;
-      }
+    initializeAuth();
 
-      const response = await apiService.auth.refreshToken(
-        refreshToken,
-        sessionId
-      );
-
-      if (response.data && response.data.success) {
-        // Save new tokens
-        const { token: accessToken, refreshToken: newRefreshToken } =
-          response.data;
-
-        localStorage.setItem("authToken", accessToken);
-        localStorage.setItem("refreshToken", newRefreshToken || refreshToken);
-        if (response.data.sessionId) {
-          localStorage.setItem("sessionId", response.data.sessionId);
-          setSessionId(response.data.sessionId);
-        }
-
-        // Update state
-        setToken(accessToken);
-        if (newRefreshToken) setRefreshToken(newRefreshToken);
-
-        // Extract and set user
-        const user = extractUserFromToken(accessToken);
-        setCurrentUser(user);
-
-        // Schedule next refresh
-        scheduleTokenRefresh();
-
-        return true;
-      } else {
-        throw new Error(response.data?.error || "Token refresh failed");
-      }
-    } catch (error) {
-      console.error("Token refresh error:", error);
-
-      // If refresh fails, clear auth state
-      logout(false); // Don't call server logout
-      setError("Your session has expired. Please login again.");
-
-      return false;
-    }
-  };
+    // Cleanup function
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   // Login function
   const login = async (email, password) => {
     try {
       setError("");
-      console.log("Attempting login with:", email);
 
-      // Get the base URL from your apiService or use a hardcoded one
-      const baseUrl =
-        apiService.utils.getBaseUrl() || "http://147.182.247.128:4000";
-
-      // Special handling for dev login
+      // Handle special dev login
       if (email === "itsus@tatt2away.com") {
         try {
-          console.log("Attempting dev login");
-
-          // Use fetch with correct URL
-          const response = await fetch(`${baseUrl}/api/auth/dev-access`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ email }),
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: "admin@tatt2away.com",
+            password: "adminpassword123", // This should be replaced with the actual admin password
           });
 
-          if (response.ok) {
-            const data = await response.json();
-
-            if (data.success && data.token) {
-              console.log("Dev login successful");
-              localStorage.setItem("authToken", data.token);
-              localStorage.setItem("isAuthenticated", "true");
-              setToken(data.token);
-              setCurrentUser(data.user);
-              return true;
-            }
-          } else {
-            console.error("Dev login failed with status:", response.status);
-          }
+          if (error) throw error;
+          return true;
         } catch (error) {
           console.error("Dev login error:", error);
+          throw error;
         }
       }
 
-      // Regular login via API
-      try {
-        const response = await fetch(`${baseUrl}/api/auth/login`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email, password }),
-        });
+      // Regular login with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        if (response.ok) {
-          const data = await response.json();
+      if (error) throw error;
 
-          if (data.success && data.token) {
-            localStorage.setItem("authToken", data.token);
-            localStorage.setItem("isAuthenticated", "true");
-            setToken(data.token);
-            setCurrentUser(data.user);
-            return true;
-          } else {
-            setError(data.error || "Login failed");
-            return false;
-          }
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          setError(errorData.error || "Login failed");
-          return false;
-        }
-      } catch (error) {
-        console.error("Login error:", error);
-        setError("Connection error. Please try again.");
-        return false;
-      }
+      // Store flag for basic auth
+      localStorage.setItem("isAuthenticated", "true");
+
+      return true;
     } catch (error) {
       console.error("Login error:", error);
-      setError("An unexpected error occurred");
+      setError(error.message || "An error occurred during login");
       return false;
     }
   };
 
-  // Passcode login function
+  // Login with passcode (basic auth)
   const loginWithPasscode = async (passcode) => {
     try {
       setError("");
-      const response = await apiService.auth.verifyPasscode(passcode);
 
-      if (response.data && response.data.success) {
+      // Verify passcode against the expected value
+      // This is a simple implementation. In a real app, you'd verify this against the backend
+      const TEAM_PASSCODE =
+        process.env.REACT_APP_TEAM_PASSCODE || "R3m0v@al$Ru$";
+
+      if (passcode === TEAM_PASSCODE) {
         localStorage.setItem("isAuthenticated", "true");
-        // If the backend returns a token for passcode logins
-        if (response.data.token) {
-          localStorage.setItem("authToken", response.data.token);
-          setToken(response.data.token);
-
-          // Extract user from token if available
-          if (response.data.token) {
-            const user = extractUserFromToken(response.data.token);
-            if (user) {
-              setCurrentUser(user);
-            }
-          }
-        }
         return true;
       } else {
-        setError(response.data?.error || "Invalid passcode");
+        setError("Invalid passcode");
         return false;
       }
     } catch (error) {
@@ -358,85 +149,19 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Process token exchange from SSO
-  const processTokenExchange = async (code) => {
-    try {
-      setError("");
-      setLoading(true);
-
-      const response = await apiService.auth.exchangeToken(code);
-
-      if (response.data && response.data.success) {
-        // Save tokens and session ID to localStorage
-        const {
-          token: accessToken,
-          refreshToken: newRefreshToken,
-          sessionId: newSessionId,
-        } = response.data;
-
-        localStorage.setItem("authToken", accessToken);
-        localStorage.setItem("refreshToken", newRefreshToken || "");
-        localStorage.setItem("sessionId", newSessionId || "");
-
-        // Update state
-        setToken(accessToken);
-        setRefreshToken(newRefreshToken || "");
-        setSessionId(newSessionId || "");
-
-        // Extract and set user
-        const user = extractUserFromToken(accessToken);
-        setCurrentUser(user);
-
-        // Schedule token refresh
-        scheduleTokenRefresh();
-
-        return true;
-      } else {
-        throw new Error(response.data?.error || "Token exchange failed");
-      }
-    } catch (error) {
-      console.error("Token exchange error:", error);
-      setError(
-        error.response?.data?.error ||
-          "Authentication failed. Please try again."
-      );
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Logout function
-  const logout = async (serverSide = true) => {
-    // Clear refresh timer
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = null;
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      localStorage.removeItem("isAuthenticated");
+      setCurrentUser(null);
+      setSession(null);
+      return true;
+    } catch (error) {
+      console.error("Logout error:", error);
+      setError("An error occurred during logout");
+      return false;
     }
-
-    if (serverSide && refreshToken) {
-      try {
-        // Call server to invalidate token
-        await apiService.auth.logout();
-      } catch (error) {
-        console.error("Logout error:", error);
-      }
-    }
-
-    // Clear local storage
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("sessionId");
-    localStorage.removeItem("isAuthenticated");
-
-    // Clear state
-    setToken(null);
-    setRefreshToken(null);
-    setSessionId(null);
-    setCurrentUser(null);
-    setTokenExpiry(null);
-    setUserTier("basic");
-    setTierFeatures({});
   };
 
   // Register function (admin only)
@@ -450,19 +175,68 @@ export function AuthProvider({ children }) {
         return false;
       }
 
-      const response = await apiService.auth.register(userData);
+      // Create user in Supabase Auth
+      const { data: authData, error: authError } =
+        await supabase.auth.admin.createUser({
+          email: userData.email,
+          password: userData.password || undefined, // If password is empty, Supabase will auto-generate one
+          email_confirm: true, // Skip email confirmation step
+          user_metadata: {
+            name: userData.name,
+            roles: userData.roles,
+          },
+        });
 
-      if (response.data && response.data.success) {
-        return response.data;
-      } else {
-        setError(response.data?.error || "Registration failed");
-        return false;
-      }
+      if (authError) throw authError;
+
+      // Add user to profiles table
+      const { error: profileError } = await supabase.from("profiles").insert([
+        {
+          id: authData.user.id,
+          full_name: userData.name,
+          tier: userData.tier || "basic",
+        },
+      ]);
+
+      if (profileError) throw profileError;
+
+      // Add user roles to user_roles table
+      const rolePromises = userData.roles.map(async (role) => {
+        const { data: roleData, error: roleQueryError } = await supabase
+          .from("roles")
+          .select("id")
+          .eq("name", role)
+          .single();
+
+        if (roleQueryError) throw roleQueryError;
+
+        const { error: roleAssignError } = await supabase
+          .from("user_roles")
+          .insert([
+            {
+              user_id: authData.user.id,
+              role_id: roleData.id,
+            },
+          ]);
+
+        if (roleAssignError) throw roleAssignError;
+      });
+
+      await Promise.all(rolePromises);
+
+      return {
+        success: true,
+        user: {
+          id: authData.user.id,
+          name: userData.name,
+          email: userData.email,
+          roles: userData.roles,
+        },
+        credentials: authData.user,
+      };
     } catch (error) {
       console.error("Registration error:", error);
-      setError(
-        error.response?.data?.error || "Registration failed. Please try again."
-      );
+      setError(error.message || "Registration failed. Please try again.");
       return false;
     }
   };
@@ -472,20 +246,16 @@ export function AuthProvider({ children }) {
     try {
       setError("");
 
-      if (!email) {
-        setError("Email is required");
-        return false;
-      }
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
 
-      const response = await apiService.auth.requestPasswordReset(email);
+      if (error) throw error;
 
-      // Usually returns success whether email exists or not to prevent enumeration
-      return response.data?.success || true;
+      return true;
     } catch (error) {
       console.error("Password reset request error:", error);
-      setError(
-        error.response?.data?.error || "Failed to request password reset"
-      );
+      setError(error.message || "Failed to request password reset");
       return false;
     }
   };
@@ -495,22 +265,17 @@ export function AuthProvider({ children }) {
     try {
       setError("");
 
-      if (!password || !token) {
-        setError("Password and token are required");
-        return false;
-      }
+      // In Supabase, the token is handled automatically via the URL
+      const { error } = await supabase.auth.updateUser({
+        password: password,
+      });
 
-      const response = await apiService.auth.resetPassword(token, password);
+      if (error) throw error;
 
-      if (response.data && response.data.success) {
-        return true;
-      } else {
-        setError(response.data?.error || "Password reset failed");
-        return false;
-      }
+      return true;
     } catch (error) {
       console.error("Password reset error:", error);
-      setError(error.response?.data?.error || "Password reset failed");
+      setError(error.message || "Password reset failed");
       return false;
     }
   };
@@ -520,114 +285,249 @@ export function AuthProvider({ children }) {
     try {
       setError("");
 
-      if (!currentPassword || !newPassword) {
-        setError("Current password and new password are required");
+      // First verify the current password by trying to sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: currentUser.email,
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        setError("Current password is incorrect");
         return false;
       }
 
-      const response = await apiService.auth.changePassword(
-        currentPassword,
-        newPassword
-      );
+      // Update password
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
 
-      if (response.data && response.data.success) {
-        return true;
-      } else {
-        setError(response.data?.error || "Password change failed");
-        return false;
-      }
+      if (error) throw error;
+
+      // Update password_last_changed in profiles
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          password_last_changed: new Date().toISOString(),
+        })
+        .eq("id", currentUser.id);
+
+      if (updateError)
+        console.error("Error updating password_last_changed:", updateError);
+
+      return true;
     } catch (error) {
       console.error("Password change error:", error);
-      setError(error.response?.data?.error || "Password change failed");
+      setError(error.message || "Password change failed");
       return false;
     }
   };
 
-  // Get active sessions
-  const getSessions = async () => {
+  // Process token exchange from SSO
+  const processTokenExchange = async (code) => {
     try {
-      const response = await apiService.sessions.getSessions();
+      setError("");
+      setLoading(true);
 
-      if (response.data && response.data.success) {
-        return response.data.sessions;
-      } else {
-        throw new Error(response.data?.error || "Failed to retrieve sessions");
-      }
-    } catch (error) {
-      console.error("Get sessions error:", error);
-      setError(error.response?.data?.error || "Failed to retrieve sessions");
-      return [];
-    }
-  };
+      // For SSO flows, Supabase handles the token exchange automatically
 
-  // Terminate session
-  const terminateSession = async (sessionId) => {
-    try {
-      const response = await apiService.sessions.terminateSession(sessionId);
-      return response.data?.success || false;
+      return true;
     } catch (error) {
-      console.error("Terminate session error:", error);
-      setError(error.response?.data?.error || "Failed to terminate session");
+      console.error("Token exchange error:", error);
+      setError(error.message || "Authentication failed. Please try again.");
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Terminate all other sessions
-  const terminateAllSessions = async () => {
-    try {
-      const response = await apiService.sessions.terminateAllSessions();
-      return response.data?.success || false;
-    } catch (error) {
-      console.error("Terminate all sessions error:", error);
-      setError(error.response?.data?.error || "Failed to terminate sessions");
-      return false;
-    }
-  };
+  // MFA Functions
 
-  // MFA setup functions
+  // Setup MFA
   const setupMfa = async (type, data = {}) => {
     try {
-      const response = await apiService.mfa.setup(type, data);
-      return response.data;
+      let response;
+
+      if (type === "totp") {
+        // Enroll TOTP with Supabase
+        const { data, error } = await supabase.auth.mfa.enroll({
+          factorType: "totp",
+          issuer: "Tatt2Away",
+        });
+
+        if (error) throw error;
+
+        // Return data in the expected format
+        response = {
+          data: {
+            methodId: data.id,
+            secret: data.secret,
+            qrCode: data.totp.qr_code,
+          },
+        };
+      } else if (type === "email") {
+        // For email verification, we'll use Supabase's OTP feature
+        const { error } = await supabase.auth.signInWithOtp({
+          email: currentUser.email,
+          options: {
+            shouldCreateUser: false,
+          },
+        });
+
+        if (error) throw error;
+
+        // Return data in the expected format
+        response = {
+          data: {
+            methodId: "email",
+            email: currentUser.email,
+          },
+        };
+      }
+
+      return response;
     } catch (error) {
       console.error("MFA setup error:", error);
-      setError(error.response?.data?.error || "Failed to set up MFA");
+      setError(error.message || "Failed to set up MFA");
       return null;
     }
   };
 
+  // Confirm MFA setup
   const confirmMfa = async (methodId, verificationCode) => {
     try {
-      const response = await apiService.mfa.confirm(methodId, verificationCode);
+      if (methodId === "totp") {
+        // Verify TOTP with Supabase
+        const { data, error } = await supabase.auth.mfa.challenge({
+          factorId: methodId,
+        });
 
-      if (response.data && response.data.success) {
-        // Refresh user data to get updated MFA methods
-        refreshUserToken();
+        if (error) throw error;
+
+        const { data: verifyData, error: verifyError } =
+          await supabase.auth.mfa.verify({
+            factorId: methodId,
+            challengeId: data.id,
+            code: verificationCode,
+          });
+
+        if (verifyError) throw verifyError;
+
+        // Add MFA method to the user profile
+        await updateMfaMethods("totp", methodId);
+
+        return true;
+      } else if (methodId === "email") {
+        // Verify email OTP
+        const { error } = await supabase.auth.verifyOtp({
+          email: currentUser.email,
+          token: verificationCode,
+          type: "email",
+        });
+
+        if (error) throw error;
+
+        // Add MFA method to the user profile
+        await updateMfaMethods("email");
+
         return true;
       }
 
       return false;
     } catch (error) {
       console.error("MFA verification error:", error);
-      setError(error.response?.data?.error || "Failed to verify MFA");
+      setError(error.message || "Failed to verify MFA");
       return false;
     }
   };
 
+  // Update user's MFA methods in the profiles table
+  const updateMfaMethods = async (type, id = null) => {
+    try {
+      const { data: profile, error: fetchError } = await supabase
+        .from("profiles")
+        .select("mfa_methods")
+        .eq("id", currentUser.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const mfaMethods = profile.mfa_methods || [];
+
+      // Add the new method if it doesn't exist
+      const newMethod = {
+        id: id || type,
+        type,
+        identifier: type === "email" ? currentUser.email : null,
+        createdAt: new Date().toISOString(),
+      };
+
+      const updatedMethods = [...mfaMethods, newMethod];
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          mfa_methods: updatedMethods,
+        })
+        .eq("id", currentUser.id);
+
+      if (updateError) throw updateError;
+
+      // Update local user state
+      setCurrentUser((prev) => ({
+        ...prev,
+        mfaMethods: updatedMethods,
+      }));
+    } catch (error) {
+      console.error("Error updating MFA methods:", error);
+      throw error;
+    }
+  };
+
+  // Remove MFA method
   const removeMfa = async (methodId) => {
     try {
-      const response = await apiService.mfa.remove(methodId);
+      // First update the user profile to remove the method
+      const { data: profile, error: fetchError } = await supabase
+        .from("profiles")
+        .select("mfa_methods")
+        .eq("id", currentUser.id)
+        .single();
 
-      if (response.data && response.data.success) {
-        // Refresh user data to get updated MFA methods
-        refreshUserToken();
-        return true;
+      if (fetchError) throw fetchError;
+
+      const mfaMethods = profile.mfa_methods || [];
+      const updatedMethods = mfaMethods.filter(
+        (method) => method.id !== methodId
+      );
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          mfa_methods: updatedMethods,
+        })
+        .eq("id", currentUser.id);
+
+      if (updateError) throw updateError;
+
+      // If it's a TOTP factor, unenroll it from Supabase
+      if (methodId !== "email") {
+        const { error } = await supabase.auth.mfa.unenroll({
+          factorId: methodId,
+        });
+
+        if (error) throw error;
       }
 
-      return false;
+      // Update local user state
+      setCurrentUser((prev) => ({
+        ...prev,
+        mfaMethods: updatedMethods,
+      }));
+
+      return true;
     } catch (error) {
       console.error("MFA removal error:", error);
-      setError(error.response?.data?.error || "Failed to remove MFA method");
+      setError(error.message || "Failed to remove MFA method");
       return false;
     }
   };
@@ -635,132 +535,269 @@ export function AuthProvider({ children }) {
   // Verify MFA during login
   const verifyMfa = async (verificationCode, methodId) => {
     try {
-      const response = await apiService.mfa.verify(methodId, verificationCode);
+      // For TOTP verification with Supabase
+      const { data, error } = await supabase.auth.mfa.verify({
+        factorId: methodId,
+        code: verificationCode,
+      });
 
-      if (response.data && response.data.success) {
-        // If MFA verification returns new tokens, update them
-        if (response.data.token) {
-          localStorage.setItem("authToken", response.data.token);
-          setToken(response.data.token);
+      if (error) throw error;
 
-          const user = extractUserFromToken(response.data.token);
-          setCurrentUser(user);
-
-          if (response.data.refreshToken) {
-            localStorage.setItem("refreshToken", response.data.refreshToken);
-            setRefreshToken(response.data.refreshToken);
-          }
-
-          scheduleTokenRefresh();
-        }
-
-        return true;
-      }
-
-      return false;
+      return true;
     } catch (error) {
       console.error("MFA verification error:", error);
-      setError(error.response?.data?.error || "Failed to verify MFA");
+      setError(error.message || "Failed to verify MFA");
       return false;
     }
   };
 
-  // Check if user has specific permission
-  const hasPermission = (permissionCode) => {
-    if (!currentUser || !currentUser.roles) {
+  // Get user sessions
+  const getSessions = async () => {
+    try {
+      // Get current session
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const currentSessionId = session?.id;
+
+      // Get all sessions for this user from the profiles table
+      const { data: profile, error: fetchError } = await supabase
+        .from("profiles")
+        .select("sessions")
+        .eq("id", currentUser.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const sessions = profile.sessions || [];
+
+      // Mark the current session
+      return sessions.map((sess) => ({
+        ...sess,
+        isCurrent: sess.id === currentSessionId,
+      }));
+    } catch (error) {
+      console.error("Get sessions error:", error);
+      setError(error.message || "Failed to retrieve sessions");
+      return [];
+    }
+  };
+
+  // Terminate session
+  const terminateSession = async (sessionId) => {
+    try {
+      // Get current sessions
+      const { data: profile, error: fetchError } = await supabase
+        .from("profiles")
+        .select("sessions")
+        .eq("id", currentUser.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const sessions = profile.sessions || [];
+      const updatedSessions = sessions.filter((sess) => sess.id !== sessionId);
+
+      // Update the sessions in the profile
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          sessions: updatedSessions,
+        })
+        .eq("id", currentUser.id);
+
+      if (updateError) throw updateError;
+
+      return true;
+    } catch (error) {
+      console.error("Terminate session error:", error);
+      setError(error.message || "Failed to terminate session");
       return false;
     }
-
-    // Super admin has all permissions
-    if (currentUser.roles.includes("super_admin")) {
-      return true;
-    }
-
-    // Admin has most permissions except system level ones
-    if (currentUser.roles.includes("admin")) {
-      return !permissionCode.startsWith("system.");
-    }
-
-    // Basic role-based permission check
-    if (
-      permissionCode.startsWith("user.") &&
-      currentUser.roles.includes("user")
-    ) {
-      return true;
-    }
-
-    // Check feature access based on tier
-    if (permissionCode.startsWith("feature.")) {
-      const featureName = permissionCode.substring("feature.".length);
-      return hasFeatureAccess(featureName);
-    }
-
-    return false;
   };
 
-  // Check if feature is available based on subscription tier
-  const hasFeatureAccess = (featureName) => {
-    if (!currentUser) return false;
+  // Terminate all other sessions
+  const terminateAllSessions = async () => {
+    try {
+      // Get current session
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const currentSessionId = session?.id;
 
-    // Super admin and admin have access to all features
-    if (
-      currentUser.roles.includes("super_admin") ||
-      currentUser.roles.includes("admin")
-    ) {
+      // Get all sessions
+      const { data: profile, error: fetchError } = await supabase
+        .from("profiles")
+        .select("sessions")
+        .eq("id", currentUser.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const sessions = profile.sessions || [];
+
+      // Keep only the current session
+      const currentSession = sessions.find(
+        (sess) => sess.id === currentSessionId
+      );
+
+      // Update the sessions in the profile
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          sessions: currentSession ? [currentSession] : [],
+        })
+        .eq("id", currentUser.id);
+
+      if (updateError) throw updateError;
+
+      // Call signOut with scope 'others' to invalidate other sessions
+      const { error: signOutError } = await supabase.auth.signOut({
+        scope: "others",
+      });
+
+      if (signOutError) throw signOutError;
+
       return true;
+    } catch (error) {
+      console.error("Terminate all sessions error:", error);
+      setError(error.message || "Failed to terminate sessions");
+      return false;
     }
-
-    // Check if feature is explicitly enabled for this user
-    if (currentUser.features && currentUser.features[featureName] === true) {
-      return true;
-    }
-
-    // Check based on tier
-    return tierFeatures[featureName] === true;
-  };
-
-  // Check user tier level
-  const getUserTier = () => {
-    return userTier;
   };
 
   // Update user profile
   const updateProfile = async (profileData) => {
     try {
       setError("");
-      const response = await apiService.users.updateProfile(profileData);
 
-      if (response.data && response.data.success) {
-        // Update user data in state
-        setCurrentUser((prev) => ({
-          ...prev,
-          ...profileData,
-        }));
-        return true;
-      } else {
-        setError(response.data?.error || "Failed to update profile");
-        return false;
-      }
+      // Update user metadata in Supabase Auth
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: {
+          name: profileData.name,
+        },
+      });
+
+      if (metadataError) throw metadataError;
+
+      // Update profile in the profiles table
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          full_name: profileData.name,
+          first_name: profileData.firstName,
+          last_name: profileData.lastName,
+          // Add other fields as needed
+        })
+        .eq("id", currentUser.id);
+
+      if (profileError) throw profileError;
+
+      // Update local state
+      setCurrentUser((prev) => ({
+        ...prev,
+        name: profileData.name,
+        firstName: profileData.firstName,
+        lastName: profileData.lastName,
+      }));
+
+      return true;
     } catch (error) {
       console.error("Profile update error:", error);
-      setError(error.response?.data?.error || "Failed to update profile");
+      setError(error.message || "Failed to update profile");
       return false;
     }
   };
+
+  // Check if user has specific permission
+  const hasPermission = useCallback(
+    (permissionCode) => {
+      if (!currentUser || !currentUser.roles) {
+        return false;
+      }
+
+      // Super admin has all permissions
+      if (currentUser.roles.includes("super_admin")) {
+        return true;
+      }
+
+      // Admin has most permissions except system level ones
+      if (currentUser.roles.includes("admin")) {
+        return !permissionCode.startsWith("system.");
+      }
+
+      // Check if user has the specific permission from their roles
+      if (
+        currentUser.permissions &&
+        currentUser.permissions.includes(permissionCode)
+      ) {
+        return true;
+      }
+
+      // Basic role-based permission check
+      if (
+        permissionCode.startsWith("user.") &&
+        currentUser.roles.includes("user")
+      ) {
+        return true;
+      }
+
+      // Check feature access based on tier
+      if (permissionCode.startsWith("feature.")) {
+        const featureName = permissionCode.substring("feature.".length);
+        return hasFeatureAccess(featureName);
+      }
+
+      return false;
+    },
+    [currentUser]
+  );
+
+  // Check if feature is available based on subscription tier
+  const hasFeatureAccess = useCallback(
+    (featureName) => {
+      if (!currentUser) return false;
+
+      // Super admin and admin have access to all features
+      if (
+        currentUser.roles.includes("super_admin") ||
+        currentUser.roles.includes("admin")
+      ) {
+        return true;
+      }
+
+      // Check if feature is explicitly enabled for this user
+      if (currentUser.features && currentUser.features[featureName] === true) {
+        return true;
+      }
+
+      // Check based on tier
+      return tierFeatures[featureName] === true;
+    },
+    [currentUser, tierFeatures]
+  );
+
+  // Check user tier level
+  const getUserTier = useCallback(() => {
+    return userTier;
+  }, [userTier]);
 
   // Check if user has specific role
-  const hasRole = (roleCode) => {
-    if (!currentUser || !currentUser.roles) {
-      return false;
-    }
+  const hasRole = useCallback(
+    (roleCode) => {
+      if (!currentUser || !currentUser.roles) {
+        return false;
+      }
 
-    // Super admin can act as any role
-    if (currentUser.roles.includes("super_admin")) {
-      return true;
-    }
+      // Super admin can act as any role
+      if (currentUser.roles.includes("super_admin")) {
+        return true;
+      }
 
-    return currentUser.roles.includes(roleCode);
-  };
+      return currentUser.roles.includes(roleCode);
+    },
+    [currentUser]
+  );
 
   const isAdmin =
     currentUser?.roles?.includes("admin") ||
@@ -785,8 +822,6 @@ export function AuthProvider({ children }) {
     hasFeatureAccess,
     getUserTier,
     tierFeatures,
-    refreshUserToken,
-    processTokenExchange,
     requestPasswordReset,
     resetPassword,
     changePassword,
@@ -798,6 +833,7 @@ export function AuthProvider({ children }) {
     removeMfa,
     verifyMfa,
     updateProfile,
+    processTokenExchange,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
