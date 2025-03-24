@@ -4,7 +4,7 @@ import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const AdminRoute = () => {
-  const { currentUser, loading, isAdmin } = useAuth();
+  const { currentUser, isAdmin, loading } = useAuth();
   console.log("Admin route check:", { currentUser, isAdmin, loading });
 
   // Show loading state while checking roles

@@ -30,94 +30,91 @@ export function AuthProvider({ children }) {
     getDefaultFeaturesForTier("basic")
   );
 
-  // Initialize auth state from Supabase session
-  useEffect(() => {
-    // Set up auth state listener
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
-        setSession(session);
-        const userData = await getUserData();
-        setCurrentUser(userData);
-        setUserTier(userData?.tier || "basic");
-        setTierFeatures(
-          userData?.features ||
-            getDefaultFeaturesForTier(userData?.tier || "basic")
-        );
-      } else {
-        setCurrentUser(null);
-        setSession(null);
-        setUserTier("basic");
-        setTierFeatures(getDefaultFeaturesForTier("basic"));
-      }
-      setLoading(false);
-    });
-
-    // Initial session check
-    const initializeAuth = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (session) {
-          setSession(session);
-          const userData = await getUserData();
-          setCurrentUser(userData);
-          setUserTier(userData?.tier || "basic");
-          setTierFeatures(
-            userData?.features ||
-              getDefaultFeaturesForTier(userData?.tier || "basic")
-          );
-        }
-      } catch (error) {
-        console.error("Error initializing auth:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeAuth();
-
-    // Cleanup function
-    return () => {
-      subscription?.unsubscribe();
-    };
-  }, []);
-
   // Login function
   const login = async (email, password) => {
     try {
       setError("");
+      console.log("Attempting login with:", email);
 
-      // Handle special dev login
-      if (email === "itsus@tatt2away.com") {
-        try {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: "admin@tatt2away.com",
-            password: "adminpassword123", // This should be replaced with the actual admin password
-          });
+      // Try to check Supabase connection
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-          if (error) throw error;
-          return true;
-        } catch (error) {
-          console.error("Dev login error:", error);
-          throw error;
+        if (error) throw error;
+
+        // Store flag for basic auth
+        localStorage.setItem("isAuthenticated", "true");
+        console.log("Login successful via Supabase");
+
+        // If a user object was returned, store it
+        if (data?.user) {
+          localStorage.setItem(
+            "currentUser",
+            JSON.stringify({
+              id: data.user.id,
+              email: data.user.email,
+              name: data.user.user_metadata?.name || data.user.email,
+              roles: data.user.user_metadata?.roles || ["user"],
+            })
+          );
         }
+
+        return true;
+      } catch (supabaseError) {
+        console.error("Dev login error:", supabaseError);
+
+        // Development fallback login
+        if (process.env.NODE_ENV === "development") {
+          console.log("Using development fallback login");
+
+          // Check for admin credentials
+          if (
+            (email === "admin@tatt2away.com" &&
+              password === "adminpassword123") ||
+            email === "itsus@tatt2away.com"
+          ) {
+            // Create a mock admin user
+            const mockAdminUser = {
+              id: "dev-admin-user",
+              email: email,
+              name: "Admin User",
+              roles: ["admin", "user"],
+            };
+
+            // Store in localStorage
+            localStorage.setItem("isAuthenticated", "true");
+            localStorage.setItem("currentUser", JSON.stringify(mockAdminUser));
+            console.log("Dev admin login successful");
+            return true;
+          }
+
+          // Check for regular user credentials
+          if (
+            email === "user@tatt2away.com" &&
+            password === "userpassword123"
+          ) {
+            // Create a mock regular user
+            const mockUser = {
+              id: "dev-regular-user",
+              email: email,
+              name: "Regular User",
+              roles: ["user"],
+            };
+
+            // Store in localStorage
+            localStorage.setItem("isAuthenticated", "true");
+            localStorage.setItem("currentUser", JSON.stringify(mockUser));
+            console.log("Dev user login successful");
+            return true;
+          }
+        }
+
+        // If we get here, both Supabase and fallback login failed
+        throw supabaseError;
       }
-
-      // Regular login with Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
-      // Store flag for basic auth
-      localStorage.setItem("isAuthenticated", "true");
-
-      return true;
     } catch (error) {
       console.error("Login error:", error);
       setError(error.message || "An error occurred during login");
@@ -307,6 +304,137 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Update your useEffect in AuthProvider to handle localStorage fallback
+  // Add this inside your AuthProvider component in src/context/AuthContext.jsx
+
+  // Initialize auth state from Supabase session or localStorage
+  useEffect(() => {
+    // Set up auth state listener
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        setSession(session);
+        const userData = await getUserData();
+        setCurrentUser(userData);
+        setUserTier(userData?.tier || "basic");
+        setTierFeatures(
+          userData?.features ||
+            getDefaultFeaturesForTier(userData?.tier || "basic")
+        );
+      } else {
+        // Check localStorage as fallback
+        const storedUser = localStorage.getItem("currentUser");
+        if (storedUser) {
+          try {
+            const userData = JSON.parse(storedUser);
+            setCurrentUser(userData);
+            setUserTier(userData?.tier || "basic");
+            setTierFeatures(
+              getDefaultFeaturesForTier(userData?.tier || "basic")
+            );
+          } catch (e) {
+            console.error("Error parsing stored user:", e);
+            setCurrentUser(null);
+            setSession(null);
+            setUserTier("basic");
+            setTierFeatures(getDefaultFeaturesForTier("basic"));
+          }
+        } else {
+          setCurrentUser(null);
+          setSession(null);
+          setUserTier("basic");
+          setTierFeatures(getDefaultFeaturesForTier("basic"));
+        }
+      }
+      setLoading(false);
+    });
+
+    // Initial session check
+    const initializeAuth = async () => {
+      try {
+        // Try to get session from Supabase
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session) {
+          setSession(session);
+          const userData = await getUserData();
+          setCurrentUser(userData);
+          setUserTier(userData?.tier || "basic");
+          setTierFeatures(
+            userData?.features ||
+              getDefaultFeaturesForTier(userData?.tier || "basic")
+          );
+        } else {
+          // Check localStorage as fallback
+          const storedUser = localStorage.getItem("currentUser");
+          const isAuthenticated =
+            localStorage.getItem("isAuthenticated") === "true";
+
+          if (storedUser && isAuthenticated) {
+            try {
+              const userData = JSON.parse(storedUser);
+              setCurrentUser(userData);
+              setUserTier(userData?.tier || "basic");
+              setTierFeatures(
+                getDefaultFeaturesForTier(userData?.tier || "basic")
+              );
+              console.log("User loaded from localStorage:", userData);
+            } catch (e) {
+              console.error("Error parsing stored user:", e);
+              resetAuthState();
+            }
+          } else {
+            resetAuthState();
+          }
+        }
+      } catch (error) {
+        console.error("Error initializing auth:", error);
+
+        // Fallback to localStorage if Supabase fails
+        const storedUser = localStorage.getItem("currentUser");
+        const isAuthenticated =
+          localStorage.getItem("isAuthenticated") === "true";
+
+        if (storedUser && isAuthenticated) {
+          try {
+            const userData = JSON.parse(storedUser);
+            setCurrentUser(userData);
+            setUserTier(userData?.tier || "basic");
+            setTierFeatures(
+              getDefaultFeaturesForTier(userData?.tier || "basic")
+            );
+            console.log("User loaded from localStorage fallback:", userData);
+          } catch (e) {
+            console.error("Error parsing stored user:", e);
+            resetAuthState();
+          }
+        } else {
+          resetAuthState();
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Helper function to reset auth state
+    const resetAuthState = () => {
+      setCurrentUser(null);
+      setSession(null);
+      setUserTier("basic");
+      setTierFeatures(getDefaultFeaturesForTier("basic"));
+    };
+
+    initializeAuth();
+
+    // Cleanup function
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
+
   // Reset password with token
   const resetPassword = async (password, token) => {
     try {
@@ -439,6 +567,48 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const updateUserMfaMethods = async (type, id = null) => {
+    try {
+      const { data: profile, error: fetchError } = await supabase
+        .from("profiles")
+        .select("mfa_methods")
+        .eq("id", currentUser.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const mfaMethods = profile.mfa_methods || [];
+
+      // Add the new method if it doesn't exist
+      const newMethod = {
+        id: id || type,
+        type,
+        identifier: type === "email" ? currentUser.email : null,
+        createdAt: new Date().toISOString(),
+      };
+
+      const updatedMethods = [...mfaMethods, newMethod];
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          mfa_methods: updatedMethods,
+        })
+        .eq("id", currentUser.id);
+
+      if (updateError) throw updateError;
+
+      // Update local user state
+      setCurrentUser((prev) => ({
+        ...prev,
+        mfaMethods: updatedMethods,
+      }));
+    } catch (error) {
+      console.error("Error updating MFA methods:", error);
+      throw error;
+    }
+  };
+
   // Update the verification function to use Supabase
   const confirmMfa = async (methodId, verificationCode) => {
     try {
@@ -484,49 +654,6 @@ export function AuthProvider({ children }) {
       console.error("MFA verification error:", error);
       setError(error.message || "Failed to verify MFA");
       return false;
-    }
-  };
-
-  // Update user's MFA methods in the profiles table
-  const updateMfaMethods = async (type, id = null) => {
-    try {
-      const { data: profile, error: fetchError } = await supabase
-        .from("profiles")
-        .select("mfa_methods")
-        .eq("id", currentUser.id)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      const mfaMethods = profile.mfa_methods || [];
-
-      // Add the new method if it doesn't exist
-      const newMethod = {
-        id: id || type,
-        type,
-        identifier: type === "email" ? currentUser.email : null,
-        createdAt: new Date().toISOString(),
-      };
-
-      const updatedMethods = [...mfaMethods, newMethod];
-
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          mfa_methods: updatedMethods,
-        })
-        .eq("id", currentUser.id);
-
-      if (updateError) throw updateError;
-
-      // Update local user state
-      setCurrentUser((prev) => ({
-        ...prev,
-        mfaMethods: updatedMethods,
-      }));
-    } catch (error) {
-      console.error("Error updating MFA methods:", error);
-      throw error;
     }
   };
 

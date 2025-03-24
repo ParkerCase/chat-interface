@@ -1,6 +1,7 @@
 // src/services/apiService.js
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
+import { supabase } from "../lib/supabase";
 
 // Configuration from environment or defaults
 // In your baseUrl configuration:
@@ -8,6 +9,11 @@ const API_CONFIG = {
   baseUrl: process.env.REACT_APP_API_URL || "http://147.182.247.128:4000",
   timeout: 30000,
   withCredentials: true,
+};
+
+const isAuthenticated = () => {
+  const token = localStorage.getItem("authToken");
+  return !!token && !isTokenExpired(token);
 };
 
 // Add this for debugging

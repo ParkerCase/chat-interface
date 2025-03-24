@@ -18,6 +18,7 @@ import AuthPage from "./components/AuthPage";
 import AdminPanel from "./components/admin/AdminPanel";
 import FilePermissionsManager from "./components/admin/FilePermissionsManager";
 import FeatureProtectedRoute from "./components/FeatureProtectedRoute";
+import { supabase } from "./lib/supabase";
 
 // Professional Tier Features
 import APIKeyManagement from "./components/APIKeyManagement";

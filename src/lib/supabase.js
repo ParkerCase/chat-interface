@@ -1,15 +1,24 @@
 // src/lib/supabase.js
 import { createClient } from "@supabase/supabase-js";
 
-// Initialize Supabase client
-const supabaseUrl =
+// Explicitly define the Supabase credentials
+// For development, you can hardcode these values temporarily
+// In production, use environment variables properly
+const SUPABASE_URL =
   process.env.REACT_APP_SUPABASE_URL ||
-  "https://your-supabase-project.supabase.co";
-const supabaseAnonKey =
-  process.env.REACT_APP_SUPABASE_ANON_KEY || "your-anon-key";
+  "https://rfnglcfyzoyqenofmsev.supabase.co"; // Replace with your actual URL
+
+const SUPABASE_ANON_KEY =
+  process.env.REACT_APP_SUPABASE_ANON_KEY ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJmbmdsY2Z5em95cWVub2Ztc2V2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzA5NTE2OTIsImV4cCI6MjA0NjUyNzY5Mn0.kkCRc648CuROFmGqsQVjtZ_y6n4y4IX9YXswbt81dNg"; // Replace with your actual key
+
+console.log("Supabase Configuration:", {
+  url: SUPABASE_URL.replace(/^https:\/\//, "").substring(0, 10) + "...",
+  keyLength: SUPABASE_ANON_KEY?.length || 0,
+});
 
 // Create a single supabase client for the entire app
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
@@ -17,6 +26,21 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: window.localStorage,
   },
 });
+
+// Helper function to check if supabase is properly configured
+export const checkSupabaseConnection = async () => {
+  try {
+    // Try a simple call that should always work if credentials are correct
+    const { error } = await supabase
+      .from("roles")
+      .select("count", { count: "exact" })
+      .limit(1);
+
+    return { success: !error, error: error?.message };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+};
 
 // Helper function to get current user
 const getCurrentUser = async () => {
@@ -111,7 +135,7 @@ function getDefaultFeaturesForTier(tier) {
     advanced_roles: true,
   };
 
-  switch (tier.toLowerCase()) {
+  switch (tier?.toLowerCase()) {
     case "enterprise":
       return enterpriseFeatures;
     case "professional":
