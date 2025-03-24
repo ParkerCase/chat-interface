@@ -1,6 +1,7 @@
-// src/hooks/useCRM.js - Basic implementation
+// src/hooks/useCRM.js
 import { useState, useEffect, useCallback } from "react";
 import apiService from "../services/apiService";
+import zenotiService from "../services/zenotiService";
 
 /**
  * Custom hook for CRM functionality
@@ -11,6 +12,7 @@ export function useCRM(initialProvider = null) {
   const [defaultProvider, setDefaultProvider] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [providerStatus, setProviderStatus] = useState({});
 
   // Load CRM providers
   const loadProviders = useCallback(async () => {
@@ -18,19 +20,35 @@ export function useCRM(initialProvider = null) {
       setIsLoading(true);
       setError(null);
 
-      // In a real app, this would be an API call - simulating here
-      const mockProviders = [
-        { name: "zenoti", displayName: "Zenoti" },
-        { name: "hubspot", displayName: "HubSpot" },
-        { name: "salesforce", displayName: "Salesforce" },
-      ];
-
-      setProviders(mockProviders);
-      setDefaultProvider("zenoti");
+      // Try to fetch providers from API
+      try {
+        const response = await apiService.crm.getProviders();
+        if (response.data && response.data.success) {
+          setProviders(response.data.providers || []);
+          setDefaultProvider(response.data.defaultProvider || "zenoti");
+        } else {
+          // Fall back to mock providers if API call fails
+          setProviders([
+            { name: "zenoti", displayName: "Zenoti" },
+            { name: "hubspot", displayName: "HubSpot" },
+            { name: "salesforce", displayName: "Salesforce" },
+          ]);
+          setDefaultProvider("zenoti");
+        }
+      } catch (e) {
+        console.warn("Falling back to mock providers:", e);
+        // Fall back to mock providers if API call fails
+        setProviders([
+          { name: "zenoti", displayName: "Zenoti" },
+          { name: "hubspot", displayName: "HubSpot" },
+          { name: "salesforce", displayName: "Salesforce" },
+        ]);
+        setDefaultProvider("zenoti");
+      }
 
       // Set selected provider if not already set
-      if (!selectedProvider && mockProviders.length > 0) {
-        setSelectedProvider("zenoti");
+      if (!selectedProvider && providers.length > 0) {
+        setSelectedProvider(defaultProvider || providers[0].name);
       }
     } catch (err) {
       setError("Failed to load CRM providers");
@@ -38,7 +56,49 @@ export function useCRM(initialProvider = null) {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedProvider]);
+  }, [selectedProvider, providers.length, defaultProvider]);
+
+  // Check provider connection status
+  const checkProviderStatus = useCallback(
+    async (provider = selectedProvider) => {
+      if (!provider) return false;
+
+      try {
+        // For Zenoti provider
+        if (provider === "zenoti") {
+          const response = await zenotiService.checkConnectionStatus();
+          const isConnected =
+            response.data?.success && response.data?.status === "connected";
+
+          setProviderStatus((prev) => ({
+            ...prev,
+            [provider]: isConnected,
+          }));
+
+          return isConnected;
+        } else {
+          // Generic check for other providers
+          const response = await apiService.crm.getConfiguration(provider);
+          const isConnected = response.data?.success || false;
+
+          setProviderStatus((prev) => ({
+            ...prev,
+            [provider]: isConnected,
+          }));
+
+          return isConnected;
+        }
+      } catch (err) {
+        console.error(`Error checking ${provider} status:`, err);
+        setProviderStatus((prev) => ({
+          ...prev,
+          [provider]: false,
+        }));
+        return false;
+      }
+    },
+    [selectedProvider]
+  );
 
   // Search contacts
   const searchContacts = useCallback(
@@ -53,19 +113,70 @@ export function useCRM(initialProvider = null) {
         setIsLoading(true);
         setError(null);
 
-        // In a real app, this would be an API call - simulating here
+        // Use the actual API if provider status is connected
+        if (providerStatus[provider]) {
+          if (provider === "zenoti") {
+            const response = await zenotiService.searchClients({
+              query: searchTerm,
+              limit: options.limit || 10,
+              centerCode: options.centerCode,
+            });
+
+            if (response.data && response.data.success) {
+              // Format Zenoti clients to match our contact structure
+              const contacts = (response.data.clients || []).map((client) => ({
+                id: client.id || client.guest_id,
+                name: `${client.first_name || ""} ${
+                  client.last_name || ""
+                }`.trim(),
+                email: client.email,
+                phone: client.mobile,
+                provider: "zenoti",
+                centerCode: client.center_code,
+                // Add other fields as needed
+              }));
+
+              return {
+                contacts,
+                total: response.data.totalCount || contacts.length,
+              };
+            }
+          } else {
+            // Handle other providers through CRM API
+            const response = await apiService.crm.getContacts(
+              provider,
+              searchTerm,
+              options.limit || 10
+            );
+
+            if (response.data && response.data.success) {
+              return {
+                contacts: response.data.contacts || [],
+                total:
+                  response.data.totalCount ||
+                  response.data.contacts?.length ||
+                  0,
+              };
+            }
+          }
+        }
+
+        // Fall back to mock data if API call fails or provider not connected
+        console.log("Using mock contact data for", provider);
         const mockContacts = [
           {
             id: "1",
             name: "John Doe",
             email: "john@example.com",
             phone: "555-123-4567",
+            provider,
           },
           {
             id: "2",
             name: "Jane Smith",
             email: "jane@example.com",
             phone: "555-987-6543",
+            provider,
           },
         ];
 
@@ -73,7 +184,9 @@ export function useCRM(initialProvider = null) {
         const filteredContacts = mockContacts.filter(
           (contact) =>
             contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            contact.email.toLowerCase().includes(searchTerm.toLowerCase())
+            (contact.email &&
+              contact.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (contact.phone && contact.phone.includes(searchTerm))
         );
 
         return {
@@ -88,7 +201,7 @@ export function useCRM(initialProvider = null) {
         setIsLoading(false);
       }
     },
-    [selectedProvider]
+    [selectedProvider, providerStatus]
   );
 
   // Get contact documents
@@ -102,7 +215,25 @@ export function useCRM(initialProvider = null) {
         setIsLoading(true);
         setError(null);
 
-        // In a real app, this would be an API call - simulating here
+        // Use the actual API if provider status is connected
+        if (providerStatus[selectedProvider]) {
+          const response = await apiService.crm.getContactDocuments(
+            contactId,
+            selectedProvider
+          );
+
+          if (response.data && response.data.success) {
+            return {
+              documents: response.data.documents || [],
+              total:
+                response.data.totalCount ||
+                response.data.documents?.length ||
+                0,
+            };
+          }
+        }
+
+        // Fall back to mock data
         const mockDocuments = [
           {
             id: "doc1",
@@ -127,7 +258,7 @@ export function useCRM(initialProvider = null) {
         setIsLoading(false);
       }
     },
-    [selectedProvider]
+    [selectedProvider, providerStatus]
   );
 
   // Link document to contact
@@ -141,7 +272,24 @@ export function useCRM(initialProvider = null) {
         setIsLoading(true);
         setError(null);
 
-        // In a real app, this would be an API call - simulating success
+        // Use the actual API if provider status is connected
+        if (providerStatus[selectedProvider]) {
+          const response = await apiService.crm.linkDocument(contactId, {
+            ...documentData,
+            provider: selectedProvider,
+          });
+
+          if (response.data && response.data.success) {
+            return {
+              success: true,
+              document: response.data.document,
+            };
+          } else {
+            throw new Error(response.data?.error || "Failed to link document");
+          }
+        }
+
+        // Fall back to mock success response
         return {
           success: true,
           document: {
@@ -158,9 +306,10 @@ export function useCRM(initialProvider = null) {
         setIsLoading(false);
       }
     },
-    [selectedProvider]
+    [selectedProvider, providerStatus]
   );
 
+  // Create contact
   const createContact = useCallback(
     async (contactData) => {
       if (!selectedProvider) {
@@ -171,7 +320,40 @@ export function useCRM(initialProvider = null) {
         setIsLoading(true);
         setError(null);
 
-        // In a real app, this would be an API call - simulating success
+        // Use the actual API if provider status is connected
+        if (providerStatus[selectedProvider]) {
+          let response;
+
+          if (selectedProvider === "zenoti") {
+            // Format the contact data for Zenoti
+            const zenotiContactData = {
+              first_name: contactData.firstName,
+              last_name: contactData.lastName,
+              email: contactData.email,
+              mobile: contactData.phone,
+              gender: contactData.gender || "NA",
+              // Add other fields as needed
+            };
+
+            response = await zenotiService.createClient(zenotiContactData);
+          } else {
+            response = await apiService.crm.createContact(
+              contactData,
+              selectedProvider
+            );
+          }
+
+          if (response.data && response.data.success) {
+            return {
+              success: true,
+              contact: response.data.client || response.data.contact,
+            };
+          } else {
+            throw new Error(response.data?.error || "Failed to create contact");
+          }
+        }
+
+        // Fall back to mock success response
         return {
           success: true,
           contact: {
@@ -179,6 +361,7 @@ export function useCRM(initialProvider = null) {
             name: `${contactData.firstName} ${contactData.lastName}`,
             email: contactData.email,
             phone: contactData.phone,
+            provider: selectedProvider,
           },
         };
       } catch (err) {
@@ -189,13 +372,19 @@ export function useCRM(initialProvider = null) {
         setIsLoading(false);
       }
     },
-    [selectedProvider]
+    [selectedProvider, providerStatus]
   );
 
-  // Load providers on mount
+  // Load providers and check status on mount or when provider changes
   useEffect(() => {
     loadProviders();
   }, [loadProviders]);
+
+  useEffect(() => {
+    if (selectedProvider) {
+      checkProviderStatus(selectedProvider);
+    }
+  }, [selectedProvider, checkProviderStatus]);
 
   return {
     providers,
@@ -203,6 +392,7 @@ export function useCRM(initialProvider = null) {
     defaultProvider,
     isLoading,
     error,
+    providerStatus,
     setSelectedProvider,
     setError,
     searchContacts,
@@ -210,5 +400,6 @@ export function useCRM(initialProvider = null) {
     linkDocumentToContact,
     createContact,
     refreshProviders: loadProviders,
+    checkProviderStatus,
   };
 }

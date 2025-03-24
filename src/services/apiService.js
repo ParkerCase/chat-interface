@@ -415,6 +415,7 @@ const crmApi = {
 };
 
 // Zenoti specific endpoints
+// Zenoti specific endpoints - Updated version to integrate with the backend
 const zenotiApi = {
   getAppointments: (params) => {
     const query = new URLSearchParams(params).toString();
@@ -426,27 +427,110 @@ const zenotiApi = {
     return apiClient.get(`/api/zenoti/clients?${query}`);
   },
 
-  getClient: (id) => apiClient.get(`/api/zenoti/client/${id}`),
+  getClient: (id, centerCode) => {
+    let url = `/api/zenoti/client/${id}`;
+    if (centerCode) {
+      url += `?centerCode=${encodeURIComponent(centerCode)}`;
+    }
+    return apiClient.get(url);
+  },
 
   getCenters: () => apiClient.get("/api/zenoti/centers"),
 
-  getServices: (centerCode) =>
-    apiClient.get(
-      `/api/zenoti/services${centerCode ? `?centerCode=${centerCode}` : ""}`
-    ),
+  getServices: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/zenoti/services?${query}`);
+  },
 
-  createAppointment: (appointmentData) =>
-    apiClient.post("/api/zenoti/appointment", appointmentData),
+  createClient: (clientData, centerCode) =>
+    apiClient.post("/api/zenoti/client", { clientData, centerCode }),
+
+  updateClient: (clientId, updateData) =>
+    apiClient.put(`/api/zenoti/client/${clientId}`, { updateData }),
+
+  findClient: (params) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/zenoti/client/find?${query}`);
+  },
+
+  getClientHistory: (clientId, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/zenoti/client/${clientId}/history?${query}`);
+  },
+
+  createAppointment: (appointmentData, centerCode) =>
+    apiClient.post("/api/zenoti/appointment", { appointmentData, centerCode }),
+
+  getAppointmentDetails: (appointmentId) =>
+    apiClient.get(`/api/zenoti/appointment/${appointmentId}`),
+
+  cancelAppointment: (appointmentId, data) =>
+    apiClient.post(`/api/zenoti/appointment/${appointmentId}/cancel`, data),
+
+  rescheduleAppointment: (appointmentId, data) =>
+    apiClient.post(`/api/zenoti/appointment/${appointmentId}/reschedule`, data),
 
   checkConnectionStatus: () => apiClient.get("/api/zenoti/status"),
-
-  getClientHistory: (clientId) =>
-    apiClient.get(`/api/zenoti/client/${clientId}/history`),
 
   getAvailability: (params) => {
     const query = new URLSearchParams(params).toString();
     return apiClient.get(`/api/zenoti/availability?${query}`);
   },
+
+  getStaff: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/zenoti/staff?${query}`);
+  },
+
+  getStaffDetails: (staffId) => apiClient.get(`/api/zenoti/staff/${staffId}`),
+
+  searchInvoices: (params) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/zenoti/invoices?${query}`);
+  },
+
+  getInvoiceDetails: (invoiceId) =>
+    apiClient.get(`/api/zenoti/invoice/${invoiceId}`),
+
+  getProducts: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/zenoti/products?${query}`);
+  },
+
+  // Configuration management
+  saveConfiguration: (config) =>
+    apiClient.post("/api/zenoti/config", { config }),
+
+  testConnection: (config) =>
+    apiClient.post("/api/zenoti/test-connection", { config }),
+
+  // Reports
+  getWeeklyBusinessReport: (params) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/zenoti/reports/weekly?${query}`);
+  },
+
+  getClientActivityReport: (params) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/zenoti/reports/client-activity?${query}`);
+  },
+
+  exportReport: (reportData, format, filename) =>
+    apiClient.post("/api/zenoti/reports/export", {
+      reportData,
+      format,
+      filename,
+    }),
+
+  getReportFiles: () => apiClient.get("/api/zenoti/reports/list"),
+
+  downloadReport: (filename) =>
+    apiClient.get(`/api/zenoti/reports/download/${filename}`, {
+      responseType: "blob",
+    }),
+
+  // Webhook stats
+  getWebhookStats: () => apiClient.get("/api/zenoti/webhooks/stats"),
 };
 
 // Session management endpoints

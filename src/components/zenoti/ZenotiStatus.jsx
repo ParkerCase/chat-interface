@@ -7,9 +7,9 @@ import {
   Button,
   Badge,
   Spinner,
-} from "@/components/ui";
+} from "../../ui/index.js";
 import { RefreshCw, CheckCircle, AlertTriangle, Settings } from "lucide-react";
-import apiService from "../../services/apiService";
+import zenotiService from "../../services/zenotiService";
 
 const ZenotiStatus = ({ onConfigureClick }) => {
   const [status, setStatus] = useState(null);
@@ -21,7 +21,7 @@ const ZenotiStatus = ({ onConfigureClick }) => {
       setIsLoading(true);
       setError(null);
 
-      const response = await apiService.zenoti.checkConnectionStatus();
+      const response = await zenotiService.checkConnectionStatus();
 
       if (response.data.success) {
         setStatus(response.data);

@@ -1,4 +1,3 @@
-// src/components/crm/CRMContactLookup.jsx - Fixed import paths
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Input,
@@ -40,9 +39,11 @@ const CRMContactLookup = ({
     defaultProvider,
     isLoading: crmLoading,
     error: crmError,
+    providerStatus,
     setSelectedProvider,
     searchContacts,
     getContactDocuments,
+    checkProviderStatus,
   } = useCRM(provider);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -51,39 +52,14 @@ const CRMContactLookup = ({
   const [error, setError] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [providerStatus, setProviderStatus] = useState({});
+  const [activeTab, setActiveTab] = useState("search");
 
-  const checkProviderStatus = async () => {
-    if (!selectedProvider) return;
-
-    try {
-      // For Zenoti provider
-      if (selectedProvider === "zenoti") {
-        const response = await fetch("/api/zenoti/status");
-        const data = await response.json();
-        setProviderStatus((prev) => ({
-          ...prev,
-          [selectedProvider]: data.status === "connected",
-        }));
-      } else {
-        // Generic check for other providers
-        const response = await fetch(
-          `/api/crm/config?provider=${selectedProvider}`
-        );
-        const data = await response.json();
-        setProviderStatus((prev) => ({
-          ...prev,
-          [selectedProvider]: data.success,
-        }));
-      }
-    } catch (err) {
-      console.error(`Error checking ${selectedProvider} status:`, err);
-      setProviderStatus((prev) => ({
-        ...prev,
-        [selectedProvider]: false,
-      }));
+  // Check provider status on component mount
+  useEffect(() => {
+    if (selectedProvider) {
+      checkProviderStatus(selectedProvider);
     }
-  };
+  }, [selectedProvider, checkProviderStatus]);
 
   // Debounced search function
   const debouncedSearch = useCallback(
@@ -174,11 +150,10 @@ const CRMContactLookup = ({
     handleSelectContact(newContact);
   };
 
-  useEffect(() => {
-    if (selectedProvider) {
-      checkProviderStatus();
-    }
-  }, [selectedProvider]);
+  // Handle tab change
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+  };
 
   // Render loading state for CRM providers
   if (crmLoading && providers.length === 0) {
@@ -202,68 +177,92 @@ const CRMContactLookup = ({
   return (
     <div className={`crm-contact-lookup ${className}`}>
       <div className="flex flex-col space-y-4">
-        {/* Provider selector and search bar */}
-        <div className="flex space-x-2">
-          {allowProviderChange && providers.length > 0 && (
-            <div className="flex items-center">
-              <Select
-                value={selectedProvider}
-                onChange={handleProviderChange}
-                className="w-40"
-              >
-                {providers.map((p) => (
-                  <option key={p.name} value={p.name}>
-                    {p.displayName || p.name}
-                  </option>
-                ))}
-              </Select>
-              {selectedProvider && (
-                <div className="ml-2">
-                  {providerStatus[selectedProvider] ? (
-                    <Badge
-                      variant="outline"
-                      className="bg-green-50 text-green-700 border-green-200"
-                    >
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Connected
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className="bg-red-50 text-red-700 border-red-200"
-                    >
-                      <AlertCircle className="h-3 w-3 mr-1" />
-                      Disconnected
-                    </Badge>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+        {/* Tab navigation */}
+        <div className="crm-tabs">
+          <button
+            className={`crm-tab ${activeTab === "search" ? "active" : ""}`}
+            onClick={() => handleTabChange("search")}
+          >
+            Search
+          </button>
+          <button
+            className={`crm-tab ${activeTab === "recent" ? "active" : ""}`}
+            onClick={() => handleTabChange("recent")}
+          >
+            Recent
+          </button>
+          <button
+            className={`crm-tab ${activeTab === "favorites" ? "active" : ""}`}
+            onClick={() => handleTabChange("favorites")}
+          >
+            Favorites
+          </button>
+        </div>
 
-          <div className="relative flex-1">
-            <Input
-              placeholder="Search contacts by name or email..."
-              value={searchTerm}
-              onChange={handleSearchChange}
-              className="w-full pl-10"
-              disabled={isSearching || !selectedProvider}
-            />
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              {isSearching ? (
-                <Spinner size="sm" />
-              ) : (
-                <Search className="h-4 w-4 text-gray-400" />
-              )}
+        {/* Provider selector and search bar - only show in search tab */}
+        {activeTab === "search" && (
+          <div className="flex space-x-2">
+            {allowProviderChange && providers.length > 0 && (
+              <div className="flex items-center">
+                <Select
+                  value={selectedProvider}
+                  onChange={handleProviderChange}
+                  className="w-40"
+                >
+                  {providers.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.displayName || p.name}
+                    </option>
+                  ))}
+                </Select>
+                {selectedProvider && (
+                  <div className="ml-2">
+                    {providerStatus[selectedProvider] ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-green-50 text-green-700 border-green-200"
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Connected
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="bg-red-50 text-red-700 border-red-200"
+                      >
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Disconnected
+                      </Badge>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="relative flex-1">
+              <Input
+                placeholder="Search contacts by name or email..."
+                value={searchTerm}
+                onChange={handleSearchChange}
+                className="w-full pl-10"
+                disabled={isSearching || !selectedProvider}
+              />
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                {isSearching ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <Search className="h-4 w-4 text-gray-400" />
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Error message */}
         {error && <div className="text-sm text-red-500">{error}</div>}
 
         {/* Contact results */}
-        {contacts.length > 0 ? (
+        {activeTab === "search" && contacts.length > 0 ? (
           <div className="space-y-2">
             {contacts.map((contact) => (
               <Card
@@ -333,7 +332,11 @@ const CRMContactLookup = ({
                                   {new Date(doc.createdAt).toLocaleDateString()}
                                 </td>
                                 <td>
-                                  <Button size="xs" variant="ghost" asChild>
+                                  <Button
+                                    size="xs"
+                                    variant="ghost"
+                                    asChild={true}
+                                  >
                                     <a
                                       href={doc.viewUrl}
                                       target="_blank"
@@ -353,7 +356,7 @@ const CRMContactLookup = ({
               </Card>
             ))}
           </div>
-        ) : searchTerm.length > 0 && !isSearching ? (
+        ) : activeTab === "search" && searchTerm.length > 0 && !isSearching ? (
           <div className="text-center py-4 text-gray-500">
             No contacts found matching "{searchTerm}"
             <div className="mt-2">
@@ -367,10 +370,17 @@ const CRMContactLookup = ({
               </Button>
             </div>
           </div>
+        ) : activeTab === "recent" ? (
+          <div className="text-center py-4 text-gray-500">
+            <p>Recent contacts will appear here</p>
+          </div>
+        ) : activeTab === "favorites" ? (
+          <div className="text-center py-4 text-gray-500">
+            <p>Favorite contacts will appear here</p>
+          </div>
         ) : null}
       </div>
 
-      {/* Create contact form modal */}
       {showCreateForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">

@@ -5,6 +5,10 @@ import { useAuth } from "../../context/AuthContext";
 import { useFeatureFlags } from "../../utils/featureFlags";
 import { useTheme } from "../../context/ThemeContext";
 import apiService from "../../services/apiService";
+import CRMTabContent from "./CRMTabContent";
+import "./CRMTab.css";
+import "../crm/CRMDashboard.css";
+import "../crm/ImportContacts.css";
 import {
   User,
   Users,
@@ -539,152 +543,8 @@ const AdminPanel = () => {
             </div>
           )}
 
-          {/* CRM Tab */}
-          {activeTab === "crm" && (
-            <div className="admin-crm">
-              <div className="admin-section">
-                <h2 className="admin-section-title">CRM Integration</h2>
-
-                <div className="crm-section">
-                  <h3>Contact Management</h3>
-                  <p>
-                    Access the CRM system to manage contacts and client
-                    information.
-                  </p>
-
-                  <div className="admin-actions">
-                    <Link to="/crm" className="admin-button">
-                      <User size={18} />
-                      Open CRM System
-                    </Link>
-
-                    <button className="admin-button">
-                      <Database size={18} />
-                      Import Contacts
-                    </button>
-                  </div>
-                </div>
-
-                <div className="crm-section">
-                  <h3>Recent Contacts</h3>
-                  <p>Your most recently accessed contacts will appear here.</p>
-
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Phone</th>
-                        <th>Last Contact</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>Alex Thompson</td>
-                        <td>alex@example.com</td>
-                        <td>555-123-4567</td>
-                        <td>2 days ago</td>
-                        <td>
-                          <button className="action-button edit-button">
-                            View
-                          </button>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Emma Wilson</td>
-                        <td>emma@example.com</td>
-                        <td>555-765-4321</td>
-                        <td>1 week ago</td>
-                        <td>
-                          <button className="action-button edit-button">
-                            View
-                          </button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Chatbot Tab */}
-          {activeTab === "chatbot" && (
-            <div className="admin-chatbot">
-              <div className="admin-section">
-                <h2 className="admin-section-title">Chatbot Interface</h2>
-
-                <div className="chatbot-actions">
-                  <Link to="/chat" className="chatbot-action">
-                    <MessageSquare size={18} />
-                    <span>Open Chatbot Interface</span>
-                  </Link>
-                </div>
-
-                <div className="crm-section">
-                  <h3>Chatbot Configuration</h3>
-
-                  <form className="chatbot-config-form">
-                    <div className="form-group">
-                      <label htmlFor="chatbot-name">Chatbot Name</label>
-                      <input
-                        type="text"
-                        id="chatbot-name"
-                        defaultValue="Tatt2Away AI"
-                        className="form-input"
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label htmlFor="welcome-message">Welcome Message</label>
-                      <textarea
-                        id="welcome-message"
-                        defaultValue="Welcome to Tatt2Away AI! How can I help you today?"
-                        className="form-textarea"
-                        rows={3}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label>Features Enabled</label>
-                      <div className="checkbox-group">
-                        <label className="checkbox-label">
-                          <input type="checkbox" defaultChecked={true} />
-                          Image Analysis
-                        </label>
-
-                        <label className="checkbox-label">
-                          <input type="checkbox" defaultChecked={true} />
-                          File Upload
-                        </label>
-
-                        <label className="checkbox-label">
-                          <input
-                            type="checkbox"
-                            defaultChecked={isFeatureEnabled("image_search")}
-                          />
-                          Image Search
-                        </label>
-
-                        <label className="checkbox-label">
-                          <input
-                            type="checkbox"
-                            defaultChecked={isFeatureEnabled("advanced_search")}
-                          />
-                          Advanced Search
-                        </label>
-                      </div>
-                    </div>
-
-                    <button type="submit" className="save-button">
-                      Save Configuration
-                    </button>
-                  </form>
-                </div>
-              </div>
-            </div>
-          )}
+          {activeTab === "crm" && <CRMTabContent />}
 
           {/* Themes Tab */}
           {activeTab === "themes" && (
