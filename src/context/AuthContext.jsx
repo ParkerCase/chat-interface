@@ -125,6 +125,53 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const signInWithSSO = async (provider, options = {}) => {
+    try {
+      setError("");
+      setLoading(true);
+
+      // Default redirect URL
+      const redirectTo =
+        options.redirectTo || `${window.location.origin}/auth/callback`;
+
+      let response;
+      if (provider === "google") {
+        response = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo,
+            scopes: "email profile",
+          },
+        });
+      } else if (provider === "azure") {
+        response = await supabase.auth.signInWithOAuth({
+          provider: "azure",
+          options: {
+            redirectTo,
+            scopes: "email profile",
+          },
+        });
+      } else if (provider === "custom_saml") {
+        // For SAML providers, Supabase uses a slightly different approach
+        response = await supabase.auth.signInWithSSO({
+          domain: options.domain || "your-domain",
+          options: {
+            redirectTo,
+          },
+        });
+      }
+
+      if (response.error) throw response.error;
+      return true;
+    } catch (error) {
+      console.error("SSO sign in error:", error);
+      setError(error.message || "Failed to sign in with SSO");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Login with passcode (basic auth)
   const loginWithPasscode = async (passcode) => {
     try {
@@ -343,7 +390,7 @@ export function AuthProvider({ children }) {
   // MFA Functions
 
   // Setup MFA
-  const setupMfa = async (type, data = {}) => {
+  const setupMfa = async (type) => {
     try {
       let response;
 
@@ -392,7 +439,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Confirm MFA setup
+  // Update the verification function to use Supabase
   const confirmMfa = async (methodId, verificationCode) => {
     try {
       if (methodId === "totp") {
@@ -412,8 +459,8 @@ export function AuthProvider({ children }) {
 
         if (verifyError) throw verifyError;
 
-        // Add MFA method to the user profile
-        await updateMfaMethods("totp", methodId);
+        // Store MFA method in user profile
+        await updateUserMfaMethods("totp", methodId);
 
         return true;
       } else if (methodId === "email") {
@@ -426,8 +473,8 @@ export function AuthProvider({ children }) {
 
         if (error) throw error;
 
-        // Add MFA method to the user profile
-        await updateMfaMethods("email");
+        // Store MFA method in user profile
+        await updateUserMfaMethods("email");
 
         return true;
       }
@@ -825,6 +872,7 @@ export function AuthProvider({ children }) {
     requestPasswordReset,
     resetPassword,
     changePassword,
+    signInWithSSO,
     getSessions,
     terminateSession,
     terminateAllSessions,

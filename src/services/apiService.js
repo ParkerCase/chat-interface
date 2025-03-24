@@ -332,6 +332,46 @@ const authApi = {
     }
     return { data: await response.json() };
   },
+  isAuthenticated,
+
+  // Get current session
+  getSession: async () => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    return data.session;
+  },
+
+  // Get available auth providers
+  getAuthProviders: async () => {
+    try {
+      // In a real implementation, you would fetch this from Supabase
+      return {
+        success: true,
+        providers: {
+          password: { name: "Password", type: "password" },
+          google: {
+            name: "Google",
+            type: "oauth",
+            loginUrl: "/api/auth/sso/google",
+          },
+          microsoft: {
+            name: "Microsoft",
+            type: "oauth",
+            loginUrl: "/api/auth/sso/microsoft",
+          },
+          saml: {
+            name: "Company SSO",
+            type: "saml",
+            loginUrl: "/api/auth/sso/custom",
+          },
+        },
+        defaultProvider: "password",
+      };
+    } catch (error) {
+      console.error("Error fetching auth providers:", error);
+      return { success: false, error: error.message };
+    }
+  },
 };
 
 // CRM endpoints

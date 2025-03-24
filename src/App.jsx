@@ -40,6 +40,24 @@ function App() {
   // Check if we're in an out-of-memory situation (common error)
   const [outOfMemory, setOutOfMemory] = useState(false);
 
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_IN") {
+        // Refresh user data
+        // Handle in AuthContext
+      } else if (event === "SIGNED_OUT") {
+        // Clear local storage / state
+        // Handle in AuthContext
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   // Handle out of memory errors
   useEffect(() => {
     const handleOutOfMemory = () => {

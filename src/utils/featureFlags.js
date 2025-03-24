@@ -1,44 +1,62 @@
-// src/utils/featureFlags.js
-import React, { createContext, useContext, useEffect, useState } from "react";
+// src/utils/featureFlags.js - Simplified version
+
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
+import { supabase } from "../lib/supabase";
 
 // Create context
 const FeatureFlagContext = createContext({
   features: {},
   isFeatureEnabled: () => false,
-  tier: "basic",
+  organizationTier: "basic",
 });
 
-/**
- * Provider component for feature flags
- */
 export function FeatureFlagProvider({ children }) {
   const { currentUser } = useAuth();
   const [features, setFeatures] = useState({});
-  const [tier, setTier] = useState("basic");
+  const [organizationTier, setOrganizationTier] = useState("basic");
 
-  // Update features when user changes
+  // Load organization tier when user changes
   useEffect(() => {
-    if (!currentUser) {
-      // Reset to basic features if logged out
-      setTier("basic");
-      setFeatures(getDefaultFeatures("basic"));
-      return;
-    }
+    const loadOrganizationTier = async () => {
+      if (!currentUser) {
+        setOrganizationTier("basic");
+        setFeatures(getDefaultFeatures("basic"));
+        return;
+      }
 
-    // Get tier from user
-    const userTier = currentUser.tier || "basic";
-    setTier(userTier);
+      try {
+        // Get organization data from the user's organization_id
+        if (currentUser.organization_id) {
+          const { data, error } = await supabase
+            .from("organizations")
+            .select("tier, features")
+            .eq("id", currentUser.organization_id)
+            .single();
 
-    // Get features from user or defaults
-    if (currentUser.features) {
-      setFeatures(currentUser.features);
-    } else {
-      setFeatures(getDefaultFeatures(userTier));
-    }
+          if (!error && data) {
+            setOrganizationTier(data.tier || "basic");
+            setFeatures(
+              data.features || getDefaultFeatures(data.tier || "basic")
+            );
+            return;
+          }
+        }
+
+        // Fallback to user's tier if no org found
+        setOrganizationTier(currentUser.tier || "basic");
+        setFeatures(getDefaultFeatures(currentUser.tier || "basic"));
+      } catch (err) {
+        console.error("Error loading organization tier:", err);
+        setOrganizationTier("basic");
+        setFeatures(getDefaultFeatures("basic"));
+      }
+    };
+
+    loadOrganizationTier();
   }, [currentUser]);
 
-  // Check if a feature is enabled
+  // Check if a feature is enabled for the organization
   const isFeatureEnabled = (featureName) => {
     if (!featureName) return false;
 
@@ -48,10 +66,10 @@ export function FeatureFlagProvider({ children }) {
       return !!basicFeatures[featureName];
     }
 
-    // Super admin and admin have access to all features
+    // Admins have access to all features
     if (
-      currentUser.roles?.includes("super_admin") ||
-      currentUser.roles?.includes("admin")
+      currentUser.roles?.includes("admin") ||
+      currentUser.roles?.includes("super_admin")
     ) {
       return true;
     }
@@ -61,75 +79,14 @@ export function FeatureFlagProvider({ children }) {
   };
 
   return (
-    <FeatureFlagContext.Provider value={{ features, isFeatureEnabled, tier }}>
+    <FeatureFlagContext.Provider
+      value={{ features, isFeatureEnabled, organizationTier }}
+    >
       {children}
     </FeatureFlagContext.Provider>
   );
 }
 
-/**
- * Hook for using feature flags
- */
 export function useFeatureFlags() {
   return useContext(FeatureFlagContext);
-}
-
-/**
- * Component that conditionally renders based on feature availability
- */
-export function FeatureGate({ feature, fallback = null, children }) {
-  const { isFeatureEnabled } = useFeatureFlags();
-
-  if (isFeatureEnabled(feature)) {
-    return children;
-  }
-
-  return fallback;
-}
-
-/**
- * Get default features for a tier
- */
-function getDefaultFeatures(tier) {
-  // Basic tier features
-  const basicFeatures = {
-    chatbot: true,
-    basic_search: true,
-    file_upload: true,
-    image_analysis: true,
-  };
-
-  // Professional tier features
-  const professionalFeatures = {
-    ...basicFeatures,
-    advanced_search: true,
-    image_search: true,
-    custom_branding: true,
-    multi_user: true,
-    data_export: true,
-    analytics_basic: true,
-  };
-
-  // Enterprise tier features
-  const enterpriseFeatures = {
-    ...professionalFeatures,
-    custom_workflows: true,
-    advanced_analytics: true,
-    multi_department: true,
-    automated_alerts: true,
-    custom_integrations: true,
-    advanced_security: true,
-    sso: true,
-    advanced_roles: true,
-  };
-
-  switch (tier.toLowerCase()) {
-    case "enterprise":
-      return enterpriseFeatures;
-    case "professional":
-      return professionalFeatures;
-    case "basic":
-    default:
-      return basicFeatures;
-  }
 }

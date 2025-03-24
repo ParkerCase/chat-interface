@@ -44,34 +44,38 @@ export const signInWithSSO = async (provider, options = {}) => {
 
     let response;
 
-    // Handle different provider types
-    if (provider === "google") {
-      response = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo,
-          scopes: "email profile",
-        },
-      });
-    } else if (provider === "azure") {
-      response = await supabase.auth.signInWithOAuth({
-        provider: "azure",
-        options: {
-          redirectTo,
-          scopes: "email profile",
-        },
-      });
-    } else if (provider === "custom_saml") {
-      // For SAML SSO, we need to redirect to the SAML endpoint
-      // This is just a placeholder, actual implementation would depend on your SAML configuration
-      response = await supabase.auth.signInWithSSO({
-        domain: options.domain || "your-company-domain",
-        options: {
-          redirectTo,
-        },
-      });
-    } else {
-      throw new Error(`Unsupported SSO provider: ${provider}`);
+    switch (provider) {
+      case "google":
+        response = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo,
+            scopes: "email profile",
+          },
+        });
+        break;
+
+      case "azure":
+        response = await supabase.auth.signInWithOAuth({
+          provider: "azure",
+          options: {
+            redirectTo,
+            scopes: "email profile",
+          },
+        });
+        break;
+
+      case "custom_saml":
+        response = await supabase.auth.signInWithSSO({
+          domain: options.domain || "your-organization-domain",
+          options: {
+            redirectTo,
+          },
+        });
+        break;
+
+      default:
+        throw new Error(`Unsupported SSO provider: ${provider}`);
     }
 
     if (response.error) {
@@ -110,12 +114,12 @@ export const handleSSOCallback = async () => {
 
     if (error) throw error;
 
-    // Get query params from URL
-    const params = new URLSearchParams(window.location.search);
-    const returnUrl = params.get("returnUrl") || "/";
-
-    // If we have a session, we're authenticated
+    // Check if we have a session
     if (data && data.session) {
+      // Extract return URL from query params
+      const params = new URLSearchParams(window.location.search);
+      const returnUrl = params.get("returnUrl") || "/";
+
       // Redirect to the return URL
       window.location.href = returnUrl;
       return true;
