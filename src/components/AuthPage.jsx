@@ -395,7 +395,6 @@ function LoginForm() {
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
-            // Add this right after your regular login form
             <div
               style={{
                 margin: "20px 0",
