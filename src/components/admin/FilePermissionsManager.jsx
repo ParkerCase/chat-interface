@@ -1,7 +1,9 @@
-// src/components/admin/FilePermissionsManager.jsx
+// src/components/admin/FilePermissionsManager.jsx - Updates
+
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../context/AuthContext";
-import apiService from "../../services/apiService";
+import { supabase } from "../../lib/supabase";
+import usePermissions from "../../hooks/usePermissions";
 import {
   Folder,
   File,
@@ -49,6 +51,15 @@ function FilePermissionsManager() {
     inheritParent: true,
   });
 
+  // Use the permission hook for the selected file
+  const {
+    hasAccess,
+    isAdmin: fileAdmin,
+    permissionDetails,
+    setFilePermissions,
+    deleteFilePermissions,
+  } = usePermissions(selectedFile?.path);
+
   // Load initial data
   useEffect(() => {
     const loadData = async () => {
@@ -56,25 +67,32 @@ function FilePermissionsManager() {
         setIsLoading(true);
         setError(null);
 
-        // Fetch roles, users, and groups
-        const [rolesResponse, usersResponse, groupsResponse] =
-          await Promise.all([
-            apiService.roles.getAll(),
-            apiService.users.getAll(),
-            apiService.groups.getAll(),
-          ]);
+        // Fetch roles
+        const { data: rolesData, error: rolesError } = await supabase
+          .from("roles")
+          .select("id, name, description")
+          .order("name");
 
-        if (rolesResponse.data?.success) {
-          setRoles(rolesResponse.data.roles || []);
-        }
+        if (rolesError) throw rolesError;
+        setRoles(rolesData || []);
 
-        if (usersResponse.data?.success) {
-          setUsers(usersResponse.data.users || []);
-        }
+        // Fetch users
+        const { data: usersData, error: usersError } = await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .order("full_name");
 
-        if (groupsResponse.data?.success) {
-          setGroups(groupsResponse.data.groups || []);
-        }
+        if (usersError) throw usersError;
+        setUsers(usersData || []);
+
+        // Fetch groups
+        const { data: groupsData, error: groupsError } = await supabase
+          .from("groups")
+          .select("id, name, description")
+          .order("name");
+
+        if (groupsError) throw groupsError;
+        setGroups(groupsData || []);
 
         // Load files for the current path
         await loadFiles(currentPath);
@@ -94,14 +112,12 @@ function FilePermissionsManager() {
     try {
       setIsLoading(true);
 
-      const response = await apiService.storage.getFiles(path);
+      // In a real app, this would be an API call to get files from storage
+      // For now, let's simulate some files
+      const filesForPath = await fetchFilesFromStorage(path);
 
-      if (response.data?.success) {
-        setFiles(response.data.files || []);
-        setCurrentPath(path);
-      } else {
-        throw new Error(response.data?.error || "Failed to load files");
-      }
+      setFiles(filesForPath);
+      setCurrentPath(path);
     } catch (err) {
       console.error("Error loading files:", err);
       setError(`Failed to load files for path: ${path}`);
@@ -110,38 +126,204 @@ function FilePermissionsManager() {
     }
   };
 
-  // Load permissions for a selected file
+  // Load permissions for a file
   const loadPermissions = async (file) => {
     try {
       setIsLoading(true);
       setSelectedFile(file);
 
-      const response = await apiService.permissions.getFilePermissions(
-        file.path
-      );
+      // Get the organization_id
+      const organizationId = currentUser.organization_id;
 
-      if (response.data?.success) {
+      // Get permissions for this file path in this organization
+      const { data, error } = await supabase
+        .from("file_permissions")
+        .select("*")
+        .eq("file_path", file.path)
+        .eq("organization_id", organizationId)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 is "no rows returned" error
+        throw error;
+      }
+
+      if (data) {
+        // Load user data for display
+        const usersPromise =
+          data.allowed_users?.length > 0
+            ? supabase
+                .from("profiles")
+                .select("id, full_name")
+                .in("id", data.allowed_users)
+            : Promise.resolve({ data: [] });
+
+        const restrictedUsersPromise =
+          data.restricted_users?.length > 0
+            ? supabase
+                .from("profiles")
+                .select("id, full_name")
+                .in("id", data.restricted_users)
+            : Promise.resolve({ data: [] });
+
+        const [usersResult, restrictedUsersResult] = await Promise.all([
+          usersPromise,
+          restrictedUsersPromise,
+        ]);
+
+        // Set permissions with user display info
         setPermissions({
-          requiredRole: response.data.permissions?.requiredRole || "",
-          allowedUsers: response.data.permissions?.allowedUsers || [],
-          allowedGroups: response.data.permissions?.allowedGroups || [],
-          inheritParent: response.data.permissions?.inheritParent !== false,
+          restrictedToRoles: data.restricted_to_roles || [],
+          allowedUsers: data.allowed_users || [],
+          restrictedUsers: data.restricted_users || [],
+          inheritParent: data.inherit_parent !== false,
+          // Add display names for UI
+          allowedUserNames:
+            usersResult.data?.map((u) => ({ id: u.id, name: u.full_name })) ||
+            [],
+          restrictedUserNames:
+            restrictedUsersResult.data?.map((u) => ({
+              id: u.id,
+              name: u.full_name,
+            })) || [],
         });
       } else {
-        // If no specific permissions, set defaults
+        // No permissions set, use defaults
         setPermissions({
-          requiredRole: "",
+          restrictedToRoles: [],
           allowedUsers: [],
-          allowedGroups: [],
+          restrictedUsers: [],
           inheritParent: true,
+          allowedUserNames: [],
+          restrictedUserNames: [],
         });
       }
-    } catch (err) {
-      console.error("Error loading permissions:", err);
-      setError(`Failed to load permissions for: ${file.name}`);
+    } catch (error) {
+      console.error("Error loading permissions:", error);
+      setError(`Failed to load permissions for ${file.path}`);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Save permissions
+  const savePermissions = async () => {
+    if (!selectedFile) return;
+
+    try {
+      setIsSaving(true);
+      setError(null);
+      setSuccess(null);
+
+      const organizationId = currentUser.organization_id;
+
+      // Prepare permission data
+      const permissionData = {
+        file_path: selectedFile.path,
+        organization_id: organizationId,
+        restricted_to_roles: permissions.restrictedToRoles,
+        allowed_users: permissions.allowedUsers,
+        restricted_users: permissions.restrictedUsers,
+        inherit_parent: permissions.inheritParent,
+      };
+
+      // Check if permissions already exist
+      const { data: existingPermission } = await supabase
+        .from("file_permissions")
+        .select("id")
+        .eq("file_path", selectedFile.path)
+        .eq("organization_id", organizationId)
+        .single();
+
+      if (existingPermission) {
+        // Update existing permissions
+        const { error } = await supabase
+          .from("file_permissions")
+          .update(permissionData)
+          .eq("id", existingPermission.id);
+
+        if (error) throw error;
+      } else {
+        // Insert new permissions
+        const { error } = await supabase
+          .from("file_permissions")
+          .insert(permissionData);
+
+        if (error) throw error;
+      }
+
+      setSuccess(`Permissions updated for: ${selectedFile.name}`);
+    } catch (error) {
+      console.error("Error saving permissions:", error);
+      setError(
+        `Failed to save permissions: ${error.message || "Unknown error"}`
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Stub function for fetching files - replace with actual API call
+  const fetchFilesFromStorage = async (path) => {
+    // Simulated API call to your backend
+    try {
+      const response = await fetch(
+        `${
+          process.env.REACT_APP_API_URL
+        }/api/storage/files?path=${encodeURIComponent(path)}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch files: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.files || [];
+    } catch (error) {
+      console.error("Error fetching files:", error);
+      // Return some mock data as fallback
+      return [
+        { name: "Document1.pdf", path: `${path}/Document1.pdf`, type: "file" },
+        { name: "Images", path: `${path}/Images`, type: "folder" },
+        { name: "Clients", path: `${path}/Clients`, type: "folder" },
+      ];
+    }
+  };
+
+  // Helper to get role name from ID
+  const getRoleName = async (roleId) => {
+    if (!roleId) return "";
+
+    const { data, error } = await supabase
+      .from("roles")
+      .select("name")
+      .eq("id", roleId)
+      .single();
+
+    if (error) {
+      console.error("Error fetching role name:", error);
+      return "";
+    }
+
+    return data?.name || "";
+  };
+
+  // Helper to get role ID from name
+  const getRoleId = async (roleName) => {
+    if (!roleName) return null;
+
+    const { data, error } = await supabase
+      .from("roles")
+      .select("id")
+      .eq("name", roleName)
+      .single();
+
+    if (error) {
+      console.error("Error fetching role ID:", error);
+      return null;
+    }
+
+    return data?.id || null;
   };
 
   // Search files by name
@@ -151,12 +333,23 @@ function FilePermissionsManager() {
     try {
       setIsSearching(true);
 
-      const response = await apiService.storage.searchFiles(searchQuery);
+      // API call to search files
+      const response = await fetch(
+        `${
+          process.env.REACT_APP_API_URL
+        }/api/storage/search?q=${encodeURIComponent(searchQuery)}`
+      );
 
-      if (response.data?.success) {
-        setFiles(response.data.files || []);
+      if (!response.ok) {
+        throw new Error(`Search failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        setFiles(data.files || []);
       } else {
-        throw new Error(response.data?.error || "Search failed");
+        throw new Error(data.error || "Search failed");
       }
     } catch (err) {
       console.error("Error searching files:", err);
@@ -189,38 +382,6 @@ function FilePermissionsManager() {
       ...prev,
       [field]: value,
     }));
-  };
-
-  // Save permissions
-  const savePermissions = async () => {
-    if (!selectedFile) return;
-
-    try {
-      setIsSaving(true);
-      setError(null);
-      setSuccess(null);
-
-      const response = await apiService.permissions.setFilePermissions(
-        selectedFile.path,
-        permissions
-      );
-
-      if (response.data?.success) {
-        setSuccess(`Permissions updated for: ${selectedFile.name}`);
-
-        // Clear success message after 3 seconds
-        setTimeout(() => {
-          setSuccess(null);
-        }, 3000);
-      } else {
-        throw new Error(response.data?.error || "Failed to update permissions");
-      }
-    } catch (err) {
-      console.error("Error saving permissions:", err);
-      setError(`Failed to save permissions: ${err.message}`);
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   // If user is not an admin, show unauthorized message
@@ -367,6 +528,19 @@ function FilePermissionsManager() {
                   {selectedFile.name}
                 </h4>
                 <p className="file-path">{selectedFile.path}</p>
+
+                {/* Permission Details */}
+                {permissionDetails && (
+                  <div className="permission-details">
+                    <h5>Current Access Details:</h5>
+                    <p
+                      className={hasAccess ? "access-granted" : "access-denied"}
+                    >
+                      {hasAccess ? "Access Granted" : "Access Denied"} -{" "}
+                      {permissionDetails.details}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="form-group">
@@ -399,7 +573,7 @@ function FilePermissionsManager() {
                 >
                   <option value="">No specific role required</option>
                   {roles.map((role) => (
-                    <option key={role.id} value={role.id}>
+                    <option key={role.id} value={role.name}>
                       {role.name}
                     </option>
                   ))}
@@ -430,7 +604,7 @@ function FilePermissionsManager() {
                 >
                   {users.map((user) => (
                     <option key={user.id} value={user.id}>
-                      {user.name} ({user.email})
+                      {user.full_name} ({user.email})
                     </option>
                   ))}
                 </select>
