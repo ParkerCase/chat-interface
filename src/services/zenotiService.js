@@ -36,9 +36,17 @@ const zenotiService = {
    * @param {Object} params Search parameters
    * @returns {Promise} Client search results
    */
-  searchClients: async (params) => {
+  // In your client search function
+  searchClients: async (params = {}) => {
     try {
-      return await apiService.zenoti.searchClients(params);
+      // Start with just the default center, not all centers
+      const searchParams = {
+        ...params,
+        limit: 20, // Limit results
+        allCenters: false, // Force single center initially
+      };
+
+      return await apiService.zenoti.searchClients(searchParams);
     } catch (error) {
       console.error("Error searching Zenoti clients:", error);
       throw error;

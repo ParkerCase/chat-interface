@@ -109,6 +109,28 @@ async function initialize(app, imageMatcher) {
       // Continue despite analytics initialization failure
     }
 
+    try {
+      logger.info("Initializing Zenoti connector...");
+
+      // Initialize the Zenoti connector
+      const ZenotiConnector = require("../integration/connectors/ZenotiConnector");
+      const zenotiConnector = new ZenotiConnector({
+        // Default config
+        baseUrl: process.env.ZENOTI_API_URL || "https://api.zenoti.com/v1",
+        timeout: 30000,
+      });
+
+      // Register with app
+      app.set("zenotiConnector", zenotiConnector);
+      logger.info("Zenoti connector initialized successfully");
+    } catch (zenotiErr) {
+      logger.error("Failed to initialize Zenoti connector:", {
+        error: zenotiErr.message,
+        stack: zenotiErr.stack,
+      });
+      // Continue despite Zenoti initialization failure
+    }
+
     // Try to load DependencyManager if available
     let dependencyManager;
     try {
@@ -153,6 +175,13 @@ async function initialize(app, imageMatcher) {
       }
       if (app.get("alertManager")) {
         dependencyManager.register("alertManager", app.get("alertManager"));
+      }
+
+      if (app.get("zenotiConnector")) {
+        dependencyManager.register(
+          "zenotiConnector",
+          app.get("zenotiConnector")
+        );
       }
       if (app.get("dashboardPresets")) {
         dependencyManager.register(

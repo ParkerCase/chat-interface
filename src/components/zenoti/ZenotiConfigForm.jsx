@@ -18,12 +18,12 @@ import zenotiService from "../../services/zenotiService";
 
 const ZenotiConfigForm = ({ onSuccess, onCancel }) => {
   const [config, setConfig] = useState({
-    apiUrl: "",
-    apiKey: "",
-    username: "",
-    password: "",
-    defaultCenterCode: "",
-    useOAuth: false,
+    apiUrl: "https://api.zenoti.com/v1",
+    apiKey: "fbc6eda6b8274b218b1bc3f036ccf76af182d536cb0e4952bc693b8df19018b5",
+    username: "parker@tatt2away.com",
+    password: "January_0119!",
+    defaultCenterCode: "AUS", // Choose one of your center codes
+    useOAuth: true, // Set to true to use username/password authentication
     refreshRate: "daily",
   });
 
@@ -74,6 +74,29 @@ const ZenotiConfigForm = ({ onSuccess, onCancel }) => {
     loadConfig();
   }, []);
 
+  // In your frontend, add a debug page with:
+  const testDirectZenotiConnection = async () => {
+    try {
+      // Try direct API call with different auth methods
+      const testConfig = {
+        appId: "A34B1BC5-E598-4187-B2D9-0C37451EC58E",
+        apiKey:
+          "fbc6eda6b8274b218b1bc3f036ccf76af182d536cb0e4952bc693b8df19018b5",
+        apiSecret:
+          "dfbc618cb2fb4173889537c475f79671607f85f855874db0808fa8cb29e3871e",
+        // Test different auth methods by setting a type
+        authMethod: "headers", // or "body" or "signature"
+      };
+
+      const response = await apiService.zenoti.testDirectAuth(testConfig);
+      console.log("Auth result:", response);
+    } catch (error) {
+      console.error("Direct auth test failed:", error);
+    }
+  };
+
+  console.log(testDirectZenotiConnection);
+
   const loadCenters = async () => {
     try {
       const response = await zenotiService.getCenters();
@@ -102,14 +125,17 @@ const ZenotiConfigForm = ({ onSuccess, onCancel }) => {
       setSuccess(null);
       setConnectionStatus(null);
 
-      // Make a minimal config for testing
+      // Make a test config
       const testConfig = {
         apiUrl: config.apiUrl,
         apiKey: config.apiKey === "••••••••••••••••" ? null : config.apiKey,
-        username: config.username,
+        username: config.username || "parker@tatt2away.com",
         password:
-          config.password === "••••••••••••••••" ? null : config.password,
-        useOAuth: config.useOAuth,
+          config.password === "••••••••••••••••"
+            ? "January_0119!"
+            : config.password,
+        useOAuth: true, // Force OAuth to be true for Zenoti
+        defaultCenterCode: config.defaultCenterCode || "AUS",
       };
 
       // Call API to test connection
