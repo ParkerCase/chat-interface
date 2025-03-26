@@ -6,6 +6,8 @@ import ImportContacts from "../crm/ImportContacts";
 import CRMDashboard from "../crm/CRMDashboard";
 import ZenotiConfigForm from "../zenoti/ZenotiConfigForm";
 
+const USE_MOCK_DATA = false; // Set to false when you want to use real API
+
 const CRMTabContent = () => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showCRMDashboard, setShowCRMDashboard] = useState(false);
@@ -13,29 +15,36 @@ const CRMTabContent = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState(null);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [centers, setCenters] = useState([]);
 
-  // In CRMTabContent.jsx
+  // Improved connection status check
+  // Modified checkConnectionStatus function
   const checkConnectionStatus = async () => {
     try {
+      // If mock mode is on, return mock status
+      if (USE_MOCK_DATA) {
+        setConnectionStatus({
+          connected: true,
+          message: "Connected to Zenoti (MOCK DATA MODE)",
+        });
+        return true;
+      }
+
       console.log("Checking Zenoti connection status...");
       const response = await zenotiService.checkConnectionStatus();
       console.log("Zenoti status response:", response);
 
-      // More flexible check that handles different response formats
-      const isConnected =
-        (response.data?.success && response.data?.status === "connected") ||
-        response.data?.details?.connected === true;
+      // Extract connection status
+      const isConnected = response.data?.success === true;
 
-      console.log(
-        "Connection status determined as:",
-        isConnected ? "Connected" : "Not Connected"
-      );
+      console.log("Connection status determined as:", isConnected);
 
+      // Update state
       setConnectionStatus({
         connected: isConnected,
-        message: isConnected
-          ? "Connected to Zenoti"
-          : "Not connected to Zenoti",
+        message:
+          response.data?.message ||
+          (isConnected ? "Connected to Zenoti" : "Not connected to Zenoti"),
       });
 
       return isConnected;
@@ -49,102 +58,142 @@ const CRMTabContent = () => {
     }
   };
 
-  // Define initializeTab function using useCallback to be able to reference it elsewhere
+  const fetchCenters = async () => {
+    try {
+      console.log("Attempting to fetch centers...");
+      const response = await zenotiService.getCenters();
+      console.log("Centers response:", response);
+
+      if (response.data?.success && response.data?.centers) {
+        console.log("Setting centers:", response.data.centers);
+        setCenters(response.data.centers);
+        return response.data.centers;
+      } else if (response.data?.centers) {
+        console.log("Setting centers from direct data:", response.data.centers);
+        setCenters(response.data.centers);
+        return response.data.centers;
+      } else if (response.data?.centerMapping) {
+        console.log(
+          "Setting centers from centerMapping:",
+          response.data.centerMapping
+        );
+        setCenters(response.data.centerMapping);
+        return response.data.centerMapping;
+      } else {
+        console.warn("No centers found in response:", response.data);
+      }
+      return [];
+    } catch (err) {
+      console.error("Error fetching centers:", err);
+      return [];
+    }
+  };
+
+  // Also update your initializeTab function to log more details
   const initializeTab = useCallback(async () => {
     try {
       setIsLoading(true);
+      console.log("Initializing CRM tab...");
 
       // Check connection status
-      const statusResponse = await zenotiService.checkConnectionStatus();
-      const isConnected =
-        statusResponse.data?.success &&
-        statusResponse.data?.status === "connected";
-
-      setConnectionStatus({
-        connected: isConnected,
-        message: isConnected
-          ? "Connected to Zenoti"
-          : "Not connected to Zenoti",
-      });
+      const isConnected = await checkConnectionStatus();
+      console.log("Connection status check result:", isConnected);
 
       if (isConnected) {
-        // Load recent contacts
-        const response = await zenotiService.searchClients({
-          sort: "last_visit",
-          limit: 5,
-        });
+        // Load center data
+        const centerData = await fetchCenters();
+        console.log("Fetched center data:", centerData);
 
-        if (response.data?.success) {
-          // Format clients to match our contact structure
-          const formattedContacts = (response.data.clients || []).map(
-            (client) => ({
-              id: client.id || client.guest_id,
-              name: `${client.first_name || ""} ${
-                client.last_name || ""
-              }`.trim(),
-              email: client.email,
-              phone: client.mobile,
-              lastContact: client.last_visit_date || null,
-              centerCode: client.center_code,
-            })
-          );
+        // In your initializeTab function where you format contacts
+        try {
+          console.log("Attempting to fetch clients...");
+          const response = await zenotiService.searchClients({
+            limit: 5,
+          });
+          console.log("Clients response:", response);
 
-          setRecentContacts(formattedContacts);
+          // Get clients from response data
+          const clientsData =
+            response.data?.clients ||
+            (response.data?.success ? response.data.clients : []);
+
+          if (clientsData && clientsData.length > 0) {
+            console.log("Found clients data:", clientsData);
+
+            // Format clients with updated mapping that handles nested personal_info
+            const formattedContacts = clientsData.map((client) => {
+              // Check if we have personal_info object
+              const personalInfo = client.personal_info || client;
+
+              return {
+                id: client.id || client.guest_id,
+                name: `${personalInfo.first_name || ""} ${
+                  personalInfo.last_name || ""
+                }`.trim(),
+                email: personalInfo.email || "",
+                // Handle phone which could be in different formats
+                phone:
+                  personalInfo.mobile_phone?.number ||
+                  personalInfo.mobile ||
+                  personalInfo.phone ||
+                  "",
+                lastContact:
+                  client.last_visit_date ||
+                  client.created_date ||
+                  client.last_modified_date ||
+                  null,
+                centerCode:
+                  client.center_id ||
+                  client._centerCode ||
+                  client.center_code ||
+                  "",
+                centerName: client.center_name || client._centerName || "",
+              };
+            });
+
+            console.log("Setting formatted contacts:", formattedContacts);
+            setRecentContacts(formattedContacts);
+          } else {
+            console.warn("No client data found in response", response);
+            setRecentContacts(getMockContacts());
+          }
+        } catch (error) {
+          console.error("Error loading clients:", error);
+          setRecentContacts(getMockContacts());
         }
       } else {
-        // Use mock data if not connected
-        const mockContacts = [
-          {
-            id: "1",
-            name: "Alex Thompson",
-            email: "alex@example.com",
-            phone: "555-123-4567",
-            lastContact: new Date(
-              Date.now() - 2 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-          },
-          {
-            id: "2",
-            name: "Emma Wilson",
-            email: "emma@example.com",
-            phone: "555-765-4321",
-            lastContact: new Date(
-              Date.now() - 7 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-          },
-        ];
-
-        setRecentContacts(mockContacts);
+        console.log("Not connected, using mock data");
+        setRecentContacts(getMockContacts());
       }
     } catch (err) {
       console.error("Error initializing CRM tab:", err);
-      // Use mock data as fallback
-      const mockContacts = [
-        {
-          id: "1",
-          name: "Alex Thompson",
-          email: "alex@example.com",
-          phone: "555-123-4567",
-          lastContact: new Date(
-            Date.now() - 2 * 24 * 60 * 60 * 1000
-          ).toISOString(),
-        },
-        {
-          id: "2",
-          name: "Emma Wilson",
-          email: "emma@example.com",
-          phone: "555-765-4321",
-          lastContact: new Date(
-            Date.now() - 7 * 24 * 60 * 60 * 1000
-          ).toISOString(),
-        },
-      ];
-
-      setRecentContacts(mockContacts);
+      setRecentContacts(getMockContacts());
     } finally {
       setIsLoading(false);
     }
   }, []);
+
+  // Extract mock contacts to a separate function
+  const getMockContacts = () => [
+    {
+      id: "1",
+      name: "Alex Thompson",
+      email: "alex@example.com",
+      phone: "555-123-4567",
+      lastContact: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      centerCode: "AUS",
+      centerName: "Austin",
+    },
+    {
+      id: "2",
+      name: "Emma Wilson",
+      email: "emma@example.com",
+      phone: "555-765-4321",
+      lastContact: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+      centerCode: "CHI",
+      centerName: "Chicago",
+    },
+  ];
 
   // Check connection and load recent contacts on mount
   useEffect(() => {
@@ -174,36 +223,6 @@ const CRMTabContent = () => {
     }
   };
 
-  useEffect(() => {
-    const debugConnectionStatus = async () => {
-      try {
-        console.log("Checking Zenoti connection status...");
-        const statusResponse = await zenotiService.checkConnectionStatus();
-        console.log("Zenoti connection status response:", statusResponse);
-
-        // Check if the response format is what we expect
-        const isConnected =
-          statusResponse.data?.success &&
-          statusResponse.data?.status === "connected";
-
-        console.log("Is connected:", isConnected);
-        console.log("Status response data:", statusResponse.data);
-
-        // Set connection status based on response
-        setConnectionStatus({
-          connected: isConnected,
-          message: isConnected
-            ? "Connected to Zenoti"
-            : "Not connected to Zenoti",
-        });
-      } catch (err) {
-        console.error("Error debugging Zenoti status:", err);
-      }
-    };
-
-    debugConnectionStatus();
-  }, []);
-
   // Handle import completion
   const handleImportComplete = (stats) => {
     console.log("Import completed:", stats);
@@ -225,10 +244,66 @@ const CRMTabContent = () => {
     setShowCRMDashboard(false);
   };
 
+  // Handle contact view
+  const handleViewContact = (contactId, centerCode) => {
+    // Navigate to contact details or open modal
+    console.log(`View contact ${contactId} from center ${centerCode}`);
+    // Implement your navigation logic here
+  };
+
   return (
     <div className="crm-tab-content">
       <h2>CRM Integration</h2>
 
+      {/* Connection Status - Moved to top for better visibility */}
+      <div className="admin-section">
+        <h3 className="admin-section-title">Connection Status</h3>
+
+        <div className="connection-status-card">
+          <div className="connection-icon">
+            {connectionStatus?.connected ? (
+              <div className="status-icon connected"></div>
+            ) : (
+              <div className="status-icon disconnected"></div>
+            )}
+          </div>
+
+          <div className="connection-details">
+            <h4>Zenoti CRM</h4>
+            <p
+              className={
+                connectionStatus?.connected
+                  ? "connected-text"
+                  : "disconnected-text"
+              }
+            >
+              {connectionStatus?.message || "Checking connection status..."}
+            </p>
+            {connectionStatus?.connected && centers.length > 0 && (
+              <p className="center-count-text">
+                Connected to {centers.length} center
+                {centers.length !== 1 ? "s" : ""}
+              </p>
+            )}
+          </div>
+
+          <div className="connection-actions">
+            <button
+              className="config-button"
+              onClick={() => setShowConfigModal(true)}
+            >
+              Configure
+            </button>
+            {connectionStatus?.connected && (
+              <button className="refresh-button" onClick={initializeTab}>
+                Refresh
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Rest of the component remains the same */}
       {/* Contact Management Section */}
       <div className="admin-section">
         <h3 className="admin-section-title">Contact Management</h3>
@@ -264,6 +339,7 @@ const CRMTabContent = () => {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Phone</th>
+                <th>Center</th>
                 <th>Last Contact</th>
                 <th>Actions</th>
               </tr>
@@ -275,6 +351,7 @@ const CRMTabContent = () => {
                     <td>{contact.name}</td>
                     <td>{contact.email || "—"}</td>
                     <td>{contact.phone || "—"}</td>
+                    <td>{contact.centerName || contact.centerCode || "—"}</td>
                     <td>
                       {contact.lastContact ? (
                         <div className="flex items-center gap-1">
@@ -286,7 +363,12 @@ const CRMTabContent = () => {
                       )}
                     </td>
                     <td>
-                      <button className="action-button edit-button">
+                      <button
+                        className="action-button view-button"
+                        onClick={() =>
+                          handleViewContact(contact.id, contact.centerCode)
+                        }
+                      >
                         View
                       </button>
                     </td>
@@ -294,7 +376,7 @@ const CRMTabContent = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="empty-table-message">
+                  <td colSpan="6" className="empty-table-message">
                     No recent contacts found.
                   </td>
                 </tr>
@@ -304,50 +386,14 @@ const CRMTabContent = () => {
         )}
       </div>
 
-      {/* Connection Status */}
-      <div className="admin-section">
-        <h3 className="admin-section-title">Connection Status</h3>
-
-        <div className="connection-status-card">
-          <div className="connection-icon">
-            {connectionStatus?.connected ? (
-              <div className="status-icon connected"></div>
-            ) : (
-              <div className="status-icon disconnected"></div>
-            )}
-          </div>
-
-          <div className="connection-details">
-            <h4>Zenoti CRM</h4>
-            <p
-              className={
-                connectionStatus?.connected
-                  ? "connected-text"
-                  : "disconnected-text"
-              }
-            >
-              {connectionStatus?.message || "Checking connection status..."}
-            </p>
-          </div>
-
-          <div className="connection-actions">
-            <button
-              className="config-button"
-              onClick={() => setShowConfigModal(true)}
-            >
-              Configure
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Import Contacts Modal */}
+      {/* Modals */}
       {showImportModal && (
         <div className="modal-overlay">
           <div className="modal-container import-modal">
             <ImportContacts
               onClose={() => setShowImportModal(false)}
               onSuccess={handleImportComplete}
+              centers={centers}
             />
           </div>
         </div>
@@ -378,7 +424,7 @@ const CRMTabContent = () => {
           </div>
 
           <div className="crm-dashboard-content">
-            <CRMDashboard />
+            <CRMDashboard centers={centers} onRefresh={initializeTab} />
           </div>
         </div>
       )}

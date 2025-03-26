@@ -7,7 +7,7 @@ import { supabase } from "../lib/supabase";
 // In your baseUrl configuration:
 const API_CONFIG = {
   baseUrl: process.env.REACT_APP_API_URL || "http://147.182.247.128:4000",
-  timeout: 30000,
+  timeout: 10000, // Reduced from 30000 to 10000 (10 seconds)
   withCredentials: true,
 };
 
@@ -507,7 +507,8 @@ const zenotiApi = {
     apiClient.post("/api/zenoti/config", { config }),
   testConnection: (config) =>
     apiClient.post("/api/zenoti/test-connection", { config }),
-  checkConnectionStatus: () => apiClient.get("/api/zenoti/status"),
+  checkConnectionStatus: () =>
+    apiClient.get("/api/zenoti/debug/centers", { timeout: 10000 }),
 
   // Reports
   getWeeklyBusinessReport: (params) =>
