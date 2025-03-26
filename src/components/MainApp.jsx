@@ -14,6 +14,7 @@ import { useAuth } from "../context/AuthContext";
 import { useFeatureFlags, FeatureGate } from "../utils/featureFlags";
 import apiService from "../services/apiService";
 import UpgradePrompt from "./UpgradePrompt";
+
 import "./MainApp.css";
 
 function MainApp() {
