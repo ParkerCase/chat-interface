@@ -1,201 +1,294 @@
 // src/services/zenotiService.js
-import apiService from "./apiService";
+import { apiClient } from "./apiService";
 
 /**
  * Service to handle all Zenoti-related API calls
  */
 const zenotiService = {
-  /**
-   * Check connection status with Zenoti
-   * @returns {Promise} Connection status result
-   */
+  // Status and configuration
   checkConnectionStatus: async () => {
     try {
-      return await apiService.zenoti.checkConnectionStatus();
+      console.log("Checking Zenoti connection status...");
+      const response = await apiClient.get("/api/zenoti/status");
+      console.log("Zenoti status response:", response.data);
+      return response;
     } catch (error) {
       console.error("Error checking Zenoti connection:", error);
-      throw error;
+      return {
+        data: {
+          success: false,
+          status: "error",
+          message: error.message,
+        },
+      };
     }
   },
 
-  /**
-   * Get all Zenoti centers
-   * @returns {Promise} Centers information
-   */
+  // Get all Zenoti centers
   getCenters: async () => {
     try {
-      return await apiService.zenoti.getCenters();
+      console.log("Fetching Zenoti centers...");
+      return await apiClient.get("/api/zenoti/centers");
     } catch (error) {
       console.error("Error getting Zenoti centers:", error);
       throw error;
     }
   },
 
-  /**
-   * Search for clients in Zenoti
-   * @param {Object} params Search parameters
-   * @returns {Promise} Client search results
-   */
-  // In your client search function
-  searchClients: async (params = {}) => {
+  // Save Zenoti configuration
+  saveConfiguration: async (config) => {
     try {
-      // Start with just the default center, not all centers
-      const searchParams = {
-        ...params,
-        limit: 20, // Limit results
-        allCenters: false, // Force single center initially
-      };
+      console.log("Saving Zenoti configuration...");
+      return await apiClient.post("/api/zenoti/config", { config });
+    } catch (error) {
+      console.error("Error saving Zenoti config:", error);
+      throw error;
+    }
+  },
 
-      return await apiService.zenoti.searchClients(searchParams);
+  // Test connection with provided configuration
+  testConnection: async (config) => {
+    try {
+      console.log("Testing Zenoti connection with config...");
+      return await apiClient.post("/api/zenoti/test-connection", { config });
+    } catch (error) {
+      console.error("Error testing Zenoti connection:", error);
+      throw error;
+    }
+  },
+
+  // Search for clients/customers
+  searchClients: async (params) => {
+    try {
+      console.log("Searching Zenoti clients with params:", params);
+      return await apiClient.get("/api/zenoti/clients", { params });
     } catch (error) {
       console.error("Error searching Zenoti clients:", error);
       throw error;
     }
   },
 
-  /**
-   * Get client details from Zenoti
-   * @param {string} clientId Client ID
-   * @param {string} centerCode Optional center code
-   * @returns {Promise} Client details
-   */
-  getClientDetails: async (clientId, centerCode) => {
+  // Search clients across all centers
+  searchClientsAcrossAllCenters: async (params) => {
     try {
-      return await apiService.zenoti.getClient(clientId);
+      console.log(
+        "Searching Zenoti clients across all centers with params:",
+        params
+      );
+      return await apiClient.get("/api/zenoti/clients", {
+        params: { ...params, allCenters: true },
+      });
     } catch (error) {
-      console.error("Error getting Zenoti client details:", error);
+      console.error("Error searching Zenoti clients across centers:", error);
       throw error;
     }
   },
 
-  /**
-   * Create a new client in Zenoti
-   * @param {Object} clientData Client data
-   * @param {string} centerCode Center code
-   * @returns {Promise} Created client data
-   */
+  // Create a new client
   createClient: async (clientData, centerCode) => {
     try {
-      return await apiService.zenoti.createClient(clientData, centerCode);
+      console.log("Creating new Zenoti client...");
+      return await apiClient.post("/api/zenoti/client", {
+        clientData,
+        centerCode,
+      });
     } catch (error) {
       console.error("Error creating Zenoti client:", error);
       throw error;
     }
   },
 
-  /**
-   * Get client history from Zenoti
-   * @param {string} clientId Client ID
-   * @param {Object} params Optional parameters
-   * @returns {Promise} Client history data
-   */
+  // Get client details
+  getClient: async (clientId, centerCode = null) => {
+    try {
+      const params = centerCode ? { centerCode } : {};
+      return await apiClient.get(`/api/zenoti/client/${clientId}`, { params });
+    } catch (error) {
+      console.error("Error getting Zenoti client details:", error);
+      throw error;
+    }
+  },
+
+  // Update a client
+  updateClient: async (clientId, updateData) => {
+    try {
+      console.log(`Updating Zenoti client ${clientId}...`);
+      return await apiClient.put(`/api/zenoti/client/${clientId}`, {
+        updateData,
+      });
+    } catch (error) {
+      console.error("Error updating Zenoti client:", error);
+      throw error;
+    }
+  },
+
+  // Find a client across all centers
+  findClientAcrossCenters: async (searchParams) => {
+    try {
+      console.log("Finding client across all centers:", searchParams);
+      return await apiClient.get("/api/zenoti/client/find", {
+        params: searchParams,
+      });
+    } catch (error) {
+      console.error("Error finding client across centers:", error);
+      throw error;
+    }
+  },
+
+  // Get client history
   getClientHistory: async (clientId, params = {}) => {
     try {
-      return await apiService.zenoti.getClientHistory(clientId);
+      console.log(`Getting history for client ${clientId}...`);
+      return await apiClient.get(`/api/zenoti/client/${clientId}/history`, {
+        params,
+      });
     } catch (error) {
       console.error("Error getting Zenoti client history:", error);
       throw error;
     }
   },
 
-  /**
-   * Get appointments from Zenoti
-   * @param {Object} params Search parameters
-   * @returns {Promise} Appointment data
-   */
+  // Get appointments
   getAppointments: async (params) => {
     try {
-      return await apiService.zenoti.getAppointments(params);
+      console.log("Getting Zenoti appointments with params:", params);
+      return await apiClient.get("/api/zenoti/appointments", { params });
     } catch (error) {
       console.error("Error getting Zenoti appointments:", error);
       throw error;
     }
   },
 
-  /**
-   * Get appointment details from Zenoti
-   * @param {string} appointmentId Appointment ID
-   * @returns {Promise} Appointment details
-   */
+  // Get appointments across all centers
+  getAppointmentsAcrossAllCenters: async (params) => {
+    try {
+      console.log("Getting Zenoti appointments across all centers...");
+      return await apiClient.get("/api/zenoti/appointments", {
+        params: { ...params, allCenters: true },
+      });
+    } catch (error) {
+      console.error("Error getting appointments across centers:", error);
+      throw error;
+    }
+  },
+
+  // Get appointment details
   getAppointmentDetails: async (appointmentId) => {
     try {
-      return await apiService.zenoti.getAppointment(appointmentId);
+      console.log(`Getting details for appointment ${appointmentId}...`);
+      return await apiClient.get(`/api/zenoti/appointment/${appointmentId}`);
     } catch (error) {
       console.error("Error getting Zenoti appointment details:", error);
       throw error;
     }
   },
 
-  /**
-   * Book a new appointment in Zenoti
-   * @param {Object} appointmentData Appointment data
-   * @param {string} centerCode Center code
-   * @returns {Promise} Booked appointment data
-   */
+  // Book appointment
   bookAppointment: async (appointmentData, centerCode) => {
     try {
-      return await apiService.zenoti.createAppointment(
+      console.log("Booking new Zenoti appointment...");
+      return await apiClient.post("/api/zenoti/appointment", {
         appointmentData,
-        centerCode
-      );
+        centerCode,
+      });
     } catch (error) {
       console.error("Error booking Zenoti appointment:", error);
       throw error;
     }
   },
 
-  /**
-   * Get staff availability from Zenoti
-   * @param {Object} params Search parameters
-   * @returns {Promise} Availability data
-   */
+  // Cancel appointment
+  cancelAppointment: async (appointmentId, cancelData = {}) => {
+    try {
+      console.log(`Canceling appointment ${appointmentId}...`);
+      return await apiClient.post(
+        `/api/zenoti/appointment/${appointmentId}/cancel`,
+        cancelData
+      );
+    } catch (error) {
+      console.error("Error canceling Zenoti appointment:", error);
+      throw error;
+    }
+  },
+
+  // Reschedule appointment
+  rescheduleAppointment: async (appointmentId, rescheduleData) => {
+    try {
+      console.log(`Rescheduling appointment ${appointmentId}...`);
+      return await apiClient.post(
+        `/api/zenoti/appointment/${appointmentId}/reschedule`,
+        rescheduleData
+      );
+    } catch (error) {
+      console.error("Error rescheduling Zenoti appointment:", error);
+      throw error;
+    }
+  },
+
+  // Get availability
   getAvailability: async (params) => {
     try {
-      return await apiService.zenoti.getAvailability(params);
+      console.log("Getting Zenoti availability with params:", params);
+      return await apiClient.get("/api/zenoti/availability", { params });
     } catch (error) {
       console.error("Error getting Zenoti availability:", error);
       throw error;
     }
   },
 
-  /**
-   * Get services from Zenoti
-   * @param {Object} params Optional parameters
-   * @returns {Promise} Services data
-   */
+  // Get services
   getServices: async (params = {}) => {
     try {
-      return await apiService.zenoti.getServices(params);
+      console.log("Getting Zenoti services with params:", params);
+      return await apiClient.get("/api/zenoti/services", { params });
     } catch (error) {
       console.error("Error getting Zenoti services:", error);
       throw error;
     }
   },
 
-  /**
-   * Get staff from Zenoti
-   * @param {Object} params Optional parameters
-   * @returns {Promise} Staff data
-   */
+  // Get staff
   getStaff: async (params = {}) => {
     try {
-      return await apiService.zenoti.getStaff(params);
+      console.log("Getting Zenoti staff with params:", params);
+      return await apiClient.get("/api/zenoti/staff", { params });
     } catch (error) {
       console.error("Error getting Zenoti staff:", error);
       throw error;
     }
   },
 
-  /**
-   * Generate a weekly business report
-   * @param {Object} params Report parameters
-   * @returns {Promise} Report data
-   */
+  // Generate weekly report
   generateWeeklyReport: async (params) => {
     try {
-      return await apiService.zenoti.getWeeklyBusinessReport(params);
+      console.log("Generating Zenoti weekly report with params:", params);
+      return await apiClient.get("/api/zenoti/reports/weekly", { params });
     } catch (error) {
       console.error("Error generating Zenoti weekly report:", error);
+      throw error;
+    }
+  },
+
+  // Generate client activity report
+  generateClientActivityReport: async (params) => {
+    try {
+      console.log("Generating client activity report with params:", params);
+      return await apiClient.get("/api/zenoti/reports/client-activity", {
+        params,
+      });
+    } catch (error) {
+      console.error("Error generating client activity report:", error);
+      throw error;
+    }
+  },
+
+  // Debug endpoints
+  debugCenters: async () => {
+    try {
+      console.log("Fetching Zenoti centers debug info...");
+      return await apiClient.get("/api/zenoti/debug/centers");
+    } catch (error) {
+      console.error("Error getting Zenoti debug centers:", error);
       throw error;
     }
   },

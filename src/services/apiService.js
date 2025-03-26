@@ -415,115 +415,116 @@ const crmApi = {
 };
 
 // Zenoti specific endpoints
-// Zenoti specific endpoints - Updated version to integrate with the backend
+// Zenoti specific endpoints - Updated version that works with our improved backend
 const zenotiApi = {
-  getAppointments: (params) => {
-    const query = new URLSearchParams(params).toString();
-    return apiClient.get(`/api/zenoti/appointments?${query}`);
-  },
-
-  searchClients: (params) => {
-    const query = new URLSearchParams(params).toString();
-    return apiClient.get(`/api/zenoti/clients?${query}`);
-  },
-
-  getClient: (id, centerCode) => {
-    let url = `/api/zenoti/client/${id}`;
-    if (centerCode) {
-      url += `?centerCode=${encodeURIComponent(centerCode)}`;
-    }
-    return apiClient.get(url);
-  },
-
+  // Centers
   getCenters: () => apiClient.get("/api/zenoti/centers"),
+  getCenterDetails: (centerCode) =>
+    apiClient.get(`/api/zenoti/centers/${centerCode}`),
 
-  getServices: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiClient.get(`/api/zenoti/services?${query}`);
+  // Client/Guest management
+  searchClients: (params) => apiClient.get("/api/zenoti/clients", { params }),
+  getClient: (id, centerCode) => {
+    const params = centerCode ? { centerCode } : {};
+    return apiClient.get(`/api/zenoti/client/${id}`, { params });
   },
-
   createClient: (clientData, centerCode) =>
     apiClient.post("/api/zenoti/client", { clientData, centerCode }),
-
   updateClient: (clientId, updateData) =>
     apiClient.put(`/api/zenoti/client/${clientId}`, { updateData }),
+  findClientAcrossCenters: (params) =>
+    apiClient.get("/api/zenoti/client/find", { params }),
+  getClientHistory: (clientId, params = {}) =>
+    apiClient.get(`/api/zenoti/client/${clientId}/history`, { params }),
 
-  findClient: (params) => {
-    const query = new URLSearchParams(params).toString();
-    return apiClient.get(`/api/zenoti/client/find?${query}`);
-  },
-
-  getClientHistory: (clientId, params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiClient.get(`/api/zenoti/client/${clientId}/history?${query}`);
-  },
-
+  // Appointment management
+  getAppointments: (params) =>
+    apiClient.get("/api/zenoti/appointments", { params }),
+  getAppointmentsAcrossAllCenters: (params) =>
+    apiClient.get("/api/zenoti/appointments", {
+      params: { ...params, allCenters: true },
+    }),
+  getAppointment: (appointmentId) =>
+    apiClient.get(`/api/zenoti/appointment/${appointmentId}`),
   createAppointment: (appointmentData, centerCode) =>
     apiClient.post("/api/zenoti/appointment", { appointmentData, centerCode }),
+  cancelAppointment: (appointmentId, cancelData = {}) =>
+    apiClient.post(
+      `/api/zenoti/appointment/${appointmentId}/cancel`,
+      cancelData
+    ),
+  rescheduleAppointment: (appointmentId, rescheduleData) =>
+    apiClient.post(
+      `/api/zenoti/appointment/${appointmentId}/reschedule`,
+      rescheduleData
+    ),
+  getAvailability: (params) =>
+    apiClient.get("/api/zenoti/availability", { params }),
+  getAvailabilityAcrossAllCenters: (params) =>
+    apiClient.get("/api/zenoti/availability", {
+      params: { ...params, allCenters: true },
+    }),
 
-  getAppointmentDetails: (appointmentId) =>
-    apiClient.get(`/api/zenoti/appointment/${appointmentId}`),
-
-  cancelAppointment: (appointmentId, data) =>
-    apiClient.post(`/api/zenoti/appointment/${appointmentId}/cancel`, data),
-
-  rescheduleAppointment: (appointmentId, data) =>
-    apiClient.post(`/api/zenoti/appointment/${appointmentId}/reschedule`, data),
-
-  checkConnectionStatus: () => apiClient.get("/api/zenoti/status"),
-
-  getAvailability: (params) => {
-    const query = new URLSearchParams(params).toString();
-    return apiClient.get(`/api/zenoti/availability?${query}`);
+  // Catalog management
+  getServices: (params = {}) =>
+    apiClient.get("/api/zenoti/services", { params }),
+  getServicesAcrossAllCenters: (params = {}) =>
+    apiClient.get("/api/zenoti/services", {
+      params: { ...params, allCenters: true },
+    }),
+  getServiceDetails: (serviceId, centerCode) => {
+    const params = centerCode ? { centerCode } : {};
+    return apiClient.get(`/api/zenoti/services/${serviceId}`, { params });
   },
 
-  getStaff: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiClient.get(`/api/zenoti/staff?${query}`);
-  },
-
+  // Staff management
+  getStaff: (params = {}) => apiClient.get("/api/zenoti/staff", { params }),
+  getStaffAcrossAllCenters: (params = {}) =>
+    apiClient.get("/api/zenoti/staff", {
+      params: { ...params, allCenters: true },
+    }),
   getStaffDetails: (staffId) => apiClient.get(`/api/zenoti/staff/${staffId}`),
 
-  searchInvoices: (params) => {
-    const query = new URLSearchParams(params).toString();
-    return apiClient.get(`/api/zenoti/invoices?${query}`);
-  },
+  // Product management
+  getProducts: (params = {}) =>
+    apiClient.get("/api/zenoti/products", { params }),
+  getProductsAcrossAllCenters: (params = {}) =>
+    apiClient.get("/api/zenoti/products", {
+      params: { ...params, allCenters: true },
+    }),
 
+  // Invoice management
+  searchInvoices: (params) => apiClient.get("/api/zenoti/invoices", { params }),
+  searchInvoicesAcrossAllCenters: (params) =>
+    apiClient.get("/api/zenoti/invoices", {
+      params: { ...params, allCenters: true },
+    }),
   getInvoiceDetails: (invoiceId) =>
     apiClient.get(`/api/zenoti/invoice/${invoiceId}`),
-
-  getProducts: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiClient.get(`/api/zenoti/products?${query}`);
-  },
 
   // Configuration management
   saveConfiguration: (config) =>
     apiClient.post("/api/zenoti/config", { config }),
-
   testConnection: (config) =>
     apiClient.post("/api/zenoti/test-connection", { config }),
+  checkConnectionStatus: () => apiClient.get("/api/zenoti/status"),
 
   // Reports
-  getWeeklyBusinessReport: (params) => {
-    const query = new URLSearchParams(params).toString();
-    return apiClient.get(`/api/zenoti/reports/weekly?${query}`);
-  },
-
-  getClientActivityReport: (params) => {
-    const query = new URLSearchParams(params).toString();
-    return apiClient.get(`/api/zenoti/reports/client-activity?${query}`);
-  },
-
+  getWeeklyBusinessReport: (params) =>
+    apiClient.get("/api/zenoti/reports/weekly", { params }),
+  getWeeklyBusinessReportAcrossAllCenters: (params) =>
+    apiClient.get("/api/zenoti/reports/weekly", {
+      params: { ...params, allCenters: true },
+    }),
+  getClientActivityReport: (params) =>
+    apiClient.get("/api/zenoti/reports/client-activity", { params }),
   exportReport: (reportData, format, filename) =>
     apiClient.post("/api/zenoti/reports/export", {
       reportData,
       format,
       filename,
     }),
-
   getReportFiles: () => apiClient.get("/api/zenoti/reports/list"),
-
   downloadReport: (filename) =>
     apiClient.get(`/api/zenoti/reports/download/${filename}`, {
       responseType: "blob",
@@ -531,6 +532,10 @@ const zenotiApi = {
 
   // Webhook stats
   getWebhookStats: () => apiClient.get("/api/zenoti/webhooks/stats"),
+
+  // Debug endpoints
+  debugCenters: () => apiClient.get("/api/zenoti/debug/centers"),
+  testApiKey: () => apiClient.get("/api/zenoti/test-api-key"),
 };
 
 // Session management endpoints
@@ -953,5 +958,8 @@ const apiService = {
   },
 };
 
+export { testConnection, isAuthenticated };
+
+export { apiService, apiClient };
 export default apiService;
-export { apiClient, uploadWithProgress, isTokenExpired };
+export { uploadWithProgress, isTokenExpired };
