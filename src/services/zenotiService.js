@@ -214,13 +214,30 @@ const zenotiService = {
   },
 
   // Get appointments
+  // In zenotiService.js
+  // Get appointments
   getAppointments: async (params) => {
     try {
       console.log("Getting Zenoti appointments with params:", params);
-      return await apiClient.get("/api/zenoti/appointments", { params });
+      const response = await zenotiApiClient.get("/api/zenoti/appointments", {
+        params,
+      });
+
+      // Log response for debugging
+      console.log("Appointments response:", response);
+
+      return response;
     } catch (error) {
       console.error("Error getting Zenoti appointments:", error);
-      throw error;
+
+      // Return a formatted error response instead of throwing
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to fetch appointments",
+          appointments: [],
+        },
+      };
     }
   },
 
