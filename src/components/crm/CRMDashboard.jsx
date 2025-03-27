@@ -95,51 +95,52 @@ const CRMDashboard = () => {
   // Load recent contacts
   const loadRecentContacts = async () => {
     try {
+      console.log("Loading recent contacts...");
       const response = await zenotiService.searchClients({
         sort: "last_visit",
         limit: 10,
       });
 
-      if (response.data?.success) {
-        // Format clients to match our contact structure
-        const formattedContacts = (response.data.clients || []).map(
-          (client) => ({
-            id: client.id || client.guest_id,
-            name: `${client.first_name || ""} ${client.last_name || ""}`.trim(),
-            email: client.email,
-            phone: client.mobile,
-            lastContact: client.last_visit_date || null,
-            centerCode: client.center_code,
-          })
-        );
+      console.log("Recent contacts response:", response);
 
+      if (response.data?.success && response.data?.clients) {
+        // Format clients with updated mapping that handles nested personal_info
+        const formattedContacts = response.data.clients.map((client) => {
+          // Check if we have personal_info object
+          const personalInfo = client.personal_info || client;
+
+          return {
+            id: client.id || client.guest_id,
+            name: `${personalInfo.first_name || ""} ${
+              personalInfo.last_name || ""
+            }`.trim(),
+            email: personalInfo.email || "",
+            // Handle phone which could be in different formats
+            phone:
+              personalInfo.mobile_phone?.number ||
+              personalInfo.mobile ||
+              personalInfo.phone ||
+              "",
+            lastContact:
+              client.last_visit_date ||
+              client.created_date ||
+              client.last_modified_date ||
+              null,
+            centerCode: client.center_id || client.center_code || "",
+            centerName: client.center_name || "",
+          };
+        });
+
+        console.log("Formatted contacts:", formattedContacts);
         setRecentContacts(formattedContacts);
+      } else {
+        console.warn("No client data found in response", response);
+        setRecentContacts([]);
       }
     } catch (err) {
       console.error("Error loading recent contacts:", err);
-      // Fall back to mock data if API call fails
-      const mockContacts = [
-        {
-          id: "1",
-          name: "Alex Thompson",
-          email: "alex@example.com",
-          phone: "555-123-4567",
-          lastContact: new Date(
-            Date.now() - 2 * 24 * 60 * 60 * 1000
-          ).toISOString(),
-        },
-        {
-          id: "2",
-          name: "Emma Wilson",
-          email: "emma@example.com",
-          phone: "555-765-4321",
-          lastContact: new Date(
-            Date.now() - 7 * 24 * 60 * 60 * 1000
-          ).toISOString(),
-        },
-      ];
-
-      setRecentContacts(mockContacts);
+      // Fallback to empty array
+      setRecentContacts([]);
     }
   };
 
@@ -153,6 +154,13 @@ const CRMDashboard = () => {
       const formattedToday = today.toISOString().split("T")[0];
       const formattedNextWeek = nextWeek.toISOString().split("T")[0];
 
+      console.log("Requesting appointments with params:", {
+        startDate: formattedToday,
+        endDate: formattedNextWeek,
+        centerCode: selectedCenter,
+        status: "confirmed",
+      });
+
       const response = await zenotiService.getAppointments({
         startDate: formattedToday,
         endDate: formattedNextWeek,
@@ -160,8 +168,54 @@ const CRMDashboard = () => {
         status: "confirmed",
       });
 
+      console.log("Appointment response:", response);
+
       if (response.data?.success) {
-        setAppointments(response.data.appointments || []);
+        // Transform the appointments data to match expected format
+        const formattedAppointments = (response.data.appointments || []).map(
+          (appointment) => {
+            // Get service name from either blockout or service property
+            const serviceName = appointment.blockout
+              ? appointment.blockout.name
+              : appointment.service
+              ? appointment.service.name
+              : "Admin Time";
+
+            // Handle client name when guest is null
+            const clientName = appointment.guest
+              ? `${appointment.guest.first_name || ""} ${
+                  appointment.guest.last_name || ""
+                }`.trim()
+              : "No Client";
+
+            return {
+              id: appointment.appointment_id,
+              service_name: serviceName,
+              client_name: clientName,
+              start_time: appointment.start_time,
+              duration: appointment.blockout
+                ? appointment.blockout.duration
+                : appointment.service
+                ? appointment.service.duration
+                : 60,
+              status: appointment.status,
+              notes: appointment.notes || "",
+              therapist: appointment.therapist
+                ? `${appointment.therapist.first_name || ""} ${
+                    appointment.therapist.last_name || ""
+                  }`.trim()
+                : "Unassigned",
+            };
+          }
+        );
+
+        setAppointments(formattedAppointments);
+      } else {
+        console.warn(
+          "No appointments found or error in response",
+          response.data
+        );
+        setAppointments([]);
       }
     } catch (err) {
       console.error("Error loading appointments:", err);
@@ -177,11 +231,14 @@ const CRMDashboard = () => {
   };
 
   // Load contact details
+  // Load contact details
+  // Change this in CRMDashboard.jsx
   const loadContactDetails = async (contactId) => {
     try {
       setIsLoading(true);
 
-      const response = await zenotiService.getClientDetails(contactId);
+      // This line needs to change from getClientDetails to getClient
+      const response = await zenotiService.getClient(contactId);
 
       if (response.data?.success) {
         setContactDetails(response.data.client);
@@ -207,6 +264,7 @@ const CRMDashboard = () => {
   };
 
   // Handle search
+  // Handle search
   const handleSearch = async () => {
     if (!searchTerm) return;
 
@@ -221,14 +279,24 @@ const CRMDashboard = () => {
       if (response.data?.success) {
         // Format clients to match our contact structure
         const formattedContacts = (response.data.clients || []).map(
-          (client) => ({
-            id: client.id || client.guest_id,
-            name: `${client.first_name || ""} ${client.last_name || ""}`.trim(),
-            email: client.email,
-            phone: client.mobile,
-            lastContact: client.last_visit_date || null,
-            centerCode: client.center_code,
-          })
+          (client) => {
+            const personalInfo = client.personal_info || client;
+            return {
+              id: client.id || client.guest_id,
+              name: `${personalInfo.first_name || ""} ${
+                personalInfo.last_name || ""
+              }`.trim(),
+              email: personalInfo.email || "",
+              phone:
+                personalInfo.mobile_phone?.number ||
+                personalInfo.mobile ||
+                personalInfo.phone ||
+                "",
+              lastContact: client.last_visit_date || null,
+              centerCode: client.center_id || client.center_code || "",
+              centerName: client.center_name || "",
+            };
+          }
         );
 
         setContacts(formattedContacts);
@@ -542,6 +610,17 @@ const CRMDashboard = () => {
                       <div className="appointment-details">
                         <h4>{appointment.service_name}</h4>
                         <p className="client-name">{appointment.client_name}</p>
+                        {appointment.therapist &&
+                          appointment.therapist !== "Unassigned" && (
+                            <p className="therapist-name">
+                              Provider: {appointment.therapist}
+                            </p>
+                          )}
+                        {appointment.notes && (
+                          <p className="appointment-notes small-text">
+                            {appointment.notes}
+                          </p>
+                        )}
                         <p className="duration">
                           {appointment.duration} minutes
                         </p>
@@ -584,15 +663,16 @@ const CRMDashboard = () => {
         {/* Contact details panel */}
         {showContactDetails && contactDetails && (
           <div className="contact-details-panel">
-            <div className="panel-header">
-              <h3>Contact Details</h3>
-              <button onClick={() => setShowContactDetails(false)}>×</button>
-            </div>
-
+            {/* ... */}
             <div className="contact-info">
               <div className="contact-name">
                 <h2>
-                  {contactDetails.first_name} {contactDetails.last_name}
+                  {contactDetails.personal_info?.first_name ||
+                    contactDetails.first_name ||
+                    ""}{" "}
+                  {contactDetails.personal_info?.last_name ||
+                    contactDetails.last_name ||
+                    ""}
                 </h2>
               </div>
 
@@ -601,13 +681,21 @@ const CRMDashboard = () => {
                 <div className="detail-item">
                   <Mail size={16} />
                   <span>Email:</span>
-                  <span>{contactDetails.email || "—"}</span>
+                  <span>
+                    {contactDetails.personal_info?.email ||
+                      contactDetails.email ||
+                      "—"}
+                  </span>
                 </div>
                 <div className="detail-item">
                   <Phone size={16} />
                   <span>Phone:</span>
                   <span>
-                    {contactDetails.mobile || contactDetails.phone || "—"}
+                    {contactDetails.personal_info?.mobile_phone?.number ||
+                      contactDetails.personal_info?.mobile ||
+                      contactDetails.mobile ||
+                      contactDetails.phone ||
+                      "—"}
                   </span>
                 </div>
               </div>

@@ -22,14 +22,28 @@ const apiClient = axios.create({
   timeout: API_CONFIG.timeout,
   headers: {
     "Content-Type": "application/json",
+    Accept: "application/json",
   },
-  withCredentials: true,
+  withCredentials: true, // This ensures cookies are sent in cross-origin requests
+  xsrfCookieName: "XSRF-TOKEN", // Add if your server uses CSRF protection
+  xsrfHeaderName: "X-XSRF-TOKEN", // Add if your server uses CSRF protection
 });
 
 // Add this function to your utils section
 const testConnection = async () => {
   try {
-    const response = await fetch(`${API_CONFIG.baseUrl}/cors-test`);
+    const response = await fetch(`${API_CONFIG.baseUrl}/cors-debug`, {
+      credentials: "include", // Important for testing credential handling
+    });
+
+    if (!response.ok) {
+      return {
+        success: false,
+        status: response.status,
+        statusText: response.statusText,
+      };
+    }
+
     return await response.json();
   } catch (error) {
     console.error("Connection test failed:", error);
@@ -101,6 +115,17 @@ apiClient.interceptors.response.use(
         processQueue(error);
       }
       return Promise.reject(error);
+    }
+
+    // Add this to your error interceptor (inside the existing one)
+    if (error.response && error.response.status === 0) {
+      // CORS error often returns status 0
+      return Promise.reject({
+        message:
+          "Cross-Origin request blocked. This may be a CORS configuration issue.",
+        isCorsError: true,
+        originalError: error,
+      });
     }
 
     // Handle 401 (Unauthorized) - likely expired token
@@ -939,10 +964,17 @@ const apiService = {
     getBaseUrl: () => API_CONFIG.baseUrl,
 
     // Add the test connection function here
+    // Replace the existing utils.testConnection with this enhanced version
     testConnection: async () => {
       try {
-        // Use fetch API to bypass axios settings
-        const response = await fetch(`${API_CONFIG.baseUrl}/debug-cors`);
+        // Use fetch API to test CORS with credentials
+        const response = await fetch(`${API_CONFIG.baseUrl}/cors-debug`, {
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
+        });
+
         if (!response.ok) {
           return {
             success: false,
@@ -950,9 +982,49 @@ const apiService = {
             statusText: response.statusText,
           };
         }
+
         return await response.json();
       } catch (error) {
-        console.error("Debug connection test failed:", error);
+        console.error("CORS debug connection test failed:", error);
+        return { success: false, error: error.message, type: "network" };
+      }
+    },
+    // Add this to your utils section
+    testCookieHandling: async () => {
+      try {
+        // First set a test cookie
+        const setCookieResponse = await fetch(
+          `${API_CONFIG.baseUrl}/cors-test-cookie`,
+          {
+            credentials: "include",
+          }
+        );
+
+        if (!setCookieResponse.ok) {
+          return { success: false, error: "Failed to set test cookie" };
+        }
+
+        // Then check if we can read it back
+        const checkCookieResponse = await fetch(
+          `${API_CONFIG.baseUrl}/cors-debug`,
+          {
+            credentials: "include",
+          }
+        );
+
+        if (!checkCookieResponse.ok) {
+          return { success: false, error: "Failed to check cookie" };
+        }
+
+        const data = await checkCookieResponse.json();
+        return {
+          success: true,
+          cookiePresent:
+            data.cookiesReceived &&
+            Object.keys(data.cookiesReceived).length > 0,
+          data,
+        };
+      } catch (error) {
         return { success: false, error: error.message };
       }
     },
