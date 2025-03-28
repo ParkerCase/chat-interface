@@ -31,94 +31,55 @@ export function AuthProvider({ children }) {
   );
 
   // Login function
+  // In your frontend AuthContext.jsx:
   const login = async (email, password) => {
     try {
       setError("");
       console.log("Attempting login with:", email);
+      setLoading(true);
 
-      // Try to check Supabase connection
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (error) throw error;
-
-        // Store flag for basic auth
-        localStorage.setItem("isAuthenticated", "true");
-        console.log("Login successful via Supabase");
-
-        // If a user object was returned, store it
-        if (data?.user) {
-          localStorage.setItem(
-            "currentUser",
-            JSON.stringify({
-              id: data.user.id,
-              email: data.user.email,
-              name: data.user.user_metadata?.name || data.user.email,
-              roles: data.user.user_metadata?.roles || ["user"],
-            })
-          );
+      // Use a direct fetch for debugging
+      const response = await fetch(
+        `${apiService.utils.getBaseUrl()}/api/auth/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password }),
+          credentials: "include",
         }
+      );
 
+      // Log the raw response
+      console.log("Login response status:", response.status);
+      const data = await response.json();
+      console.log("Login response data:", data);
+
+      if (data.success) {
+        // Store auth data
+        localStorage.setItem("authToken", data.token);
+        if (data.refreshToken)
+          localStorage.setItem("refreshToken", data.refreshToken);
+        if (data.sessionId) localStorage.setItem("sessionId", data.sessionId);
+        if (data.user)
+          localStorage.setItem("currentUser", JSON.stringify(data.user));
+
+        // Set user in state
+        setCurrentUser(data.user);
+        console.log("Login successful, user:", data.user);
         return true;
-      } catch (supabaseError) {
-        console.error("Dev login error:", supabaseError);
-
-        // Development fallback login
-        if (process.env.NODE_ENV === "development") {
-          console.log("Using development fallback login");
-
-          // Check for admin credentials
-          if (
-            (email === "admin@tatt2away.com" &&
-              password === "adminpassword123") ||
-            email === "itsus@tatt2away.com"
-          ) {
-            // Create a mock admin user
-            const mockAdminUser = {
-              id: "dev-admin-user",
-              email: email,
-              name: "Admin User",
-              roles: ["admin", "user"],
-            };
-
-            // Store in localStorage
-            localStorage.setItem("isAuthenticated", "true");
-            localStorage.setItem("currentUser", JSON.stringify(mockAdminUser));
-            console.log("Dev admin login successful");
-            return true;
-          }
-
-          // Check for regular user credentials
-          if (
-            email === "user@tatt2away.com" &&
-            password === "userpassword123"
-          ) {
-            // Create a mock regular user
-            const mockUser = {
-              id: "dev-regular-user",
-              email: email,
-              name: "Regular User",
-              roles: ["user"],
-            };
-
-            // Store in localStorage
-            localStorage.setItem("isAuthenticated", "true");
-            localStorage.setItem("currentUser", JSON.stringify(mockUser));
-            console.log("Dev user login successful");
-            return true;
-          }
-        }
-
-        // If we get here, both Supabase and fallback login failed
-        throw supabaseError;
       }
-    } catch (error) {
-      console.error("Login error:", error);
-      setError(error.message || "An error occurred during login");
+
+      setError(data.error || "Login failed");
+      console.log("Login failed:", data.error);
       return false;
+    } catch (err) {
+      console.error("Login error:", err);
+      setError(err.message || "An unexpected error occurred");
+      return false;
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -102,130 +102,52 @@ apiClient.interceptors.response.use(
       });
     }
 
-    // Don't retry already retried requests or refresh token requests
-    if (
-      originalRequest._retry ||
-      originalRequest.url?.includes("/api/auth/refresh")
-    ) {
-      // If refresh failed, clear auth state and reject
-      if (originalRequest.url?.includes("/api/auth/refresh")) {
+    // Handle 401 (Unauthorized) - likely expired token
+    if (error.response.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      const refreshToken = localStorage.getItem("refreshToken");
+
+      if (!refreshToken) {
+        // No refresh token, clear auth
+        localStorage.removeItem("authToken");
+        window.location.href = "/login?expired=true";
+        return Promise.reject(error);
+      }
+
+      try {
+        // Use backend refresh endpoint
+        const response = await axios.post(
+          `${API_CONFIG.baseUrl}/api/auth/refresh`,
+          {
+            refreshToken,
+            sessionId: localStorage.getItem("sessionId"),
+          }
+        );
+
+        if (response.data.success) {
+          localStorage.setItem("authToken", response.data.token);
+          if (response.data.refreshToken) {
+            localStorage.setItem("refreshToken", response.data.refreshToken);
+          }
+          if (response.data.sessionId) {
+            localStorage.setItem("sessionId", response.data.sessionId);
+          }
+
+          // Update axios default headers
+          apiClient.defaults.headers.common.Authorization = `Bearer ${response.data.token}`;
+
+          // Retry original request
+          originalRequest.headers.Authorization = `Bearer ${response.data.token}`;
+          return axios(originalRequest);
+        }
+      } catch (refreshError) {
+        // Handle refresh failure
         localStorage.removeItem("authToken");
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("sessionId");
-        processQueue(error);
+        window.location.href = "/login?expired=true";
+        return Promise.reject(refreshError);
       }
-      return Promise.reject(error);
-    }
-
-    // Add this to your error interceptor (inside the existing one)
-    if (error.response && error.response.status === 0) {
-      // CORS error often returns status 0
-      return Promise.reject({
-        message:
-          "Cross-Origin request blocked. This may be a CORS configuration issue.",
-        isCorsError: true,
-        originalError: error,
-      });
-    }
-
-    // Handle 401 (Unauthorized) - likely expired token
-    if (error.response.status === 401) {
-      const isTokenExpired =
-        error.response.data?.code === "TOKEN_EXPIRED" ||
-        error.response.data?.error?.includes("expired");
-
-      if (isTokenExpired) {
-        originalRequest._retry = true;
-        const refreshToken = localStorage.getItem("refreshToken");
-        const sessionId = localStorage.getItem("sessionId");
-
-        if (!refreshToken) {
-          // No refresh token, clear auth
-          localStorage.removeItem("authToken");
-          return Promise.reject(error);
-        }
-
-        // If already refreshing, queue this request
-        if (isRefreshing) {
-          return new Promise((resolve, reject) => {
-            refreshQueue.push({ resolve, reject });
-          })
-            .then((token) => {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-              return axios(originalRequest);
-            })
-            .catch((err) => Promise.reject(err));
-        }
-
-        // Start token refresh
-        isRefreshing = true;
-
-        try {
-          // Attempt to refresh the token
-          const response = await axios.post(
-            `${API_CONFIG.baseUrl}/api/auth/refresh`,
-            { refreshToken, sessionId },
-            {
-              headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-              },
-            }
-          );
-
-          if (response.data.success) {
-            // Save the new tokens
-            const {
-              token: accessToken,
-              refreshToken: newRefreshToken,
-              sessionId: newSessionId,
-            } = response.data;
-
-            localStorage.setItem("authToken", accessToken);
-            if (newRefreshToken)
-              localStorage.setItem("refreshToken", newRefreshToken);
-            if (newSessionId) localStorage.setItem("sessionId", newSessionId);
-
-            // Update axios default headers
-            apiClient.defaults.headers.common[
-              "Authorization"
-            ] = `Bearer ${accessToken}`;
-
-            // Process any queued requests
-            processQueue(null, accessToken);
-            isRefreshing = false;
-
-            // Retry the original request
-            originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-            return axios(originalRequest);
-          } else {
-            throw new Error(response.data.error || "Failed to refresh token");
-          }
-        } catch (refreshError) {
-          // Handle refresh failure
-          localStorage.removeItem("authToken");
-          localStorage.removeItem("refreshToken");
-          localStorage.removeItem("sessionId");
-
-          processQueue(refreshError);
-          isRefreshing = false;
-
-          return Promise.reject(refreshError);
-        }
-      }
-    }
-
-    // Handle 403 (Forbidden) - permission denied
-    if (error.response.status === 403) {
-      error.isPermissionError = true;
-      console.warn("Permission denied:", error.response.data);
-    }
-
-    // Handle 429 (Too Many Requests) - rate limiting
-    if (error.response.status === 429) {
-      error.isRateLimitError = true;
-      const retryAfter = error.response.headers["retry-after"];
-      error.retryAfter = retryAfter ? parseInt(retryAfter, 10) : 60;
     }
 
     return Promise.reject(error);
@@ -357,11 +279,33 @@ const authApi = {
 
   exchangeToken: (code) => apiClient.post("/api/auth/exchange", { code }),
   getProviders: async () => {
-    const response = await fetch(`${API_CONFIG.baseUrl}/api/auth/providers`);
-    if (!response.ok) {
-      throw new Error(`Failed to get providers: ${response.status}`);
+    try {
+      const response = await fetch(`${API_CONFIG.baseUrl}/api/auth/providers`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to get providers: ${response.status}`);
+      }
+
+      return { data: await response.json() };
+    } catch (error) {
+      console.error("Provider fetch error:", error);
+      // Return a fallback response instead of throwing
+      return {
+        data: {
+          success: true,
+          providers: {
+            password: { id: "password", name: "Password", type: "password" },
+          },
+          defaultProvider: "password",
+        },
+      };
     }
-    return { data: await response.json() };
   },
   isAuthenticated,
 

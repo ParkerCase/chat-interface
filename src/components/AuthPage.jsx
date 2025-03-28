@@ -18,9 +18,19 @@ import {
   Save,
 } from "lucide-react";
 import "./auth.css";
-import apiService from "../services/apiService";
+
+import { apiService, apiClient } from "../services/apiService";
 
 function AuthPage() {
+  const {
+    currentUser,
+    login,
+    logout,
+    error: authError,
+    setError: setAuthError,
+    setCurrentUser,
+  } = useAuth();
+
   const [authMode, setAuthMode] = useState("login");
   const [resetToken, setResetToken] = useState(""); // Add this line
   const location = useLocation();
@@ -69,7 +79,13 @@ function LoginForm() {
   const [loginMethod, setLoginMethod] = useState("password");
   const [processingCode, setProcessingCode] = useState(false);
 
-  const { login, error: authError, setError, processTokenExchange } = useAuth();
+  const {
+    login,
+    error: authError,
+    setError,
+    processTokenExchange,
+    setCurrentUser,
+  } = useAuth();
   const [formError, setFormError] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
@@ -81,24 +97,35 @@ function LoginForm() {
         setLoadingProviders(true);
         console.log("Fetching auth providers...");
 
-        // Fix: Use apiService instead of direct fetch
-        const response = await apiService.auth.getProviders();
+        try {
+          // Try the primary method first
+          const response = await apiService.auth.getProviders();
 
-        if (response.data && response.data.success) {
-          setProviders(Object.values(response.data.providers || {}));
-          setDefaultProvider(response.data.defaultProvider);
-
-          // If SSO providers exist, default to the first one
-          if (Object.keys(response.data.providers || {}).length > 0) {
-            setLoginMethod("sso");
+          if (response.data && response.data.success) {
+            setProviders(Object.values(response.data.providers || {}));
+            setDefaultProvider(response.data.defaultProvider);
+            return;
           }
-        } else {
-          // Fallback to password login if no providers
-          setLoginMethod("password");
+        } catch (initialError) {
+          console.warn("Primary provider fetch failed:", initialError.message);
         }
+
+        // Fallback to hardcoded providers if API fails
+        console.log("Using fallback providers due to API error");
+        setProviders([
+          {
+            id: "password",
+            name: "Password",
+            type: "password",
+          },
+        ]);
+        setDefaultProvider("password");
+        setLoginMethod("password");
       } catch (error) {
         console.error("Failed to fetch providers:", error);
-        setLoginMethod("password"); // Fall back to password login
+        setLoginMethod("password");
+        // Final fallback
+        setProviders([{ id: "password", name: "Password", type: "password" }]);
       } finally {
         setLoadingProviders(false);
       }
@@ -115,24 +142,63 @@ function LoginForm() {
     if (code) {
       setProcessingCode(true);
 
-      processTokenExchange(code)
-        .then((success) => {
-          if (success) {
-            // Get return URL from params or default to home
-            const returnUrl = params.get("returnUrl") || "/";
-            navigate(returnUrl);
-          } else {
-            setFormError(
-              "Failed to authenticate with SSO provider. Please try again."
-            );
-          }
-        })
-        .finally(() => {
-          setProcessingCode(false);
-        });
-    }
-  }, [location, navigate, processTokenExchange]);
+      // Use your auth context's processTokenExchange function if it exists
+      if (typeof processTokenExchange === "function") {
+        processTokenExchange(code)
+          .then((success) => {
+            if (success) {
+              // Get return URL from params or default to home
+              const returnUrl = params.get("returnUrl") || "/";
+              navigate(returnUrl);
+            } else {
+              setFormError(
+                "Failed to authenticate with SSO provider. Please try again."
+              );
+            }
+          })
+          .finally(() => {
+            setProcessingCode(false);
+          });
+      } else {
+        // Alternative approach if processTokenExchange isn't available
+        apiService.auth
+          .exchangeToken(code)
+          .then((response) => {
+            if (response.data && response.data.success) {
+              // Store tokens
+              localStorage.setItem("authToken", response.data.token);
+              if (response.data.refreshToken) {
+                localStorage.setItem(
+                  "refreshToken",
+                  response.data.refreshToken
+                );
+              }
+              if (response.data.sessionId) {
+                localStorage.setItem("sessionId", response.data.sessionId);
+              }
 
+              // Update the current user through the auth context
+              if (response.data.user) {
+                setCurrentUser(response.data.user);
+              }
+
+              // Navigate to the return URL
+              const returnUrl = params.get("returnUrl") || "/";
+              navigate(returnUrl);
+            } else {
+              setFormError("Authentication failed. Please try again.");
+            }
+          })
+          .catch((error) => {
+            console.error("Token exchange error:", error);
+            setFormError("Failed to complete authentication");
+          })
+          .finally(() => {
+            setProcessingCode(false);
+          });
+      }
+    }
+  }, [location, navigate, processTokenExchange, setCurrentUser]);
   // In AuthPage.jsx or Login component
   useEffect(() => {
     const fetchProviders = async () => {
