@@ -139,7 +139,8 @@ function LoginForm() {
   }, [location, navigate, processTokenExchange, setError]);
 
   // Handle form submission (password login)
-  // In LoginForm.jsx, update the handleSubmit function
+  // Update the handleSubmit function in LoginForm.jsx
+  // In your handleSubmit function in LoginForm.jsx
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError("");
@@ -147,73 +148,40 @@ function LoginForm() {
     try {
       setIsLoading(true);
 
-      // First try the normal login
-      try {
-        const regularLoginSuccess = await login(email, password);
-        if (regularLoginSuccess) {
+      // Call the login function
+      const loginResult = await login(email, password);
+      console.log("Login result:", loginResult);
+
+      if (loginResult.success) {
+        if (loginResult.mfaRequired && loginResult.mfaData) {
+          console.log("MFA verification required");
+          setMfaData(loginResult.mfaData);
+          setShowMfaVerification(true);
+        } else {
+          console.log("Login successful without MFA");
           // Get return URL from query params or default to home
           const params = new URLSearchParams(location.search);
           const returnUrl = params.get("returnUrl") || "/";
           navigate(returnUrl);
-          return;
         }
-      } catch (regularLoginError) {
-        console.log(
-          "Regular login failed, trying dev login:",
-          regularLoginError
-        );
+      } else {
+        setFormError(loginResult.error || "Login failed");
       }
-
-      // If regular login fails, try the dev login endpoint
-      try {
-        if (
-          process.env.NODE_ENV === "development" ||
-          process.env.REACT_APP_ALLOW_DEV_LOGIN === "true"
-        ) {
-          console.log("Attempting dev login...");
-          const response = await fetch(
-            `${apiService.utils.getBaseUrl()}/api/auth/dev-login`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ email, password }),
-              credentials: "include",
-            }
-          );
-
-          const data = await response.json();
-
-          if (data.success) {
-            // Store tokens
-            localStorage.setItem("authToken", data.token);
-            localStorage.setItem("currentUser", JSON.stringify(data.user));
-
-            // Set user in context
-            setCurrentUser(data.user);
-
-            // Redirect
-            const params = new URLSearchParams(location.search);
-            const returnUrl = params.get("returnUrl") || "/";
-            navigate(returnUrl);
-            return;
-          }
-        }
-      } catch (devLoginError) {
-        console.error("Dev login also failed:", devLoginError);
-      }
-
-      // If we get here, both login methods failed
-      setFormError(
-        "Login failed. Please check your credentials and try again."
-      );
     } catch (error) {
       console.error("Login error:", error);
       setFormError("An unexpected error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleMfaVerificationSuccess = () => {
+    setShowMfaVerification(false);
+
+    // Get return URL from query params or default to home
+    const params = new URLSearchParams(location.search);
+    const returnUrl = params.get("returnUrl") || "/";
+    navigate(returnUrl);
   };
 
   // In your LoginForm component, add a hardcoded login option
@@ -293,17 +261,36 @@ function LoginForm() {
       setIsLoading(true);
 
       // Call verify endpoint
-      const response = await apiService.auth.verifyMfa({
-        methodId: mfaData.methodId,
-        verificationCode: verificationCode,
-      });
+      const response = await fetch(
+        `${apiService.utils.getBaseUrl()}/api/mfa/verify`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            methodId: mfaData.methodId,
+            verificationCode: verificationCode,
+          }),
+          credentials: "include",
+        }
+      );
 
-      if (response.data.success) {
+      const data = await response.json();
+
+      if (data.success) {
         // Store new token if provided
-        if (response.data.token) {
-          localStorage.setItem("authToken", response.data.token);
-          // Update axios auth header
-          apiService.utils.setAuthToken(response.data.token);
+        if (data.token) {
+          localStorage.setItem("authToken", data.token);
+          // Update axios auth header if using axios
+          if (apiService.utils.setAuthToken) {
+            apiService.utils.setAuthToken(data.token);
+          }
+        }
+
+        // Store user info if provided
+        if (data.user) {
+          localStorage.setItem("currentUser", JSON.stringify(data.user));
         }
 
         // Get return URL from query params or default to home
@@ -312,7 +299,7 @@ function LoginForm() {
 
         navigate(returnUrl);
       } else {
-        setMfaError(response.data.error || "Verification failed");
+        setMfaError(data.error || "Verification failed");
       }
     } catch (error) {
       console.error("MFA verification error:", error);
@@ -321,7 +308,6 @@ function LoginForm() {
       setIsLoading(false);
     }
   };
-
   // Handle cancel MFA verification
   const handleCancelMfa = () => {
     setShowMfaVerification(false);

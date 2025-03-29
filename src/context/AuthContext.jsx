@@ -29,16 +29,18 @@ export function AuthProvider({ children }) {
   const [tierFeatures, setTierFeatures] = useState(
     getDefaultFeaturesForTier("basic")
   );
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Login function
-  // In your frontend AuthContext.jsx:
+  // Update the login function in AuthContext.jsx
+  // Update your login function in AuthContext.jsx
   const login = async (email, password) => {
     try {
       setError("");
-      console.log("Attempting login with:", email);
       setLoading(true);
+      console.log("Attempting login with:", email);
 
-      // Use a direct fetch for debugging
+      // Call the backend login endpoint
       const response = await fetch(
         `${apiService.utils.getBaseUrl()}/api/auth/login`,
         {
@@ -51,80 +53,56 @@ export function AuthProvider({ children }) {
         }
       );
 
-      // Log the raw response
-      console.log("Login response status:", response.status);
       const data = await response.json();
-      console.log("Login response data:", data);
+      console.log("Login response:", data);
 
       if (data.success) {
-        // Store auth data
+        // Store auth tokens
         localStorage.setItem("authToken", data.token);
         if (data.refreshToken)
           localStorage.setItem("refreshToken", data.refreshToken);
         if (data.sessionId) localStorage.setItem("sessionId", data.sessionId);
-        if (data.user)
-          localStorage.setItem("currentUser", JSON.stringify(data.user));
 
-        // Set user in state
+        // Store the user object - crucial for role checks in AdminRoute
+        localStorage.setItem("currentUser", JSON.stringify(data.user));
+
+        // Check for MFA methods - force MFA check if methods exist
+        const hasMfaMethods =
+          data.user && data.user.mfaMethods && data.user.mfaMethods.length > 0;
+
+        console.log("MFA check:", {
+          hasMfaMethods,
+          methods: data.user?.mfaMethods || [],
+        });
+
+        if (hasMfaMethods) {
+          // MFA required
+          return {
+            success: true,
+            mfaRequired: true,
+            mfaData: {
+              methodId: data.user.mfaMethods[0].id,
+              type: data.user.mfaMethods[0].type,
+              email: data.user.email,
+            },
+          };
+        }
+
+        // No MFA needed, complete login by setting current user
         setCurrentUser(data.user);
-        console.log("Login successful, user:", data.user);
-        return true;
-      }
 
-      setError(data.error || "Login failed");
-      console.log("Login failed:", data.error);
-      return false;
+        return {
+          success: true,
+          mfaRequired: false,
+        };
+      } else {
+        setError(data.error || "Login failed");
+        return { success: false, error: data.error };
+      }
     } catch (err) {
       console.error("Login error:", err);
       setError(err.message || "An unexpected error occurred");
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const signInWithSSO = async (provider, options = {}) => {
-    try {
-      setError("");
-      setLoading(true);
-
-      // Default redirect URL
-      const redirectTo =
-        options.redirectTo || `${window.location.origin}/auth/callback`;
-
-      let response;
-      if (provider === "google") {
-        response = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo,
-            scopes: "email profile",
-          },
-        });
-      } else if (provider === "azure") {
-        response = await supabase.auth.signInWithOAuth({
-          provider: "azure",
-          options: {
-            redirectTo,
-            scopes: "email profile",
-          },
-        });
-      } else if (provider === "custom_saml") {
-        // For SAML providers, Supabase uses a slightly different approach
-        response = await supabase.auth.signInWithSSO({
-          domain: options.domain || "your-domain",
-          options: {
-            redirectTo,
-          },
-        });
-      }
-
-      if (response.error) throw response.error;
-      return true;
-    } catch (error) {
-      console.error("SSO sign in error:", error);
-      setError(error.message || "Failed to sign in with SSO");
-      return false;
+      return { success: false, error: err.message };
     } finally {
       setLoading(false);
     }
@@ -158,6 +136,10 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       await supabase.auth.signOut();
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("sessionId");
+      localStorage.removeItem("currentUser");
       localStorage.removeItem("isAuthenticated");
       setCurrentUser(null);
       setSession(null);
@@ -169,80 +151,40 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Register function (admin only)
+  // Register function
   const register = async (userData) => {
     try {
       setError("");
-
-      // Validate email domain
-      if (!userData.email.endsWith("@tatt2away.com")) {
-        setError("Only @tatt2away.com email addresses are allowed");
-        return false;
-      }
+      setLoading(true);
 
       // Create user in Supabase Auth
-      const { data: authData, error: authError } =
-        await supabase.auth.admin.createUser({
-          email: userData.email,
-          password: userData.password || undefined, // If password is empty, Supabase will auto-generate one
-          email_confirm: true, // Skip email confirmation step
-          user_metadata: {
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password || undefined,
+        options: {
+          data: {
             name: userData.name,
-            roles: userData.roles,
           },
-        });
-
-      if (authError) throw authError;
-
-      // Add user to profiles table
-      const { error: profileError } = await supabase.from("profiles").insert([
-        {
-          id: authData.user.id,
-          full_name: userData.name,
-          tier: userData.tier || "basic",
         },
-      ]);
-
-      if (profileError) throw profileError;
-
-      // Add user roles to user_roles table
-      const rolePromises = userData.roles.map(async (role) => {
-        const { data: roleData, error: roleQueryError } = await supabase
-          .from("roles")
-          .select("id")
-          .eq("name", role)
-          .single();
-
-        if (roleQueryError) throw roleQueryError;
-
-        const { error: roleAssignError } = await supabase
-          .from("user_roles")
-          .insert([
-            {
-              user_id: authData.user.id,
-              role_id: roleData.id,
-            },
-          ]);
-
-        if (roleAssignError) throw roleAssignError;
       });
 
-      await Promise.all(rolePromises);
+      if (authError) {
+        setError(authError.message || "Registration failed");
+        return { success: false, error: authError.message };
+      }
 
+      // Return success
       return {
         success: true,
-        user: {
-          id: authData.user.id,
-          name: userData.name,
-          email: userData.email,
-          roles: userData.roles,
-        },
-        credentials: authData.user,
+        message: "User registered successfully",
+        requiresEmailVerification: true,
       };
     } catch (error) {
       console.error("Registration error:", error);
       setError(error.message || "Registration failed. Please try again.");
-      return false;
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -264,137 +206,6 @@ export function AuthProvider({ children }) {
       return false;
     }
   };
-
-  // Update your useEffect in AuthProvider to handle localStorage fallback
-  // Add this inside your AuthProvider component in src/context/AuthContext.jsx
-
-  // Initialize auth state from Supabase session or localStorage
-  useEffect(() => {
-    // Set up auth state listener
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
-        setSession(session);
-        const userData = await getUserData();
-        setCurrentUser(userData);
-        setUserTier(userData?.tier || "basic");
-        setTierFeatures(
-          userData?.features ||
-            getDefaultFeaturesForTier(userData?.tier || "basic")
-        );
-      } else {
-        // Check localStorage as fallback
-        const storedUser = localStorage.getItem("currentUser");
-        if (storedUser) {
-          try {
-            const userData = JSON.parse(storedUser);
-            setCurrentUser(userData);
-            setUserTier(userData?.tier || "basic");
-            setTierFeatures(
-              getDefaultFeaturesForTier(userData?.tier || "basic")
-            );
-          } catch (e) {
-            console.error("Error parsing stored user:", e);
-            setCurrentUser(null);
-            setSession(null);
-            setUserTier("basic");
-            setTierFeatures(getDefaultFeaturesForTier("basic"));
-          }
-        } else {
-          setCurrentUser(null);
-          setSession(null);
-          setUserTier("basic");
-          setTierFeatures(getDefaultFeaturesForTier("basic"));
-        }
-      }
-      setLoading(false);
-    });
-
-    // Initial session check
-    const initializeAuth = async () => {
-      try {
-        // Try to get session from Supabase
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (session) {
-          setSession(session);
-          const userData = await getUserData();
-          setCurrentUser(userData);
-          setUserTier(userData?.tier || "basic");
-          setTierFeatures(
-            userData?.features ||
-              getDefaultFeaturesForTier(userData?.tier || "basic")
-          );
-        } else {
-          // Check localStorage as fallback
-          const storedUser = localStorage.getItem("currentUser");
-          const isAuthenticated =
-            localStorage.getItem("isAuthenticated") === "true";
-
-          if (storedUser && isAuthenticated) {
-            try {
-              const userData = JSON.parse(storedUser);
-              setCurrentUser(userData);
-              setUserTier(userData?.tier || "basic");
-              setTierFeatures(
-                getDefaultFeaturesForTier(userData?.tier || "basic")
-              );
-              console.log("User loaded from localStorage:", userData);
-            } catch (e) {
-              console.error("Error parsing stored user:", e);
-              resetAuthState();
-            }
-          } else {
-            resetAuthState();
-          }
-        }
-      } catch (error) {
-        console.error("Error initializing auth:", error);
-
-        // Fallback to localStorage if Supabase fails
-        const storedUser = localStorage.getItem("currentUser");
-        const isAuthenticated =
-          localStorage.getItem("isAuthenticated") === "true";
-
-        if (storedUser && isAuthenticated) {
-          try {
-            const userData = JSON.parse(storedUser);
-            setCurrentUser(userData);
-            setUserTier(userData?.tier || "basic");
-            setTierFeatures(
-              getDefaultFeaturesForTier(userData?.tier || "basic")
-            );
-            console.log("User loaded from localStorage fallback:", userData);
-          } catch (e) {
-            console.error("Error parsing stored user:", e);
-            resetAuthState();
-          }
-        } else {
-          resetAuthState();
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Helper function to reset auth state
-    const resetAuthState = () => {
-      setCurrentUser(null);
-      setSession(null);
-      setUserTier("basic");
-      setTierFeatures(getDefaultFeaturesForTier("basic"));
-    };
-
-    initializeAuth();
-
-    // Cleanup function
-    return () => {
-      subscription?.unsubscribe();
-    };
-  }, []);
 
   // Reset password with token
   const resetPassword = async (password, token) => {
@@ -439,17 +250,6 @@ export function AuthProvider({ children }) {
 
       if (error) throw error;
 
-      // Update password_last_changed in profiles
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          password_last_changed: new Date().toISOString(),
-        })
-        .eq("id", currentUser.id);
-
-      if (updateError)
-        console.error("Error updating password_last_changed:", updateError);
-
       return true;
     } catch (error) {
       console.error("Password change error:", error);
@@ -464,9 +264,33 @@ export function AuthProvider({ children }) {
       setError("");
       setLoading(true);
 
-      // For SSO flows, Supabase handles the token exchange automatically
+      const response = await apiService.auth.exchangeToken(code);
 
-      return true;
+      if (response.data && response.data.success) {
+        // Store tokens
+        localStorage.setItem("authToken", response.data.token);
+        localStorage.setItem("isAuthenticated", "true");
+        if (response.data.refreshToken) {
+          localStorage.setItem("refreshToken", response.data.refreshToken);
+        }
+        if (response.data.sessionId) {
+          localStorage.setItem("sessionId", response.data.sessionId);
+        }
+
+        // Store user info
+        if (response.data.user) {
+          localStorage.setItem(
+            "currentUser",
+            JSON.stringify(response.data.user)
+          );
+          setCurrentUser(response.data.user);
+        }
+
+        return true;
+      }
+
+      setError(response.data?.error || "Authentication failed");
+      return false;
     } catch (error) {
       console.error("Token exchange error:", error);
       setError(error.message || "Authentication failed. Please try again.");
@@ -476,9 +300,45 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // MFA Functions
+  // SSO login
+  const signInWithSSO = async (provider, options = {}) => {
+    try {
+      setError("");
+      setLoading(true);
 
-  // Setup MFA
+      // Default redirect URL
+      const redirectTo =
+        options.redirectTo || `${window.location.origin}/auth/callback`;
+
+      // Build SSO URL with proper redirects
+      const encodedRedirect = encodeURIComponent(
+        `${window.location.origin}/auth/callback?returnUrl=${encodeURIComponent(
+          options.returnUrl || "/"
+        )}`
+      );
+
+      // Redirect to appropriate SSO provider
+      if (provider === "google") {
+        window.location.href = `${apiService.utils.getBaseUrl()}/api/auth/sso/google?redirectTo=${encodedRedirect}`;
+        return true;
+      } else if (provider === "microsoft") {
+        window.location.href = `${apiService.utils.getBaseUrl()}/api/auth/sso/microsoft?redirectTo=${encodedRedirect}`;
+        return true;
+      } else if (provider === "custom_saml") {
+        window.location.href = `${apiService.utils.getBaseUrl()}/api/auth/sso/custom?redirectTo=${encodedRedirect}`;
+        return true;
+      }
+
+      throw new Error(`Unsupported SSO provider: ${provider}`);
+    } catch (error) {
+      console.error("SSO sign in error:", error);
+      setError(error.message || "Failed to sign in with SSO");
+      setLoading(false);
+      return false;
+    }
+  };
+
+  // MFA Functions
   const setupMfa = async (type) => {
     try {
       let response;
@@ -528,49 +388,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const updateUserMfaMethods = async (type, id = null) => {
-    try {
-      const { data: profile, error: fetchError } = await supabase
-        .from("profiles")
-        .select("mfa_methods")
-        .eq("id", currentUser.id)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      const mfaMethods = profile.mfa_methods || [];
-
-      // Add the new method if it doesn't exist
-      const newMethod = {
-        id: id || type,
-        type,
-        identifier: type === "email" ? currentUser.email : null,
-        createdAt: new Date().toISOString(),
-      };
-
-      const updatedMethods = [...mfaMethods, newMethod];
-
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          mfa_methods: updatedMethods,
-        })
-        .eq("id", currentUser.id);
-
-      if (updateError) throw updateError;
-
-      // Update local user state
-      setCurrentUser((prev) => ({
-        ...prev,
-        mfaMethods: updatedMethods,
-      }));
-    } catch (error) {
-      console.error("Error updating MFA methods:", error);
-      throw error;
-    }
-  };
-
-  // Update the verification function to use Supabase
+  // Confirm MFA setup
   const confirmMfa = async (methodId, verificationCode) => {
     try {
       if (methodId === "totp") {
@@ -590,8 +408,8 @@ export function AuthProvider({ children }) {
 
         if (verifyError) throw verifyError;
 
-        // Store MFA method in user profile
-        await updateUserMfaMethods("totp", methodId);
+        // Update user's MFA methods in the context
+        updateMfaMethods(methodId, "totp");
 
         return true;
       } else if (methodId === "email") {
@@ -604,8 +422,8 @@ export function AuthProvider({ children }) {
 
         if (error) throw error;
 
-        // Store MFA method in user profile
-        await updateUserMfaMethods("email");
+        // Update user's MFA methods
+        updateMfaMethods(methodId, "email");
 
         return true;
       }
@@ -618,32 +436,48 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Helper function to update MFA methods in the user object
+  const updateMfaMethods = (methodId, type) => {
+    if (!currentUser) return;
+
+    const mfaMethods = [...(currentUser.mfaMethods || [])];
+    const existingIndex = mfaMethods.findIndex((m) => m.id === methodId);
+
+    if (existingIndex >= 0) {
+      // Update existing method
+      mfaMethods[existingIndex] = {
+        ...mfaMethods[existingIndex],
+        type,
+        lastUsed: new Date().toISOString(),
+      };
+    } else {
+      // Add new method
+      mfaMethods.push({
+        id: methodId,
+        type,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    // Update current user
+    setCurrentUser({
+      ...currentUser,
+      mfaMethods,
+    });
+
+    // Update localStorage backup
+    localStorage.setItem(
+      "currentUser",
+      JSON.stringify({
+        ...currentUser,
+        mfaMethods,
+      })
+    );
+  };
+
   // Remove MFA method
   const removeMfa = async (methodId) => {
     try {
-      // First update the user profile to remove the method
-      const { data: profile, error: fetchError } = await supabase
-        .from("profiles")
-        .select("mfa_methods")
-        .eq("id", currentUser.id)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      const mfaMethods = profile.mfa_methods || [];
-      const updatedMethods = mfaMethods.filter(
-        (method) => method.id !== methodId
-      );
-
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          mfa_methods: updatedMethods,
-        })
-        .eq("id", currentUser.id);
-
-      if (updateError) throw updateError;
-
       // If it's a TOTP factor, unenroll it from Supabase
       if (methodId !== "email") {
         const { error } = await supabase.auth.mfa.unenroll({
@@ -653,11 +487,26 @@ export function AuthProvider({ children }) {
         if (error) throw error;
       }
 
-      // Update local user state
-      setCurrentUser((prev) => ({
-        ...prev,
-        mfaMethods: updatedMethods,
-      }));
+      // Update user's MFA methods
+      if (currentUser) {
+        const mfaMethods = (currentUser.mfaMethods || []).filter(
+          (method) => method.id !== methodId
+        );
+
+        setCurrentUser({
+          ...currentUser,
+          mfaMethods,
+        });
+
+        // Update localStorage backup
+        localStorage.setItem(
+          "currentUser",
+          JSON.stringify({
+            ...currentUser,
+            mfaMethods,
+          })
+        );
+      }
 
       return true;
     } catch (error) {
@@ -668,9 +517,8 @@ export function AuthProvider({ children }) {
   };
 
   // Verify MFA during login
-  const verifyMfa = async (verificationCode, methodId) => {
+  const verifyMfa = async (methodId, verificationCode) => {
     try {
-      // For TOTP verification with Supabase
       const { data, error } = await supabase.auth.mfa.verify({
         factorId: methodId,
         code: verificationCode,
@@ -686,34 +534,130 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Get user sessions
-  const getSessions = async () => {
-    try {
-      // Get current session
+  // Initialize auth state from Supabase session or localStorage
+  useEffect(() => {
+    // Set up auth state listener
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Supabase auth state change:", event);
+
+      if (session) {
+        setSession(session);
+        try {
+          // Get user data from profiles table
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", session.user.id)
+            .single();
+
+          // Create user object
+          const userData = {
+            id: session.user.id,
+            email: session.user.email,
+            name:
+              data?.full_name ||
+              session.user.user_metadata?.name ||
+              session.user.email,
+            roles: data?.roles || ["user"],
+            mfaMethods: data?.mfa_methods || [],
+            tier: data?.tier || "basic",
+          };
+
+          // Update state
+          setCurrentUser(userData);
+          setUserTier(userData.tier);
+          setTierFeatures(getDefaultFeaturesForTier(userData.tier));
+
+          // Update localStorage backup
+          localStorage.setItem("currentUser", JSON.stringify(userData));
+          localStorage.setItem("isAuthenticated", "true");
+        } catch (error) {
+          console.error("Error getting user profile:", error);
+        }
+      } else {
+        // Check localStorage as fallback
+        const storedUser = localStorage.getItem("currentUser");
+        const isAuthenticated =
+          localStorage.getItem("isAuthenticated") === "true";
+
+        if ((storedUser && isAuthenticated) || isAuthenticated) {
+          try {
+            if (storedUser) {
+              const userData = JSON.parse(storedUser);
+              setCurrentUser(userData);
+              setUserTier(userData.tier || "basic");
+              setTierFeatures(
+                getDefaultFeaturesForTier(userData.tier || "basic")
+              );
+            }
+          } catch (e) {
+            console.error("Error parsing stored user:", e);
+            setCurrentUser(null);
+            setSession(null);
+          }
+        } else {
+          setCurrentUser(null);
+          setSession(null);
+        }
+      }
+
+      setLoading(false);
+      setIsInitialized(true);
+    });
+
+    // Initial session check
+    const initSession = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const currentSessionId = session?.id;
 
-      // Get all sessions for this user from the profiles table
-      const { data: profile, error: fetchError } = await supabase
-        .from("profiles")
-        .select("sessions")
-        .eq("id", currentUser.id)
-        .single();
+      if (session) {
+        console.log("Initial session found");
+      } else {
+        console.log("No initial session, checking localStorage");
+        // Check localStorage backup
+        const storedUser = localStorage.getItem("currentUser");
+        const isAuthenticated =
+          localStorage.getItem("isAuthenticated") === "true";
 
-      if (fetchError) throw fetchError;
+        if ((storedUser && isAuthenticated) || isAuthenticated) {
+          try {
+            if (storedUser) {
+              const userData = JSON.parse(storedUser);
+              setCurrentUser(userData);
+              setUserTier(userData.tier || "basic");
+              setTierFeatures(
+                getDefaultFeaturesForTier(userData.tier || "basic")
+              );
+            }
+          } catch (e) {
+            console.error("Error parsing stored user:", e);
+          }
+        }
+      }
 
-      const sessions = profile.sessions || [];
+      setLoading(false);
+      setIsInitialized(true);
+    };
 
-      // Mark the current session
-      return sessions.map((sess) => ({
-        ...sess,
-        isCurrent: sess.id === currentSessionId,
-      }));
+    initSession();
+
+    // Cleanup
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
+
+  // Get active sessions
+  const getSessions = async () => {
+    try {
+      // This is a placeholder - implement according to your backend
+      const response = await apiService.sessions.getSessions();
+      return response.data.sessions || [];
     } catch (error) {
       console.error("Get sessions error:", error);
-      setError(error.message || "Failed to retrieve sessions");
       return [];
     }
   };
@@ -721,32 +665,10 @@ export function AuthProvider({ children }) {
   // Terminate session
   const terminateSession = async (sessionId) => {
     try {
-      // Get current sessions
-      const { data: profile, error: fetchError } = await supabase
-        .from("profiles")
-        .select("sessions")
-        .eq("id", currentUser.id)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      const sessions = profile.sessions || [];
-      const updatedSessions = sessions.filter((sess) => sess.id !== sessionId);
-
-      // Update the sessions in the profile
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          sessions: updatedSessions,
-        })
-        .eq("id", currentUser.id);
-
-      if (updateError) throw updateError;
-
-      return true;
+      const response = await apiService.sessions.terminateSession(sessionId);
+      return response.data.success;
     } catch (error) {
       console.error("Terminate session error:", error);
-      setError(error.message || "Failed to terminate session");
       return false;
     }
   };
@@ -754,49 +676,10 @@ export function AuthProvider({ children }) {
   // Terminate all other sessions
   const terminateAllSessions = async () => {
     try {
-      // Get current session
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const currentSessionId = session?.id;
-
-      // Get all sessions
-      const { data: profile, error: fetchError } = await supabase
-        .from("profiles")
-        .select("sessions")
-        .eq("id", currentUser.id)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      const sessions = profile.sessions || [];
-
-      // Keep only the current session
-      const currentSession = sessions.find(
-        (sess) => sess.id === currentSessionId
-      );
-
-      // Update the sessions in the profile
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          sessions: currentSession ? [currentSession] : [],
-        })
-        .eq("id", currentUser.id);
-
-      if (updateError) throw updateError;
-
-      // Call signOut with scope 'others' to invalidate other sessions
-      const { error: signOutError } = await supabase.auth.signOut({
-        scope: "others",
-      });
-
-      if (signOutError) throw signOutError;
-
-      return true;
+      const response = await apiService.sessions.terminateAllSessions();
+      return response.data.success;
     } catch (error) {
       console.error("Terminate all sessions error:", error);
-      setError(error.message || "Failed to terminate sessions");
       return false;
     }
   };
@@ -815,26 +698,20 @@ export function AuthProvider({ children }) {
 
       if (metadataError) throw metadataError;
 
-      // Update profile in the profiles table
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          full_name: profileData.name,
-          first_name: profileData.firstName,
-          last_name: profileData.lastName,
-          // Add other fields as needed
-        })
-        .eq("id", currentUser.id);
-
-      if (profileError) throw profileError;
-
       // Update local state
-      setCurrentUser((prev) => ({
-        ...prev,
-        name: profileData.name,
-        firstName: profileData.firstName,
-        lastName: profileData.lastName,
-      }));
+      setCurrentUser((prev) => {
+        const updated = {
+          ...prev,
+          name: profileData.name,
+          firstName: profileData.firstName,
+          lastName: profileData.lastName,
+        };
+
+        // Update localStorage backup
+        localStorage.setItem("currentUser", JSON.stringify(updated));
+
+        return updated;
+      });
 
       return true;
     } catch (error) {
@@ -895,8 +772,8 @@ export function AuthProvider({ children }) {
 
       // Super admin and admin have access to all features
       if (
-        currentUser.roles.includes("super_admin") ||
-        currentUser.roles.includes("admin")
+        currentUser.roles?.includes("super_admin") ||
+        currentUser.roles?.includes("admin")
       ) {
         return true;
       }
@@ -912,7 +789,7 @@ export function AuthProvider({ children }) {
     [currentUser, tierFeatures]
   );
 
-  // Check user tier level
+  // Get user tier level
   const getUserTier = useCallback(() => {
     return userTier;
   }, [userTier]);
@@ -970,6 +847,7 @@ export function AuthProvider({ children }) {
     verifyMfa,
     updateProfile,
     processTokenExchange,
+    isInitialized,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -4,8 +4,15 @@ import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const AdminRoute = () => {
-  const { currentUser, isAdmin, loading } = useAuth();
-  console.log("Admin route check:", { currentUser, isAdmin, loading });
+  const { currentUser, loading } = useAuth();
+
+  console.log("Admin route check:", {
+    user: currentUser,
+    hasAdminRole:
+      currentUser?.roles?.includes("admin") ||
+      currentUser?.roles?.includes("super_admin"),
+    loading,
+  });
 
   // Show loading state while checking roles
   if (loading) {
@@ -17,16 +24,12 @@ const AdminRoute = () => {
     );
   }
 
-  // Debug what's in localStorage
-  console.log("Auth state in AdminRoute:", {
-    token: !!localStorage.getItem("authToken"),
-    isAuthenticated: localStorage.getItem("isAuthenticated"),
-    current: currentUser,
-  });
-
-  // Temporary bypass for development if needed
-  // const devBypass = process.env.NODE_ENV === 'development';
-  // if (devBypass) return <Outlet />;
+  // Check for admin roles
+  const isAdmin =
+    currentUser &&
+    currentUser.roles &&
+    (currentUser.roles.includes("admin") ||
+      currentUser.roles.includes("super_admin"));
 
   // Redirect to dashboard if not admin
   if (!isAdmin) {
@@ -34,7 +37,8 @@ const AdminRoute = () => {
     return <Navigate to="/" replace />;
   }
 
-  // Render the child routes
+  // User is admin, render the protected content
+  console.log("Admin access granted");
   return <Outlet />;
 };
 
