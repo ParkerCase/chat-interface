@@ -1,10 +1,15 @@
-// components/ProtectedRoute.jsx
+// src/components/ProtectedRoute.jsx
 import React from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-function ProtectedRoute({ requireRoles = [] }) {
-  const { currentUser, loading, hasRole, isInitialized } = useAuth();
+function ProtectedRoute({
+  requireRoles = [],
+  requireFeatures = [],
+  fallback = null,
+}) {
+  const { currentUser, loading, hasRole, hasFeatureAccess, isInitialized } =
+    useAuth();
   const location = useLocation();
 
   // Show loading during initialization
@@ -19,6 +24,7 @@ function ProtectedRoute({ requireRoles = [] }) {
 
   // Check if user is authenticated
   if (!currentUser) {
+    // Store the current path for redirection after login
     return (
       <Navigate
         to={`/login?returnUrl=${encodeURIComponent(location.pathname)}`}
@@ -27,12 +33,25 @@ function ProtectedRoute({ requireRoles = [] }) {
     );
   }
 
-  // Check role requirements
-  if (requireRoles.length > 0 && !requireRoles.some((role) => hasRole(role))) {
-    return <Navigate to="/unauthorized" replace />;
+  // Check role requirements if specified
+  if (requireRoles.length > 0) {
+    const hasRequiredRole = requireRoles.some((role) => hasRole(role));
+    if (!hasRequiredRole) {
+      return fallback || <Navigate to="/unauthorized" replace />;
+    }
   }
 
-  // All checks passed, render the protected content
+  // Check feature requirements if specified
+  if (requireFeatures.length > 0) {
+    const hasRequiredFeature = requireFeatures.some((feature) =>
+      hasFeatureAccess(feature)
+    );
+    if (!hasRequiredFeature) {
+      return fallback || <Navigate to="/unauthorized" replace />;
+    }
+  }
+
+  // All checks passed, render children
   return <Outlet />;
 }
 

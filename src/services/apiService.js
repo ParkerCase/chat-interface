@@ -537,6 +537,9 @@ const mfaApi = {
   remove: (methodId) => apiClient.delete(`/api/mfa/${methodId}`),
 
   challenge: (methodId) => apiClient.post("/api/mfa/challenge", { methodId }),
+  getMfaStatus: (userId) =>
+    apiClient.get(`/api/mfa/status${userId ? `?userId=${userId}` : ""}`),
+  getSessionMfaStatus: () => apiClient.get("/api/mfa/session-status"),
 };
 
 // User profile endpoints
