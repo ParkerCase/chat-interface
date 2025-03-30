@@ -220,7 +220,11 @@ function AuthPage() {
       <div className="login-container">
         <div className="login-form">
           <div className="login-header">
-            <img src="/logo.png" alt="Tatt2Away Logo" className="login-logo" />
+            <img
+              src="./Tatt2Away-Color-Black-Logo-300.png"
+              alt="Tatt2Away Logo"
+              className="login-logo"
+            />
             <h2>Sign in to your account</h2>
           </div>
 
@@ -231,54 +235,6 @@ function AuthPage() {
               <p>{formError || authError}</p>
             </div>
           )}
-
-          {/* SSO Buttons Section */}
-          <div className="sso-section">
-            <h3 className="sso-heading">Sign in with</h3>
-
-            <button
-              onClick={() => handleSSOLogin("google")}
-              className="sso-button google"
-              disabled={isLoading}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="20"
-                height="20"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"
-                  fill="#4285F4"
-                />
-              </svg>
-              <span>Continue with Google</span>
-            </button>
-
-            <button
-              onClick={() => handleSSOLogin("apple")}
-              className="sso-button apple"
-              disabled={isLoading}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="20"
-                height="20"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M12.152,6.896c-0.948,0-2.415-1.078-3.96-1.04c-2.04,0.027-3.91,1.183-4.961,3.014c-2.117,3.675-0.546,9.103,1.519,12.066c1.013,1.455,2.208,3.09,3.792,3.039c1.52-0.065,2.09-0.987,3.935-0.987c1.831,0,2.35,0.987,3.96,0.948c1.637-0.026,2.676-1.48,3.676-2.948c1.156-1.688,1.636-3.325,1.662-3.415c-0.039-0.013-3.182-1.221-3.22-4.857c-0.026-3.04,2.48-4.494,2.597-4.559c-1.429-2.09-3.623-2.324-4.39-2.376C14.641,5.781,13.073,6.896,12.152,6.896z M15.629,3.039c0.831-1.014,1.39-2.428,1.237-3.831c-1.195,0.052-2.64,0.793-3.486,1.794c-0.766,0.884-1.443,2.313-1.26,3.675C13.507,4.793,14.786,4.039,15.629,3.039z"
-                  fill="#000"
-                />
-              </svg>
-              <span>Continue with Apple</span>
-            </button>
-          </div>
-
-          {/* Divider between SSO and password */}
-          <div className="login-divider">
-            <span>Or with password</span>
-          </div>
 
           {/* Password login form */}
           <form onSubmit={handlePasswordLogin} className="login-form-fields">
@@ -351,15 +307,53 @@ function AuthPage() {
               </div>
             </div>
 
-            {/* Test credentials info - only in development */}
-            {process.env.NODE_ENV !== "production" && (
-              <div className="test-credentials-info">
-                <p>
-                  Use test credentials: <strong>itsus@tatt2away.com</strong>{" "}
-                  with password <strong>password</strong>
-                </p>
-              </div>
-            )}
+            {/* Divider between SSO and password */}
+            <div className="login-divider">
+              <span>Or with password</span>
+            </div>
+
+            {/* SSO Buttons Section */}
+            <div className="sso-section">
+              <h3 className="sso-heading">Sign in with</h3>
+
+              <button
+                onClick={() => handleSSOLogin("google")}
+                className="sso-button google"
+                disabled={isLoading}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"
+                    fill="#4285F4"
+                  />
+                </svg>
+                <span>Continue with Google</span>
+              </button>
+
+              <button
+                onClick={() => handleSSOLogin("apple")}
+                className="sso-button apple"
+                disabled={isLoading}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12.152,6.896c-0.948,0-2.415-1.078-3.96-1.04c-2.04,0.027-3.91,1.183-4.961,3.014c-2.117,3.675-0.546,9.103,1.519,12.066c1.013,1.455,2.208,3.09,3.792,3.039c1.52-0.065,2.09-0.987,3.935-0.987c1.831,0,2.35,0.987,3.96,0.948c1.637-0.026,2.676-1.48,3.676-2.948c1.156-1.688,1.636-3.325,1.662-3.415c-0.039-0.013-3.182-1.221-3.22-4.857c-0.026-3.04,2.48-4.494,2.597-4.559c-1.429-2.09-3.623-2.324-4.39-2.376C14.641,5.781,13.073,6.896,12.152,6.896z M15.629,3.039c0.831-1.014,1.39-2.428,1.237-3.831c-1.195,0.052-2.64,0.793-3.486,1.794c-0.766,0.884-1.443,2.313-1.26,3.675C13.507,4.793,14.786,4.039,15.629,3.039z"
+                    fill="#000"
+                  />
+                </svg>
+                <span>Continue with Apple</span>
+              </button>
+            </div>
 
             {/* Submit Button */}
             <button type="submit" className="login-button" disabled={isLoading}>
