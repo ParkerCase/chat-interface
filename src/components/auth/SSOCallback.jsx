@@ -63,7 +63,7 @@ function SSOCallback() {
               setMessage("Authentication successful!");
 
               // Add short delay for better UX
-              setTimeout(() => {
+              setTimeout(async () => {
                 // Determine if the user is an admin for redirect
                 const { data: userData } = await supabase.auth.getUser();
                 if (!userData?.user) {
@@ -78,18 +78,22 @@ function SSOCallback() {
                   .single();
 
                 const roles = profileData?.roles || ["user"];
-                const isAdmin = roles.includes("admin") || roles.includes("super_admin");
+                const isAdmin =
+                  roles.includes("admin") || roles.includes("super_admin");
 
                 // Check if MFA is required
-                const { data: mfaData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-                const mfaRequired = 
-                  mfaData && 
-                  mfaData.currentLevel !== mfaData.nextLevel && 
+                const { data: mfaData } =
+                  await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+                const mfaRequired =
+                  mfaData &&
+                  mfaData.currentLevel !== mfaData.nextLevel &&
                   mfaData.nextLevel === "aal2";
 
                 // Navigate based on MFA status
                 if (mfaRequired) {
-                  navigate(`/mfa/verify?returnUrl=${encodeURIComponent(returnUrl)}`);
+                  navigate(
+                    `/mfa/verify?returnUrl=${encodeURIComponent(returnUrl)}`
+                  );
                 } else {
                   // Navigate based on role
                   navigate(isAdmin ? "/admin" : returnUrl);
@@ -117,7 +121,7 @@ function SSOCallback() {
             setMessage("Authentication successful!");
 
             // Add short delay for better UX
-            setTimeout(() => {
+            setTimeout(async () => {
               // Get current user from localStorage as a fallback
               const user = JSON.parse(
                 localStorage.getItem("currentUser") || "{}"
@@ -128,7 +132,9 @@ function SSOCallback() {
 
               // Check if MFA is required for this user
               if (user?.mfaMethods && user.mfaMethods.length > 0) {
-                navigate(`/mfa/verify?returnUrl=${encodeURIComponent(returnUrl)}`);
+                navigate(
+                  `/mfa/verify?returnUrl=${encodeURIComponent(returnUrl)}`
+                );
               } else {
                 navigate(isAdmin ? "/admin" : returnUrl);
               }

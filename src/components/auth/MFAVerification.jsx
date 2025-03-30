@@ -1,4 +1,5 @@
-// src/components/auth/MFAVerification.jsx
+// src/components/auth/MFAVerification.jsx - Complete replacement
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -13,17 +14,6 @@ import {
 } from "lucide-react";
 import "./MFAVerification.css";
 
-/**
- * MFA Verification Component
- * Handles the verification process for multi-factor authentication
- *
- * @param {Object} props
- * @param {Function} props.onSuccess - Callback function when verification is successful
- * @param {Function} props.onCancel - Callback function to cancel verification
- * @param {Object} props.mfaData - Data about the MFA method being used
- * @param {boolean} props.standalone - Whether component is used standalone or embedded
- * @param {string} props.redirectUrl - URL to redirect to after verification
- */
 function MFAVerification({
   onSuccess,
   onCancel,
@@ -75,6 +65,18 @@ function MFAVerification({
     };
   }, []);
 
+  // Log important information for debugging
+  useEffect(() => {
+    console.log("MFA Verification initialized with data:", {
+      factorId: mfaData.factorId || "Not provided",
+      methodId: mfaData.methodId || "Not provided",
+      type: mfaData.type || "Not provided",
+      email: mfaData.email || "Not provided",
+      standalone,
+      redirectUrl,
+    });
+  }, [mfaData, standalone, redirectUrl]);
+
   /**
    * Handle verification code submission
    */
@@ -89,6 +91,7 @@ function MFAVerification({
 
     try {
       setIsLoading(true);
+      console.log("Attempting MFA verification with code:", verificationCode);
 
       // Special handling for test user
       if (mfaData.email === TEST_EMAIL) {
@@ -97,6 +100,7 @@ function MFAVerification({
         // For testing, allow any 6-digit code for test user
         if (verificationCode.length === 6) {
           setVerificationSuccess(true);
+          console.log("Test user MFA verification successful");
 
           // If onSuccess callback is provided, call it after brief delay
           if (onSuccess) {
@@ -127,13 +131,23 @@ function MFAVerification({
 
       if (mfaData.factorId) {
         try {
+          console.log(
+            "Using Supabase MFA verification with factorId:",
+            mfaData.factorId
+          );
+
           // Create MFA challenge
           const { data: challengeData, error: challengeError } =
             await supabase.auth.mfa.challenge({
               factorId: mfaData.factorId,
             });
 
-          if (challengeError) throw challengeError;
+          if (challengeError) {
+            console.error("Challenge creation error:", challengeError);
+            throw challengeError;
+          }
+
+          console.log("Challenge created successfully:", challengeData);
 
           // Verify the challenge
           const { data: verifyData, error: verifyError } =
@@ -143,7 +157,10 @@ function MFAVerification({
               code: verificationCode,
             });
 
-          if (verifyError) throw verifyError;
+          if (verifyError) {
+            console.error("MFA verification error:", verifyError);
+            throw verifyError;
+          }
 
           console.log("Supabase MFA verification successful");
           success = true;
@@ -153,6 +170,7 @@ function MFAVerification({
           // Try using the verifyMfa function from AuthContext as fallback
           if (verifyMfa) {
             try {
+              console.log("Trying fallback MFA verification");
               success = await verifyMfa(
                 mfaData.factorId || mfaData.methodId,
                 verificationCode
@@ -168,6 +186,7 @@ function MFAVerification({
       } else if (mfaData.methodId) {
         // Try using the verifyMfa function from AuthContext
         if (verifyMfa) {
+          console.log("Using methodId for verification:", mfaData.methodId);
           success = await verifyMfa(mfaData.methodId, verificationCode);
         } else {
           throw new Error("No MFA verification method available");
@@ -177,6 +196,7 @@ function MFAVerification({
       }
 
       if (success) {
+        console.log("MFA verification successful");
         setVerificationSuccess(true);
 
         // If onSuccess callback is provided, call it after brief delay

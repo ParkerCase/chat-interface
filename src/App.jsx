@@ -22,6 +22,7 @@ import { supabase } from "./lib/supabase";
 import SSOCallback from "./components/auth/SSOCallback";
 import AccountPage from "./components/account/AccountPage";
 import FilePermissionsRoute from "./components/FilePermissionsRoute";
+import AuthDebugger from "./components/AuthDebugger";
 
 // Professional Tier Features
 import APIKeyManagement from "./components/APIKeyManagement";
@@ -184,6 +185,7 @@ function App() {
                 {/* Fallback route */}
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>
+              {process.env.NODE_ENV === "development" && <AuthDebugger />}
             </div>
           </Router>
         </FeatureFlagProvider>

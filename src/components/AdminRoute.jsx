@@ -4,28 +4,24 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Loader2 } from "lucide-react";
 
-/**
- * Protects routes that should only be accessible to admin users
- */
 const AdminRoute = () => {
   const { currentUser, loading, hasRole, isInitialized } = useAuth();
   const location = useLocation();
 
-  // Log access attempts for security auditing
+  // Improved logging for debugging
   useEffect(() => {
-    if (currentUser && !loading) {
-      console.log(
-        `Admin route access attempt by ${
-          currentUser.email
-        } (${currentUser.roles?.join(", ")})`
-      );
+    if (currentUser) {
+      console.log("AdminRoute: Checking access for", {
+        email: currentUser.email,
+        roles: currentUser.roles,
+        isAdmin:
+          currentUser.roles?.includes("admin") ||
+          currentUser.roles?.includes("super_admin"),
+      });
     }
-  }, [currentUser, loading]);
+  }, [currentUser]);
 
-  // Special handling for test admin user
-  const isTestAdmin = currentUser?.email === "itsus@tatt2away.com";
-
-  // Show loading state while checking permissions
+  // Enhanced loading state
   if (loading || !isInitialized) {
     return (
       <div className="auth-loading">
@@ -37,6 +33,7 @@ const AdminRoute = () => {
 
   // Ensure user is authenticated
   if (!currentUser) {
+    console.log("AdminRoute: No user, redirecting to login");
     return (
       <Navigate
         to={`/login?returnUrl=${encodeURIComponent(location.pathname)}`}
@@ -45,20 +42,26 @@ const AdminRoute = () => {
     );
   }
 
-  // Test admin always has access
-  if (isTestAdmin) {
+  // Special handling for test admin user - clearly documented
+  if (currentUser.email === "itsus@tatt2away.com") {
+    console.log("AdminRoute: Test admin user detected, granting access");
     return <Outlet />;
   }
 
-  // Check for admin roles
-  const userIsAdmin = hasRole("admin") || hasRole("super_admin");
+  // Consistent role checking
+  const userIsAdmin =
+    currentUser.roles?.includes("admin") ||
+    currentUser.roles?.includes("super_admin");
 
-  // Redirect to unauthorized page if not admin
+  console.log("AdminRoute: Admin check result =", userIsAdmin);
+
+  // Redirect if not an admin
   if (!userIsAdmin) {
+    console.log("AdminRoute: Access denied - not an admin");
     return <Navigate to="/unauthorized" replace />;
   }
 
-  // User is admin, render the protected content
+  // User is admin, render protected content
   return <Outlet />;
 };
 

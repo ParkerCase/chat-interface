@@ -61,8 +61,12 @@ export function AuthProvider({ children }) {
 
         return {
           success: true,
-          mfaRequired: false,
-          isAdmin: true,
+          mfaRequired,
+          mfaData: mfaRequired ? mfaDetail : null,
+          isAdmin:
+            userData.roles.includes("admin") ||
+            userData.roles.includes("super_admin") ||
+            userData.email === "itsus@tatt2away.com",
         };
       }
 
@@ -168,6 +172,29 @@ export function AuthProvider({ children }) {
       setLoading(false);
     }
   };
+
+  const checkUserRole = useCallback((user, roleToCheck) => {
+    if (!user || !user.roles) {
+      console.log("Role check failed: No user or roles array", user);
+      return false;
+    }
+
+    // Super admin bypass
+    if (user.roles.includes("super_admin")) {
+      console.log("Role check passed: User is super_admin");
+      return true;
+    }
+
+    // Special test user handling
+    if (user.email === "itsus@tatt2away.com") {
+      console.log("Test admin user detected, granting admin access");
+      return true;
+    }
+
+    const hasRole = user.roles.includes(roleToCheck);
+    console.log(`Role check for ${roleToCheck}: ${hasRole}`, user.roles);
+    return hasRole;
+  }, []);
 
   // Register function
   const register = async (userData) => {
@@ -485,8 +512,13 @@ export function AuthProvider({ children }) {
   };
 
   // Confirm MFA setup
+  // Confirm MFA setup
   const confirmMfa = async (methodId, verificationCode) => {
     try {
+      // Get the type of the MFA method being confirmed
+      // Default to "totp" if not specified
+      const methodType = "totp"; // Default value
+
       // Try with Supabase first
       try {
         const { data, error } = await supabase.auth.mfa.challenge({
@@ -504,8 +536,8 @@ export function AuthProvider({ children }) {
 
         if (verifyError) throw verifyError;
 
-        // Update local user with new MFA method
-        updateMfaMethods(methodId, "totp");
+        // Update local user with new MFA method - explicitly pass the type
+        updateMfaMethods(methodId, methodType);
 
         return true;
       } catch (supabaseError) {
@@ -517,8 +549,11 @@ export function AuthProvider({ children }) {
       const response = await apiService.mfa.confirm(methodId, verificationCode);
 
       if (response.data?.success) {
-        // Update local user with new MFA method
-        updateMfaMethods(methodId, type);
+        // Extract the type from the response if available
+        const responseType = response.data?.type || methodType;
+
+        // Update local user with new MFA method - explicitly pass the type
+        updateMfaMethods(methodId, responseType);
         return true;
       }
 
@@ -603,6 +638,7 @@ export function AuthProvider({ children }) {
   };
 
   // Helper function to update MFA methods in the user object
+  // Helper function to update MFA methods in the user object
   const updateMfaMethods = (methodId, type) => {
     if (!currentUser) return;
 
@@ -613,14 +649,14 @@ export function AuthProvider({ children }) {
       // Update existing method
       mfaMethods[existingIndex] = {
         ...mfaMethods[existingIndex],
-        type,
+        type: type, // Explicitly use the parameter to avoid the no-undef error
         lastUsed: new Date().toISOString(),
       };
     } else {
       // Add new method
       mfaMethods.push({
         id: methodId,
-        type,
+        type: type, // Explicitly use the parameter to avoid the no-undef error
         createdAt: new Date().toISOString(),
       });
     }
@@ -1218,6 +1254,8 @@ export function AuthProvider({ children }) {
       false,
     isSuperAdmin: currentUser?.roles?.includes("super_admin") || false,
     hasPermission,
+    checkUserRole,
+
     hasRole,
     hasFeatureAccess,
     getUserTier,
