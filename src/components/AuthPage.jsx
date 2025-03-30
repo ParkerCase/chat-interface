@@ -152,13 +152,20 @@ function AuthPage() {
       const result = await login(email, password);
 
       if (result && result.success) {
-        if (result.mfaRequired && result.mfaData) {
+        if (result.requiresMfaSetup) {
+          console.log("User needs to set up MFA");
+          // Save current authentication state
+          localStorage.setItem("needsMfaSetup", "true");
+          // Redirect to security page to set up MFA
+          navigate("/security?setup=mfa");
+          return;
+        } else if (result.mfaRequired && result.mfaData) {
           // Show MFA verification screen
           console.log("MFA verification required:", result.mfaData);
           setShowMfaVerification(true);
           setMfaData(result.mfaData);
         } else {
-          // Force redirect to admin panel for admins
+          // Fully authenticated, proceed to dashboard or admin panel
           if (result.isAdmin) {
             console.log("Admin user detected, redirecting to admin panel");
             navigate("/admin");
@@ -181,6 +188,7 @@ function AuthPage() {
   };
 
   // Handle MFA verification success
+  // This function should already be in your AuthPage.jsx
   const handleMfaSuccess = () => {
     console.log("MFA verification successful");
 

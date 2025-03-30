@@ -178,6 +178,106 @@ function MFAModule({
     }
   };
 
+  // Add this function to your MFAModule.jsx
+  // In MFAModule.jsx - Add this to your component, adjusting variable names to match yours
+  const handleVerificationSuccess = () => {
+    // Update UI state (use your actual state setter functions)
+    // If you're using isLoading/isConfirming:
+    setIsLoading(false); // Or whatever variable tracks your loading state
+
+    // Clear the verification code input
+    setVerificationCode(""); // This should be defined in your component
+
+    // Show success message if you have that function
+    if (typeof setSuccessMessage === "function") {
+      setSuccessMessage(`${getMFATypeName()} successfully set up`);
+    }
+
+    // Update the UI to show success
+    // You might use activeStep or a different mechanism to show different screens
+    // If you have something like:
+    if (typeof setActiveStep === "function") {
+      setActiveStep(3); // Adjust based on your step numbering
+    }
+
+    // Reset setup state after delay
+    setTimeout(() => {
+      // Use your actual state setters:
+      if (typeof setShowMfaVerification === "function") {
+        setShowMfaVerification(false);
+      }
+      // Reset other state variables as needed
+    }, 2000);
+  };
+
+  // Helper function to get the MFA type name
+  const getMFATypeName = () => {
+    // Return a display name based on the method being set up
+    // You might have this in a function like getMethodName()
+    return "Two-Factor Authentication";
+  };
+
+  // Find your verification submission handler and modify it like this:
+  const handleConfirmSetup = async () => {
+    if (!verificationCode) {
+      // Use however you show errors in your component
+      // This might be something like:
+      setFormError("Please enter verification code");
+      return;
+    }
+
+    try {
+      // Your existing loading state setter
+      setIsLoading(true); // or whatever you use
+
+      const success = await confirmMfa(setupData.methodId, verificationCode);
+
+      if (success) {
+        // Success! Update UI
+        setIsLoading(false); // or whatever you use
+
+        // Show success message however you do that
+        if (setSuccessMessage) {
+          setSuccessMessage(`Two-Factor Authentication successfully set up`);
+        }
+
+        // Reset setup state
+        setVerificationCode("");
+
+        // Move to next step or close modal
+        if (typeof setActiveStep === "function") {
+          setActiveStep(3); // If you have a step system
+        } else {
+          // Otherwise reset your setup flow however you normally do
+          setIsSettingUp(false); // if you have this
+        }
+
+        // Update MFA methods list if needed
+        if (currentUser && mfaMethods) {
+          // However you update your MFA methods list
+        }
+      } else {
+        // Failed verification
+        setIsLoading(false); // or whatever you use
+
+        // Show error however you do that
+        if (typeof setFormError === "function") {
+          setFormError("Invalid verification code. Please try again.");
+        }
+      }
+    } catch (error) {
+      console.error("MFA confirmation error:", error);
+
+      // Clear loading state
+      setIsLoading(false); // or whatever you use
+
+      // Show error however you do that
+      if (typeof setFormError === "function") {
+        setFormError(`Failed to confirm MFA: ${error.message}`);
+      }
+    }
+  };
+
   const handleRemoveMfa = async (methodId) => {
     try {
       setIsLoading(true);

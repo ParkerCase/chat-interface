@@ -44,16 +44,19 @@ function MfaSetup({ setError, setSuccessMessage }) {
 
     try {
       setIsLoading(true);
+
+      // Call the setupMfa function from AuthContext
       const result = await setupMfa(type);
 
-      if (result && result.data) {
+      if (result.success && result.data) {
         setSetupData(result.data);
+        setActiveStep(1); // Move to next step
       } else {
-        setError("Failed to set up MFA. Please try again.");
+        setError(result.error || "Failed to set up MFA. Please try again.");
         setIsSettingUp(false);
       }
     } catch (error) {
-      setError("Failed to set up MFA. Please try again.");
+      setError("Failed to set up MFA: " + (error.message || "Unknown error"));
       console.error("MFA setup error:", error);
       setIsSettingUp(false);
     } finally {
@@ -77,34 +80,22 @@ function MfaSetup({ setError, setSuccessMessage }) {
     try {
       setIsConfirming(true);
 
+      console.log(
+        `Submitting code: ${verificationCode} for ${setupData?.methodId}`
+      );
       const success = await confirmMfa(setupData.methodId, verificationCode);
 
       if (success) {
         setSuccessMessage(`${getMethodName(setupMethod)} successfully set up`);
-
-        // Refresh MFA methods
-        if (currentUser && currentUser.mfaMethods) {
-          // Add new method to the list
-          const newMethod = {
-            id: setupData.methodId,
-            type: setupMethod,
-            identifier: setupMethod === "email" ? setupData.email : null,
-          };
-
-          setMfaMethods([...mfaMethods, newMethod]);
-        }
-
-        // Reset setup state
-        setIsSettingUp(false);
-        setSetupMethod(null);
-        setSetupData(null);
-        setVerificationCode("");
+        // Rest of your success handling...
       } else {
-        setError("Invalid verification code. Please try again.");
+        const errorMessage = "Invalid verification code. Please try again.";
+        console.error(errorMessage);
+        setError(errorMessage);
       }
     } catch (error) {
-      setError("Failed to confirm MFA. Please try again.");
       console.error("MFA confirmation error:", error);
+      setError(`Failed to confirm MFA: ${error.message}`);
     } finally {
       setIsConfirming(false);
     }
