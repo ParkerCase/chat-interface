@@ -187,6 +187,32 @@ function MFAVerification({
     }
   };
 
+  // Inside MFAVerification component for TOTP verification
+  const verifyTOTP = async (factorId, code) => {
+    try {
+      // Create challenge
+      const { data: challenge, error: challengeError } =
+        await supabase.auth.mfa.challenge({
+          factorId: factorId,
+        });
+
+      if (challengeError) throw challengeError;
+
+      // Verify code against challenge
+      const { data, error } = await supabase.auth.mfa.verify({
+        factorId: factorId,
+        challengeId: challenge.id,
+        code: code,
+      });
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error("TOTP verification error:", error);
+      return false;
+    }
+  };
+
   /**
    * Request a new MFA challenge/code
    */

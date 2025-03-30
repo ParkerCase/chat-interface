@@ -19,6 +19,9 @@ import AdminPanel from "./components/admin/AdminPanel";
 import FilePermissionsManager from "./components/admin/FilePermissionsManager";
 import FeatureProtectedRoute from "./components/FeatureProtectedRoute";
 import { supabase } from "./lib/supabase";
+import SSOCallback from "./components/auth/SSOCallback";
+import AccountPage from "./components/account/AccountPage";
+import FilePermissionsRoute from "./components/FilePermissionsRoute";
 
 // Professional Tier Features
 import APIKeyManagement from "./components/APIKeyManagement";
@@ -131,45 +134,35 @@ function App() {
               <Routes>
                 {/* Public routes */}
                 <Route path="/login" element={<AuthPage />} />
-                <Route path="/passcode" element={<AuthPage />} />
                 <Route path="/forgot-password" element={<AuthPage />} />
                 <Route path="/reset-password" element={<AuthPage />} />
                 <Route path="/mfa/verify" element={<MfaVerify />} />
-                <Route
-                  path="/auth/callback"
-                  element={<div>Processing authentication...</div>}
-                />
+                <Route path="/auth/callback" element={<SSOCallback />} />
 
-                {/* Protected routes */}
+                {/* Protected routes that require authentication */}
                 <Route element={<ProtectedRoute />}>
-                  {/* Main app routes */}
                   <Route path="/" element={<MainApp />} />
-                  <Route path="/chat" element={<MainApp />} />
-                  <Route path="/profile" element={<AuthPage tab="profile" />} />
+                  <Route
+                    path="/profile"
+                    element={<AccountPage tab="profile" />}
+                  />
                   <Route
                     path="/security"
-                    element={<AuthPage tab="security" />}
+                    element={<AccountPage tab="security" />}
                   />
                   <Route
                     path="/sessions"
-                    element={<AuthPage tab="sessions" />}
+                    element={<AccountPage tab="sessions" />}
                   />
+                  <Route path="/analytics" element={<AnalyticsDashboard />} />
+                  <Route path="/workflows" element={<WorkflowManagement />} />
                   <Route
-                    path="/password"
-                    element={<AuthPage tab="password" />}
+                    path="/integrations"
+                    element={<IntegrationSettings />}
                   />
+                  <Route path="/alerts" element={<AlertsManagement />} />
 
-                  {/* Professional tier features */}
-                  <Route
-                    path="/api-keys"
-                    element={
-                      <FeatureProtectedRoute feature="data_export">
-                        <APIKeyManagement />
-                      </FeatureProtectedRoute>
-                    }
-                  />
-
-                  {/* Admin routes */}
+                  {/* Admin-only routes for user management */}
                   <Route element={<AdminRoute />}>
                     <Route path="/admin" element={<AdminPanel />} />
                     <Route path="/admin/register" element={<Register />} />
@@ -177,59 +170,15 @@ function App() {
                       path="/admin/users"
                       element={<AdminPanel tab="users" />}
                     />
+                  </Route>
+
+                  {/* Admin-only routes for file permissions */}
+                  <Route element={<FilePermissionsRoute />}>
                     <Route
                       path="/admin/permissions"
                       element={<FilePermissionsManager />}
                     />
-                    <Route
-                      path="/admin/settings"
-                      element={<AdminPanel tab="settings" />}
-                    />
                   </Route>
-
-                  {/* Analytics routes */}
-                  <Route
-                    path="/analytics"
-                    element={
-                      <FeatureProtectedRoute feature="analytics_basic">
-                        <AnalyticsDashboard />
-                      </FeatureProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/analytics/advanced"
-                    element={
-                      <FeatureProtectedRoute feature="advanced_analytics">
-                        <AnalyticsDashboard advanced={true} />
-                      </FeatureProtectedRoute>
-                    }
-                  />
-
-                  {/* Enterprise tier features */}
-                  <Route
-                    path="/workflows"
-                    element={
-                      <FeatureProtectedRoute feature="custom_workflows">
-                        <WorkflowManagement />
-                      </FeatureProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/integrations"
-                    element={
-                      <FeatureProtectedRoute feature="custom_integrations">
-                        <IntegrationSettings />
-                      </FeatureProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/alerts"
-                    element={
-                      <FeatureProtectedRoute feature="automated_alerts">
-                        <AlertsManagement />
-                      </FeatureProtectedRoute>
-                    }
-                  />
                 </Route>
 
                 {/* Fallback route */}

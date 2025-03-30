@@ -353,6 +353,40 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const logAuthEvent = async (eventType, metadata = {}) => {
+    try {
+      await supabase.from("auth_events").insert({
+        user_id: currentUser?.id,
+        event_type: eventType,
+        metadata,
+        ip_address: await fetch("https://api.ipify.org?format=json")
+          .then((res) => res.json())
+          .then((data) => data.ip)
+          .catch(() => null),
+        user_agent: navigator.userAgent,
+      });
+    } catch (error) {
+      console.error("Failed to log auth event:", error);
+    }
+  };
+
+  // Additional function for AuthContext.jsx
+  const getUserRoles = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("roles")
+        .eq("id", userId)
+        .single();
+
+      if (error) throw error;
+      return data.roles || ["user"];
+    } catch (error) {
+      console.error("Error fetching user roles:", error);
+      return ["user"]; // Default to basic user role
+    }
+  };
+
   // Get full enterprise features
   const getEnterpriseFeatures = () => {
     return {

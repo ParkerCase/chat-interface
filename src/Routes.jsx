@@ -27,91 +27,36 @@ function AppRoutes() {
     <Routes>
       {/* Public routes */}
       <Route path="/login" element={<AuthPage />} />
-      <Route path="/passcode" element={<AuthPage />} />
       <Route path="/forgot-password" element={<AuthPage />} />
       <Route path="/reset-password" element={<AuthPage />} />
       <Route path="/mfa/verify" element={<MfaVerify />} />
       <Route path="/auth/callback" element={<SSOCallback />} />
-      <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-      {/* Protected routes - basic user access */}
+      {/* Protected routes that require authentication */}
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<MainApp />} />
         <Route path="/profile" element={<AccountPage tab="profile" />} />
         <Route path="/security" element={<AccountPage tab="security" />} />
-        <Route path="/password" element={<AccountPage tab="password" />} />
         <Route path="/sessions" element={<AccountPage tab="sessions" />} />
-      </Route>
-
-      {/* Professional tier features */}
-      <Route
-        element={
-          <ProtectedRoute
-            requireFeatures={["data_export"]}
-            fallback={<Navigate to="/account/upgrade" />}
-          />
-        }
-      >
-        <Route path="/api-keys" element={<APIKeyManagement />} />
-      </Route>
-
-      {/* Admin routes */}
-      <Route
-        element={
-          <ProtectedRoute
-            requireRoles={["admin", "super_admin"]}
-            fallback={<Navigate to="/unauthorized" />}
-          />
-        }
-      >
-        <Route path="/admin" element={<AdminPanel />} />
-        <Route path="/admin/register" element={<Register />} />
-        <Route path="/admin/permissions" element={<FilePermissionsManager />} />
-      </Route>
-
-      {/* Enterprise features */}
-      <Route
-        element={
-          <ProtectedRoute
-            requireFeatures={["custom_workflows"]}
-            fallback={<Navigate to="/account/upgrade" />}
-          />
-        }
-      >
-        <Route path="/workflows" element={<WorkflowManagement />} />
-      </Route>
-
-      <Route
-        element={
-          <ProtectedRoute
-            requireFeatures={["advanced_analytics"]}
-            fallback={<Navigate to="/account/upgrade" />}
-          />
-        }
-      >
         <Route path="/analytics" element={<AnalyticsDashboard />} />
-      </Route>
-
-      <Route
-        element={
-          <ProtectedRoute
-            requireFeatures={["custom_integrations"]}
-            fallback={<Navigate to="/account/upgrade" />}
-          />
-        }
-      >
+        <Route path="/workflows" element={<WorkflowManagement />} />
         <Route path="/integrations" element={<IntegrationSettings />} />
-      </Route>
-
-      <Route
-        element={
-          <ProtectedRoute
-            requireFeatures={["automated_alerts"]}
-            fallback={<Navigate to="/account/upgrade" />}
-          />
-        }
-      >
         <Route path="/alerts" element={<AlertsManagement />} />
+
+        {/* Admin-only routes for user management */}
+        <Route element={<AdminRoute />}>
+          <Route path="/admin" element={<AdminPanel />} />
+          <Route path="/admin/register" element={<Register />} />
+          <Route path="/admin/users" element={<AdminPanel tab="users" />} />
+        </Route>
+
+        {/* Admin-only routes for file permissions */}
+        <Route element={<FilePermissionsRoute />}>
+          <Route
+            path="/admin/permissions"
+            element={<FilePermissionsManager />}
+          />
+        </Route>
       </Route>
 
       {/* Fallback route */}
