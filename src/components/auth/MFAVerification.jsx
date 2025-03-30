@@ -56,6 +56,29 @@ function MFAVerification({
     }
   }, [countdown]);
 
+  // In src/components/auth/MFAVerification.jsx
+  useEffect(() => {
+    // Add this effect to ensure redirection happens on success
+    if (isSuccess) {
+      console.log("MFA verification successful, preparing for redirect");
+
+      setTimeout(() => {
+        if (onSuccess) {
+          console.log("Calling onSuccess callback");
+          onSuccess();
+        } else {
+          console.log("No callback provided, redirecting directly");
+          const isAdmin =
+            currentUser?.roles?.includes("admin") ||
+            currentUser?.roles?.includes("super_admin") ||
+            currentUser?.email === "itsus@tatt2away.com";
+
+          window.location.replace(isAdmin ? "/admin" : redirectUrl || "/");
+        }
+      }, 1500);
+    }
+  }, [isSuccess, onSuccess, redirectUrl, currentUser]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
