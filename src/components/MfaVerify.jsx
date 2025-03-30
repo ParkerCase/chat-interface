@@ -119,8 +119,18 @@ function MfaVerify() {
   // Handle successful verification
   const handleSuccess = () => {
     console.log("MFA verification successful, redirecting to:", redirectUrl);
-    // Redirect to the specified URL
-    navigate(redirectUrl);
+
+    // Force complete page reload with the updated auth state
+    setTimeout(() => {
+      // Get current user to check admin status
+      const isAdmin =
+        currentUser?.roles?.includes("admin") ||
+        currentUser?.roles?.includes("super_admin") ||
+        currentUser?.email === "itsus@tatt2away.com";
+
+      // Use replace for a complete page reload
+      window.location.replace(isAdmin ? "/admin" : redirectUrl || "/");
+    }, 1000);
   };
 
   // Handle cancellation

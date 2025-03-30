@@ -63,6 +63,23 @@ function App() {
     };
   }, []);
 
+  // Add this to App.jsx or your root component
+  useEffect(() => {
+    // Check if there's a pending redirect from MFA
+    const pendingRedirect = sessionStorage.getItem("mfaRedirectPending");
+    const redirectTarget = sessionStorage.getItem("mfaRedirectTarget");
+
+    if (pendingRedirect === "true" && redirectTarget) {
+      console.log("Executing pending MFA redirect to:", redirectTarget);
+      // Clear the pending flag
+      sessionStorage.removeItem("mfaRedirectPending");
+      sessionStorage.removeItem("mfaRedirectTarget");
+
+      // Execute the redirect
+      window.location.replace(redirectTarget);
+    }
+  }, []);
+
   // Handle out of memory errors
   useEffect(() => {
     const handleOutOfMemory = () => {

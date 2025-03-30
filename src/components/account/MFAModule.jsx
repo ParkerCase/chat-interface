@@ -28,6 +28,8 @@ function MFAModule({
   const navigate = useNavigate();
 
   // State for MFA methods display
+  const [isSuccess, setIsSuccess] = useState(false);
+
   const [userMfaMethods, setUserMfaMethods] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [localError, setLocalError] = useState("");
@@ -39,7 +41,6 @@ function MFAModule({
   const [setupData, setSetupData] = useState(null);
   const [verificationCode, setVerificationCode] = useState("");
   const [isCopied, setIsCopied] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
 
   // State for deletion confirmation
   const [deletingMethodId, setDeletingMethodId] = useState(null);
@@ -61,6 +62,30 @@ function MFAModule({
       setUserMfaMethods(currentUser.mfaMethods);
     }
   }, [currentUser]);
+
+  // In your MFAModule.jsx
+  useEffect(() => {
+    // This is a fallback to ensure navigation happens
+    if (isSuccess) {
+      console.log("MFA success detected in MFAModule");
+
+      // Set a timeout to ensure all state updates are complete
+      const redirectTimer = setTimeout(() => {
+        console.log("Executing fallback redirect");
+
+        // Check if we're still on the same page after 3 seconds
+        const isAdmin =
+          currentUser?.roles?.includes("admin") ||
+          currentUser?.roles?.includes("super_admin") ||
+          currentUser?.email === "itsus@tatt2away.com";
+
+        // Force navigation
+        window.location.replace(isAdmin ? "/admin" : "/");
+      }, 3000);
+
+      return () => clearTimeout(redirectTimer);
+    }
+  }, [isSuccess, currentUser]); // Make sure both dependencies are included
 
   // Focus the verification code input when it becomes visible
   useEffect(() => {
@@ -123,14 +148,10 @@ function MFAModule({
     }
   };
 
+  // Modify handleVerification in MFAModule.jsx
   const handleVerification = async () => {
-    if (!verificationCode) {
-      setErrorMessage("Please enter the verification code");
-      return;
-    }
-
-    if (!setupData?.methodId) {
-      setErrorMessage("Setup data is missing. Please try again.");
+    if (!verificationCode || verificationCode.length !== 6) {
+      setErrorMessage("Please enter a valid 6-digit code");
       return;
     }
 
@@ -138,41 +159,41 @@ function MFAModule({
       setIsLoading(true);
       setLocalError("");
 
+      console.log(
+        `Attempting to verify code ${verificationCode} for method ${setupData?.methodId}`
+      );
+
       // Call the confirmMfa method from the AuthContext
       const success = await confirmMfa(setupData.methodId, verificationCode);
 
+      console.log("MFA confirmation result:", success);
+
       if (success) {
-        // Success! Update UI and possibly the list of methods
-        setIsSuccess(true);
-        if (setSuccessMessage) {
-          setSuccessMessage(
-            `${getMethodName(selectedMethod)} successfully set up`
-          );
-        }
+        // Important: Handle the redirect directly here instead of waiting
+        // Store a redirect flag in sessionStorage for reliability
+        sessionStorage.setItem("mfaRedirectPending", "true");
+        sessionStorage.setItem("mfaRedirectTarget", "/admin");
 
-        // Add the new method to the list if not already present
-        const newMethod = {
-          id: setupData.methodId,
-          type: selectedMethod,
-          identifier: selectedMethod === "email" ? setupData.email : null,
-        };
+        // Execute redirect immediately with replace for full page reload
+        window.location.replace("/admin");
 
-        setUserMfaMethods((prev) => {
-          // Check if this method already exists
-          const exists = prev.some((m) => m.id === newMethod.id);
-          if (exists) return prev;
-          return [...prev, newMethod];
-        });
+        // As a fallback, also set a meta refresh tag
+        const meta = document.createElement("meta");
+        meta.httpEquiv = "refresh";
+        meta.content = "1; URL=/admin";
+        document.head.appendChild(meta);
 
-        setActiveStep(3);
+        return; // Stop execution here
       } else {
-        setErrorMessage("Invalid verification code. Please try again.");
+        setErrorMessage(
+          "Verification failed. Please check the code and try again."
+        );
       }
     } catch (error) {
-      setErrorMessage(
-        "Failed to verify code: " + (error.message || "Unknown error")
-      );
       console.error("MFA verification error:", error);
+      setErrorMessage(
+        "Error during verification: " + (error.message || "Unknown error")
+      );
     } finally {
       setIsLoading(false);
     }
@@ -180,103 +201,6 @@ function MFAModule({
 
   // Add this function to your MFAModule.jsx
   // In MFAModule.jsx - Add this to your component, adjusting variable names to match yours
-  const handleVerificationSuccess = () => {
-    // Update UI state (use your actual state setter functions)
-    // If you're using isLoading/isConfirming:
-    setIsLoading(false); // Or whatever variable tracks your loading state
-
-    // Clear the verification code input
-    setVerificationCode(""); // This should be defined in your component
-
-    // Show success message if you have that function
-    if (typeof setSuccessMessage === "function") {
-      setSuccessMessage(`${getMFATypeName()} successfully set up`);
-    }
-
-    // Update the UI to show success
-    // You might use activeStep or a different mechanism to show different screens
-    // If you have something like:
-    if (typeof setActiveStep === "function") {
-      setActiveStep(3); // Adjust based on your step numbering
-    }
-
-    // Reset setup state after delay
-    setTimeout(() => {
-      // Use your actual state setters:
-      if (typeof setShowMfaVerification === "function") {
-        setShowMfaVerification(false);
-      }
-      // Reset other state variables as needed
-    }, 2000);
-  };
-
-  // Helper function to get the MFA type name
-  const getMFATypeName = () => {
-    // Return a display name based on the method being set up
-    // You might have this in a function like getMethodName()
-    return "Two-Factor Authentication";
-  };
-
-  // Find your verification submission handler and modify it like this:
-  const handleConfirmSetup = async () => {
-    if (!verificationCode) {
-      // Use however you show errors in your component
-      // This might be something like:
-      setFormError("Please enter verification code");
-      return;
-    }
-
-    try {
-      // Your existing loading state setter
-      setIsLoading(true); // or whatever you use
-
-      const success = await confirmMfa(setupData.methodId, verificationCode);
-
-      if (success) {
-        // Success! Update UI
-        setIsLoading(false); // or whatever you use
-
-        // Show success message however you do that
-        if (setSuccessMessage) {
-          setSuccessMessage(`Two-Factor Authentication successfully set up`);
-        }
-
-        // Reset setup state
-        setVerificationCode("");
-
-        // Move to next step or close modal
-        if (typeof setActiveStep === "function") {
-          setActiveStep(3); // If you have a step system
-        } else {
-          // Otherwise reset your setup flow however you normally do
-          setIsSettingUp(false); // if you have this
-        }
-
-        // Update MFA methods list if needed
-        if (currentUser && mfaMethods) {
-          // However you update your MFA methods list
-        }
-      } else {
-        // Failed verification
-        setIsLoading(false); // or whatever you use
-
-        // Show error however you do that
-        if (typeof setFormError === "function") {
-          setFormError("Invalid verification code. Please try again.");
-        }
-      }
-    } catch (error) {
-      console.error("MFA confirmation error:", error);
-
-      // Clear loading state
-      setIsLoading(false); // or whatever you use
-
-      // Show error however you do that
-      if (typeof setFormError === "function") {
-        setFormError(`Failed to confirm MFA: ${error.message}`);
-      }
-    }
-  };
 
   const handleRemoveMfa = async (methodId) => {
     try {
