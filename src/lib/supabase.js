@@ -21,6 +21,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     storage: window.localStorage,
+    flowType: "pkce", // Add this for improved security
+    debug: process.env.NODE_ENV !== "production", // Enable debugging in development
   },
 });
 
@@ -39,6 +41,50 @@ export const checkSupabaseConnection = async () => {
   } catch (err) {
     console.error("Supabase connection error:", err);
     return { success: false, error: err.message };
+  }
+};
+
+// Helper function to validate session
+export const validateSession = async () => {
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    return data.session;
+  } catch (err) {
+    console.error("Session validation error:", err);
+    return null;
+  }
+};
+
+// Helper to get current user with role information
+export const getCurrentUser = async () => {
+  try {
+    const { data: userData, error } = await supabase.auth.getUser();
+    if (error) throw error;
+
+    if (!userData?.user) return null;
+
+    // Get profile data with roles
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userData.user.id)
+      .single();
+
+    if (profileError && profileError.code !== "PGRST116") {
+      console.error("Error fetching profile:", profileError);
+    }
+
+    // Combine user data with profile data
+    return {
+      id: userData.user.id,
+      email: userData.user.email,
+      ...userData.user.user_metadata,
+      ...profile,
+    };
+  } catch (err) {
+    console.error("Error getting current user:", err);
+    return null;
   }
 };
 

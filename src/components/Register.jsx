@@ -1,388 +1,478 @@
-// src/components/Register.jsx
+// src/components/admin/Register.jsx
 import React, { useState, useEffect } from "react";
-import { useAuth } from "../context/AuthContext";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import {
   AlertCircle,
+  UserPlus,
+  CheckCircle,
+  Key,
+  ArrowLeft,
   Eye,
   EyeOff,
-  CheckCircle,
-  X,
-  ArrowRight,
-  UserPlus,
 } from "lucide-react";
-import "./Register.css";
+import { supabase } from "../../lib/supabase";
+import "./Admin.css";
 
 function Register() {
-  const [name, setName] = useState("");
+  // Form state
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState(""); // Optional, will be auto-generated if empty
+  const [roles, setRoles] = useState(["user"]);
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // UI state
   const [isLoading, setIsLoading] = useState(false);
-  const [passwordChecks, setPasswordChecks] = useState({
+  const [success, setSuccess] = useState(null);
+  const [formError, setFormError] = useState("");
+  const [strengthChecks, setStrengthChecks] = useState({
     length: false,
     uppercase: false,
     lowercase: false,
     number: false,
     special: false,
-    match: false,
   });
-  const [isCodeRequired, setIsCodeRequired] = useState(false);
-  const [registrationSuccess, setRegistrationSuccess] = useState(false);
-
-  const { register, error: authError, setError: setAuthError } = useAuth();
-  const [formError, setFormError] = useState("");
 
   const navigate = useNavigate();
-  const location = useLocation();
+  const { currentUser, error: authError, isAdmin, isSuperAdmin } = useAuth();
 
-  // Parse invite code from URL if present
+  // Check if user can create admins (is super admin or test admin)
+  const canCreateAdmin =
+    currentUser?.roles?.includes("super_admin") ||
+    currentUser?.email === "itsus@tatt2away.com";
+
+  // Check password strength when it changes
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const codeFromUrl = params.get("code");
-
-    if (codeFromUrl) {
-      setInviteCode(codeFromUrl);
+    if (password) {
+      setStrengthChecks({
+        length: password.length >= 8,
+        uppercase: /[A-Z]/.test(password),
+        lowercase: /[a-z]/.test(password),
+        number: /[0-9]/.test(password),
+        special: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password),
+      });
     }
-
-    // Check if invite code is required - would normally come from an API
-    // For this example, we'll set it based on an env variable
-    // In reality, you'd fetch this from the server
-    setIsCodeRequired(process.env.REACT_APP_REQUIRE_INVITATION === "true");
-  }, [location]);
-
-  // Update password validation checks on password change
-  useEffect(() => {
-    setPasswordChecks({
-      length: password.length >= 8,
-      uppercase: /[A-Z]/.test(password),
-      lowercase: /[a-z]/.test(password),
-      number: /[0-9]/.test(password),
-      special: /[^A-Za-z0-9]/.test(password),
-      match: password === confirmPassword && password !== "",
-    });
-  }, [password, confirmPassword]);
+  }, [password]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError("");
-    setAuthError("");
+    setSuccess(null);
 
-    // All validation checks should pass
-    const allChecksPass = Object.values(passwordChecks).every((check) => check);
-
-    if (!allChecksPass) {
-      setFormError("Please ensure all password requirements are met");
+    // Validate admin permission
+    if (!isAdmin && !currentUser?.email === "itsus@tatt2away.com") {
+      setFormError("You need administrator privileges to register new users");
       return;
     }
 
-    // Validate input
-    if (!name.trim()) {
-      setFormError("Name is required");
-      return;
-    }
-
-    if (!email.trim()) {
+    // Validate email
+    if (!email) {
       setFormError("Email is required");
       return;
     }
 
-    // Additional email validation
-    if (!validateEmail(email)) {
-      setFormError("Please enter a valid email address");
+    // Validate email domain
+    if (!email.endsWith("@tatt2away.com") && email !== "itsus@tatt2away.com") {
+      setFormError("Only @tatt2away.com email addresses are allowed");
       return;
     }
 
-    // Validate invite code if required
-    if (isCodeRequired && !inviteCode.trim()) {
-      setFormError("Invitation code is required");
+    // Validate name
+    if (!name) {
+      setFormError("Name is required");
       return;
+    }
+
+    // Ensure that only super admin can create admin users
+    if (roles.includes("admin") && !canCreateAdmin) {
+      setFormError("Only super administrators can create admin accounts");
+      return;
+    }
+
+    // Super admin role can only be granted by another super admin and only to test user
+    if (roles.includes("super_admin")) {
+      if (!canCreateAdmin) {
+        setFormError(
+          "Only super administrators can create super admin accounts"
+        );
+        return;
+      }
+
+      if (email !== "itsus@tatt2away.com") {
+        setFormError(
+          "Super admin role can only be assigned to authorized accounts"
+        );
+        return;
+      }
     }
 
     try {
       setIsLoading(true);
 
-      // Prepare registration data
-      const userData = {
-        name: name.trim(),
-        email: email.trim(),
-        password,
-        inviteCode: inviteCode.trim() || undefined,
-      };
+      // Generate a random password if none provided
+      const generatedPassword =
+        password ||
+        Math.random().toString(36).slice(2) +
+          Math.random().toString(36).slice(2).toUpperCase() +
+          "!" +
+          Math.floor(Math.random() * 10);
 
-      const result = await register(userData);
+      // Register user with Supabase
+      const { data, error } = await supabase.auth.admin.createUser({
+        email,
+        password: generatedPassword,
+        email_confirm: true,
+        user_metadata: {
+          full_name: name,
+        },
+      });
 
-      if (result && result.success) {
-        setRegistrationSuccess(true);
+      if (error) throw error;
 
-        // If email verification is required, show success message
-        // Otherwise, redirect to login
-        if (!result.requiresEmailVerification) {
-          // Redirect to login after 3 seconds
-          setTimeout(() => {
-            navigate("/login");
-          }, 3000);
-        }
-      }
+      // Create profile in Supabase
+      const { error: profileError } = await supabase.from("profiles").insert([
+        {
+          id: data.user.id,
+          full_name: name,
+          email,
+          roles,
+          tier: "enterprise",
+          created_at: new Date().toISOString(),
+          created_by: currentUser.id || currentUser.email,
+        },
+      ]);
+
+      if (profileError) throw profileError;
+
+      // Log the successful creation for audit purposes
+      console.log(
+        `User created: ${email} with roles ${roles.join(", ")} by ${
+          currentUser.email
+        }`
+      );
+
+      // Set success state with user and credentials
+      setSuccess({
+        user: {
+          id: data.user.id,
+          email,
+          name,
+          roles,
+        },
+        credentials: {
+          password: password ? null : generatedPassword,
+        },
+      });
+
+      // Reset form
+      setEmail("");
+      setName("");
+      setPassword("");
+      setRoles(["user"]);
     } catch (error) {
-      setFormError("An unexpected error occurred. Please try again.");
       console.error("Registration error:", error);
+      setFormError(
+        error.message || "An unexpected error occurred. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Helper function to validate email
-  const validateEmail = (email) => {
-    const re = /\S+@\S+\.\S+/;
-    return re.test(email);
+  // Handle role selection with checkboxes
+  const handleRoleChange = (role) => {
+    if (roles.includes(role)) {
+      setRoles(roles.filter((r) => r !== role));
+    } else {
+      setRoles([...roles, role]);
+    }
   };
 
-  // If registration was successful, show success message
-  if (registrationSuccess) {
+  // Only show this component to admins
+  if (!isAdmin && currentUser?.email !== "itsus@tatt2away.com") {
     return (
-      <div className="register-container">
-        <div className="register-success-card">
-          <div className="success-icon-container">
-            <CheckCircle className="success-icon" />
-          </div>
-          <h2>Registration Successful!</h2>
-
-          <p>
-            Your account has been created successfully.
-            {process.env.REACT_APP_REQUIRE_EMAIL_VERIFICATION === "true"
-              ? " Please check your email to verify your account before logging in."
-              : " You will be redirected to the login page shortly."}
-          </p>
-
-          <Link to="/login" className="success-login-link">
-            Go to Login
-            <ArrowRight size={16} />
-          </Link>
-        </div>
+      <div className="unauthorized-message">
+        <AlertCircle size={36} />
+        <h3>Admin Access Required</h3>
+        <p>You need administrator privileges to access this page.</p>
+        <button onClick={() => navigate("/")} className="back-button">
+          <ArrowLeft size={16} />
+          Back to Dashboard
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="register-container">
-      <div className="register-card">
-        <div className="register-header">
-          <UserPlus className="register-icon" />
-          <h2>Create Account</h2>
-          <p>Fill in the details below to create your account</p>
+    <div className="admin-container">
+      <div className="admin-card">
+        <div className="card-header">
+          <UserPlus className="icon" size={24} />
+          <h2>Register New User</h2>
         </div>
 
         {/* Display error message if any */}
         {(formError || authError) && (
           <div className="error-alert">
-            <AlertCircle className="error-icon" />
+            <AlertCircle size={18} />
             <p>{formError || authError}</p>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="register-form">
-          {/* Name Field */}
-          <div className="form-group">
-            <label htmlFor="name">Full Name</label>
-            <input
-              type="text"
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your full name"
-              className="form-input"
-              disabled={isLoading}
-              required
-            />
-          </div>
-
-          {/* Email Field */}
-          <div className="form-group">
-            <label htmlFor="email">Email</label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              className="form-input"
-              autoComplete="email"
-              disabled={isLoading}
-              required
-            />
-          </div>
-
-          {/* Password Field */}
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
-            <div className="password-input-wrapper">
-              <input
-                type={showPassword ? "text" : "password"}
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Create a password"
-                className="form-input"
-                autoComplete="new-password"
-                disabled={isLoading}
-                required
-              />
+        {/* Display success message */}
+        {success && (
+          <div className="success-alert">
+            <div>
+              <CheckCircle size={24} className="success-icon" />
+              <h3>User Created Successfully!</h3>
+              <p>
+                <strong>Email:</strong> {success.user.email}
+                <br />
+                <strong>Name:</strong> {success.user.name}
+                <br />
+                <strong>Roles:</strong> {success.user.roles.join(", ")}
+              </p>
+              {success.credentials?.password && (
+                <div className="credentials-box">
+                  <h4>Temporary Password</h4>
+                  <div className="password-display">
+                    <code className="password">
+                      {success.credentials.password}
+                    </code>
+                    <button
+                      className="copy-button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          success.credentials.password
+                        );
+                        alert("Password copied to clipboard");
+                      }}
+                    >
+                      <Key size={14} />
+                      Copy
+                    </button>
+                  </div>
+                  <p className="password-note">
+                    <strong>Important:</strong> Make sure to save or share this
+                    password securely. It won't be shown again.
+                  </p>
+                </div>
+              )}
               <button
-                type="button"
-                className="toggle-password"
-                onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="create-another-button"
+                onClick={() => setSuccess(null)}
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                Create Another User
               </button>
             </div>
-
-            {/* Password requirements */}
-            <div className="password-requirements">
-              <p className="requirements-title">Password must contain:</p>
-              <ul>
-                <li className={passwordChecks.length ? "passed" : ""}>
-                  {passwordChecks.length ? (
-                    <CheckCircle size={14} />
-                  ) : (
-                    <X size={14} />
-                  )}
-                  <span>At least 8 characters</span>
-                </li>
-                <li className={passwordChecks.uppercase ? "passed" : ""}>
-                  {passwordChecks.uppercase ? (
-                    <CheckCircle size={14} />
-                  ) : (
-                    <X size={14} />
-                  )}
-                  <span>At least one uppercase letter</span>
-                </li>
-                <li className={passwordChecks.lowercase ? "passed" : ""}>
-                  {passwordChecks.lowercase ? (
-                    <CheckCircle size={14} />
-                  ) : (
-                    <X size={14} />
-                  )}
-                  <span>At least one lowercase letter</span>
-                </li>
-                <li className={passwordChecks.number ? "passed" : ""}>
-                  {passwordChecks.number ? (
-                    <CheckCircle size={14} />
-                  ) : (
-                    <X size={14} />
-                  )}
-                  <span>At least one number</span>
-                </li>
-                <li className={passwordChecks.special ? "passed" : ""}>
-                  {passwordChecks.special ? (
-                    <CheckCircle size={14} />
-                  ) : (
-                    <X size={14} />
-                  )}
-                  <span>At least one special character</span>
-                </li>
-              </ul>
-            </div>
           </div>
+        )}
 
-          {/* Confirm Password Field */}
-          <div className="form-group">
-            <label htmlFor="confirm-password">Confirm Password</label>
-            <div className="password-input-wrapper">
-              <input
-                type={showConfirmPassword ? "text" : "password"}
-                id="confirm-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm your password"
-                className={`form-input ${
-                  confirmPassword && !passwordChecks.match
-                    ? "password-mismatch"
-                    : ""
-                }`}
-                autoComplete="new-password"
-                disabled={isLoading}
-                required
-              />
-              <button
-                type="button"
-                className="toggle-password"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                aria-label={
-                  showConfirmPassword ? "Hide password" : "Show password"
-                }
-              >
-                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-            {confirmPassword && !passwordChecks.match && (
-              <p className="password-mismatch-text">Passwords do not match</p>
-            )}
-          </div>
-
-          {/* Invitation Code Field (shown if required or present in URL) */}
-          {(isCodeRequired || inviteCode) && (
+        {!success && (
+          <form onSubmit={handleSubmit} className="admin-form">
+            {/* Email Field */}
             <div className="form-group">
-              <label htmlFor="invite-code">
-                Invitation Code
-                {isCodeRequired && (
-                  <span className="required-indicator">*</span>
-                )}
+              <label htmlFor="email">
+                Email <span className="required">*</span>
+              </label>
+              <input
+                type="email"
+                id="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="user@tatt2away.com"
+                className="form-input"
+                disabled={isLoading}
+                required
+              />
+              <p className="input-hint">
+                Must be a @tatt2away.com email address
+              </p>
+            </div>
+
+            {/* Name Field */}
+            <div className="form-group">
+              <label htmlFor="name">
+                Name <span className="required">*</span>
               </label>
               <input
                 type="text"
-                id="invite-code"
-                value={inviteCode}
-                onChange={(e) => setInviteCode(e.target.value)}
-                placeholder="Enter invitation code"
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Full Name"
                 className="form-input"
-                disabled={
-                  isLoading ||
-                  (!!inviteCode && inviteCode === location.search.get("code"))
-                }
-                required={isCodeRequired}
+                disabled={isLoading}
+                required
               />
-              {!isCodeRequired && (
-                <p className="invite-code-hint">
-                  If you don't have an invitation code, leave this field empty
-                </p>
+            </div>
+
+            {/* Password Field (Optional) */}
+            <div className="form-group">
+              <label htmlFor="password">
+                Password <span className="optional">(Optional)</span>
+              </label>
+              <div className="password-input-wrapper">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Leave blank to auto-generate"
+                  className="form-input"
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  className="toggle-password"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              <p className="input-hint">
+                If left blank, a secure password will be generated
+              </p>
+
+              {password && (
+                <div className="password-strength">
+                  <div className="strength-item">
+                    <span
+                      className={
+                        strengthChecks.length ? "check passed" : "check"
+                      }
+                    >
+                      {strengthChecks.length ? "✓" : "✗"}
+                    </span>
+                    <span>At least 8 characters</span>
+                  </div>
+                  <div className="strength-item">
+                    <span
+                      className={
+                        strengthChecks.uppercase ? "check passed" : "check"
+                      }
+                    >
+                      {strengthChecks.uppercase ? "✓" : "✗"}
+                    </span>
+                    <span>Uppercase letter</span>
+                  </div>
+                  <div className="strength-item">
+                    <span
+                      className={
+                        strengthChecks.lowercase ? "check passed" : "check"
+                      }
+                    >
+                      {strengthChecks.lowercase ? "✓" : "✗"}
+                    </span>
+                    <span>Lowercase letter</span>
+                  </div>
+                  <div className="strength-item">
+                    <span
+                      className={
+                        strengthChecks.number ? "check passed" : "check"
+                      }
+                    >
+                      {strengthChecks.number ? "✓" : "✗"}
+                    </span>
+                    <span>Number</span>
+                  </div>
+                  <div className="strength-item">
+                    <span
+                      className={
+                        strengthChecks.special ? "check passed" : "check"
+                      }
+                    >
+                      {strengthChecks.special ? "✓" : "✗"}
+                    </span>
+                    <span>Special character</span>
+                  </div>
+                </div>
               )}
             </div>
-          )}
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            className="register-button"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <span className="spinner"></span>
-                Creating Account...
-              </>
-            ) : (
-              <>
-                Create Account
-                <ArrowRight size={18} />
-              </>
-            )}
-          </button>
-        </form>
+            {/* Role Selection */}
+            <div className="form-group">
+              <label>User Roles</label>
+              <div className="checkbox-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={roles.includes("user")}
+                    onChange={() => handleRoleChange("user")}
+                    disabled={isLoading}
+                  />
+                  User (Basic Access)
+                </label>
 
-        {/* Login Link */}
-        <div className="register-footer">
-          <p>
-            Already have an account?{" "}
-            <Link to="/login" className="login-link">
-              Sign in
-            </Link>
-          </p>
-        </div>
+                <label
+                  className={`checkbox-label ${
+                    !canCreateAdmin ? "disabled" : ""
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={roles.includes("admin")}
+                    onChange={() => handleRoleChange("admin")}
+                    disabled={isLoading || !canCreateAdmin}
+                  />
+                  Admin (Management Access)
+                  {!canCreateAdmin && (
+                    <span className="role-restriction">(Super Admin only)</span>
+                  )}
+                </label>
+
+                {canCreateAdmin && (
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={roles.includes("super_admin")}
+                      onChange={() => handleRoleChange("super_admin")}
+                      disabled={isLoading || email !== "itsus@tatt2away.com"}
+                    />
+                    Super Admin (Full System Access)
+                    {email !== "itsus@tatt2away.com" && (
+                      <span className="role-restriction">
+                        (Restricted role)
+                      </span>
+                    )}
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <div className="form-actions">
+              <button
+                type="button"
+                onClick={() => navigate("/admin")}
+                className="cancel-button"
+                disabled={isLoading}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                className="submit-button"
+                disabled={isLoading || !email || !name}
+              >
+                {isLoading ? (
+                  <>
+                    <span className="spinner"></span>
+                    Creating User...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus size={18} />
+                    Create User
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

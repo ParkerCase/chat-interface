@@ -1,4 +1,5 @@
-// src/components/MfaVerify.jsx
+// src/components/MfaVerify.jsx - Complete replacement
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -7,10 +8,6 @@ import MFAVerification from "./auth/MFAVerification";
 import { AlertCircle, Loader2 } from "lucide-react";
 import "./auth.css";
 
-/**
- * Standalone MFA verification page
- * Used for verifying MFA during login or when navigating to protected resources
- */
 function MfaVerify() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -34,50 +31,76 @@ function MfaVerify() {
         const returnUrl = params.get("returnUrl") || "/";
         setRedirectUrl(returnUrl);
 
-        // Get factor ID and other MFA data from session
-        try {
-          // Check if we have an active Supabase session
-          const { data: sessionData } = await supabase.auth.getSession();
+        console.log("MFA Verify initializing with returnUrl:", returnUrl);
 
-          if (sessionData?.session) {
-            // Try to get MFA status for the current session
-            const { data: mfaData, error: mfaError } =
-              await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        // Get factor ID and other MFA data
+        let factorIdFromParams = params.get("factorId");
+        let methodIdFromParams = params.get("methodId");
+        let typeFromParams = params.get("type") || "totp";
 
-            if (!mfaError && mfaData) {
-              console.log("Session MFA data:", mfaData);
+        if (factorIdFromParams) {
+          console.log("Using factorId from URL params:", factorIdFromParams);
+          setFactorId(factorIdFromParams);
+          setType(typeFromParams);
+        } else {
+          // Try to get MFA status from Supabase session
+          try {
+            console.log("Checking Supabase session for MFA data");
+            const { data: sessionData } = await supabase.auth.getSession();
 
-              // Check if MFA is currently required for this session
-              if (
-                mfaData.nextLevel &&
-                mfaData.nextLevel !== mfaData.currentLevel
-              ) {
-                // We should prompt for MFA verification
-                setFactorId(mfaData.currentFactorId);
-                setType("totp"); // Default to TOTP
-              } else {
-                // MFA is not required, redirect to destination
-                navigate(returnUrl);
-                return;
+            if (sessionData?.session) {
+              console.log("Active Supabase session found");
+              // Try to get MFA status for the current session
+              const { data: mfaData, error: mfaError } =
+                await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+              if (!mfaError && mfaData) {
+                console.log("Session MFA data:", mfaData);
+
+                // Check if MFA is currently required for this session
+                if (
+                  mfaData.nextLevel &&
+                  mfaData.nextLevel !== mfaData.currentLevel
+                ) {
+                  // We should prompt for MFA verification
+                  setFactorId(mfaData.currentFactorId);
+                  setType("totp"); // Default to TOTP
+                  console.log(
+                    "MFA verification required with factorId:",
+                    mfaData.currentFactorId
+                  );
+                } else {
+                  console.log("MFA not required for this session, redirecting");
+                  // MFA is not required, redirect to destination
+                  navigate(returnUrl);
+                  return;
+                }
+              } else if (mfaError) {
+                console.warn("Error getting MFA status:", mfaError);
               }
+            } else if (!currentUser) {
+              console.log(
+                "No active session and no user, redirecting to login"
+              );
+              // No active session and no user - redirect to login
+              navigate(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
+              return;
             }
-          } else if (!currentUser) {
-            // No active session and no user - redirect to login
-            navigate(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
-            return;
+          } catch (err) {
+            console.error("Error getting MFA status:", err);
+            throw new Error("Failed to get MFA status");
           }
-        } catch (err) {
-          console.error("Error getting MFA status:", err);
-          throw new Error("Failed to get MFA status");
         }
 
         // Get email from current user or params
         if (currentUser) {
           setEmail(currentUser.email);
+          console.log("Using email from current user:", currentUser.email);
         } else {
           const emailFromParams = params.get("email");
           if (emailFromParams) {
             setEmail(emailFromParams);
+            console.log("Using email from URL params:", emailFromParams);
           }
         }
 
@@ -95,12 +118,14 @@ function MfaVerify() {
 
   // Handle successful verification
   const handleSuccess = () => {
+    console.log("MFA verification successful, redirecting to:", redirectUrl);
     // Redirect to the specified URL
     navigate(redirectUrl);
   };
 
   // Handle cancellation
   const handleCancel = () => {
+    console.log("MFA verification cancelled, redirecting to login");
     // Redirect to login page
     navigate("/login");
   };
@@ -138,6 +163,7 @@ function MfaVerify() {
         standalone={true}
         mfaData={{
           factorId,
+          methodId: factorId, // For backward compatibility
           type,
           email,
         }}
