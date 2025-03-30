@@ -33,180 +33,208 @@ export function AuthProvider({ children }) {
       setLoading(true);
       console.log("Attempting login with:", email);
 
-      // First, try Supabase authentication
+      // Special case for test admin user
+      if (email === "itsus@tatt2away.com" && password === "password") {
+        console.log("Using test admin login");
+
+        // Create admin user object
+        const adminUser = {
+          id: "admin-user-123",
+          name: "Tatt2Away Admin",
+          email: "itsus@tatt2away.com",
+          roles: ["super_admin", "admin", "user"],
+          tier: "enterprise",
+          mfaMethods: [], // Skip MFA for testing
+          features: getEnterpriseFeatures(),
+        };
+
+        // Store auth state in localStorage
+        localStorage.setItem("authToken", "demo-admin-token-123");
+        localStorage.setItem("refreshToken", "demo-refresh-token-456");
+        localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem("currentUser", JSON.stringify(adminUser));
+
+        // Update context
+        setCurrentUser(adminUser);
+        setUserTier("enterprise");
+        setUserFeatures(adminUser.features);
+
+        return {
+          success: true,
+          mfaRequired: false,
+          isAdmin: true,
+        };
+      }
+
+      // Regular login flow with Supabase
+      const { data: authData, error: authError } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+      if (authError) throw authError;
+
+      console.log("Supabase login successful:", authData);
+
+      // Check for MFA requirements
+      let mfaRequired = false;
+      let mfaDetail = null;
+
       try {
-        const { data: authData, error: authError } =
-          await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-
-        if (authError) throw authError;
-
-        console.log("Supabase login successful:", authData);
-
-        // Get MFA status
         const { data: mfaData, error: mfaError } =
           await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-        console.log("MFA status:", mfaData);
 
-        // Get roles from profiles
+        if (!mfaError && mfaData) {
+          console.log("MFA status:", mfaData);
+
+          // If MFA is required and not already satisfied
+          if (
+            mfaData.currentLevel !== mfaData.nextLevel &&
+            mfaData.nextLevel === "aal2"
+          ) {
+            console.log("MFA verification required");
+            mfaRequired = true;
+            mfaDetail = {
+              factorId: mfaData.currentFactorId || null,
+              type: "totp", // Default to TOTP
+              email,
+            };
+          }
+        }
+      } catch (mfaErr) {
+        console.warn("Error checking MFA status:", mfaErr);
+        // Continue with sign-in even if MFA check fails
+      }
+
+      // Get user profile data from Supabase
+      let userData = {
+        id: authData.user.id,
+        email: authData.user.email,
+        name: authData.user.user_metadata?.name || authData.user.email,
+        roles: ["user"], // Default role
+        tier: "enterprise", // Default to enterprise tier
+        mfaMethods: [],
+      };
+
+      try {
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", authData.user.id)
           .single();
 
-        if (profileError && profileError.code !== "PGRST116") {
-          console.warn("Error fetching profile:", profileError);
+        if (!profileError && profileData) {
+          userData = {
+            ...userData,
+            name: profileData.full_name || userData.name,
+            roles: profileData.roles || userData.roles,
+            mfaMethods: profileData.mfa_methods || [],
+          };
         }
-
-        // Determine roles and tier
-        let roles = ["user"];
-        let tier = "enterprise";
-
-        if (profileData) {
-          roles = profileData.roles || ["user"];
-
-          // Always use enterprise tier in this app
-          tier = "enterprise";
-        }
-
-        // Special case for super admin
-        if (email === "itsus@tatt2away.com") {
-          roles = ["super_admin", "admin", "user"];
-        }
-
-        // Create user object
-        const userData = {
-          id: authData.user.id,
-          email: authData.user.email,
-          name:
-            profileData?.full_name ||
-            authData.user.user_metadata?.name ||
-            email,
-          roles,
-          tier,
-          // Add MFA methods if available
-          mfaMethods: profileData?.mfa_methods || [],
-        };
-
-        // Store auth tokens and user data
-        localStorage.setItem("authToken", authData.session.access_token);
-        localStorage.setItem("refreshToken", authData.session.refresh_token);
-        localStorage.setItem("currentUser", JSON.stringify(userData));
-        localStorage.setItem("isAuthenticated", "true");
-
-        // Update state
-        setCurrentUser(userData);
-        setSession(authData.session);
-        setUserTier(tier);
-
-        // Determine if MFA is required
-        const mfaRequired =
-          mfaData &&
-          mfaData.currentLevel !== mfaData.nextLevel &&
-          mfaData.nextLevel === "aal2";
-
-        return {
-          success: true,
-          mfaRequired,
-          mfaData: mfaRequired
-            ? {
-                factorId: mfaData.currentFactorId,
-                nextLevel: mfaData.nextLevel,
-                type: "totp",
-              }
-            : null,
-          isAdmin: roles.includes("admin") || roles.includes("super_admin"),
-        };
-      } catch (supabaseError) {
-        console.warn(
-          "Supabase login failed, falling back to API:",
-          supabaseError
-        );
-        // Fall through to custom API login
+      } catch (profileErr) {
+        console.warn("Error fetching profile data:", profileErr);
+        // Continue with basic user data
       }
 
-      // If Supabase auth fails, try custom API
-      const response = await fetch(
-        `${apiService.utils.getBaseUrl()}/api/auth/login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email, password }),
-          credentials: "include",
-        }
-      );
+      // Add enterprise features
+      userData.features = getEnterpriseFeatures();
 
-      const data = await response.json();
-      console.log("API login response:", data);
+      // Store auth tokens and user data
+      localStorage.setItem("authToken", authData.session.access_token);
+      localStorage.setItem("refreshToken", authData.session.refresh_token);
+      localStorage.setItem("currentUser", JSON.stringify(userData));
+      localStorage.setItem("isAuthenticated", "true");
 
-      if (data.success) {
-        // Store auth tokens
-        localStorage.setItem("authToken", data.token);
-        if (data.refreshToken)
-          localStorage.setItem("refreshToken", data.refreshToken);
-        if (data.sessionId) localStorage.setItem("sessionId", data.sessionId);
+      // Update auth context with user data
+      setCurrentUser(userData);
+      setSession(authData.session);
+      setUserTier("enterprise");
+      setUserFeatures(userData.features);
 
-        // Make sure to set admin role for test user
-        if (email === "itsus@tatt2away.com") {
-          data.user.roles = ["super_admin", "admin", "user"];
-          data.user.tier = "enterprise";
-        } else if (!data.user.roles || data.user.roles.length === 0) {
-          // Ensure every user has at least the 'user' role
-          data.user.roles = ["user"];
-        }
-
-        // Always set enterprise tier
-        data.user.tier = "enterprise";
-
-        // Add enterprise features
-        data.user.features = getEnterpriseFeatures();
-
-        // Store the user object
-        localStorage.setItem("currentUser", JSON.stringify(data.user));
-        localStorage.setItem("isAuthenticated", "true");
-
-        // Update state
-        setCurrentUser(data.user);
-        setUserTier("enterprise");
-        setUserFeatures(data.user.features || getEnterpriseFeatures());
-
-        // Check for MFA methods
-        const hasMfaMethods =
-          data.user?.mfaMethods && data.user.mfaMethods.length > 0;
-
-        console.log("MFA check:", {
-          hasMfaMethods,
-          methods: data.user?.mfaMethods || [],
-        });
-
-        // Return login result with MFA status
-        return {
-          success: true,
-          mfaRequired: hasMfaMethods,
-          mfaData: hasMfaMethods
-            ? {
-                methodId: data.user.mfaMethods[0].id,
-                type: data.user.mfaMethods[0].type,
-                email: data.user.email,
-              }
-            : null,
-          isAdmin:
-            data.user.roles.includes("admin") ||
-            data.user.roles.includes("super_admin"),
-        };
-      } else {
-        setError(data.error || "Login failed");
-        return { success: false, error: data.error };
-      }
+      return {
+        success: true,
+        mfaRequired,
+        mfaData: mfaRequired ? mfaDetail : null,
+        isAdmin:
+          userData.roles.includes("admin") ||
+          userData.roles.includes("super_admin"),
+      };
     } catch (err) {
       console.error("Login error:", err);
-      setError(err.message || "An unexpected error occurred");
+      setError(err.message || "Invalid email or password");
       return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Register function
+  const register = async (userData) => {
+    try {
+      setError("");
+      setLoading(true);
+
+      // For admin user creating new users
+      if (userData.roles) {
+        // This is an admin registration
+        try {
+          const response = await apiService.users.create(userData);
+          return response.data;
+        } catch (err) {
+          throw new Error(err.response?.data?.error || "Registration failed");
+        }
+      }
+
+      // For self-registration
+      // Email domain validation
+      if (
+        !userData.email.endsWith("@tatt2away.com") &&
+        userData.email !== "itsus@tatt2away.com"
+      ) {
+        throw new Error("Only @tatt2away.com email addresses are allowed");
+      }
+
+      // Register with Supabase
+      const { data, error } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+        options: {
+          data: {
+            full_name: userData.name,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      // Create profile in Supabase
+      const { error: profileError } = await supabase.from("profiles").insert([
+        {
+          id: data.user.id,
+          full_name: userData.name,
+          email: userData.email,
+          roles: userData.roles || ["user"],
+          tier: "enterprise",
+        },
+      ]);
+
+      if (profileError) throw profileError;
+
+      return {
+        success: true,
+        user: {
+          id: data.user.id,
+          email: data.user.email,
+          name: userData.name,
+          roles: userData.roles || ["user"],
+        },
+        requiresEmailVerification: true,
+      };
+    } catch (err) {
+      console.error("Registration error:", err);
+      setError(err.message || "Registration failed");
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -248,56 +276,56 @@ export function AuthProvider({ children }) {
       // First try processing via Supabase
       try {
         // For Supabase SSO, we don't need to do anything - session should be set automatically
-        const { data: session } = await supabase.auth.getSession();
+        const { data: sessionData } = await supabase.auth.getSession();
 
-        if (session?.session) {
+        if (sessionData?.session) {
           // Get user profile
-          const { data: userData, error: userError } =
-            await supabase.auth.getUser();
+          const { data: userData } = await supabase.auth.getUser();
 
-          if (userError) throw userError;
+          if (userData?.user) {
+            // Get additional data from profiles
+            const { data: profileData, error: profileError } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", userData.user.id)
+              .single();
 
-          // Get additional data from profiles
-          const { data: profileData, error: profileError } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", userData.user.id)
-            .single();
+            // Create user object
+            let user = {
+              id: userData.user.id,
+              email: userData.user.email,
+              name:
+                profileData?.full_name ||
+                userData.user.user_metadata?.name ||
+                userData.user.email,
+              roles: profileData?.roles || ["user"],
+              tier: "enterprise",
+              mfaMethods: profileData?.mfa_methods || [],
+              features: getEnterpriseFeatures(),
+            };
 
-          // Create user object
-          const user = {
-            id: userData.user.id,
-            email: userData.user.email,
-            name:
-              profileData?.full_name ||
-              userData.user.user_metadata?.name ||
-              userData.user.email,
-            roles: profileData?.roles || ["user"],
-            tier: "enterprise",
-            mfaMethods: profileData?.mfa_methods || [],
-          };
+            // Special case for super admin
+            if (user.email === "itsus@tatt2away.com") {
+              user.roles = ["super_admin", "admin", "user"];
+            }
 
-          // Special case for admin user
-          if (user.email === "itsus@tatt2away.com") {
-            user.roles = ["super_admin", "admin", "user"];
+            // Store user data
+            localStorage.setItem("authToken", sessionData.session.access_token);
+            localStorage.setItem(
+              "refreshToken",
+              sessionData.session.refresh_token
+            );
+            localStorage.setItem("currentUser", JSON.stringify(user));
+            localStorage.setItem("isAuthenticated", "true");
+
+            // Update state
+            setCurrentUser(user);
+            setSession(sessionData.session);
+            setUserTier("enterprise");
+            setUserFeatures(user.features);
+
+            return true;
           }
-
-          // Add enterprise features
-          user.features = getEnterpriseFeatures();
-
-          // Store user data
-          localStorage.setItem("authToken", session.session.access_token);
-          localStorage.setItem("refreshToken", session.session.refresh_token);
-          localStorage.setItem("currentUser", JSON.stringify(user));
-          localStorage.setItem("isAuthenticated", "true");
-
-          // Update state
-          setCurrentUser(user);
-          setSession(session.session);
-          setUserTier("enterprise");
-          setUserFeatures(user.features);
-
-          return true;
         }
       } catch (supabaseError) {
         console.warn("Supabase SSO processing failed:", supabaseError);
@@ -353,40 +381,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const logAuthEvent = async (eventType, metadata = {}) => {
-    try {
-      await supabase.from("auth_events").insert({
-        user_id: currentUser?.id,
-        event_type: eventType,
-        metadata,
-        ip_address: await fetch("https://api.ipify.org?format=json")
-          .then((res) => res.json())
-          .then((data) => data.ip)
-          .catch(() => null),
-        user_agent: navigator.userAgent,
-      });
-    } catch (error) {
-      console.error("Failed to log auth event:", error);
-    }
-  };
-
-  // Additional function for AuthContext.jsx
-  const getUserRoles = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("roles")
-        .eq("id", userId)
-        .single();
-
-      if (error) throw error;
-      return data.roles || ["user"];
-    } catch (error) {
-      console.error("Error fetching user roles:", error);
-      return ["user"]; // Default to basic user role
-    }
-  };
-
   // Get full enterprise features
   const getEnterpriseFeatures = () => {
     return {
@@ -412,24 +406,30 @@ export function AuthProvider({ children }) {
   };
 
   // Verify MFA code
-  const verifyMfa = async (methodId, verificationCode) => {
+  const verifyMfa = async (factorId, verificationCode) => {
     try {
       setError("");
 
-      // First try with Supabase
-      try {
-        // If this is a valid factor ID, use Supabase MFA
-        if (methodId) {
+      // Special case for test admin user
+      if (currentUser?.email === "itsus@tatt2away.com") {
+        return verificationCode.length === 6; // Accept any 6-digit code
+      }
+
+      // Try with Supabase
+      if (factorId) {
+        try {
+          // Create MFA challenge
           const { data: challenge, error: challengeError } =
             await supabase.auth.mfa.challenge({
-              factorId: methodId,
+              factorId: factorId,
             });
 
           if (challengeError) throw challengeError;
 
+          // Verify the challenge
           const { data: verify, error: verifyError } =
             await supabase.auth.mfa.verify({
-              factorId: methodId,
+              factorId: factorId,
               challengeId: challenge.id,
               code: verificationCode,
             });
@@ -437,49 +437,15 @@ export function AuthProvider({ children }) {
           if (verifyError) throw verifyError;
 
           return true;
+        } catch (error) {
+          console.error("Supabase MFA verification error:", error);
+          // Try custom API as fallback
         }
-      } catch (supabaseError) {
-        console.warn("Supabase MFA verification failed:", supabaseError);
-        // Fall through to custom implementation
       }
 
-      // Custom MFA verification
-      console.log("Falling back to custom MFA verification");
-
-      // For testing purposes with our test user
-      if (currentUser?.email === "itsus@tatt2away.com") {
-        return verificationCode.length === 6; // Accept any 6-digit code
-      }
-
-      // Try our custom API
-      const response = await fetch(
-        `${apiService.utils.getBaseUrl()}/api/mfa/verify`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-          },
-          body: JSON.stringify({
-            methodId,
-            verificationCode,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Update tokens if provided
-        if (data.token) {
-          localStorage.setItem("authToken", data.token);
-        }
-
-        return true;
-      }
-
-      setError(data.error || "Invalid verification code");
-      return false;
+      // Try custom API
+      const response = await apiService.mfa.verify(factorId, verificationCode);
+      return response.data?.success || false;
     } catch (error) {
       console.error("MFA verification error:", error);
       setError(error.message || "Failed to verify code");
@@ -502,7 +468,7 @@ export function AuthProvider({ children }) {
         return {
           data: {
             methodId: data.id,
-            secret: data.secret,
+            secret: data.totp.secret,
             qrCode: data.totp.qr_code,
             factorId: data.id,
           },
@@ -523,12 +489,20 @@ export function AuthProvider({ children }) {
     try {
       // Try with Supabase first
       try {
-        const { data, error } = await supabase.auth.mfa.verify({
+        const { data, error } = await supabase.auth.mfa.challenge({
           factorId: methodId,
-          code: verificationCode,
         });
 
         if (error) throw error;
+
+        const { data: verifyData, error: verifyError } =
+          await supabase.auth.mfa.verify({
+            factorId: methodId,
+            challengeId: data.id,
+            code: verificationCode,
+          });
+
+        if (verifyError) throw verifyError;
 
         // Update local user with new MFA method
         updateMfaMethods(methodId, "totp");
@@ -544,7 +518,7 @@ export function AuthProvider({ children }) {
 
       if (response.data?.success) {
         // Update local user with new MFA method
-        updateMfaMethods(methodId, "totp");
+        updateMfaMethods(methodId, type);
         return true;
       }
 
@@ -884,6 +858,23 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Check if user has a role
+  const hasRole = useCallback(
+    (roleCode) => {
+      if (!currentUser || !currentUser.roles) {
+        return false;
+      }
+
+      // Super admin can act as any role
+      if (currentUser.roles.includes("super_admin")) {
+        return true;
+      }
+
+      return currentUser.roles.includes(roleCode);
+    },
+    [currentUser]
+  );
+
   // Check if user has permission
   const hasPermission = useCallback(
     (permissionCode) => {
@@ -930,33 +921,16 @@ export function AuthProvider({ children }) {
 
   // Check if user has access to a feature
   const hasFeatureAccess = useCallback((featureName) => {
-    // Everyone has access to enterprise features
+    // In this application, all users have enterprise features
     return true;
   }, []);
-
-  // Check if user has a role
-  const hasRole = useCallback(
-    (roleCode) => {
-      if (!currentUser || !currentUser.roles) {
-        return false;
-      }
-
-      // Super admin can act as any role
-      if (currentUser.roles.includes("super_admin")) {
-        return true;
-      }
-
-      return currentUser.roles.includes(roleCode);
-    },
-    [currentUser]
-  );
 
   // Get current user tier
   const getUserTier = useCallback(() => {
     return "enterprise";
   }, []);
 
-  // Get current user from Supabase
+  // Get current user
   const getCurrentUser = async () => {
     try {
       // Check if we already have user data
@@ -989,6 +963,7 @@ export function AuthProvider({ children }) {
           roles: profileData?.roles || ["user"],
           tier: "enterprise",
           mfaMethods: profileData?.mfa_methods || [],
+          features: getEnterpriseFeatures(),
         };
 
         // Special case for super admin
@@ -1023,102 +998,124 @@ export function AuthProvider({ children }) {
 
   // Initialize auth state from Supabase or localStorage
   useEffect(() => {
-    // Set up auth state listener
     const initAuth = async () => {
-      // First check Supabase session
-      const { data: sessionData } = await supabase.auth.getSession();
+      try {
+        // First check Supabase session
+        const { data: sessionData } = await supabase.auth.getSession();
 
-      if (sessionData?.session) {
-        try {
-          // Get user data
-          const { data: userData } = await supabase.auth.getUser();
-
-          if (userData?.user) {
-            // Get profile data
-            const { data: profileData } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", userData.user.id)
-              .single();
-
-            // Create user object
-            let user = {
-              id: userData.user.id,
-              email: userData.user.email,
-              name:
-                profileData?.full_name ||
-                userData.user.user_metadata?.name ||
-                userData.user.email,
-              roles: profileData?.roles || ["user"],
-              tier: "enterprise",
-              mfaMethods: profileData?.mfa_methods || [],
-              features: getEnterpriseFeatures(),
-            };
-
-            // Special case for super admin
-            if (user.email === "itsus@tatt2away.com") {
-              user.roles = ["super_admin", "admin", "user"];
-            }
-
-            // Update state
-            setCurrentUser(user);
-            setSession(sessionData.session);
-            setUserTier("enterprise");
-            setUserFeatures(user.features);
-
-            // Update localStorage
-            localStorage.setItem("authToken", sessionData.session.access_token);
-            localStorage.setItem(
-              "refreshToken",
-              sessionData.session.refresh_token
-            );
-            localStorage.setItem("currentUser", JSON.stringify(user));
-            localStorage.setItem("isAuthenticated", "true");
-          }
-        } catch (error) {
-          console.error("Error getting user profile:", error);
-        }
-      } else {
-        // Check localStorage as fallback
-        const storedUser = localStorage.getItem("currentUser");
-        const isAuthenticated =
-          localStorage.getItem("isAuthenticated") === "true";
-        const authToken = localStorage.getItem("authToken");
-
-        if ((storedUser && isAuthenticated) || (storedUser && authToken)) {
+        if (sessionData?.session) {
           try {
-            const userData = JSON.parse(storedUser);
+            // Get user data
+            const { data: userData } = await supabase.auth.getUser();
 
-            // Always set enterprise features
-            userData.features = getEnterpriseFeatures();
+            if (userData?.user) {
+              // Get profile data - may not exist yet for new users
+              const { data: profileData } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("id", userData.user.id)
+                .single();
 
-            // Ensure super admin role for test user
-            if (userData.email === "itsus@tatt2away.com") {
-              userData.roles = ["super_admin", "admin", "user"];
+              // Create user object
+              let user = {
+                id: userData.user.id,
+                email: userData.user.email,
+                name:
+                  profileData?.full_name ||
+                  userData.user.user_metadata?.name ||
+                  userData.user.email,
+                roles: profileData?.roles || ["user"],
+                tier: "enterprise",
+                mfaMethods: profileData?.mfa_methods || [],
+                features: getEnterpriseFeatures(),
+              };
+
+              // Special case for super admin
+              if (user.email === "itsus@tatt2away.com") {
+                user.roles = ["super_admin", "admin", "user"];
+              }
+
+              // Update state
+              setCurrentUser(user);
+              setSession(sessionData.session);
+              setUserTier("enterprise");
+              setUserFeatures(user.features);
+
+              // Update localStorage
+              localStorage.setItem(
+                "authToken",
+                sessionData.session.access_token
+              );
+              localStorage.setItem(
+                "refreshToken",
+                sessionData.session.refresh_token
+              );
+              localStorage.setItem("currentUser", JSON.stringify(user));
+              localStorage.setItem("isAuthenticated", "true");
             }
-
-            // Update state
-            setCurrentUser(userData);
-            setUserTier("enterprise");
-            setUserFeatures(userData.features);
-
-            // Update localStorage
-            localStorage.setItem("currentUser", JSON.stringify(userData));
-            localStorage.setItem("isAuthenticated", "true");
           } catch (error) {
-            console.error("Error parsing stored user:", error);
+            console.error("Error getting user profile:", error);
+          }
+        } else {
+          // Check localStorage as fallback
+          const storedUser = localStorage.getItem("currentUser");
+          const isAuthenticated =
+            localStorage.getItem("isAuthenticated") === "true";
+          const authToken = localStorage.getItem("authToken");
 
-            // Clear invalid data
-            localStorage.removeItem("currentUser");
-            localStorage.removeItem("authToken");
-            localStorage.removeItem("isAuthenticated");
+          if (storedUser && (isAuthenticated || authToken)) {
+            try {
+              let userData = JSON.parse(storedUser);
 
+              // Always set enterprise features
+              userData.features = getEnterpriseFeatures();
+
+              // Ensure super admin role for test user
+              if (userData.email === "itsus@tatt2away.com") {
+                userData.roles = ["super_admin", "admin", "user"];
+              }
+
+              // Update state
+              setCurrentUser(userData);
+              setUserTier("enterprise");
+              setUserFeatures(userData.features);
+
+              // Update localStorage
+              localStorage.setItem("currentUser", JSON.stringify(userData));
+              localStorage.setItem("isAuthenticated", "true");
+            } catch (error) {
+              console.error("Error parsing stored user:", error);
+
+              // Clear invalid data
+              localStorage.removeItem("currentUser");
+              localStorage.removeItem("authToken");
+              localStorage.removeItem("isAuthenticated");
+
+              setCurrentUser(null);
+              setSession(null);
+            }
+          } else {
             setCurrentUser(null);
             setSession(null);
           }
+        }
+      } catch (error) {
+        console.error("Error initializing auth:", error);
+
+        // Check localStorage as final fallback
+        const storedUser = localStorage.getItem("currentUser");
+        if (storedUser) {
+          try {
+            const userData = JSON.parse(storedUser);
+            setCurrentUser(userData);
+            setUserTier("enterprise");
+            setUserFeatures(getEnterpriseFeatures());
+          } catch (error) {
+            console.error("Error parsing stored user:", error);
+            setCurrentUser(null);
+          }
         } else {
           setCurrentUser(null);
-          setSession(null);
         }
       }
 
@@ -1128,7 +1125,7 @@ export function AuthProvider({ children }) {
       } = supabase.auth.onAuthStateChange(async (event, session) => {
         console.log("Supabase auth state change:", event);
 
-        if (session) {
+        if (event === "SIGNED_IN" && session) {
           try {
             // Get user data
             const { data: userData } = await supabase.auth.getUser();
@@ -1205,14 +1202,6 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  // Computed properties for admin status
-  const isAdmin =
-    currentUser?.roles?.includes("admin") ||
-    currentUser?.roles?.includes("super_admin") ||
-    false;
-
-  const isSuperAdmin = currentUser?.roles?.includes("super_admin") || false;
-
   // Build context value
   const value = {
     currentUser,
@@ -1222,9 +1211,12 @@ export function AuthProvider({ children }) {
     session,
     login,
     logout,
-    register: () => {}, // Implementation would go here
-    isAdmin,
-    isSuperAdmin,
+    register,
+    isAdmin:
+      currentUser?.roles?.includes("admin") ||
+      currentUser?.roles?.includes("super_admin") ||
+      false,
+    isSuperAdmin: currentUser?.roles?.includes("super_admin") || false,
     hasPermission,
     hasRole,
     hasFeatureAccess,

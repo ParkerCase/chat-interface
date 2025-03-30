@@ -34,29 +34,12 @@ function MfaVerify() {
         const returnUrl = params.get("returnUrl") || "/";
         setRedirectUrl(returnUrl);
 
-        // Get factor ID from query params or try to get from current session
-        const factorIdFromParams = params.get("factorId");
-
-        if (factorIdFromParams) {
-          setFactorId(factorIdFromParams);
-
-          // Try to get additional info about the factor
-          try {
-            const { data, error } =
-              await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-
-            if (!error && data) {
-              console.log("MFA assurance level data:", data);
-              // Use available info to enhance the UX
-            }
-          } catch (err) {
-            console.warn("Failed to get MFA details:", err);
-          }
-        } else {
+        // Get factor ID and other MFA data from session
+        try {
           // Check if we have an active Supabase session
-          const { data: session } = await supabase.auth.getSession();
+          const { data: sessionData } = await supabase.auth.getSession();
 
-          if (session?.session) {
+          if (sessionData?.session) {
             // Try to get MFA status for the current session
             const { data: mfaData, error: mfaError } =
               await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
@@ -71,6 +54,7 @@ function MfaVerify() {
               ) {
                 // We should prompt for MFA verification
                 setFactorId(mfaData.currentFactorId);
+                setType("totp"); // Default to TOTP
               } else {
                 // MFA is not required, redirect to destination
                 navigate(returnUrl);
@@ -82,14 +66,12 @@ function MfaVerify() {
             navigate(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
             return;
           }
+        } catch (err) {
+          console.error("Error getting MFA status:", err);
+          throw new Error("Failed to get MFA status");
         }
 
-        // Get email and type, either from params or current user
-        const typeFromParams = params.get("type");
-        if (typeFromParams) {
-          setType(typeFromParams);
-        }
-
+        // Get email from current user or params
         if (currentUser) {
           setEmail(currentUser.email);
         } else {
@@ -98,10 +80,12 @@ function MfaVerify() {
             setEmail(emailFromParams);
           }
         }
+
+        // Reset loading state once all data is loaded
+        setIsLoading(false);
       } catch (err) {
         console.error("Error initializing MFA verification:", err);
         setError("Failed to initialize MFA verification. Please try again.");
-      } finally {
         setIsLoading(false);
       }
     };

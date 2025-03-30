@@ -22,6 +22,7 @@ import "./MFAVerification.css";
  * @param {Function} props.onCancel - Callback function to cancel verification
  * @param {Object} props.mfaData - Data about the MFA method being used
  * @param {boolean} props.standalone - Whether component is used standalone or embedded
+ * @param {string} props.redirectUrl - URL to redirect to after verification
  */
 function MFAVerification({
   onSuccess,
@@ -90,7 +91,7 @@ function MFAVerification({
       setIsLoading(true);
 
       // Special handling for test user
-      if (mfaData.email === TEST_EMAIL || !mfaData.factorId) {
+      if (mfaData.email === TEST_EMAIL) {
         console.log("Test user detected, bypassing MFA verification");
 
         // For testing, allow any 6-digit code for test user
@@ -124,36 +125,55 @@ function MFAVerification({
       // Try Supabase MFA verification
       let success = false;
 
-      try {
-        // Create MFA challenge
-        const { data: challengeData, error: challengeError } =
-          await supabase.auth.mfa.challenge({
-            factorId: mfaData.factorId,
-          });
+      if (mfaData.factorId) {
+        try {
+          // Create MFA challenge
+          const { data: challengeData, error: challengeError } =
+            await supabase.auth.mfa.challenge({
+              factorId: mfaData.factorId,
+            });
 
-        if (challengeError) throw challengeError;
+          if (challengeError) throw challengeError;
 
-        // Verify the challenge
-        const { data: verifyData, error: verifyError } =
-          await supabase.auth.mfa.verify({
-            factorId: mfaData.factorId,
-            challengeId: challengeData.id,
-            code: verificationCode,
-          });
+          // Verify the challenge
+          const { data: verifyData, error: verifyError } =
+            await supabase.auth.mfa.verify({
+              factorId: mfaData.factorId,
+              challengeId: challengeData.id,
+              code: verificationCode,
+            });
 
-        if (verifyError) throw verifyError;
+          if (verifyError) throw verifyError;
 
-        console.log("Supabase MFA verification successful");
-        success = true;
-      } catch (supabaseError) {
-        console.error("Supabase MFA verification error:", supabaseError);
+          console.log("Supabase MFA verification successful");
+          success = true;
+        } catch (supabaseError) {
+          console.error("Supabase MFA verification error:", supabaseError);
 
-        // Try custom verification as fallback
+          // Try using the verifyMfa function from AuthContext as fallback
+          if (verifyMfa) {
+            try {
+              success = await verifyMfa(
+                mfaData.factorId || mfaData.methodId,
+                verificationCode
+              );
+            } catch (error) {
+              console.error("Fallback MFA verification error:", error);
+              throw error;
+            }
+          } else {
+            throw supabaseError;
+          }
+        }
+      } else if (mfaData.methodId) {
+        // Try using the verifyMfa function from AuthContext
         if (verifyMfa) {
           success = await verifyMfa(mfaData.methodId, verificationCode);
         } else {
-          throw supabaseError;
+          throw new Error("No MFA verification method available");
         }
+      } else {
+        throw new Error("Missing MFA factor or method ID");
       }
 
       if (success) {
@@ -184,32 +204,6 @@ function MFAVerification({
       setError(err.message || "Failed to verify code. Please try again.");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // Inside MFAVerification component for TOTP verification
-  const verifyTOTP = async (factorId, code) => {
-    try {
-      // Create challenge
-      const { data: challenge, error: challengeError } =
-        await supabase.auth.mfa.challenge({
-          factorId: factorId,
-        });
-
-      if (challengeError) throw challengeError;
-
-      // Verify code against challenge
-      const { data, error } = await supabase.auth.mfa.verify({
-        factorId: factorId,
-        challengeId: challenge.id,
-        code: code,
-      });
-
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error("TOTP verification error:", error);
-      return false;
     }
   };
 
@@ -254,7 +248,11 @@ function MFAVerification({
   // Show success screen if verification was successful
   if (verificationSuccess) {
     return (
-      <div className="mfa-verification-container mfa-success">
+      <div
+        className={`mfa-verification-container mfa-success ${
+          standalone ? "standalone" : ""
+        }`}
+      >
         <div className="success-icon-container">
           <CheckCircle className="success-icon" size={48} />
         </div>

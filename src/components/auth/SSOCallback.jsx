@@ -28,7 +28,6 @@ function SSOCallback() {
         const error = params.get("error");
         const errorDescription = params.get("error_description");
         const returnUrl = params.get("returnUrl") || "/";
-        const redirectTo = params.get("redirectTo");
 
         // Handle errors from OAuth provider
         if (error) {
@@ -66,18 +65,35 @@ function SSOCallback() {
               // Add short delay for better UX
               setTimeout(() => {
                 // Determine if the user is an admin for redirect
-                const user = JSON.parse(
-                  localStorage.getItem("currentUser") || "{}"
-                );
-                const isAdmin =
-                  user?.roles?.includes("admin") ||
-                  user?.roles?.includes("super_admin");
+                const { data: userData } = await supabase.auth.getUser();
+                if (!userData?.user) {
+                  throw new Error("User data not available");
+                }
 
-                // Either go to MFA verification or to the app
-                navigate(
-                  "/mfa/verify?returnUrl=" +
-                    encodeURIComponent(returnUrl || (isAdmin ? "/admin" : "/"))
-                );
+                // Get user profile from Supabase
+                const { data: profileData } = await supabase
+                  .from("profiles")
+                  .select("roles")
+                  .eq("id", userData.user.id)
+                  .single();
+
+                const roles = profileData?.roles || ["user"];
+                const isAdmin = roles.includes("admin") || roles.includes("super_admin");
+
+                // Check if MFA is required
+                const { data: mfaData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+                const mfaRequired = 
+                  mfaData && 
+                  mfaData.currentLevel !== mfaData.nextLevel && 
+                  mfaData.nextLevel === "aal2";
+
+                // Navigate based on MFA status
+                if (mfaRequired) {
+                  navigate(`/mfa/verify?returnUrl=${encodeURIComponent(returnUrl)}`);
+                } else {
+                  // Navigate based on role
+                  navigate(isAdmin ? "/admin" : returnUrl);
+                }
               }, 1000);
 
               return;
@@ -91,7 +107,7 @@ function SSOCallback() {
         // Process authorization code if present
         if (code) {
           setStatus("processing");
-          setMessage("Processing authentication...");
+          setMessage("Processing authentication code...");
 
           // Try to exchange the code for tokens
           const success = await processTokenExchange(code);
@@ -102,7 +118,7 @@ function SSOCallback() {
 
             // Add short delay for better UX
             setTimeout(() => {
-              // Determine if the user is an admin for redirect
+              // Get current user from localStorage as a fallback
               const user = JSON.parse(
                 localStorage.getItem("currentUser") || "{}"
               );
@@ -110,11 +126,12 @@ function SSOCallback() {
                 user?.roles?.includes("admin") ||
                 user?.roles?.includes("super_admin");
 
-              // Either go to MFA verification or to the app
-              navigate(
-                "/mfa/verify?returnUrl=" +
-                  encodeURIComponent(returnUrl || (isAdmin ? "/admin" : "/"))
-              );
+              // Check if MFA is required for this user
+              if (user?.mfaMethods && user.mfaMethods.length > 0) {
+                navigate(`/mfa/verify?returnUrl=${encodeURIComponent(returnUrl)}`);
+              } else {
+                navigate(isAdmin ? "/admin" : returnUrl);
+              }
             }, 1000);
           } else {
             setStatus("error");

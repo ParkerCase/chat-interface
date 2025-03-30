@@ -2,11 +2,10 @@
 import React, { useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 /**
  * Protects routes that should only be accessible to admin users
- * Handles user management sections
  */
 const AdminRoute = () => {
   const { currentUser, loading, hasRole, isInitialized } = useAuth();
@@ -31,7 +30,7 @@ const AdminRoute = () => {
     return (
       <div className="auth-loading">
         <Loader2 className="spinner" size={24} />
-        <p>Checking permissions...</p>
+        <p>Checking admin permissions...</p>
       </div>
     );
   }
@@ -54,7 +53,7 @@ const AdminRoute = () => {
   // Check for admin roles
   const userIsAdmin = hasRole("admin") || hasRole("super_admin");
 
-  // Redirect to dashboard if not admin
+  // Redirect to unauthorized page if not admin
   if (!userIsAdmin) {
     return <Navigate to="/unauthorized" replace />;
   }

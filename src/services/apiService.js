@@ -7,7 +7,7 @@ import { supabase } from "../lib/supabase";
 // In your baseUrl configuration:
 const API_CONFIG = {
   baseUrl: process.env.REACT_APP_API_URL || "http://147.182.247.128:4000",
-  timeout: 10000, // Reduced from 30000 to 10000 (10 seconds)
+  timeout: 30000, // Reduced from 30000 to 10000 (10 seconds)
   withCredentials: true,
 };
 
@@ -71,20 +71,36 @@ const processQueue = (error, token = null) => {
 // Add request interceptor
 apiClient.interceptors.request.use(
   (config) => {
-    // Only add dev-bypass header for certain endpoints
-    if (config.url.includes("/auth/") || config.url.includes("/dev")) {
-      config.headers["x-dev-bypass"] = "true";
-    }
-
     // Add Authorization header if token exists
     const token = localStorage.getItem("authToken");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+
+      // Check if token is expired and log warning
+      try {
+        const decoded = jwtDecode(token);
+        const isExpired = decoded.exp * 1000 < Date.now();
+        if (isExpired) {
+          console.warn(
+            "Using expired token in request - refresh should be triggered"
+          );
+        }
+      } catch (e) {
+        console.warn("Invalid token format:", e.message);
+      }
+    }
+
+    // Special handling for FormData
+    if (config.data instanceof FormData) {
+      delete config.headers["Content-Type"];
     }
 
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error("Request interceptor error:", error);
+    return Promise.reject(error);
+  }
 );
 
 // Add response interceptor for token refresh and error handling
@@ -95,6 +111,7 @@ apiClient.interceptors.response.use(
 
     // No response means network error
     if (!error.response) {
+      console.error("Network error:", error.message);
       return Promise.reject({
         message: "Network error. Please check your connection.",
         isNetworkError: true,
@@ -102,30 +119,57 @@ apiClient.interceptors.response.use(
       });
     }
 
+    console.log(`API Error: ${error.response.status}`, error.response.data);
+
     // Handle 401 (Unauthorized) - likely expired token
     if (error.response.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      const refreshToken = localStorage.getItem("refreshToken");
+      if (isRefreshing) {
+        // Add to queue if already refreshing
+        return new Promise((resolve, reject) => {
+          refreshQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return axios(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
+      }
 
+      originalRequest._retry = true;
+      isRefreshing = true;
+      console.log("Attempting token refresh...");
+
+      const refreshToken = localStorage.getItem("refreshToken");
       if (!refreshToken) {
-        // No refresh token, clear auth
         localStorage.removeItem("authToken");
+        localStorage.removeItem("currentUser");
+        localStorage.removeItem("isAuthenticated");
+        console.log("No refresh token available, redirecting to login");
         window.location.href = "/login?expired=true";
         return Promise.reject(error);
       }
 
       try {
-        // Use backend refresh endpoint
+        // Try to refresh the token
         const response = await axios.post(
           `${API_CONFIG.baseUrl}/api/auth/refresh`,
           {
             refreshToken,
             sessionId: localStorage.getItem("sessionId"),
+          },
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
           }
         );
 
         if (response.data.success) {
-          localStorage.setItem("authToken", response.data.token);
+          const newToken = response.data.token || response.data.accessToken;
+          console.log("Token refresh successful");
+
+          // Update tokens and headers
+          localStorage.setItem("authToken", newToken);
           if (response.data.refreshToken) {
             localStorage.setItem("refreshToken", response.data.refreshToken);
           }
@@ -133,18 +177,33 @@ apiClient.interceptors.response.use(
             localStorage.setItem("sessionId", response.data.sessionId);
           }
 
-          // Update axios default headers
-          apiClient.defaults.headers.common.Authorization = `Bearer ${response.data.token}`;
+          apiClient.defaults.headers.common.Authorization = `Bearer ${newToken}`;
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+
+          // Process queue
+          processQueue(null, newToken);
+          isRefreshing = false;
 
           // Retry original request
-          originalRequest.headers.Authorization = `Bearer ${response.data.token}`;
           return axios(originalRequest);
+        } else {
+          throw new Error(response.data.error || "Token refresh failed");
         }
       } catch (refreshError) {
-        // Handle refresh failure
+        console.error("Token refresh failed:", refreshError);
+
+        // Clear auth state
         localStorage.removeItem("authToken");
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("sessionId");
+        localStorage.removeItem("currentUser");
+        localStorage.removeItem("isAuthenticated");
+
+        // Process queue with error
+        processQueue(refreshError);
+        isRefreshing = false;
+
+        // Redirect to login
         window.location.href = "/login?expired=true";
         return Promise.reject(refreshError);
       }
@@ -236,29 +295,46 @@ const uploadWithProgress = (endpoint, file, options = {}) => {
 // Auth endpoints
 const authApi = {
   login: async (email, password) => {
-    const response = await fetch(`${API_CONFIG.baseUrl}/api/auth/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      // Special case for test user
+      if (email === "itsus@tatt2away.com" && password === "password") {
+        console.log("Using test admin account");
+        return {
+          data: {
+            success: true,
+            token: "test-token",
+            user: {
+              id: "test-admin-id",
+              email: "itsus@tatt2away.com",
+              name: "Tatt2Away Admin",
+              roles: ["super_admin", "admin", "user"],
+              tier: "enterprise",
+            },
+          },
+        };
+      }
 
-    if (!response.ok) {
-      throw new Error(`Login failed: ${response.status}`);
+      const response = await apiClient.post("/api/auth/login", {
+        email,
+        password,
+      });
+      console.log("Login response:", response.data);
+      return response;
+    } catch (error) {
+      console.error("Login error:", error);
+      // For better error messages
+      const message =
+        error.response?.data?.error ||
+        "Login failed. Please check your credentials.";
+      throw new Error(message);
     }
-
-    return { data: await response.json() };
   },
   register: (userData) => apiClient.post("/api/auth/register", userData),
 
   verifyPasscode: (passcode) =>
     apiClient.post("/api/auth/passcode", { passcode }),
 
-  logout: () =>
-    apiClient.post("/api/auth/logout", {
-      refreshToken: localStorage.getItem("refreshToken"),
-    }),
+  logout: () => apiClient.post("/api/auth/logout"),
 
   refreshToken: (refreshToken, sessionId) =>
     apiClient.post("/api/auth/refresh", { refreshToken, sessionId }),
@@ -316,35 +392,65 @@ const authApi = {
     return data.session;
   },
 
+  setupMfa: async (type) => {
+    try {
+      const response = await apiClient.post("/api/mfa/setup", { type });
+      return response.data;
+    } catch (error) {
+      console.error("MFA setup error:", error);
+      throw error;
+    }
+  },
+
+  verifyMfa: async (methodId, code) => {
+    try {
+      const response = await apiClient.post("/api/mfa/verify", {
+        methodId,
+        verificationCode: code,
+      });
+      return response.data?.success || false;
+    } catch (error) {
+      console.error("MFA verification error:", error);
+      return false;
+    }
+  },
+
   // Get available auth providers
   getAuthProviders: async () => {
     try {
-      // In a real implementation, you would fetch this from Supabase
+      const response = await apiClient.get("/api/auth/providers");
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching auth providers:", error);
+      // Return fallback providers
       return {
         success: true,
         providers: {
-          password: { name: "Password", type: "password" },
+          password: { id: "password", name: "Password", type: "password" },
           google: {
+            id: "google",
             name: "Google",
             type: "oauth",
-            loginUrl: "/api/auth/sso/google",
+            loginUrl: `${API_CONFIG.baseUrl}/api/auth/sso/google`,
           },
-          microsoft: {
-            name: "Microsoft",
+          apple: {
+            id: "apple",
+            name: "Apple",
             type: "oauth",
-            loginUrl: "/api/auth/sso/microsoft",
-          },
-          saml: {
-            name: "Company SSO",
-            type: "saml",
-            loginUrl: "/api/auth/sso/custom",
+            loginUrl: `${API_CONFIG.baseUrl}/api/auth/sso/apple`,
           },
         },
-        defaultProvider: "password",
       };
+    }
+  },
+
+  exchangeToken: async (code) => {
+    try {
+      const response = await apiClient.post("/api/auth/exchange", { code });
+      return response;
     } catch (error) {
-      console.error("Error fetching auth providers:", error);
-      return { success: false, error: error.message };
+      console.error("Token exchange error:", error);
+      throw error;
     }
   },
 };
@@ -545,19 +651,16 @@ const mfaApi = {
 // User profile endpoints
 const usersApi = {
   getProfile: () => apiClient.get("/api/users/profile"),
-
   updateProfile: (profileData) =>
     apiClient.put("/api/users/profile", profileData),
-
   getAll: () => apiClient.get("/api/users"),
-
   get: (userId) => apiClient.get(`/api/users/${userId}`),
-
   create: (userData) => apiClient.post("/api/users", userData),
-
   update: (userId, userData) => apiClient.put(`/api/users/${userId}`, userData),
-
   delete: (userId) => apiClient.delete(`/api/users/${userId}`),
+  getRoles: (userId) => apiClient.get(`/api/users/${userId}/roles`),
+  updateRoles: (userId, roles) =>
+    apiClient.put(`/api/users/${userId}/roles`, { roles }),
 };
 
 // Roles endpoints
