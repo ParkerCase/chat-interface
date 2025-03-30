@@ -26,6 +26,130 @@ export function AuthProvider({ children }) {
   const [isInitialized, setIsInitialized] = useState(false);
   const supabaseListenerRef = useRef(null);
 
+  // Get a valid token, refreshing if needed
+  const getValidToken = async () => {
+    try {
+      // Check if we have a token
+      const token = localStorage.getItem("authToken");
+      if (!token) throw new Error("No authentication token available");
+
+      // Check if token is expired
+      const isExpired = isTokenExpired(token);
+      if (!isExpired) return token;
+
+      console.log("Token expired, refreshing...");
+
+      // Refresh the token using Supabase directly
+      const { data, error } = await supabase.auth.refreshSession();
+
+      if (error || !data.session) {
+        // Clear invalid tokens
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("refreshToken");
+        throw new Error("Failed to refresh token");
+      }
+
+      // Update tokens in storage
+      const newToken = data.session.access_token;
+      localStorage.setItem("authToken", newToken);
+      localStorage.setItem("refreshToken", data.session.refresh_token);
+
+      return newToken;
+    } catch (error) {
+      console.error("Token validation error:", error);
+      throw error;
+    }
+  };
+
+  // Check if token is expired
+  const isTokenExpired = (token) => {
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const expiry = payload.exp * 1000; // Convert to milliseconds
+      return Date.now() >= expiry;
+    } catch (e) {
+      console.error("Token parsing error:", e);
+      return true; // Assume expired if we can't parse it
+    }
+  };
+
+  // Email MFA setup function - this works directly with Supabase
+  const setupEmailMFA = async (email) => {
+    try {
+      // Make sure we have a valid email
+      const userEmail = email || currentUser?.email;
+      if (!userEmail) {
+        throw new Error("Email address is required");
+      }
+
+      console.log(`Setting up email MFA for ${userEmail}`);
+
+      // Use Supabase's OTP system with explicit code option
+      const { error } = await supabase.auth.signInWithOtp({
+        email: userEmail,
+        options: {
+          shouldCreateUser: false,
+          // Force OTP (numeric code) instead of magic link
+          emailRedirectTo: null,
+        },
+      });
+
+      if (error) throw error;
+
+      console.log("Email with verification code sent successfully");
+
+      // Return data in expected format
+      return {
+        success: true,
+        data: {
+          methodId: "email-" + Date.now(),
+          email: userEmail,
+          type: "email",
+        },
+      };
+    } catch (error) {
+      console.error("Email MFA setup error:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to send verification email",
+      };
+    }
+  };
+
+  // Email OTP verification function
+  const verifyEmailOTP = async (email, code) => {
+    try {
+      console.log(`Verifying email OTP for ${email} with code ${code}`);
+
+      // Verify the OTP code - note the type should be 'magiclink'
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: code,
+        type: "magiclink", // This is the key change
+      });
+
+      if (error) {
+        console.error("OTP verification error:", error);
+        throw error;
+      }
+
+      // Check if we received a session - this indicates success
+      if (data && data.session) {
+        console.log("OTP verification successful, session established");
+        return true;
+      }
+
+      // Add explicit logging for the response
+      console.log("Verification response:", data);
+
+      // Return true when we have a user or session object
+      return !!(data && (data.user || data.session));
+    } catch (error) {
+      console.error("Email verification error:", error);
+      return false;
+    }
+  };
+
   // Login function with MFA support
   const login = async (email, password) => {
     try {
@@ -59,14 +183,10 @@ export function AuthProvider({ children }) {
         setUserTier("enterprise");
         setUserFeatures(adminUser.features);
 
+        // For test admin, we'll skip MFA for easier testing
         return {
           success: true,
-          mfaRequired,
-          mfaData: mfaRequired ? mfaDetail : null,
-          isAdmin:
-            userData.roles.includes("admin") ||
-            userData.roles.includes("super_admin") ||
-            userData.email === "itsus@tatt2away.com",
+          isAdmin: true,
         };
       }
 
@@ -156,10 +276,27 @@ export function AuthProvider({ children }) {
       setUserTier("enterprise");
       setUserFeatures(userData.features);
 
+      // Check if user has MFA set up
+      const hasMfa = userData.mfaMethods && userData.mfaMethods.length > 0;
+
+      // If user doesn't have MFA set up, force setup
+      if (!hasMfa) {
+        return {
+          success: true,
+          requiresMfaSetup: true,
+          user: userData,
+        };
+      }
+
+      // If we have MFA methods, require verification
       return {
         success: true,
-        mfaRequired,
-        mfaData: mfaRequired ? mfaDetail : null,
+        mfaRequired: true,
+        mfaData: {
+          methodId: userData.mfaMethods[0].id,
+          type: userData.mfaMethods[0].type || "totp",
+          email: userData.email,
+        },
         isAdmin:
           userData.roles.includes("admin") ||
           userData.roles.includes("super_admin"),
@@ -173,27 +310,386 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const checkUserRole = useCallback((user, roleToCheck) => {
-    if (!user || !user.roles) {
-      console.log("Role check failed: No user or roles array", user);
+  // Setup MFA with TOTP or Email
+  const setupMfa = async (type) => {
+    try {
+      console.log(`Setting up ${type} MFA...`);
+
+      if (type === "totp") {
+        // Use Supabase's TOTP setup
+        const { data, error } = await supabase.auth.mfa.enroll({
+          factorType: "totp",
+          issuer: "Tatt2Away",
+        });
+
+        if (error) throw error;
+
+        return {
+          success: true,
+          data: {
+            methodId: data.id,
+            factorId: data.id,
+            secret: data.totp.secret,
+            qrCode: data.totp.qr_code,
+            type: "totp",
+          },
+        };
+      } else if (type === "email") {
+        // Use our custom email MFA function
+        return await setupEmailMFA(currentUser?.email);
+      } else {
+        throw new Error(`Unsupported MFA type: ${type}`);
+      }
+    } catch (error) {
+      console.error("MFA setup error:", error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  };
+
+  // Confirm MFA setup
+  const confirmMfa = async (methodId, verificationCode) => {
+    try {
+      console.log(
+        `Confirming MFA setup for ID: ${methodId} with code: ${verificationCode}`
+      );
+
+      // Determine if this is email or TOTP
+      const isEmail = methodId.startsWith("email-");
+
+      let success = false;
+
+      if (isEmail) {
+        // Email OTP verification
+        success = await verifyEmailOTP(currentUser.email, verificationCode);
+        console.log("Email verification result:", success);
+
+        if (success) {
+          // Update user's MFA methods
+          updateUserMfaMethods(methodId, "email");
+        } else {
+          throw new Error("Email verification failed");
+        }
+      } else {
+        // TOTP verification
+        const { data: challengeData, error: challengeError } =
+          await supabase.auth.mfa.challenge({
+            factorId: methodId,
+          });
+
+        if (challengeError) throw challengeError;
+
+        const { error } = await supabase.auth.mfa.verify({
+          factorId: methodId,
+          challengeId: challengeData.id,
+          code: verificationCode,
+        });
+
+        if (error) throw error;
+
+        // Update user's MFA methods
+        updateUserMfaMethods(methodId, "totp");
+
+        return true;
+      }
+    } catch (error) {
+      console.error("MFA confirmation error:", error);
       return false;
     }
+  };
 
-    // Super admin bypass
-    if (user.roles.includes("super_admin")) {
-      console.log("Role check passed: User is super_admin");
+  // Helper function to update user's MFA methods
+  const updateUserMfaMethods = async (methodId, type) => {
+    if (!currentUser) return;
+
+    try {
+      // Create new method object
+      const newMethod = {
+        id: methodId,
+        type,
+        createdAt: new Date().toISOString(),
+      };
+
+      // Update local user
+      const mfaMethods = [...(currentUser.mfaMethods || [])];
+      const existingIndex = mfaMethods.findIndex((m) => m.id === methodId);
+
+      if (existingIndex >= 0) {
+        mfaMethods[existingIndex] = newMethod;
+      } else {
+        mfaMethods.push(newMethod);
+      }
+
+      // Update context state
+      setCurrentUser({
+        ...currentUser,
+        mfaMethods,
+      });
+
+      // Update localStorage
+      localStorage.setItem(
+        "currentUser",
+        JSON.stringify({
+          ...currentUser,
+          mfaMethods,
+        })
+      );
+
+      // Update Supabase profile
+      const { error } = await supabase
+        .from("profiles")
+        .update({ mfa_methods: mfaMethods })
+        .eq("id", currentUser.id);
+
+      if (error) throw error;
+
       return true;
+    } catch (error) {
+      console.error("Error updating MFA methods:", error);
+      // Don't throw - this is non-critical
+      return false;
     }
+  };
 
-    // Special test user handling
-    if (user.email === "itsus@tatt2away.com") {
-      console.log("Test admin user detected, granting admin access");
+  // Verify MFA during login
+  const verifyMfa = async (methodId, verificationCode) => {
+    try {
+      setError("");
+
+      // Special case for test admin user
+      if (currentUser?.email === "itsus@tatt2away.com") {
+        console.log("Test user MFA verification bypass");
+        return true;
+      }
+
+      console.log(
+        `Verifying MFA with ID: ${methodId}, code: ${verificationCode}`
+      );
+
+      // Determine if this is email or TOTP
+      const isEmail = methodId.startsWith("email-");
+
+      if (isEmail) {
+        // Email verification using Supabase OTP
+        const userEmail = currentUser?.email;
+
+        const { data, error } = await supabase.auth.verifyOtp({
+          email: userEmail,
+          token: verificationCode,
+          type: "magiclink",
+        });
+
+        if (error) {
+          console.error("Email verification error:", error);
+          return false;
+        }
+
+        console.log("Email verification successful:", data);
+
+        // Force redirect to admin for admin users
+        if (
+          currentUser?.roles?.includes("admin") ||
+          currentUser?.roles?.includes("super_admin") ||
+          currentUser?.email === "itsus@tatt2away.com"
+        ) {
+          // This is the crucial part - trigger navigation after verification
+          console.log("Admin user detected, redirecting to admin panel");
+          window.location.href = "/admin";
+        }
+
+        return true;
+      } else {
+        // TOTP verification
+        const { data: challengeData, error: challengeError } =
+          await supabase.auth.mfa.challenge({
+            factorId: methodId,
+          });
+
+        if (challengeError) throw challengeError;
+
+        const { error } = await supabase.auth.mfa.verify({
+          factorId: methodId,
+          challengeId: challengeData.id,
+          code: verificationCode,
+        });
+
+        if (error) throw error;
+
+        console.log("TOTP verification successful");
+
+        // Force redirect for admin users
+        if (
+          currentUser?.roles?.includes("admin") ||
+          currentUser?.roles?.includes("super_admin") ||
+          currentUser?.email === "itsus@tatt2away.com"
+        ) {
+          console.log("Admin user detected, redirecting to admin panel");
+          window.location.href = "/admin";
+        }
+
+        return true;
+      }
+    } catch (error) {
+      console.error("MFA verification error:", error);
+      setError(error.message || "Failed to verify code");
+      return false;
+    }
+  };
+
+  // Remove MFA method
+  const removeMfa = async (methodId) => {
+    try {
+      // If email MFA, just remove it from the profile
+      if (methodId === "email" || methodId.startsWith("email-")) {
+        // Just update the user's profile
+        if (currentUser) {
+          const mfaMethods = (currentUser.mfaMethods || []).filter(
+            (method) => method.id !== methodId
+          );
+
+          // Update local state
+          setCurrentUser({
+            ...currentUser,
+            mfaMethods,
+          });
+
+          // Update localStorage
+          localStorage.setItem(
+            "currentUser",
+            JSON.stringify({
+              ...currentUser,
+              mfaMethods,
+            })
+          );
+
+          // Update Supabase profile
+          const { error } = await supabase
+            .from("profiles")
+            .update({ mfa_methods: mfaMethods })
+            .eq("id", currentUser.id);
+
+          if (error) throw error;
+        }
+
+        return true;
+      }
+
+      // For TOTP, use Supabase unenroll
+      const { error } = await supabase.auth.mfa.unenroll({
+        factorId: methodId,
+      });
+
+      if (error) throw error;
+
+      // Update user state
+      if (currentUser) {
+        const mfaMethods = (currentUser.mfaMethods || []).filter(
+          (method) => method.id !== methodId
+        );
+
+        // Update local state
+        setCurrentUser({
+          ...currentUser,
+          mfaMethods,
+        });
+
+        // Update localStorage
+        localStorage.setItem(
+          "currentUser",
+          JSON.stringify({
+            ...currentUser,
+            mfaMethods,
+          })
+        );
+
+        // Update Supabase profile
+        const { error } = await supabase
+          .from("profiles")
+          .update({ mfa_methods: mfaMethods })
+          .eq("id", currentUser.id);
+
+        if (error) console.warn("Failed to update profile:", error);
+      }
+
       return true;
+    } catch (error) {
+      console.error("MFA removal error:", error);
+      return false;
     }
+  };
 
-    const hasRole = user.roles.includes(roleToCheck);
-    console.log(`Role check for ${roleToCheck}: ${hasRole}`, user.roles);
-    return hasRole;
+  // Check if user has a role
+  const hasRole = useCallback(
+    (roleCode) => {
+      if (!currentUser || !currentUser.roles) {
+        return false;
+      }
+
+      // Super admin can act as any role
+      if (currentUser.roles.includes("super_admin")) {
+        return true;
+      }
+
+      return currentUser.roles.includes(roleCode);
+    },
+    [currentUser]
+  );
+
+  // Check if user has permission
+  const hasPermission = useCallback(
+    (permissionCode) => {
+      if (!currentUser || !currentUser.roles) {
+        return false;
+      }
+
+      // Super admin has all permissions
+      if (currentUser.roles.includes("super_admin")) {
+        return true;
+      }
+
+      // Admin has most permissions except system level ones
+      if (currentUser.roles.includes("admin")) {
+        return !permissionCode.startsWith("system.");
+      }
+
+      // Check specific permissions in user
+      if (
+        currentUser.permissions &&
+        currentUser.permissions.includes(permissionCode)
+      ) {
+        return true;
+      }
+
+      // Basic role-based permissions
+      if (
+        permissionCode.startsWith("user.") &&
+        currentUser.roles.includes("user")
+      ) {
+        return true;
+      }
+
+      // Feature access based on tier
+      if (permissionCode.startsWith("feature.")) {
+        const featureName = permissionCode.substring("feature.".length);
+        return hasFeatureAccess(featureName);
+      }
+
+      return false;
+    },
+    [currentUser]
+  );
+
+  // Check if user has access to a feature
+  const hasFeatureAccess = useCallback((featureName) => {
+    // In this application, all users have enterprise features
+    return true;
+  }, []);
+
+  // Get current user tier
+  const getUserTier = useCallback(() => {
+    return "enterprise";
   }, []);
 
   // Register function
@@ -432,251 +928,6 @@ export function AuthProvider({ children }) {
     };
   };
 
-  // Verify MFA code
-  const verifyMfa = async (factorId, verificationCode) => {
-    try {
-      setError("");
-
-      // Special case for test admin user
-      if (currentUser?.email === "itsus@tatt2away.com") {
-        return verificationCode.length === 6; // Accept any 6-digit code
-      }
-
-      // Try with Supabase
-      if (factorId) {
-        try {
-          // Create MFA challenge
-          const { data: challenge, error: challengeError } =
-            await supabase.auth.mfa.challenge({
-              factorId: factorId,
-            });
-
-          if (challengeError) throw challengeError;
-
-          // Verify the challenge
-          const { data: verify, error: verifyError } =
-            await supabase.auth.mfa.verify({
-              factorId: factorId,
-              challengeId: challenge.id,
-              code: verificationCode,
-            });
-
-          if (verifyError) throw verifyError;
-
-          return true;
-        } catch (error) {
-          console.error("Supabase MFA verification error:", error);
-          // Try custom API as fallback
-        }
-      }
-
-      // Try custom API
-      const response = await apiService.mfa.verify(factorId, verificationCode);
-      return response.data?.success || false;
-    } catch (error) {
-      console.error("MFA verification error:", error);
-      setError(error.message || "Failed to verify code");
-      return false;
-    }
-  };
-
-  // Set up MFA for a user
-  const setupMfa = async (type) => {
-    try {
-      // Try with Supabase first
-      if (type === "totp") {
-        const { data, error } = await supabase.auth.mfa.enroll({
-          factorType: "totp",
-          issuer: "Tatt2Away",
-        });
-
-        if (error) throw error;
-
-        return {
-          data: {
-            methodId: data.id,
-            secret: data.totp.secret,
-            qrCode: data.totp.qr_code,
-            factorId: data.id,
-          },
-        };
-      }
-
-      // Fall back to custom implementation
-      const response = await apiService.mfa.setup(type);
-      return response;
-    } catch (error) {
-      console.error("MFA setup error:", error);
-      throw error;
-    }
-  };
-
-  // Confirm MFA setup
-  // Confirm MFA setup
-  const confirmMfa = async (methodId, verificationCode) => {
-    try {
-      // Get the type of the MFA method being confirmed
-      // Default to "totp" if not specified
-      const methodType = "totp"; // Default value
-
-      // Try with Supabase first
-      try {
-        const { data, error } = await supabase.auth.mfa.challenge({
-          factorId: methodId,
-        });
-
-        if (error) throw error;
-
-        const { data: verifyData, error: verifyError } =
-          await supabase.auth.mfa.verify({
-            factorId: methodId,
-            challengeId: data.id,
-            code: verificationCode,
-          });
-
-        if (verifyError) throw verifyError;
-
-        // Update local user with new MFA method - explicitly pass the type
-        updateMfaMethods(methodId, methodType);
-
-        return true;
-      } catch (supabaseError) {
-        console.warn("Supabase MFA confirmation failed:", supabaseError);
-        // Fall through to custom implementation
-      }
-
-      // Try custom implementation
-      const response = await apiService.mfa.confirm(methodId, verificationCode);
-
-      if (response.data?.success) {
-        // Extract the type from the response if available
-        const responseType = response.data?.type || methodType;
-
-        // Update local user with new MFA method - explicitly pass the type
-        updateMfaMethods(methodId, responseType);
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      console.error("MFA confirmation error:", error);
-      return false;
-    }
-  };
-
-  // Remove MFA method
-  const removeMfa = async (methodId) => {
-    try {
-      // Try with Supabase first
-      try {
-        const { error } = await supabase.auth.mfa.unenroll({
-          factorId: methodId,
-        });
-
-        if (error) throw error;
-
-        // Update local user
-        if (currentUser) {
-          const mfaMethods = (currentUser.mfaMethods || []).filter(
-            (method) => method.id !== methodId
-          );
-
-          setCurrentUser({
-            ...currentUser,
-            mfaMethods,
-          });
-
-          // Update localStorage
-          localStorage.setItem(
-            "currentUser",
-            JSON.stringify({
-              ...currentUser,
-              mfaMethods,
-            })
-          );
-        }
-
-        return true;
-      } catch (supabaseError) {
-        console.warn("Supabase MFA removal failed:", supabaseError);
-        // Fall through to custom implementation
-      }
-
-      // Try custom implementation
-      const response = await apiService.mfa.remove(methodId);
-
-      if (response.data?.success) {
-        // Update local user
-        if (currentUser) {
-          const mfaMethods = (currentUser.mfaMethods || []).filter(
-            (method) => method.id !== methodId
-          );
-
-          setCurrentUser({
-            ...currentUser,
-            mfaMethods,
-          });
-
-          // Update localStorage
-          localStorage.setItem(
-            "currentUser",
-            JSON.stringify({
-              ...currentUser,
-              mfaMethods,
-            })
-          );
-        }
-
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      console.error("MFA removal error:", error);
-      return false;
-    }
-  };
-
-  // Helper function to update MFA methods in the user object
-  // Helper function to update MFA methods in the user object
-  const updateMfaMethods = (methodId, type) => {
-    if (!currentUser) return;
-
-    const mfaMethods = [...(currentUser.mfaMethods || [])];
-    const existingIndex = mfaMethods.findIndex((m) => m.id === methodId);
-
-    if (existingIndex >= 0) {
-      // Update existing method
-      mfaMethods[existingIndex] = {
-        ...mfaMethods[existingIndex],
-        type: type, // Explicitly use the parameter to avoid the no-undef error
-        lastUsed: new Date().toISOString(),
-      };
-    } else {
-      // Add new method
-      mfaMethods.push({
-        id: methodId,
-        type: type, // Explicitly use the parameter to avoid the no-undef error
-        createdAt: new Date().toISOString(),
-      });
-    }
-
-    // Update current user
-    setCurrentUser({
-      ...currentUser,
-      mfaMethods,
-    });
-
-    // Update localStorage backup
-    localStorage.setItem(
-      "currentUser",
-      JSON.stringify({
-        ...currentUser,
-        mfaMethods,
-      })
-    );
-  };
-
   // Get user active sessions
   const getActiveSessions = async () => {
     try {
@@ -893,78 +1144,6 @@ export function AuthProvider({ children }) {
       return false;
     }
   };
-
-  // Check if user has a role
-  const hasRole = useCallback(
-    (roleCode) => {
-      if (!currentUser || !currentUser.roles) {
-        return false;
-      }
-
-      // Super admin can act as any role
-      if (currentUser.roles.includes("super_admin")) {
-        return true;
-      }
-
-      return currentUser.roles.includes(roleCode);
-    },
-    [currentUser]
-  );
-
-  // Check if user has permission
-  const hasPermission = useCallback(
-    (permissionCode) => {
-      if (!currentUser || !currentUser.roles) {
-        return false;
-      }
-
-      // Super admin has all permissions
-      if (currentUser.roles.includes("super_admin")) {
-        return true;
-      }
-
-      // Admin has most permissions except system level ones
-      if (currentUser.roles.includes("admin")) {
-        return !permissionCode.startsWith("system.");
-      }
-
-      // Check specific permissions in user
-      if (
-        currentUser.permissions &&
-        currentUser.permissions.includes(permissionCode)
-      ) {
-        return true;
-      }
-
-      // Basic role-based permissions
-      if (
-        permissionCode.startsWith("user.") &&
-        currentUser.roles.includes("user")
-      ) {
-        return true;
-      }
-
-      // Feature access based on tier
-      if (permissionCode.startsWith("feature.")) {
-        const featureName = permissionCode.substring("feature.".length);
-        return hasFeatureAccess(featureName);
-      }
-
-      return false;
-    },
-    [currentUser]
-  );
-
-  // Check if user has access to a feature
-  const hasFeatureAccess = useCallback((featureName) => {
-    // In this application, all users have enterprise features
-    return true;
-  }, []);
-
-  // Get current user tier
-  const getUserTier = useCallback(() => {
-    return "enterprise";
-  }, []);
 
   // Get current user
   const getCurrentUser = async () => {
@@ -1254,8 +1433,6 @@ export function AuthProvider({ children }) {
       false,
     isSuperAdmin: currentUser?.roles?.includes("super_admin") || false,
     hasPermission,
-    checkUserRole,
-
     hasRole,
     hasFeatureAccess,
     getUserTier,
@@ -1277,3 +1454,5 @@ export function AuthProvider({ children }) {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
+
+export default AuthContext;
