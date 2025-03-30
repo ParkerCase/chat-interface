@@ -4,7 +4,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
 import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
-import "./SSOCallback.css";
 
 /**
  * Handles OAuth callback redirects from SSO providers

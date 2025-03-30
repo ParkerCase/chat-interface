@@ -1,14 +1,14 @@
-// src/components/AdminRoute.jsx
+// src/components/FilePermissionsRoute.jsx
 import React, { useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 /**
  * Protects routes that should only be accessible to admin users
- * Handles user management sections
+ * Specifically for file permissions management
  */
-const AdminRoute = () => {
+const FilePermissionsRoute = () => {
   const { currentUser, loading, hasRole, isInitialized } = useAuth();
   const location = useLocation();
 
@@ -16,7 +16,7 @@ const AdminRoute = () => {
   useEffect(() => {
     if (currentUser && !loading) {
       console.log(
-        `Admin route access attempt by ${
+        `File permissions access attempt by ${
           currentUser.email
         } (${currentUser.roles?.join(", ")})`
       );
@@ -63,4 +63,4 @@ const AdminRoute = () => {
   return <Outlet />;
 };
 
-export default AdminRoute;
+export default FilePermissionsRoute;
