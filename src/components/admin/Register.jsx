@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { AlertCircle, UserPlus } from "lucide-react";
+import { supabase } from "../../lib/supabase";
 import "./Admin.css";
 
 function Register() {
@@ -13,7 +14,7 @@ function Register() {
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(null);
 
-  const { register, error: authError, isAdmin } = useAuth();
+  const { register, error: authError, isAdmin, isSuperAdmin } = useAuth();
   const [formError, setFormError] = useState("");
 
   const handleSubmit = async (e) => {
@@ -45,26 +46,76 @@ function Register() {
       return;
     }
 
+    // Ensure that only super admin can create admin users
+    if (roles.includes("admin") && !isSuperAdmin) {
+      setFormError("Only super administrators can create admin accounts");
+      return;
+    }
+
+    // Super admin role can only be granted to test user
+    if (roles.includes("super_admin") && email !== "itsus@tatt2away.com") {
+      setFormError("Super admin role cannot be assigned");
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const result = await register({
+
+      // Generate a random password if none provided
+      const generatedPassword =
+        password ||
+        Math.random().toString(36).slice(2) +
+          Math.random().toString(36).slice(2).toUpperCase() +
+          "!";
+
+      // Register user with Supabase
+      const { data, error } = await supabase.auth.admin.createUser({
         email,
-        name,
-        password: password || undefined, // Let server generate if empty
-        roles,
+        password: generatedPassword,
+        email_confirm: true,
+        user_metadata: {
+          full_name: name,
+        },
       });
 
-      if (result && result.success) {
-        setSuccess(result);
-        // Reset form
-        setEmail("");
-        setName("");
-        setPassword("");
-        setRoles(["user"]);
-      }
+      if (error) throw error;
+
+      // Create profile in Supabase
+      const { error: profileError } = await supabase.from("profiles").insert([
+        {
+          id: data.user.id,
+          full_name: name,
+          email,
+          roles,
+          tier: "enterprise",
+        },
+      ]);
+
+      if (profileError) throw profileError;
+
+      // Set success state with user and credentials
+      setSuccess({
+        user: {
+          id: data.user.id,
+          email,
+          name,
+          roles,
+        },
+        credentials: {
+          password: password ? null : generatedPassword,
+        },
+      });
+
+      // Reset form
+      setEmail("");
+      setName("");
+      setPassword("");
+      setRoles(["user"]);
     } catch (error) {
-      setFormError("An unexpected error occurred. Please try again.");
       console.error("Registration error:", error);
+      setFormError(
+        error.message || "An unexpected error occurred. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -215,9 +266,12 @@ function Register() {
                   type="checkbox"
                   checked={roles.includes("admin")}
                   onChange={() => handleRoleChange("admin")}
-                  disabled={isLoading}
+                  disabled={isLoading || !isSuperAdmin}
                 />
                 Admin (Full Access)
+                {!isSuperAdmin && (
+                  <span className="role-restriction">(Super Admin only)</span>
+                )}
               </label>
             </div>
           </div>

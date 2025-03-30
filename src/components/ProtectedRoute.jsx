@@ -2,7 +2,12 @@
 import React from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { Loader2 } from "lucide-react";
 
+/**
+ * Protected route component that requires authentication
+ * Optionally checks for specific roles or features
+ */
 function ProtectedRoute({
   requireRoles = [],
   requireFeatures = [],
@@ -16,8 +21,8 @@ function ProtectedRoute({
   if (loading || !isInitialized) {
     return (
       <div className="auth-loading">
-        <div className="spinner"></div>
-        <p>Authenticating...</p>
+        <Loader2 className="spinner" size={24} />
+        <p>Checking authentication...</p>
       </div>
     );
   }
@@ -37,6 +42,7 @@ function ProtectedRoute({
   if (requireRoles.length > 0) {
     const hasRequiredRole = requireRoles.some((role) => hasRole(role));
     if (!hasRequiredRole) {
+      // Use fallback or navigate to unauthorized page
       return fallback || <Navigate to="/unauthorized" replace />;
     }
   }
@@ -47,11 +53,12 @@ function ProtectedRoute({
       hasFeatureAccess(feature)
     );
     if (!hasRequiredFeature) {
+      // Use fallback or navigate to unauthorized page
       return fallback || <Navigate to="/unauthorized" replace />;
     }
   }
 
-  // All checks passed, render children
+  // All checks passed, render the protected content
   return <Outlet />;
 }
 
