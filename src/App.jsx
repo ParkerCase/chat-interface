@@ -314,7 +314,6 @@ function App() {
                 {/* Fallback route */}
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>
-              {process.env.NODE_ENV === "development" && <AuthDebugger />}
             </div>
           </Router>
         </FeatureFlagProvider>
