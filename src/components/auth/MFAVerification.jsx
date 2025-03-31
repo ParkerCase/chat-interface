@@ -3,7 +3,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { supabase } from "../../lib/supabase";
+import { supabase, enhancedAuth } from "../../lib/supabase";
+import { debugAuth } from "../../utils/authDebug";
+
 import {
   Shield,
   AlertCircle,
@@ -96,8 +98,6 @@ function MFAVerification({
   /**
    * Handle verification code submission
    */
-  // In src/components/auth/MFAVerification.jsx - Replace the handleSubmit function
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -112,35 +112,36 @@ function MFAVerification({
       console.log("Attempting MFA verification with code:", verificationCode);
 
       // Special handling for test user
-      if (mfaData.email === TEST_EMAIL) {
-        console.log("Test user detected, bypassing MFA verification");
+      if (mfaData.email === TEST_EMAIL && verificationCode.length === 6) {
+        console.log("Test user MFA verification - simulating success");
 
-        // For testing, allow any 6-digit code for test user
-        if (verificationCode.length === 6) {
-          setVerificationSuccess(true);
-          console.log("Test user MFA verification successful");
+        // Wait a moment to simulate verification
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
-          // Force immediate redirect to admin panel
-          window.location.href = "/admin";
-          return;
-        } else {
-          throw new Error("Invalid verification code");
+        // Set state and call success handler
+        setVerificationSuccess(true);
+
+        // Execute onSuccess callback
+        if (onSuccess) {
+          console.log("Calling onSuccess handler for test user");
+          onSuccess();
         }
+        return;
       }
 
-      // Try Supabase MFA verification
+      // Normal verification flow
       let success = false;
 
       if (mfaData.factorId) {
         try {
           console.log(
-            "Using Supabase MFA verification with factorId:",
+            "Creating MFA challenge with factorId:",
             mfaData.factorId
           );
 
           // Create MFA challenge
           const { data: challengeData, error: challengeError } =
-            await supabase.auth.mfa.challenge({
+            await enhancedAuth.mfa.challenge({
               factorId: mfaData.factorId,
             });
 
@@ -151,9 +152,15 @@ function MFAVerification({
 
           console.log("Challenge created successfully:", challengeData);
 
+          console.log("Verifying MFA code:", {
+            factorId: mfaData.factorId,
+            challengeId: challengeData.id,
+            code: verificationCode,
+          });
+
           // Verify the challenge
           const { data: verifyData, error: verifyError } =
-            await supabase.auth.mfa.verify({
+            await enhancedAuth.mfa.verify({
               factorId: mfaData.factorId,
               challengeId: challengeData.id,
               code: verificationCode,
@@ -164,32 +171,18 @@ function MFAVerification({
             throw verifyError;
           }
 
-          console.log("Supabase MFA verification successful");
+          console.log("MFA verification successful:", verifyData);
           success = true;
         } catch (supabaseError) {
           console.error("Supabase MFA verification error:", supabaseError);
-
-          // Try using the verifyMfa function from AuthContext as fallback
-          if (verifyMfa) {
-            try {
-              console.log("Trying fallback MFA verification");
-              success = await verifyMfa(
-                mfaData.factorId || mfaData.methodId,
-                verificationCode
-              );
-            } catch (error) {
-              console.error("Fallback MFA verification error:", error);
-              throw error;
-            }
-          } else {
-            throw supabaseError;
-          }
+          throw supabaseError;
         }
       } else if (mfaData.methodId) {
-        // Try using the verifyMfa function from AuthContext
+        // Try using the verifyMfa function from AuthContext as fallback
         if (verifyMfa) {
           console.log("Using methodId for verification:", mfaData.methodId);
           success = await verifyMfa(mfaData.methodId, verificationCode);
+          console.log("verifyMfa result:", success);
         } else {
           throw new Error("No MFA verification method available");
         }
@@ -197,22 +190,32 @@ function MFAVerification({
         throw new Error("Missing MFA factor or method ID");
       }
 
+      // Handle verification result
       if (success) {
-        console.log("MFA verification successful - redirecting to admin panel");
+        console.log("MFA verification successful");
         setVerificationSuccess(true);
 
-        // Set session flag for reliable redirect
-        sessionStorage.setItem("mfaRedirectPending", "true");
-        sessionStorage.setItem("mfaRedirectTarget", "/admin");
+        // Try multiple approaches to ensure navigation works
+        try {
+          // First try a direct approach with a delay
+          setTimeout(() => {
+            console.log("Executing delayed redirect to admin");
+            try {
+              window.location.href = "/admin";
+            } catch (e) {
+              console.error("Direct navigation failed:", e);
+            }
+          }, 1000);
 
-        // Force immediate redirect to admin panel - no delays
-        window.location.href = "/admin";
-      } else {
-        throw new Error("Verification failed");
+          // Also try the callback approach
+          if (onSuccess) {
+            console.log("Calling onSuccess handler");
+            setTimeout(() => onSuccess(), 500);
+          }
+        } catch (e) {
+          console.error("Navigation error:", e);
+        }
       }
-    } catch (err) {
-      console.error("MFA verification error:", err);
-      setError(err.message || "Failed to verify code. Please try again.");
     } finally {
       setIsLoading(false);
     }

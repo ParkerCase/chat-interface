@@ -1,9 +1,11 @@
-// src/components/MfaVerify.jsx - Complete replacement
+// Replace the ENTIRE MfaVerify.jsx file with this updated version:
 
-import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useState, useEffect, navigate } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
+import SupabaseAuthHandler from "./auth/SupabaseAuthHandler";
+
 import MFAVerification from "./auth/MFAVerification";
 import { AlertCircle, Loader2 } from "lucide-react";
 import "./auth.css";
@@ -16,7 +18,6 @@ function MfaVerify() {
   const [email, setEmail] = useState("");
   const [redirectUrl, setRedirectUrl] = useState("/");
 
-  const navigate = useNavigate();
   const location = useLocation();
   const { currentUser } = useAuth();
 
@@ -72,7 +73,7 @@ function MfaVerify() {
                 } else {
                   console.log("MFA not required for this session, redirecting");
                   // MFA is not required, redirect to destination
-                  navigate(returnUrl);
+                  handleForceRedirect(returnUrl);
                   return;
                 }
               } else if (mfaError) {
@@ -83,7 +84,9 @@ function MfaVerify() {
                 "No active session and no user, redirecting to login"
               );
               // No active session and no user - redirect to login
-              navigate(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
+              handleForceRedirect(
+                `/login?returnUrl=${encodeURIComponent(returnUrl)}`
+              );
               return;
             }
           } catch (err) {
@@ -114,22 +117,39 @@ function MfaVerify() {
     };
 
     initMfaVerification();
-  }, [location, navigate, currentUser]);
+  }, [location, currentUser]);
+
+  // NEW FUNCTION: Force redirect with window.location
+  const handleForceRedirect = (url) => {
+    console.log(`Force redirecting to: ${url}`);
+    // Set a flag to indicate we're redirecting
+    sessionStorage.setItem("mfaRedirecting", "true");
+
+    // CRITICAL: Force page reload/redirect
+    window.location.href = url;
+  };
 
   // Handle successful verification
-
+  // Handle successful verification
   const handleSuccess = () => {
-    console.log("MFA verification successful, redirecting to admin panel");
+    console.log("MFA verification successful, redirecting to admin");
 
-    // Always redirect to admin panel regardless of user type
-    window.location.href = "/admin";
+    // Store verification state
+    try {
+      sessionStorage.setItem("mfa_verified", "true");
+    } catch (e) {
+      console.error("Error setting storage:", e);
+    }
+
+    // Only navigate to admin panel, don't force reload
+    navigate("/admin");
   };
 
   // Handle cancellation
   const handleCancel = () => {
     console.log("MFA verification cancelled, redirecting to login");
     // Redirect to login page
-    navigate("/login");
+    handleForceRedirect("/login");
   };
 
   // Show loading state
@@ -150,7 +170,10 @@ function MfaVerify() {
           <AlertCircle size={36} className="error-icon" />
           <h2>Verification Error</h2>
           <p>{error}</p>
-          <button onClick={() => navigate("/login")} className="back-button">
+          <button
+            onClick={() => handleForceRedirect("/login")}
+            className="back-button"
+          >
             Back to Login
           </button>
         </div>
@@ -161,17 +184,20 @@ function MfaVerify() {
   // Render MFA verification component
   return (
     <div className="mfa-container">
+      {/* Add this component to catch successful auth events */}
+      <SupabaseAuthHandler />
+
       <MFAVerification
         standalone={true}
         mfaData={{
           factorId,
-          methodId: factorId, // For backward compatibility
+          methodId: factorId,
           type,
           email,
         }}
         onSuccess={handleSuccess}
         onCancel={handleCancel}
-        redirectUrl={redirectUrl}
+        redirectUrl="/admin"
       />
     </div>
   );

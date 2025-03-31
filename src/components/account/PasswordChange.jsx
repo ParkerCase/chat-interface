@@ -16,6 +16,7 @@ function PasswordChange({ setError, setSuccessMessage }) {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const [passwordChecks, setPasswordChecks] = useState({
     length: false,
@@ -86,6 +87,7 @@ function PasswordChange({ setError, setSuccessMessage }) {
       );
 
       if (success) {
+        setIsSuccess(true);
         setSuccessMessage("Password changed successfully");
 
         // Reset form
@@ -260,6 +262,13 @@ function PasswordChange({ setError, setSuccessMessage }) {
           )}
         </button>
       </form>
+
+      {isSuccess && (
+        <div className="success-message">
+          <CheckCircle className="success-icon" />
+          <p>Password changed successfully!</p>
+        </div>
+      )}
 
       <div className="password-security-tips">
         <h4>Password Security Tips</h4>

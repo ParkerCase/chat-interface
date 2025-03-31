@@ -23,7 +23,7 @@ import SSOCallback from "./components/auth/SSOCallback";
 import AccountPage from "./components/account/AccountPage";
 import FilePermissionsRoute from "./components/FilePermissionsRoute";
 import AuthDebugger from "./components/AuthDebugger";
-
+import { debugAuth } from "./utils/authDebug";
 // Professional Tier Features
 import APIKeyManagement from "./components/APIKeyManagement";
 
@@ -32,6 +32,7 @@ import WorkflowManagement from "./components/enterprise/WorkflowManagement";
 import AnalyticsDashboard from "./components/enterprise/AnalyticsDashboard";
 import IntegrationSettings from "./components/enterprise/IntegrationSettings";
 import AlertsManagement from "./components/enterprise/AlertsManagement";
+import { setupAuthRedirects } from "./utils/authRedirect";
 
 import "./App.css";
 
@@ -63,6 +64,23 @@ function App() {
     };
   }, []);
 
+  // Add this to App.jsx or your root component
+  useEffect(() => {
+    // Check if there's a pending redirect from MFA
+    const pendingRedirect = sessionStorage.getItem("mfaRedirectPending");
+    const redirectTarget = sessionStorage.getItem("mfaRedirectTarget");
+
+    if (pendingRedirect === "true" && redirectTarget) {
+      console.log("Executing pending MFA redirect to:", redirectTarget);
+      // Clear the pending flag
+      sessionStorage.removeItem("mfaRedirectPending");
+      sessionStorage.removeItem("mfaRedirectTarget");
+
+      // Execute the redirect
+      window.location.replace(redirectTarget);
+    }
+  }, []);
+
   useEffect(() => {
     const checkAndClearMfaRedirect = () => {
       // Another check for MFA redirect flag
@@ -84,21 +102,14 @@ function App() {
     checkAndClearMfaRedirect();
   }, []);
 
-  // Add this to App.jsx or your root component
   useEffect(() => {
-    // Check if there's a pending redirect from MFA
-    const pendingRedirect = sessionStorage.getItem("mfaRedirectPending");
-    const redirectTarget = sessionStorage.getItem("mfaRedirectTarget");
+    // Setup auth redirects
+    const subscription = setupAuthRedirects();
 
-    if (pendingRedirect === "true" && redirectTarget) {
-      console.log("Executing pending MFA redirect to:", redirectTarget);
-      // Clear the pending flag
-      sessionStorage.removeItem("mfaRedirectPending");
-      sessionStorage.removeItem("mfaRedirectTarget");
-
-      // Execute the redirect
-      window.location.replace(redirectTarget);
-    }
+    // Cleanup on unmount
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Handle out of memory errors
@@ -133,6 +144,86 @@ function App() {
 
     return () => {
       window.removeEventListener("error", handleOutOfMemory);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Only check for MFA completion explicitly
+    const handleMfaCompletion = () => {
+      // Check if we just completed MFA
+      const mfaVerified = sessionStorage.getItem("mfa_verified");
+
+      if (mfaVerified === "true") {
+        console.log("Detected successful MFA verification");
+        // Clear the flag
+        sessionStorage.removeItem("mfa_verified");
+
+        // Only redirect if we're still on the MFA page
+        if (
+          window.location.pathname.includes("/mfa") ||
+          window.location.pathname.includes("/verify")
+        ) {
+          console.log("Still on MFA page, redirecting to admin");
+          window.location.href = "/admin";
+        }
+      }
+    };
+
+    // Run once on mount
+    handleMfaCompletion();
+  }, []);
+
+  useEffect(() => {
+    // Check for MFA success on each render/navigation
+    const checkMfaSuccess = () => {
+      const mfaSuccess = sessionStorage.getItem("mfaSuccess");
+      if (mfaSuccess === "true") {
+        debugAuth.log("App", "Detected MFA success flag, handling redirect");
+
+        // Clear the flag
+        sessionStorage.removeItem("mfaSuccess");
+
+        // Get current location
+        const currentPath = window.location.pathname;
+
+        // If not already on admin page, redirect
+        if (currentPath !== "/admin") {
+          debugAuth.log("App", "Redirecting to admin from", currentPath);
+          window.location.replace("/admin");
+        }
+      }
+    };
+
+    checkMfaSuccess();
+
+    // Also add a global handler for unhandled promise rejections
+    const handleUnhandledRejection = (event) => {
+      debugAuth.log("Global", "Unhandled Promise Rejection", event.reason);
+
+      // If this is during MFA or password change, try to recover
+      if (
+        window.location.pathname.includes("/mfa") ||
+        window.location.pathname.includes("/security")
+      ) {
+        debugAuth.log(
+          "Global",
+          "Critical auth operation detected, attempting recovery"
+        );
+        // Try to redirect to a safe state
+        if (sessionStorage.getItem("mfaStarted") === "true") {
+          sessionStorage.removeItem("mfaStarted");
+          window.location.replace("/admin");
+        }
+      }
+    };
+
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener(
+        "unhandledrejection",
+        handleUnhandledRejection
+      );
     };
   }, []);
 
