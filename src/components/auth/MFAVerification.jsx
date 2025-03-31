@@ -58,26 +58,19 @@ function MFAVerification({
 
   // In src/components/auth/MFAVerification.jsx
   useEffect(() => {
-    // Add this effect to ensure redirection happens on success
-    if (isSuccess) {
-      console.log("MFA verification successful, preparing for redirect");
+    if (verificationSuccess) {
+      console.log(
+        "Verification success detected in effect - applying fallback redirect"
+      );
 
-      setTimeout(() => {
-        if (onSuccess) {
-          console.log("Calling onSuccess callback");
-          onSuccess();
-        } else {
-          console.log("No callback provided, redirecting directly");
-          const isAdmin =
-            currentUser?.roles?.includes("admin") ||
-            currentUser?.roles?.includes("super_admin") ||
-            currentUser?.email === "itsus@tatt2away.com";
+      // Fallback redirect after a short delay if the immediate redirect fails
+      const redirectTimer = setTimeout(() => {
+        window.location.href = "/admin";
+      }, 1000);
 
-          window.location.replace(isAdmin ? "/admin" : redirectUrl || "/");
-        }
-      }, 1500);
+      return () => clearTimeout(redirectTimer);
     }
-  }, [isSuccess, onSuccess, redirectUrl, currentUser]);
+  }, [verificationSuccess]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -103,6 +96,8 @@ function MFAVerification({
   /**
    * Handle verification code submission
    */
+  // In src/components/auth/MFAVerification.jsx - Replace the handleSubmit function
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -125,24 +120,8 @@ function MFAVerification({
           setVerificationSuccess(true);
           console.log("Test user MFA verification successful");
 
-          // If onSuccess callback is provided, call it after brief delay
-          if (onSuccess) {
-            setTimeout(() => {
-              onSuccess();
-            }, 1000);
-            return;
-          }
-
-          // Otherwise, handle redirect ourselves
-          const currentUser = await getCurrentUser();
-          const isAdmin =
-            currentUser?.roles?.includes("admin") ||
-            currentUser?.roles?.includes("super_admin");
-
-          setTimeout(() => {
-            navigate(redirectUrl || (isAdmin ? "/admin" : "/"));
-          }, 1500);
-
+          // Force immediate redirect to admin panel
+          window.location.href = "/admin";
           return;
         } else {
           throw new Error("Invalid verification code");
@@ -219,26 +198,15 @@ function MFAVerification({
       }
 
       if (success) {
-        console.log("MFA verification successful");
+        console.log("MFA verification successful - redirecting to admin panel");
         setVerificationSuccess(true);
 
-        // If onSuccess callback is provided, call it after brief delay
-        if (onSuccess) {
-          setTimeout(() => {
-            onSuccess();
-          }, 1000);
-          return;
-        }
+        // Set session flag for reliable redirect
+        sessionStorage.setItem("mfaRedirectPending", "true");
+        sessionStorage.setItem("mfaRedirectTarget", "/admin");
 
-        // Otherwise, handle redirect ourselves
-        const currentUser = await getCurrentUser();
-        const isAdmin =
-          currentUser?.roles?.includes("admin") ||
-          currentUser?.roles?.includes("super_admin");
-
-        setTimeout(() => {
-          navigate(redirectUrl || (isAdmin ? "/admin" : "/"));
-        }, 1500);
+        // Force immediate redirect to admin panel - no delays
+        window.location.href = "/admin";
       } else {
         throw new Error("Verification failed");
       }
