@@ -1,10 +1,7 @@
-// src/components/MainApp.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ArrowLeft } from "lucide-react";
 import Header from "./Header";
-import { Link } from "react-router-dom";
-import { Settings } from "lucide-react";
 import ChatContainer from "./ChatContainer";
 import InputBar from "./InputBar";
 import AnalysisResult from "./AnalysisResult";
@@ -177,11 +174,69 @@ function MainApp() {
     }
   };
 
+  // Advanced search with internet - new function
+  const handleAdvancedSearch = async (text) => {
+    try {
+      setIsLoading(true);
+
+      // Add user message to chat
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "user",
+          text,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+
+      // Show system message indicating web search
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "system",
+          text: "Searching the web for relevant information...",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+
+      // Call the advanced search endpoint
+      const response = await apiService.chat.advanced(text, userId);
+
+      // Add assistant response to chat
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "assistant",
+          text: response.data.response,
+          timestamp: new Date().toISOString(),
+          threadId: response.data.threadId,
+        },
+      ]);
+    } catch (error) {
+      const userMessage = error.isNetworkError
+        ? "Network connection error. Please check your internet connection and try again."
+        : `Error searching the web: ${error.message || "Unknown error"}`;
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "assistant",
+          text: userMessage,
+          type: "error",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Image search function
   const handleImageSearch = async (
     imageFile,
     message = "",
-    mode = "tensor"
+    mode = "tensor",
+    cloudPath = null
   ) => {
     // Check if image search is available for this user's tier
     if (!isFeatureEnabled("image_search")) {
@@ -194,27 +249,45 @@ function MainApp() {
       setIsLoading(true);
       setUploadProgress(0);
 
-      // Create file preview
-      const filePreview = URL.createObjectURL(imageFile);
+      // Create a message to display
+      let displayMessage =
+        message ||
+        `Image search (${mode === "tensor" ? "Full Match" : "Partial Match"})`;
 
-      // Determine if this is an initial search or a follow-up query
-      const isFollowUpQuery = message && message.trim().length > 0;
+      // If we have a cloud path, include it in the message
+      if (cloudPath) {
+        displayMessage += ` from ${cloudPath}`;
+      }
 
       // Add user message with the image
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "user",
-          content: filePreview,
-          type: "image",
-          timestamp: new Date().toISOString(),
-          text: isFollowUpQuery
-            ? message
-            : `Image search (${
-                mode === "tensor" ? "Full Match" : "Partial Match"
-              })`,
-        },
-      ]);
+      if (cloudPath) {
+        // For cloud images, we don't have a blob to create a preview
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "user",
+            text: displayMessage,
+            type: "text",
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      } else if (imageFile) {
+        // For file uploads, create a preview
+        const filePreview = URL.createObjectURL(imageFile);
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "user",
+            content: filePreview,
+            type: "image",
+            timestamp: new Date().toISOString(),
+            text: displayMessage,
+          },
+        ]);
+      }
+
+      // Determine if this is a follow-up query
+      const isFollowUpQuery = message && message.trim().length > 0;
 
       if (isFollowUpQuery) {
         // Handle follow-up query with the image
@@ -227,12 +300,23 @@ function MainApp() {
           },
         ]);
 
-        const data = await apiService.chat.uploadImage(
-          imageFile,
-          userId,
-          message,
-          (progress) => setUploadProgress(progress)
-        );
+        let data;
+        if (cloudPath) {
+          // Use the analyze image path endpoint
+          data = await apiService.chat.analyzeImagePath(
+            cloudPath,
+            message,
+            userId
+          );
+        } else {
+          // Use file upload endpoint
+          data = await apiService.chat.uploadImage(
+            imageFile,
+            userId,
+            message,
+            (progress) => setUploadProgress(progress)
+          );
+        }
 
         // Add assistant response to chat
         setMessages((prev) => [
@@ -257,11 +341,21 @@ function MainApp() {
           },
         ]);
 
-        const data = await apiService.chat.visualSearch(
-          imageFile,
-          mode,
-          (progress) => setUploadProgress(progress)
-        );
+        let data;
+        if (cloudPath) {
+          // Use path-based search
+          data = await apiService.search.advanced({
+            imagePath: cloudPath,
+            mode,
+          });
+        } else {
+          // Use file upload search
+          data = await apiService.chat.visualSearch(
+            imageFile,
+            mode,
+            (progress) => setUploadProgress(progress)
+          );
+        }
 
         setSearchResults(data);
 
@@ -485,7 +579,140 @@ function MainApp() {
     }
   };
 
-  // Send message function
+  // File upload handler - enhanced to handle documents too
+  const handleFileUpload = async (file, message = "", cloudPath = null) => {
+    // Check if file upload is available for this user's tier
+    if (!isFeatureEnabled("file_upload")) {
+      setShowUpgradePrompt(true);
+      setUpgradeTrigger("file_upload");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setUploadProgress(0);
+
+      // Handle file or cloud path
+      if (cloudPath) {
+        // Add user message with path reference
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "user",
+            text: message || `Analyze file at ${cloudPath}`,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+
+        // Use analyze path endpoint
+        const data = await apiService.chat.analyzeImagePath(
+          cloudPath,
+          message || "Analyze this file",
+          userId
+        );
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "assistant",
+            text: data.response,
+            timestamp: new Date().toISOString(),
+            threadId: data.threadId,
+          },
+        ]);
+      } else if (file) {
+        // Check file size
+        if (file.size > 10 * 1024 * 1024) {
+          throw new Error(
+            "File size exceeds 10MB limit. Please choose a smaller file."
+          );
+        }
+
+        // Determine file type
+        const isImage = file.type.startsWith("image/");
+
+        if (isImage) {
+          // Image upload flow
+          const filePreview = URL.createObjectURL(file);
+          setMessages((prev) => [
+            ...prev,
+            {
+              sender: "user",
+              content: filePreview,
+              type: "image",
+              timestamp: new Date().toISOString(),
+              text: message || "Analyze this image",
+            },
+          ]);
+
+          const data = await apiService.chat.uploadImage(
+            file,
+            userId,
+            message || "Analyze this image",
+            (progress) => setUploadProgress(progress)
+          );
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              sender: "assistant",
+              text: data.response,
+              timestamp: new Date().toISOString(),
+              threadId: data.threadId,
+            },
+          ]);
+        } else {
+          // Document upload flow
+          setMessages((prev) => [
+            ...prev,
+            {
+              sender: "user",
+              text: message || `Analyze this document: ${file.name}`,
+              timestamp: new Date().toISOString(),
+            },
+          ]);
+
+          // For document uploads, use document endpoint
+          const data = await apiService.chat.uploadDocument(
+            file,
+            userId,
+            message || `Analyze this document: ${file.name}`,
+            (progress) => setUploadProgress(progress)
+          );
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              sender: "assistant",
+              text: data.response,
+              timestamp: new Date().toISOString(),
+              threadId: data.threadId,
+            },
+          ]);
+        }
+      }
+    } catch (error) {
+      const userMessage = error.isNetworkError
+        ? "Network connection error. Please check your internet connection and try again."
+        : `Error processing file: ${error.message || "Unknown error"}`;
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "assistant",
+          text: userMessage,
+          type: "error",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+      setUploadProgress(0);
+      setFile(null);
+    }
+  };
+
+  // Handle text search - regular chat
   const sendMessage = async (text) => {
     try {
       setIsLoading(true);
@@ -594,75 +821,8 @@ function MainApp() {
     }
   };
 
-  // File upload handler
-  const handleFileUpload = async (file) => {
-    // Check if file upload is available for this user's tier
-    if (!isFeatureEnabled("file_upload")) {
-      setShowUpgradePrompt(true);
-      setUpgradeTrigger("file_upload");
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setUploadProgress(0);
-
-      if (file.size > 10 * 1024 * 1024) {
-        throw new Error(
-          "File size exceeds 10MB limit. Please choose a smaller file."
-        );
-      }
-
-      const filePreview = URL.createObjectURL(file);
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "user",
-          content: filePreview,
-          type: "image",
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-
-      const data = await apiService.chat.uploadImage(
-        file,
-        userId,
-        "Analyze this image",
-        (progress) => setUploadProgress(progress)
-      );
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "assistant",
-          text: data.response,
-          timestamp: new Date().toISOString(),
-          threadId: data.threadId,
-        },
-      ]);
-    } catch (error) {
-      const userMessage = error.isNetworkError
-        ? "Network connection error. Please check your internet connection and try again."
-        : `Error processing image: ${error.message || "Unknown error"}`;
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "assistant",
-          text: userMessage,
-          type: "error",
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-    } finally {
-      setIsLoading(false);
-      setUploadProgress(0);
-      setFile(null);
-    }
-  };
-
-  // Handle advanced search
-  const handleAdvancedSearch = async (query, type, limit) => {
+  // Search function - called from AdvancedSearch component
+  const handleAnotherSearch = async (query, type, limit) => {
     // Check if advanced search is available for this user's tier
     if (!isFeatureEnabled("advanced_search")) {
       setShowUpgradePrompt(true);
@@ -769,22 +929,6 @@ function MainApp() {
     };
   }, []);
 
-  // Event handler for analyze clicks
-  useEffect(() => {
-    const handleAnalyzeClick = (event) => {
-      if (event.target.classList.contains("analyze-link")) {
-        event.preventDefault();
-        const imagePath = event.target.getAttribute("data-path");
-        if (imagePath) {
-          analyzeImage(imagePath);
-        }
-      }
-    };
-
-    document.addEventListener("click", handleAnalyzeClick);
-    return () => document.removeEventListener("click", handleAnalyzeClick);
-  }, []);
-
   // Expose analyzeSearchResult to window object
   useEffect(() => {
     window.analyzeSearchResult = analyzeSearchResult;
@@ -801,11 +945,16 @@ function MainApp() {
         currentTheme={currentTheme}
         onChangeTheme={changeTheme}
       />
-      <div className="dashboard-link">
-        <Link to="/admin" className="admin-link-button">
-          <Settings size={16} />
-          <span>Admin Dashboard</span>
-        </Link>
+
+      {/* Dashboard link - changed to left side with new appearance */}
+      <div className="dashboard-link-container">
+        <button
+          onClick={() => navigate("/admin")}
+          className="dashboard-link-button"
+        >
+          <ArrowLeft size={16} />
+          <span>Return to Chatbot Dashboard</span>
+        </button>
       </div>
 
       {connectionError && (
@@ -823,7 +972,7 @@ function MainApp() {
 
       {/* Advanced Search with feature gate */}
       <FeatureGate feature="advanced_search">
-        <AdvancedSearch onResults={handleAdvancedSearch} />
+        <AdvancedSearch onResults={handleAnotherSearch} />
       </FeatureGate>
 
       <ChatContainer messages={messages} />
@@ -842,10 +991,12 @@ function MainApp() {
         />
       )}
 
+      {/* Enhanced InputBar with all new features */}
       <InputBar
         onSend={sendMessage}
         onFileUpload={handleFileUpload}
         onImageSearch={handleImageSearch}
+        onAdvancedSearch={handleAdvancedSearch}
         setFile={setFile}
         isLoading={isLoading}
         disabled={connectionError}

@@ -697,6 +697,282 @@ const chatApi = {
     });
   },
 
+  // Modified getChatHistory to work with your schema
+  getHistory: async (userId) => {
+    try {
+      const effectiveUserId =
+        userId || localStorage.getItem("chatUserId") || "default-user";
+
+      const response = await apiClient.get(
+        `/api/chat/history/${effectiveUserId}`
+      );
+      return response;
+    } catch (error) {
+      console.error("Error fetching chat history:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to retrieve chat history",
+          messages: [],
+        },
+      };
+    }
+  },
+
+  // Get messages for a specific thread
+  getThreadMessages: async (threadId) => {
+    try {
+      const response = await apiClient.get(`/api/chat/thread/${threadId}`);
+      return response;
+    } catch (error) {
+      console.error("Error fetching thread messages:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to retrieve thread messages",
+          messages: [],
+        },
+      };
+    }
+  },
+
+  // Process chat history into threads
+  processChatHistory: (historyData) => {
+    if (!historyData || !Array.isArray(historyData)) {
+      return [];
+    }
+
+    // Group messages by thread ID
+    const threadMap = {};
+
+    historyData.forEach((message) => {
+      // If there's no thread_id, skip this message
+      if (!message.thread_id) return;
+
+      // Create thread entry if it doesn't exist
+      if (!threadMap[message.thread_id]) {
+        threadMap[message.thread_id] = {
+          id: message.thread_id,
+          // Create a title from first user message or default to date
+          title:
+            message.message_type === "user"
+              ? message.content.length > 30
+                ? message.content.substring(0, 30) + "..."
+                : message.content
+              : `Chat ${new Date(message.created_at).toLocaleDateString()}`,
+          lastActivity: message.created_at,
+          messages: [],
+        };
+      }
+
+      // Add message to thread
+      threadMap[message.thread_id].messages.push(message);
+
+      // Update title if this is a user message and came earlier
+      if (
+        message.message_type === "user" &&
+        threadMap[message.thread_id].title.startsWith("Chat ")
+      ) {
+        threadMap[message.thread_id].title =
+          message.content.length > 30
+            ? message.content.substring(0, 30) + "..."
+            : message.content;
+      }
+
+      // Update last activity time if this message is more recent
+      if (
+        new Date(message.created_at) >
+        new Date(threadMap[message.thread_id].lastActivity)
+      ) {
+        threadMap[message.thread_id].lastActivity = message.created_at;
+      }
+    });
+
+    // Convert map to array and sort by most recent activity
+    return Object.values(threadMap).sort(
+      (a, b) => new Date(b.lastActivity) - new Date(a.lastActivity)
+    );
+  },
+
+  // Send a message to continue a thread
+  continueThread: async (threadId, message, userId) => {
+    try {
+      const response = await apiClient.post("/api/chat/continue", {
+        threadId,
+        message,
+        userId: userId || localStorage.getItem("chatUserId") || "default-user",
+      });
+      return response;
+    } catch (error) {
+      console.error("Error continuing thread:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to continue conversation",
+          response:
+            "I'm sorry, but I encountered an error processing your message.",
+        },
+      };
+    }
+  },
+
+  // Delete a chat thread
+  deleteThread: async (threadId) => {
+    try {
+      if (!threadId) {
+        throw new Error("Thread ID is required");
+      }
+
+      // Delete all messages in the thread first
+      const { error: messagesError } = await supabase
+        .from("chat_history")
+        .delete()
+        .eq("thread_id", threadId);
+
+      if (messagesError) throw messagesError;
+
+      // Then delete the thread itself
+      const { error: threadError } = await supabase
+        .from("chat_threads")
+        .delete()
+        .eq("thread_id", threadId);
+
+      if (threadError) throw threadError;
+
+      return {
+        data: {
+          success: true,
+          message: "Thread deleted successfully",
+          threadId,
+        },
+      };
+    } catch (error) {
+      console.error("Error deleting thread:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to delete thread",
+          threadId,
+        },
+      };
+    }
+  },
+
+  // Search message content
+  searchMessages: async (query, userId = null, options = {}) => {
+    try {
+      if (!query || !query.trim()) {
+        throw new Error("Search query is required");
+      }
+
+      // Build the base query
+      let dbQuery = supabase
+        .from("chat_history")
+        .select("*")
+        .ilike("content", `%${query}%`);
+
+      // Add user filter if provided
+      if (userId) {
+        // Get user's threads first
+        const { data: threadData } = await supabase
+          .from("chat_threads")
+          .select("thread_id")
+          .eq("user_id", userId);
+
+        if (threadData && threadData.length > 0) {
+          const threadIds = threadData.map((t) => t.thread_id);
+          dbQuery = dbQuery.in("thread_id", threadIds);
+        } else {
+          // User has no threads, return empty result
+          return {
+            data: {
+              success: true,
+              results: [],
+              query,
+            },
+          };
+        }
+      }
+
+      // Add limit if provided
+      if (options.limit) {
+        dbQuery = dbQuery.limit(options.limit);
+      } else {
+        dbQuery = dbQuery.limit(50); // Default limit
+      }
+
+      // Sort by most recent
+      dbQuery = dbQuery.order("created_at", { ascending: false });
+
+      // Execute query
+      const { data: messages, error } = await dbQuery;
+
+      if (error) throw error;
+
+      return {
+        data: {
+          success: true,
+          results: messages || [],
+          query,
+          count: messages ? messages.length : 0,
+        },
+      };
+    } catch (error) {
+      console.error("Error searching messages:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to search messages",
+          query,
+        },
+      };
+    }
+  },
+
+  // Web-enhanced chat (for admin users)
+  advanced: async (message, userId) => {
+    try {
+      if (!message) {
+        throw new Error("Message is required");
+      }
+
+      const defaultUserId = userId || "default-user";
+
+      // Call the advanced chat endpoint
+      const response = await apiClient.post("/api/chat/advanced", {
+        message,
+        userId: defaultUserId,
+      });
+
+      return response;
+    } catch (error) {
+      console.error("Advanced chat error:", error);
+
+      // Format error for consistent handling
+      if (error.response) {
+        return error.response;
+      }
+
+      return {
+        data: {
+          success: false,
+          error: error.message || "Advanced chat request failed",
+        },
+      };
+    }
+  },
+
+  // Upload a document (for processing text documents)
+  uploadDocument: (file, userId, message = "", onProgress) => {
+    return uploadWithProgress("/api/documents/upload", file, {
+      data: {
+        userId,
+        message: message || `Analyze this document: ${file.name}`,
+      },
+      onProgress,
+    });
+  },
+
   analyzeImagePath: (imagePath, message, userId) =>
     apiClient.post("/api/analyze/path", { imagePath, message, userId }),
 
