@@ -1,4 +1,4 @@
-// src/components/admin/EnhancedAdminPanel.jsx
+// src/components/admin/AdminPanel.jsx - updated to include ChatbotTabContent
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -6,7 +6,9 @@ import { useFeatureFlags } from "../../utils/featureFlags";
 import { useTheme } from "../../context/ThemeContext";
 import apiService from "../../services/apiService";
 import CRMTabContent from "./CRMTabContent";
+import ChatbotTabContent from "./ChatbotTabContent"; // Import ChatbotTabContent component
 import "./CRMTab.css";
+import "./ChatbotTabContent.css"; // Make sure to import the CSS
 import "../crm/CRMDashboard.css";
 import "../crm/ImportContacts.css";
 import {
@@ -543,8 +545,16 @@ const AdminPanel = () => {
             </div>
           )}
 
-          {/* Chatbot Tab */}
+          {/* CRM Tab */}
           {activeTab === "crm" && <CRMTabContent />}
+
+          {/* Chatbot Tab - Use the new ChatbotTabContent component */}
+          {activeTab === "chatbot" && (
+            <div className="admin-section">
+              <h2 className="admin-section-title">Chatbot Management</h2>
+              <ChatbotTabContent />
+            </div>
+          )}
 
           {/* Themes Tab */}
           {activeTab === "themes" && (
