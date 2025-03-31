@@ -63,6 +63,27 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const checkAndClearMfaRedirect = () => {
+      // Another check for MFA redirect flag
+      const pendingMfaRedirect = sessionStorage.getItem("mfaRedirectPending");
+
+      if (pendingMfaRedirect === "true") {
+        console.log("Found pending MFA redirect flag - redirecting to admin");
+
+        // Clear flags
+        sessionStorage.removeItem("mfaRedirectPending");
+        sessionStorage.removeItem("mfaRedirectTarget");
+
+        // Force admin redirect
+        window.location.href = "/admin";
+      }
+    };
+
+    // Run check on mount
+    checkAndClearMfaRedirect();
+  }, []);
+
   // Add this to App.jsx or your root component
   useEffect(() => {
     // Check if there's a pending redirect from MFA
