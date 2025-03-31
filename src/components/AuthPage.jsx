@@ -192,20 +192,13 @@ function AuthPage() {
   const handleMfaSuccess = () => {
     console.log("MFA verification successful");
 
-    // Check if user is admin
-    const isAdmin =
-      currentUser?.roles?.includes("admin") ||
-      currentUser?.roles?.includes("super_admin") ||
-      currentUser?.email === "itsus@tatt2away.com";
+    // Force a direct redirect to admin panel with a page reload
+    window.location.replace("/admin");
 
-    if (isAdmin) {
-      navigate("/admin");
-    } else {
-      // Get return URL from query params or default to home
-      const params = new URLSearchParams(location.search);
-      const returnUrl = params.get("returnUrl") || "/";
-      navigate(returnUrl);
-    }
+    // Fallback - if the above doesn't work immediately, try after a delay
+    setTimeout(() => {
+      window.location.href = "/admin";
+    }, 1000);
   };
 
   // Render different auth form based on authMode

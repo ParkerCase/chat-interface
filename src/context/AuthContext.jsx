@@ -7,7 +7,9 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase, enhancedAuth } from "../lib/supabase";
+import { debugAuth } from "../utils/authDebug";
+
 import apiService from "../services/apiService";
 
 const AuthContext = createContext(null);
@@ -320,13 +322,18 @@ export function AuthProvider({ children }) {
       console.log(`Setting up ${type} MFA...`);
 
       if (type === "totp") {
-        // Use Supabase's TOTP setup
-        const { data, error } = await supabase.auth.mfa.enroll({
+        // Use enhanced auth for TOTP setup
+        const { data, error } = await enhancedAuth.mfa.enroll({
           factorType: "totp",
           issuer: "Tatt2Away",
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error("MFA enrollment error:", error);
+          throw error;
+        }
+
+        console.log("MFA enrollment successful:", data);
 
         return {
           success: true,
@@ -357,7 +364,7 @@ export function AuthProvider({ children }) {
   const confirmMfa = async (methodId, verificationCode) => {
     try {
       console.log(
-        `Confirming MFA setup for ID: ${methodId} with code: ${verificationCode}`
+        `Confirming MFA for ID: ${methodId} with code: ${verificationCode}`
       );
 
       // Determine if this is email or TOTP
@@ -372,30 +379,46 @@ export function AuthProvider({ children }) {
 
         if (success) {
           // Update user's MFA methods
-          updateUserMfaMethods(methodId, "email");
+          await updateUserMfaMethods(methodId, "email");
         }
       } else {
-        // TOTP verification
-        const { data: challengeData, error: challengeError } =
-          await supabase.auth.mfa.challenge({
+        // Use enhanced auth for TOTP verification
+        try {
+          // Create challenge
+          const { data: challengeData, error: challengeError } =
+            await enhancedAuth.mfa.challenge({
+              factorId: methodId,
+            });
+
+          if (challengeError) {
+            console.error("MFA challenge error:", challengeError);
+            throw challengeError;
+          }
+
+          // Verify challenge
+          const { data, error } = await enhancedAuth.mfa.verify({
             factorId: methodId,
+            challengeId: challengeData.id,
+            code: verificationCode,
           });
 
-        if (challengeError) throw challengeError;
+          if (error) {
+            console.error("MFA verification error:", error);
+            throw error;
+          }
 
-        const { error } = await supabase.auth.mfa.verify({
-          factorId: methodId,
-          challengeId: challengeData.id,
-          code: verificationCode,
-        });
+          // Update user's MFA methods
+          await updateUserMfaMethods(methodId, "totp");
 
-        if (error) throw error;
-
-        // Update user's MFA methods
-        updateUserMfaMethods(methodId, "totp");
-
-        return true;
+          success = true;
+          console.log("TOTP verification successful");
+        } catch (err) {
+          console.error("Error during MFA verification:", err);
+          throw err;
+        }
       }
+
+      return success;
     } catch (error) {
       console.error("MFA confirmation error:", error);
       return false;
@@ -1035,42 +1058,44 @@ export function AuthProvider({ children }) {
   };
 
   // Change password
+  // Update only the changePassword function
   const changePassword = async (currentPassword, newPassword) => {
     try {
       setError("");
+      console.log("Starting password change");
 
-      // Try with Supabase first
+      // First verify current password
       try {
-        // Verify current password
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: currentUser.email,
           password: currentPassword,
         });
 
-        if (signInError) throw signInError;
+        if (signInError) {
+          console.error("Current password verification failed:", signInError);
+          throw new Error("Current password is incorrect");
+        }
 
-        // Update password
-        const { error } = await supabase.auth.updateUser({
+        console.log("Current password verified, updating password");
+
+        // Update password with enhanced auth
+        const { error } = await enhancedAuth.updateUser({
           password: newPassword,
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error("Password update failed:", error);
+          throw error;
+        }
 
+        console.log("Password changed successfully");
         return true;
-      } catch (supabaseError) {
-        console.warn("Supabase password change failed:", supabaseError);
-        // Fall through to custom implementation
+      } catch (error) {
+        console.error("Password change error:", error);
+        throw error;
       }
-
-      // Try custom implementation
-      const response = await apiService.auth.changePassword(
-        currentPassword,
-        newPassword
-      );
-
-      return response.data?.success || false;
     } catch (error) {
-      console.error("Password change error:", error);
+      console.error("Password change outer error:", error);
       setError(error.message || "Failed to change password");
       return false;
     }
