@@ -15,6 +15,9 @@ import {
   PlusCircle,
   Trash2,
   X,
+  FileText,
+  Image,
+  Eye,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useFeatureFlags } from "../../utils/featureFlags";
@@ -42,6 +45,15 @@ const ChatbotTabContent = () => {
   const [analysisResult, setAnalysisResult] = useState(null);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
+
+  // New state for modals
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showImageViewerModal, setShowImageViewerModal] = useState(false);
+  const [currentViewImage, setCurrentViewImage] = useState(null);
+  const [searchMode, setSearchMode] = useState("tensor"); // "tensor" for full, "partial" for partial
+  const [uploadType, setUploadType] = useState("document"); // "document" or "image"
+  const [searchResults, setSearchResults] = useState(null);
 
   // State for settings panel
   const [showSettings, setShowSettings] = useState(false);
@@ -185,6 +197,43 @@ const ChatbotTabContent = () => {
     }
   };
 
+  // Open the upload modal
+  const handleOpenUploadModal = () => {
+    setShowUploadModal(true);
+  };
+
+  // Handle file type selection
+  const handleSelectUploadType = (type) => {
+    setUploadType(type);
+
+    // Always close the upload modal first
+    setShowUploadModal(false);
+
+    if (type === "image") {
+      // For images, show the search modal
+      setTimeout(() => {
+        setShowSearchModal(true);
+      }, 100); // Small delay to ensure first modal closes properly
+    } else {
+      // For documents, trigger file selection directly
+      fileInputRef.current.setAttribute(
+        "accept",
+        "application/pdf,text/plain,.doc,.docx,.csv,.xls,.xlsx"
+      );
+      fileInputRef.current.click();
+    }
+  };
+
+  // Handle search mode selection
+  const handleSelectSearchMode = (mode) => {
+    setSearchMode(mode);
+    setShowSearchModal(false);
+
+    // Trigger file selection with appropriate accept attribute
+    fileInputRef.current.setAttribute("accept", "image/*");
+    fileInputRef.current.click();
+  };
+
   // Handle file selection
   const handleFileChange = (event) => {
     const selectedFile = event.target.files[0];
@@ -202,15 +251,15 @@ const ChatbotTabContent = () => {
 
     setFile(selectedFile);
 
-    // Create file preview for images
-    if (selectedFile.type.startsWith("image/")) {
+    // Create file preview based on upload type
+    if (uploadType === "image" || selectedFile.type.startsWith("image/")) {
       const reader = new FileReader();
       reader.onload = (e) => {
         setFilePreview(e.target.result);
       };
       reader.readAsDataURL(selectedFile);
     } else {
-      // Generic preview for non-image files
+      // Generic preview for document files
       setFilePreview("document");
     }
 
@@ -220,8 +269,8 @@ const ChatbotTabContent = () => {
     }
   };
 
-  // Handle file upload
-  const handleFileUpload = async () => {
+  // Handle file upload for documents
+  const handleDocumentUpload = async () => {
     if (!file) return;
 
     try {
@@ -232,21 +281,11 @@ const ChatbotTabContent = () => {
       const newUserMessage = {
         sender: "user",
         message_type: "user",
-        content:
-          inputText ||
-          `Analyze this ${
-            file.type.startsWith("image/") ? "image" : "document"
-          }`,
+        content: inputText || `Analyze this document: ${file.name}`,
         created_at: new Date().toISOString(),
+        file_type: "document",
+        file_name: file.name,
       };
-
-      if (file.type.startsWith("image/")) {
-        newUserMessage.file_type = "image";
-        newUserMessage.file_url = filePreview;
-      } else {
-        newUserMessage.file_type = "document";
-        newUserMessage.file_name = file.name;
-      }
 
       setCurrentMessages((prev) => [...prev, newUserMessage]);
 
@@ -254,31 +293,19 @@ const ChatbotTabContent = () => {
       const systemMessage = {
         sender: "system",
         message_type: "system",
-        content: `Processing ${
-          file.type.startsWith("image/") ? "image" : "document"
-        }...`,
+        content: `Processing document...`,
         created_at: new Date().toISOString(),
       };
 
       setCurrentMessages((prev) => [...prev, systemMessage]);
 
-      // Call appropriate API endpoint
-      let response;
-      if (file.type.startsWith("image/")) {
-        response = await apiService.chat.uploadImage(
-          file,
-          currentUser?.id,
-          inputText || "Analyze this image",
-          (progress) => setUploadProgress(progress)
-        );
-      } else {
-        response = await apiService.chat.uploadDocument(
-          file,
-          currentUser?.id,
-          inputText || `Analyze this document: ${file.name}`,
-          (progress) => setUploadProgress(progress)
-        );
-      }
+      // Upload document
+      const response = await apiService.chat.uploadDocument(
+        file,
+        currentUser?.id,
+        inputText || `Analyze this document: ${file.name}`,
+        (progress) => setUploadProgress(progress)
+      );
 
       // Add assistant response
       const assistantMessage = {
@@ -303,20 +330,223 @@ const ChatbotTabContent = () => {
       setFile(null);
       setFilePreview(null);
     } catch (err) {
-      console.error("File upload error:", err);
+      console.error("Document upload error:", err);
 
       const errorMessage = {
         sender: "system",
         message_type: "error",
-        content: `Error uploading file: ${err.message || "Unknown error"}`,
+        content: `Error uploading document: ${err.message || "Unknown error"}`,
         created_at: new Date().toISOString(),
       };
 
       setCurrentMessages((prev) => [...prev, errorMessage]);
-      setError(err.message || "Failed to upload file");
+      setError(err.message || "Failed to upload document");
     } finally {
       setIsLoading(false);
       setUploadProgress(0);
+    }
+  };
+
+  // Handle image search
+  const handleImageSearch = async () => {
+    if (!file) return;
+
+    try {
+      setIsLoading(true);
+      setUploadProgress(0);
+
+      // Define a default message if none was provided
+      const searchMessage =
+        inputText ||
+        `Search for similar images with ${
+          searchMode === "tensor" ? "Full Image Match" : "Partial Image Match"
+        } mode`;
+
+      // Add user message with file
+      const newUserMessage = {
+        sender: "user",
+        message_type: "user",
+        content: searchMessage,
+        created_at: new Date().toISOString(),
+        file_type: "image",
+        file_url: filePreview,
+      };
+
+      setCurrentMessages((prev) => [...prev, newUserMessage]);
+
+      // Create system message indicating processing
+      const systemMessage = {
+        sender: "system",
+        message_type: "system",
+        content: `Searching with ${
+          searchMode === "tensor" ? "Full Image Match" : "Partial Image Match"
+        } mode...`,
+        created_at: new Date().toISOString(),
+      };
+
+      setCurrentMessages((prev) => [...prev, systemMessage]);
+
+      // Create form data for the file upload
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("mode", searchMode);
+      formData.append("userId", currentUser?.id || "default-user");
+
+      // Always include a message - this is required by your API
+      formData.append("message", searchMessage);
+
+      // Perform image search - use the correct endpoint path
+      const response = await fetch(
+        `${apiService.utils.getBaseUrl()}/api/search/visual`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+      setSearchResults(data);
+
+      // Check if we have signatures available
+      if (data.stats && data.stats.totalSignaturesSearched === 0) {
+        console.warn(
+          "No signatures found for image search. This may affect results."
+        );
+
+        // Add a warning message
+        setCurrentMessages((prev) => [
+          ...prev,
+          {
+            sender: "system",
+            message_type: "system",
+            content: `Warning: No image signatures were found in the database. This may affect search results. Please contact your administrator to verify the image index.`,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || "Failed to search for similar images");
+      }
+
+      // Analyze the image using Google Vision API
+      const analysisResponse = await apiService.chat.uploadImage(
+        file,
+        currentUser?.id,
+        inputText || "Analyze this image",
+        (progress) => setUploadProgress(progress)
+      );
+
+      // Format search results for display
+      let searchResultsText = "### Similar Images Found\n\n";
+      if (data.matches && data.matches.length > 0) {
+        searchResultsText += `Found ${
+          data.matches.length
+        } similar images using ${
+          searchMode === "tensor" ? "full" : "partial"
+        } image search mode.\n\n`;
+
+        // If there's a top match analysis, include it
+        if (data.topMatchAnalysis) {
+          searchResultsText += `**Top Match Analysis:** ${data.topMatchAnalysis.description}\n\n`;
+        }
+
+        // Group by directory
+        const groupedByDir = {};
+        data.matches.forEach((match) => {
+          const pathParts = match.path.split("/");
+          const dir = pathParts.slice(0, -1).join("/");
+          if (!groupedByDir[dir]) {
+            groupedByDir[dir] = [];
+          }
+          groupedByDir[dir].push(match);
+        });
+
+        // Add each directory group
+        Object.entries(groupedByDir).forEach(([dir, matches]) => {
+          searchResultsText += `**Directory: ${dir}/**\n`;
+          matches.forEach((match, index) => {
+            // Get just the filename
+            const filename = match.path.split("/").pop();
+
+            // Create entry with clickable view link
+            searchResultsText += `• **${filename}** (Score: ${parseFloat(
+              match.score
+            ).toFixed(2)})\n`;
+            searchResultsText += `  [View Image](${match.path})\n\n`;
+          });
+        });
+
+        // Add processing stats
+        if (data.stats) {
+          searchResultsText += `\n*Search completed in ${(
+            data.stats.processingTime / 1000
+          ).toFixed(2)} seconds`;
+          if (data.stats.totalSignaturesSearched) {
+            searchResultsText += ` with ${data.stats.totalSignaturesSearched} signatures searched`;
+          }
+          searchResultsText += ".*\n";
+        }
+      } else {
+        searchResultsText +=
+          "No matching images found. This could be because:\n";
+        searchResultsText += "• There are no similar images in the database\n";
+        searchResultsText +=
+          "• The image signature database may need to be updated\n";
+        searchResultsText += "• The search threshold may be too strict\n\n";
+        searchResultsText +=
+          "Try using the other search mode or contact your administrator if this issue persists.";
+      }
+
+      // Add the analysis and search results to the chat
+      const assistantMessage = {
+        sender: "assistant",
+        message_type: "assistant",
+        content: analysisResponse.data.response + "\n\n" + searchResultsText,
+        created_at: new Date().toISOString(),
+        thread_id: analysisResponse.data.threadId,
+        isHtml: true,
+      };
+
+      setCurrentMessages((prev) => [...prev, assistantMessage]);
+
+      // Update selected thread ID if this is a new thread
+      if (analysisResponse.data.threadId && !selectedThreadId) {
+        setSelectedThreadId(analysisResponse.data.threadId);
+        // Turn off new chat mode once we have a thread ID
+        setIsNewChat(false);
+      }
+
+      // Clear input and file after sending
+      setInputText("");
+      setFile(null);
+      setFilePreview(null);
+    } catch (err) {
+      console.error("Image search error:", err);
+
+      const errorMessage = {
+        sender: "system",
+        message_type: "error",
+        content: `Error searching for similar images: ${
+          err.message || "Unknown error"
+        }`,
+        created_at: new Date().toISOString(),
+      };
+
+      setCurrentMessages((prev) => [...prev, errorMessage]);
+      setError(err.message || "Failed to search for similar images");
+    } finally {
+      setIsLoading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  // Handle file upload based on type
+  const handleFileUpload = () => {
+    if (uploadType === "document" || !file.type.startsWith("image/")) {
+      handleDocumentUpload();
+    } else {
+      handleImageSearch();
     }
   };
 
@@ -420,6 +650,12 @@ const ChatbotTabContent = () => {
     setFilePreview(null);
   };
 
+  // Handle image view
+  const handleImageView = (imagePath) => {
+    setCurrentViewImage(imagePath);
+    setShowImageViewerModal(true);
+  };
+
   // Toggle internet search
   const toggleInternet = () => {
     setUseInternet(!useInternet);
@@ -499,7 +735,18 @@ const ChatbotTabContent = () => {
 
     // Handle HTML content
     if (message.isHtml) {
-      return <div dangerouslySetInnerHTML={{ __html: message.content }} />;
+      // Transform the content to make certain parts interactive
+      let processedContent = message.content;
+
+      // Make image links clickable for the viewer
+      processedContent = processedContent.replace(
+        /\[View Image\]\((.*?)\)/g,
+        (match, path) => {
+          return `<a href="#" class="view-image-link" data-path="${path}" onClick="window.viewImage('${path}')">View Image</a>`;
+        }
+      );
+
+      return <div dangerouslySetInnerHTML={{ __html: processedContent }} />;
     }
 
     // Format regular text with line breaks
@@ -507,6 +754,36 @@ const ChatbotTabContent = () => {
       .split("\n")
       .map((line, i) => <div key={i}>{line || <br />}</div>);
   };
+
+  // Expose image viewing function to window for link handling
+  useEffect(() => {
+    window.viewImage = (path) => {
+      handleImageView(path);
+    };
+
+    return () => {
+      delete window.viewImage;
+    };
+  }, []);
+
+  // Add event listener for image links
+  useEffect(() => {
+    const handleViewImageClick = (e) => {
+      if (e.target.classList.contains("view-image-link")) {
+        e.preventDefault();
+        const path = e.target.getAttribute("data-path");
+        if (path) {
+          handleImageView(path);
+        }
+      }
+    };
+
+    document.addEventListener("click", handleViewImageClick);
+
+    return () => {
+      document.removeEventListener("click", handleViewImageClick);
+    };
+  }, []);
 
   return (
     <div className="chatbot-tab-content">
@@ -725,7 +1002,7 @@ const ChatbotTabContent = () => {
             {/* File upload button */}
             <button
               className="upload-btn"
-              onClick={() => fileInputRef.current.click()}
+              onClick={handleOpenUploadModal}
               disabled={isLoading}
               title="Upload file"
             >
@@ -734,7 +1011,6 @@ const ChatbotTabContent = () => {
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileChange}
-                accept="image/*,application/pdf,text/plain,.doc,.docx,.csv,.xls,.xlsx"
                 style={{ display: "none" }}
               />
             </button>
@@ -875,6 +1151,114 @@ const ChatbotTabContent = () => {
                   <Trash2 size={16} />
                   Clear Messages
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Upload type modal */}
+        {showUploadModal && (
+          <div className="modal-overlay">
+            <div className="modal-content upload-modal">
+              <div className="modal-header">
+                <h3>Choose Upload Type</h3>
+                <button
+                  className="modal-close"
+                  onClick={() => setShowUploadModal(false)}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="upload-options">
+                <button
+                  className="upload-option document-option"
+                  onClick={() => handleSelectUploadType("document")}
+                >
+                  <FileText size={32} />
+                  <span>Upload Document</span>
+                  <p>Upload a PDF, text, or document file for analysis</p>
+                </button>
+                <button
+                  className="upload-option image-option"
+                  onClick={() => handleSelectUploadType("image")}
+                >
+                  <Image size={32} />
+                  <span>Upload Image</span>
+                  <p>Upload an image for analysis or search</p>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Search mode modal */}
+        {showSearchModal && (
+          <div className="modal-overlay">
+            <div className="modal-content search-modal">
+              <div className="modal-header">
+                <h3>Choose Search Type</h3>
+                <button
+                  className="modal-close"
+                  onClick={() => setShowSearchModal(false)}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="search-options">
+                <button
+                  className="search-option full-match"
+                  onClick={() => handleSelectSearchMode("tensor")}
+                >
+                  <div className="option-icon">
+                    <Search size={32} />
+                  </div>
+                  <span>Full Image Match</span>
+                  <p>
+                    Find exact or very similar images using tensor signatures
+                  </p>
+                </button>
+                <button
+                  className="search-option partial-match"
+                  onClick={() => handleSelectSearchMode("partial")}
+                >
+                  <div className="option-icon">
+                    <Search size={32} />
+                  </div>
+                  <span>Partial Image Match</span>
+                  <p>
+                    Find images containing parts of this image using Google
+                    Vision
+                  </p>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Image viewer modal */}
+        {showImageViewerModal && currentViewImage && (
+          <div className="modal-overlay">
+            <div className="modal-content image-viewer-modal">
+              <div className="modal-header">
+                <h3>Image Viewer</h3>
+                <button
+                  className="modal-close"
+                  onClick={() => setShowImageViewerModal(false)}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="image-container">
+                <img
+                  src={`${apiService.utils.getBaseUrl()}/image-viewer?path=${encodeURIComponent(
+                    currentViewImage
+                  )}`}
+                  alt="Viewed image"
+                  className="viewed-image"
+                />
+              </div>
+              <div className="modal-footer">
+                <p className="image-path">{currentViewImage}</p>
               </div>
             </div>
           </div>
