@@ -18,6 +18,7 @@ import {
   FileText,
   Image,
   Eye,
+  Clipboard,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useFeatureFlags } from "../../utils/featureFlags";
