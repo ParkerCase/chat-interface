@@ -77,7 +77,23 @@ const ChatbotTabContent = () => {
       ...prev,
       [key]: value,
     }));
+
+    // Save settings to localStorage
+    const updatedSettings = { ...chatSettings, [key]: value };
+    localStorage.setItem("chatSettings", JSON.stringify(updatedSettings));
   };
+
+  // Load settings from localStorage on initial load
+  useEffect(() => {
+    const savedSettings = localStorage.getItem("chatSettings");
+    if (savedSettings) {
+      try {
+        setChatSettings(JSON.parse(savedSettings));
+      } catch (e) {
+        console.error("Error loading chat settings:", e);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     // Scroll to bottom of messages whenever they update
@@ -175,6 +191,11 @@ const ChatbotTabContent = () => {
       setFile(null);
       setFilePreview(null);
 
+      // Hide all modals
+      setShowUploadModal(false);
+      setShowSearchModal(false);
+      setShowImageViewerModal(false);
+
       // Force UI update immediately to show a blank chat
       setTimeout(() => {
         // Get a fresh list of threads after clearing
@@ -210,28 +231,37 @@ const ChatbotTabContent = () => {
     setShowUploadModal(false);
 
     if (type === "image") {
-      // For images, show the search modal
+      // For images, show the search modal after a slight delay
       setTimeout(() => {
         setShowSearchModal(true);
       }, 100); // Small delay to ensure first modal closes properly
     } else {
-      // For documents, trigger file selection directly
-      fileInputRef.current.setAttribute(
-        "accept",
-        "application/pdf,text/plain,.doc,.docx,.csv,.xls,.xlsx"
-      );
-      fileInputRef.current.click();
+      // For documents, trigger file selection directly after a slight delay
+      setTimeout(() => {
+        if (fileInputRef.current) {
+          fileInputRef.current.setAttribute(
+            "accept",
+            "application/pdf,text/plain,.doc,.docx,.csv,.xls,.xlsx"
+          );
+          fileInputRef.current.click();
+        }
+      }, 100);
     }
   };
 
   // Handle search mode selection
   const handleSelectSearchMode = (mode) => {
     setSearchMode(mode);
+    // Close the search modal first
     setShowSearchModal(false);
 
-    // Trigger file selection with appropriate accept attribute
-    fileInputRef.current.setAttribute("accept", "image/*");
-    fileInputRef.current.click();
+    // Trigger file selection with appropriate accept attribute after a slight delay
+    setTimeout(() => {
+      if (fileInputRef.current) {
+        fileInputRef.current.setAttribute("accept", "image/*");
+        fileInputRef.current.click();
+      }
+    }, 100);
   };
 
   // Handle file selection
@@ -299,12 +329,30 @@ const ChatbotTabContent = () => {
 
       setCurrentMessages((prev) => [...prev, systemMessage]);
 
+      // Prepare form data for the file upload
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("userId", currentUser?.id || "default-user");
+      formData.append(
+        "message",
+        inputText || `Analyze this document: ${file.name}`
+      );
+
       // Upload document
-      const response = await apiService.chat.uploadDocument(
-        file,
-        currentUser?.id,
-        inputText || `Analyze this document: ${file.name}`,
-        (progress) => setUploadProgress(progress)
+      const response = await axios.post(
+        `${apiService.utils.getBaseUrl()}/api/chat/upload-document`,
+        formData,
+        {
+          onUploadProgress: (progressEvent) => {
+            const progress = Math.round(
+              (progressEvent.loaded / progressEvent.total) * 100
+            );
+            setUploadProgress(progress);
+          },
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
       );
 
       // Add assistant response
@@ -386,16 +434,16 @@ const ChatbotTabContent = () => {
 
       setCurrentMessages((prev) => [...prev, systemMessage]);
 
-      // Create form data for the file upload
+      // Prepare form data for the image upload
       const formData = new FormData();
       formData.append("image", file);
       formData.append("mode", searchMode);
       formData.append("userId", currentUser?.id || "default-user");
 
-      // Always include a message - this is required by your API
+      // IMPORTANT: Always include a message - this is required by your API
       formData.append("message", searchMessage);
 
-      // Perform image search - use the correct endpoint path
+      // Perform image search - use the correct endpoint
       const response = await fetch(
         `${apiService.utils.getBaseUrl()}/api/search/visual`,
         {
@@ -429,13 +477,29 @@ const ChatbotTabContent = () => {
         throw new Error(data.error || "Failed to search for similar images");
       }
 
-      // Analyze the image using Google Vision API
-      const analysisResponse = await apiService.chat.uploadImage(
-        file,
-        currentUser?.id,
-        inputText || "Analyze this image",
-        (progress) => setUploadProgress(progress)
+      // Now analyze the image using the chat API
+      const analysisFormData = new FormData();
+      analysisFormData.append("image", file);
+      analysisFormData.append("userId", currentUser?.id || "default-user");
+      analysisFormData.append("message", inputText || "Analyze this image");
+
+      // This call should include the message parameter
+      const analysisResponse = await fetch(
+        `${apiService.utils.getBaseUrl()}/api/chat/upload`,
+        {
+          method: "POST",
+          body: analysisFormData,
+          headers: {
+            // No need for Content-Type with FormData, browser will set it correctly
+          },
+        }
       );
+
+      if (!analysisResponse.ok) {
+        throw new Error(`Image analysis failed: ${analysisResponse.status}`);
+      }
+
+      const analysisData = await analysisResponse.json();
 
       // Format search results for display
       let searchResultsText = "### Similar Images Found\n\n";
@@ -502,17 +566,17 @@ const ChatbotTabContent = () => {
       const assistantMessage = {
         sender: "assistant",
         message_type: "assistant",
-        content: analysisResponse.data.response + "\n\n" + searchResultsText,
+        content: analysisData.response + "\n\n" + searchResultsText,
         created_at: new Date().toISOString(),
-        thread_id: analysisResponse.data.threadId,
+        thread_id: analysisData.threadId,
         isHtml: true,
       };
 
       setCurrentMessages((prev) => [...prev, assistantMessage]);
 
       // Update selected thread ID if this is a new thread
-      if (analysisResponse.data.threadId && !selectedThreadId) {
-        setSelectedThreadId(analysisResponse.data.threadId);
+      if (analysisData.threadId && !selectedThreadId) {
+        setSelectedThreadId(analysisData.threadId);
         // Turn off new chat mode once we have a thread ID
         setIsNewChat(false);
       }
@@ -543,6 +607,8 @@ const ChatbotTabContent = () => {
 
   // Handle file upload based on type
   const handleFileUpload = () => {
+    if (!file) return;
+
     if (uploadType === "document" || !file.type.startsWith("image/")) {
       handleDocumentUpload();
     } else {
@@ -574,17 +640,29 @@ const ChatbotTabContent = () => {
       // Call API based on whether internet search is enabled
       let response;
       if (useInternet && chatSettings.showInternetSearch) {
-        // Use the proper format for the advanced endpoint
+        // Advanced chat with web search
         response = await apiService.chat.advanced(inputText, currentUser?.id);
       } else {
-        // Fix: Use the proper format for the regular chat endpoint
-        response = await axios.post(
+        // Regular chat
+        const chatResponse = await fetch(
           `${apiService.utils.getBaseUrl()}/api/chat`,
           {
-            message: inputText,
-            userId: currentUser?.id || "default-user",
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              message: inputText,
+              userId: currentUser?.id || "default-user",
+            }),
           }
         );
+
+        if (!chatResponse.ok) {
+          throw new Error(`Chat request failed: ${chatResponse.status}`);
+        }
+
+        response = { data: await chatResponse.json() };
       }
 
       // Add assistant response
@@ -601,6 +679,8 @@ const ChatbotTabContent = () => {
       // Update selected thread ID if this is a new thread
       if (response.data.threadId && !selectedThreadId) {
         setSelectedThreadId(response.data.threadId);
+        // Turn off new chat mode once we have a thread ID
+        setIsNewChat(false);
       }
 
       // Reset input
@@ -742,7 +822,9 @@ const ChatbotTabContent = () => {
       processedContent = processedContent.replace(
         /\[View Image\]\((.*?)\)/g,
         (match, path) => {
-          return `<a href="#" class="view-image-link" data-path="${path}" onClick="window.viewImage('${path}')">View Image</a>`;
+          // Properly escape the path for JavaScript string usage
+          const escapedPath = path.replace(/['\\]/g, "\\$&");
+          return `<a href="#" class="view-image-link" data-path="${escapedPath}" onclick="window.viewImage('${escapedPath}')">View Image</a>`;
         }
       );
 
