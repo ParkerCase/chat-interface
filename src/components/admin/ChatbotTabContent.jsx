@@ -440,10 +440,13 @@ const ChatbotTabContent = () => {
       formData.append("mode", searchMode);
       formData.append("userId", currentUser?.id || "default-user");
 
-      // IMPORTANT: Always include a message - this is required by your API
+      // Always include a message - this is required by the API
       formData.append("message", searchMessage);
 
-      // Perform image search - use the correct endpoint
+      // Always include enhanced analysis
+      formData.append("enhancedAnalysis", "true");
+
+      // Perform image search - use the DIRECT endpoint to avoid fetch issues
       const response = await fetch(
         `${apiService.utils.getBaseUrl()}/api/search/visual`,
         {
@@ -452,30 +455,12 @@ const ChatbotTabContent = () => {
         }
       );
 
+      if (!response.ok) {
+        throw new Error(`Search request failed: ${response.status}`);
+      }
+
       const data = await response.json();
       setSearchResults(data);
-
-      // Check if we have signatures available
-      if (data.stats && data.stats.totalSignaturesSearched === 0) {
-        console.warn(
-          "No signatures found for image search. This may affect results."
-        );
-
-        // Add a warning message
-        setCurrentMessages((prev) => [
-          ...prev,
-          {
-            sender: "system",
-            message_type: "system",
-            content: `Warning: No image signatures were found in the database. This may affect search results. Please contact your administrator to verify the image index.`,
-            created_at: new Date().toISOString(),
-          },
-        ]);
-      }
-
-      if (!data.success) {
-        throw new Error(data.error || "Failed to search for similar images");
-      }
 
       // Now analyze the image using the chat API
       const analysisFormData = new FormData();
@@ -483,15 +468,16 @@ const ChatbotTabContent = () => {
       analysisFormData.append("userId", currentUser?.id || "default-user");
       analysisFormData.append("message", inputText || "Analyze this image");
 
-      // This call should include the message parameter
+      // Make sure to include the search results in the analysis request
+      if (data.matches && data.matches.length > 0) {
+        analysisFormData.append("searchResults", JSON.stringify(data));
+      }
+
       const analysisResponse = await fetch(
         `${apiService.utils.getBaseUrl()}/api/chat/upload`,
         {
           method: "POST",
           body: analysisFormData,
-          headers: {
-            // No need for Content-Type with FormData, browser will set it correctly
-          },
         }
       );
 
@@ -503,6 +489,7 @@ const ChatbotTabContent = () => {
 
       // Format search results for display
       let searchResultsText = "### Similar Images Found\n\n";
+
       if (data.matches && data.matches.length > 0) {
         searchResultsText += `Found ${
           data.matches.length
@@ -510,7 +497,7 @@ const ChatbotTabContent = () => {
           searchMode === "tensor" ? "full" : "partial"
         } image search mode.\n\n`;
 
-        // If there's a top match analysis, include it
+        // Include top match analysis if available
         if (data.topMatchAnalysis) {
           searchResultsText += `**Top Match Analysis:** ${data.topMatchAnalysis.description}\n\n`;
         }
@@ -553,12 +540,10 @@ const ChatbotTabContent = () => {
         }
       } else {
         searchResultsText +=
-          "No matching images found. This could be because:\n";
-        searchResultsText += "• There are no similar images in the database\n";
-        searchResultsText +=
-          "• The image signature database may need to be updated\n";
-        searchResultsText += "• The search threshold may be too strict\n\n";
-        searchResultsText +=
+          "No matching images found. This could be because:\n" +
+          "• There are no similar images in the database\n" +
+          "• The image signature database may need to be updated\n" +
+          "• The search threshold may be too strict\n\n" +
           "Try using the other search mode or contact your administrator if this issue persists.";
       }
 
@@ -731,9 +716,26 @@ const ChatbotTabContent = () => {
   };
 
   // Handle image view
+  // Handle image view
   const handleImageView = (imagePath) => {
-    setCurrentViewImage(imagePath);
+    // Ensure the path is properly formatted - remove leading slash if needed
+    const normalizedPath = imagePath.startsWith("/")
+      ? imagePath.substring(1)
+      : imagePath;
+
+    setCurrentViewImage(normalizedPath);
     setShowImageViewerModal(true);
+
+    // Track image view event
+    const analyticsHelpers = require("../../utils/analytics-helpers");
+    analyticsHelpers.trackServerEvent(
+      { headers: {} }, // Mock request object
+      analyticsHelpers.EVENT_TYPES.IMAGE_VIEW || "image:view",
+      {
+        imagePath: normalizedPath,
+        userId: currentUser?.id || "default-user",
+      }
+    );
   };
 
   // Toggle internet search
@@ -772,6 +774,7 @@ const ChatbotTabContent = () => {
   };
 
   // Render message content
+  // Render message content
   const renderMessageContent = (message) => {
     // Handle different message types
     if (
@@ -805,7 +808,7 @@ const ChatbotTabContent = () => {
       return (
         <div className="message-with-document">
           <div className="document-icon-container">
-            <Download size={20} />
+            <FileText size={20} />
             <span>{message.file_name}</span>
           </div>
           <div>{message.content}</div>
@@ -813,20 +816,24 @@ const ChatbotTabContent = () => {
       );
     }
 
-    // Handle HTML content
+    // Handle HTML content with image links
     if (message.isHtml) {
       // Transform the content to make certain parts interactive
-      let processedContent = message.content;
-
-      // Make image links clickable for the viewer
-      processedContent = processedContent.replace(
-        /\[View Image\]\((.*?)\)/g,
-        (match, path) => {
+      const processedContent = message.content
+        // Make image links clickable for the viewer
+        .replace(/\[View Image\]\((.*?)\)/g, (match, path) => {
           // Properly escape the path for JavaScript string usage
           const escapedPath = path.replace(/['\\]/g, "\\$&");
           return `<a href="#" class="view-image-link" data-path="${escapedPath}" onclick="window.viewImage('${escapedPath}')">View Image</a>`;
-        }
-      );
+        })
+        // Make regular path links clickable
+        .replace(
+          /\/([^\/\s"']+\/)*[^\/\s"']+\.(jpg|jpeg|png|gif|webp)/gi,
+          (match) => {
+            const encodedPath = encodeURIComponent(match);
+            return `<a href="#" class="view-image-link" data-path="${match}">View ${match}</a>`;
+          }
+        );
 
       return <div dangerouslySetInnerHTML={{ __html: processedContent }} />;
     }
@@ -1318,6 +1325,7 @@ const ChatbotTabContent = () => {
         )}
 
         {/* Image viewer modal */}
+        {/* Image viewer modal */}
         {showImageViewerModal && currentViewImage && (
           <div className="modal-overlay">
             <div className="modal-content image-viewer-modal">
@@ -1341,6 +1349,31 @@ const ChatbotTabContent = () => {
               </div>
               <div className="modal-footer">
                 <p className="image-path">{currentViewImage}</p>
+                <div className="modal-actions">
+                  <button
+                    className="copy-path-btn"
+                    onClick={() => {
+                      navigator.clipboard.writeText(currentViewImage);
+                      alert("Path copied to clipboard!");
+                    }}
+                  >
+                    <Clipboard size={16} />
+                    <span>Copy Path</span>
+                  </button>
+                  <button
+                    className="search-path-btn"
+                    onClick={() => {
+                      setShowImageViewerModal(false);
+                      // Add the path to the input field or trigger a search
+                      setInputText(
+                        `Search for images related to: ${currentViewImage}`
+                      );
+                    }}
+                  >
+                    <Search size={16} />
+                    <span>Use in Search</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
