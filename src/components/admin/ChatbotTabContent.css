@@ -104,9 +104,12 @@
   position: relative;
 }
 
-/* Advanced Search */
-.advanced-search-container {
+/* Advanced Search Wrapper */
+.advanced-search-wrapper {
   border-bottom: 1px solid #e5e7eb;
+  background-color: #fcfcfc;
+  padding: 0;
+  width: 100%;
 }
 
 /* Chat Messages */
@@ -173,7 +176,7 @@
 .quick-tips {
   text-align: left;
   background-color: #ffffff;
-  padding: 1.5rem 2rem;
+  padding: 0.5rem 2rem;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   width: 100%;
@@ -192,6 +195,21 @@
 }
 
 .quick-tips li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #4f46e5;
+  font-weight: bold;
+}
+
+.tip-item {
+  margin-bottom: 0.5rem;
+  position: relative;
+  padding-left: 1.5rem;
+  font-size: 1rem;
+}
+
+.tip-item::before {
   content: "•";
   position: absolute;
   left: 0;
@@ -247,10 +265,26 @@
   border: 1px dashed #d1d5db;
 }
 
+/* Message size styles - Fixed */
 .message-content {
   word-break: break-word;
   overflow-wrap: break-word;
   white-space: pre-wrap;
+}
+
+.message-size-small {
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.message-size-medium {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.message-size-large {
+  font-size: 1.15rem;
+  line-height: 1.6;
 }
 
 .message-timestamp {
@@ -526,7 +560,15 @@
   text-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
 }
 
-/* Export container */
+/* Export button container - Fixed */
+.export-button-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  position: relative;
+}
+
 /* Settings panel */
 .settings-panel {
   position: absolute;
@@ -692,12 +734,6 @@
   color: #9ca3af;
 }
 
-/* Remove export container that was positioned absolutely */
-.export-container {
-  display: none;
-}
-
-/* Settings button */
 /* Header toolbar */
 .chat-toolbar {
   display: flex;
@@ -722,21 +758,13 @@
   padding: 8px 12px;
   border-radius: 6px;
   color: #4b5563;
-  font-size: 14px;
+  font-size: 12px;
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
 .search-button:hover {
   background-color: #f3f4f6;
-}
-
-.export-button {
-  transition: transform 0.2s;
-}
-
-.export-button:hover {
-  transform: scale(1.05);
 }
 
 .settings-btn {

@@ -74,6 +74,9 @@ const ChatbotTabContent = () => {
     }
   }, [currentMessages, chatSettings.autoScroll]);
 
+  // State to track if we're creating a new chat
+  const [isNewChat, setIsNewChat] = useState(false);
+
   // Load chat threads
   useEffect(() => {
     const loadChatHistory = async () => {
@@ -96,8 +99,8 @@ const ChatbotTabContent = () => {
           );
           setThreads(processedThreads);
 
-          // Select most recent thread if any exists
-          if (processedThreads.length > 0 && !selectedThreadId) {
+          // Only auto-select a thread if not in "new chat" mode and no thread is selected
+          if (processedThreads.length > 0 && !selectedThreadId && !isNewChat) {
             setSelectedThreadId(processedThreads[0].id);
             loadThreadMessages(processedThreads[0].id);
           }
@@ -115,7 +118,7 @@ const ChatbotTabContent = () => {
     };
 
     loadChatHistory();
-  }, [currentUser, selectedThreadId]);
+  }, [currentUser, selectedThreadId, isNewChat]);
 
   // Load messages for a specific thread
   const loadThreadMessages = async (threadId) => {
@@ -141,6 +144,8 @@ const ChatbotTabContent = () => {
 
   // Handle thread selection
   const handleSelectThread = (threadId) => {
+    // Turn off new chat mode when a thread is selected
+    setIsNewChat(false);
     setSelectedThreadId(threadId);
     loadThreadMessages(threadId);
   };
@@ -148,32 +153,32 @@ const ChatbotTabContent = () => {
   // Create a new thread
   const createNewThread = async () => {
     try {
-      setSelectedThreadId(null); // Unselect current thread
-      setCurrentMessages([]); // Clear current messages
-      setInputText(""); // Clear input
-      setFile(null); // Clear any file
+      // Set new chat mode to prevent auto-selection of existing threads
+      setIsNewChat(true);
+
+      // Clear all current state related to active conversations
+      setSelectedThreadId(null);
+      setCurrentMessages([]);
+      setInputText("");
+      setFile(null);
       setFilePreview(null);
 
-      // Get a fresh list of threads after creating a new one
-      const userId = currentUser?.id || "default-user";
+      // Force UI update immediately to show a blank chat
+      setTimeout(() => {
+        // Get a fresh list of threads after clearing
+        const userId = currentUser?.id || "default-user";
 
-      // Make a new thread via API call if needed
-      if (!selectedThreadId) {
-        await axios.post(`${apiService.utils.getBaseUrl()}/api/chat`, {
-          message: "Starting a new conversation",
-          userId: userId,
+        // We don't need to explicitly create a thread - it will be created
+        // automatically when the user sends their first message
+        apiService.chat.getHistory(userId).then((response) => {
+          if (response.data?.success) {
+            const processedThreads = apiService.chat.processChatHistory(
+              response.data.messages
+            );
+            setThreads(processedThreads);
+          }
         });
-      }
-
-      // Refresh thread list
-      const response = await apiService.chat.getHistory(userId);
-
-      if (response.data?.success) {
-        const processedThreads = apiService.chat.processChatHistory(
-          response.data.messages
-        );
-        setThreads(processedThreads);
-      }
+      }, 100);
     } catch (err) {
       console.error("Error creating new thread:", err);
       setError("Failed to create new thread. Please try again.");
@@ -289,6 +294,8 @@ const ChatbotTabContent = () => {
       // Update selected thread ID if this is a new thread
       if (response.data.threadId && !selectedThreadId) {
         setSelectedThreadId(response.data.threadId);
+        // Turn off new chat mode once we have a thread ID
+        setIsNewChat(false);
       }
 
       // Clear input and file after sending
@@ -341,7 +348,6 @@ const ChatbotTabContent = () => {
         response = await apiService.chat.advanced(inputText, currentUser?.id);
       } else {
         // Fix: Use the proper format for the regular chat endpoint
-        // The backend expects { message, userId } format
         response = await axios.post(
           `${apiService.utils.getBaseUrl()}/api/chat`,
           {
@@ -551,8 +557,9 @@ const ChatbotTabContent = () => {
             </div>
 
             <div className="toolbar-right">
+              {/* Export button */}
               {isFeatureEnabled("data_export") && (
-                <div className="export-button">
+                <div className="export-button-container">
                   <ExportButton
                     messages={currentMessages}
                     analysisResult={analysisResult}
@@ -572,7 +579,7 @@ const ChatbotTabContent = () => {
 
           {/* Advanced search */}
           {isFeatureEnabled("advanced_search") && (
-            <div className="advanced-search-container">
+            <div className="advanced-search-wrapper">
               <AdvancedSearch onResults={handleSearchResults} />
             </div>
           )}
@@ -591,14 +598,26 @@ const ChatbotTabContent = () => {
                 </p>
                 <div className="quick-tips-container">
                   <h4>Here's what you can do:</h4>
-                  <ul className="quick-tips">
-                    <li>Upload tattoo images for analysis</li>
-                    <li>Ask about tattoo removal processes</li>
-                    <li>Search for similar tattoo designs</li>
-                    <li>Analyze tattoo colors and features</li>
-                    <li>Compare before and after results</li>
-                    <li>Get pricing and procedure information</li>
-                  </ul>
+                  <div className="quick-tips">
+                    <div className="tip-item">
+                      Upload tattoo images for analysis
+                    </div>
+                    <div className="tip-item">
+                      Ask about tattoo removal processes
+                    </div>
+                    <div className="tip-item">
+                      Search for similar tattoo designs
+                    </div>
+                    <div className="tip-item">
+                      Analyze tattoo colors and features
+                    </div>
+                    <div className="tip-item">
+                      Compare before and after results
+                    </div>
+                    <div className="tip-item">
+                      Get pricing and procedure information
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -612,10 +631,10 @@ const ChatbotTabContent = () => {
                         : message.sender === "assistant"
                         ? "assistant-message"
                         : "system-message"
-                    } size-${chatSettings.messageSize}`}
+                    }`}
                   >
                     <div
-                      className={`message-content size-${chatSettings.messageSize}`}
+                      className={`message-content message-size-${chatSettings.messageSize}`}
                     >
                       {renderMessageContent(message)}
                     </div>
@@ -665,7 +684,7 @@ const ChatbotTabContent = () => {
                   />
                 )}
                 <button className="clear-file-btn" onClick={clearFileSelection}>
-                  <AlertCircle size={14} />
+                  <X size={14} />
                 </button>
               </div>
             )}
