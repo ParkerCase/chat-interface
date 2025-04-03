@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -21,12 +21,16 @@ import {
   AlertCircle,
   CheckCircle,
   Info,
+  Settings,
+  Clipboard,
+  Printer,
+  BarChart4,
 } from "lucide-react";
 import zenotiService from "../../services/zenotiService";
 import apiService from "../../services/apiService";
 import CRMContactLookup from "./CRMContactLookup";
 import CreateContactForm from "./CreateContactForm";
-import AppointmentForm from "./AppointmentForm"; // You'll need to create this component
+import AppointmentForm from "./AppointmentForm";
 import "./CRMDashboard.css";
 
 const CRMDashboard = ({ onClose }) => {
@@ -50,10 +54,33 @@ const CRMDashboard = ({ onClose }) => {
   const [error, setError] = useState(null);
   const [loadingMessage, setLoadingMessage] = useState("Loading data...");
   const [reports, setReports] = useState([]);
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(new Date().setDate(new Date().getDate() - 7))
+      .toISOString()
+      .split("T")[0],
+    endDate: new Date().toISOString().split("T")[0],
+  });
+  const [reportType, setReportType] = useState("weekly");
+  const [staffMembers, setStaffMembers] = useState([]);
+  const [appointmentDateRange, setAppointmentDateRange] = useState({
+    startDate: new Date().toISOString().split("T")[0],
+    endDate: new Date(new Date().setDate(new Date().getDate() + 14))
+      .toISOString()
+      .split("T")[0],
+  });
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Refs for keeping track of loading state per section
+  const loadingContactsRef = useRef(false);
+  const loadingAppointmentsRef = useRef(false);
+  const loadingServicesRef = useRef(false);
+  const loadingStaffRef = useRef(false);
 
   // Set up a refresh interval for auto-refreshing data
   useEffect(() => {
-    // Refresh data every 5 minutes
+    // Refresh data every 5 minutes if active
     const refreshInterval = setInterval(() => {
       if (activeSection === "appointments") {
         loadAppointments();
@@ -90,35 +117,10 @@ const CRMDashboard = ({ onClose }) => {
         if (isConnected) {
           // Load centers
           setLoadingMessage("Loading centers...");
-          const centersResponse = await zenotiService.getCenters();
-          console.log("Centers response:", centersResponse);
+          await loadCenters();
 
-          if (centersResponse.data?.success) {
-            // Process centers data - check both possible formats from backend
-            const centersData =
-              centersResponse.data.centers ||
-              centersResponse.data.centerMapping ||
-              [];
-
-            setCenters(centersData);
-
-            // Set default center if available
-            if (centersData.length > 0) {
-              setSelectedCenter(centersData[0].code);
-            }
-          }
-
-          // Load recent contacts
-          setLoadingMessage("Loading recent contacts...");
-          await loadRecentContacts();
-
-          // Load upcoming appointments
-          setLoadingMessage("Loading appointments...");
-          await loadAppointments();
-
-          // Load services
-          setLoadingMessage("Loading services...");
-          await loadServices();
+          // Set initialized flag
+          setIsInitialized(true);
         }
       } catch (err) {
         console.error("Error initializing CRM:", err);
@@ -134,9 +136,74 @@ const CRMDashboard = ({ onClose }) => {
     initializeCRM();
   }, []);
 
+  // Load centers
+  const loadCenters = async () => {
+    try {
+      const centersResponse = await zenotiService.getCenters();
+      console.log("Centers response:", centersResponse);
+
+      if (centersResponse.data?.success) {
+        // Process centers data - check both possible formats from backend
+        const centersData =
+          centersResponse.data.centers ||
+          centersResponse.data.centerMapping ||
+          [];
+
+        setCenters(centersData);
+
+        // Set default center if available and not already set
+        if (centersData.length > 0 && !selectedCenter) {
+          setSelectedCenter(centersData[0].code);
+
+          // Store in localStorage for persistence
+          localStorage.setItem("selectedCenterCode", centersData[0].code);
+        }
+
+        return centersData;
+      }
+      return [];
+    } catch (err) {
+      console.error("Error loading centers:", err);
+      return [];
+    }
+  };
+
+  // Effect to load data when center is selected or changes
+  useEffect(() => {
+    if (selectedCenter && connectionStatus?.connected && isInitialized) {
+      // Store selected center in localStorage
+      localStorage.setItem("selectedCenterCode", selectedCenter);
+
+      // Load data based on active section
+      if (activeSection === "contacts") {
+        loadRecentContacts();
+      } else if (activeSection === "appointments") {
+        loadAppointments();
+      } else if (activeSection === "services") {
+        loadServices();
+      } else if (activeSection === "reports") {
+        // Don't auto-load reports as they might be expensive operations
+        // Clear any existing report data
+        setReportData(null);
+        setReports([]);
+      }
+    }
+  }, [
+    selectedCenter,
+    activeSection,
+    isInitialized,
+    connectionStatus?.connected,
+  ]);
+
   // Load recent contacts
   const loadRecentContacts = async () => {
+    // Prevent duplicate loading
+    if (loadingContactsRef.current) return;
+
     try {
+      loadingContactsRef.current = true;
+      setIsLoading(true);
+
       console.log("Loading recent contacts...");
       const response = await zenotiService.searchClients({
         sort: "last_visit",
@@ -184,32 +251,31 @@ const CRMDashboard = ({ onClose }) => {
       console.error("Error loading recent contacts:", err);
       // Fallback to empty array
       setRecentContacts([]);
+    } finally {
+      setIsLoading(false);
+      loadingContactsRef.current = false;
     }
   };
 
   // Load appointments
   const loadAppointments = async () => {
+    // Prevent duplicate loading
+    if (loadingAppointmentsRef.current) return;
+
     try {
+      loadingAppointmentsRef.current = true;
       setIsLoading(true);
 
-      // Get date range for appointments (today to next 2 weeks)
-      const today = new Date();
-      const nextTwoWeeks = new Date();
-      nextTwoWeeks.setDate(today.getDate() + 14);
-
-      const formattedToday = today.toISOString().split("T")[0];
-      const formattedNextTwoWeeks = nextTwoWeeks.toISOString().split("T")[0];
-
       console.log("Requesting appointments with params:", {
-        startDate: formattedToday,
-        endDate: formattedNextTwoWeeks,
+        startDate: appointmentDateRange.startDate,
+        endDate: appointmentDateRange.endDate,
         centerCode: selectedCenter,
         status: filter === "all" ? "" : filter,
       });
 
       const response = await zenotiService.getAppointments({
-        startDate: formattedToday,
-        endDate: formattedNextTwoWeeks,
+        startDate: appointmentDateRange.startDate,
+        endDate: appointmentDateRange.endDate,
         centerCode: selectedCenter,
         status: filter === "all" ? "" : filter,
       });
@@ -271,12 +337,19 @@ const CRMDashboard = ({ onClose }) => {
       setAppointments([]);
     } finally {
       setIsLoading(false);
+      loadingAppointmentsRef.current = false;
     }
   };
 
   // Load services
   const loadServices = async () => {
+    // Prevent duplicate loading
+    if (loadingServicesRef.current) return;
+
     try {
+      loadingServicesRef.current = true;
+      setIsLoading(true);
+
       const response = await zenotiService.getServices({
         centerCode: selectedCenter,
         limit: 20,
@@ -284,12 +357,45 @@ const CRMDashboard = ({ onClose }) => {
 
       if (response.data?.success) {
         setServices(response.data.services || []);
+
+        // Also load staff when services tab is active
+        await loadStaff();
       } else {
         setServices([]);
       }
     } catch (err) {
       console.error("Error loading services:", err);
       setServices([]);
+    } finally {
+      setIsLoading(false);
+      loadingServicesRef.current = false;
+    }
+  };
+
+  // Load staff members
+  const loadStaff = async () => {
+    // Prevent duplicate loading
+    if (loadingStaffRef.current) return;
+
+    try {
+      loadingStaffRef.current = true;
+
+      const response = await zenotiService.getStaff({
+        centerCode: selectedCenter,
+      });
+
+      if (response.data?.success) {
+        // Handle different possible response formats
+        const staff = response.data.staff || response.data.therapists || [];
+        setStaffMembers(staff);
+      } else {
+        setStaffMembers([]);
+      }
+    } catch (err) {
+      console.error("Error loading staff:", err);
+      setStaffMembers([]);
+    } finally {
+      loadingStaffRef.current = false;
     }
   };
 
@@ -317,6 +423,12 @@ const CRMDashboard = ({ onClose }) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Handle center selection
+  const handleCenterChange = (e) => {
+    const newCenterCode = e.target.value;
+    setSelectedCenter(newCenterCode);
   };
 
   // Handle contact creation
@@ -384,6 +496,131 @@ const CRMDashboard = ({ onClose }) => {
     }
   };
 
+  // Handle date range change for appointments
+  const handleAppointmentDateChange = (type, value) => {
+    setAppointmentDateRange((prev) => ({
+      ...prev,
+      [type]: value,
+    }));
+  };
+
+  // Handle report date range change
+  const handleDateRangeChange = (type, value) => {
+    setDateRange((prev) => ({
+      ...prev,
+      [type]: value,
+    }));
+  };
+
+  // Generate report based on selected type
+  const generateReport = async () => {
+    try {
+      setGeneratingReport(true);
+      setError(null);
+      setReportData(null);
+
+      switch (reportType) {
+        case "weekly":
+          // For weekly reports, we need a week start date
+          // Default to the most recent Sunday
+          const weekStartDate = dateRange.startDate;
+
+          console.log("Generating weekly report with params:", {
+            weekStartDate,
+            centerCode: selectedCenter,
+            compareWithPreviousWeek: true,
+          });
+
+          const weeklyResponse = await zenotiService.generateWeeklyReport({
+            weekStartDate,
+            centerCode: selectedCenter,
+            compareWithPreviousWeek: true,
+          });
+
+          if (weeklyResponse.data?.success) {
+            setReportData(
+              weeklyResponse.data.report || weeklyResponse.data.overview
+            );
+          } else {
+            throw new Error("Failed to generate weekly report");
+          }
+          break;
+
+        case "collections":
+          // For collections report
+          console.log("Generating collections report with params:", {
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate,
+            centerCode: selectedCenter,
+          });
+
+          const collectionsResponse = await zenotiService.getCollectionsReport({
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate,
+            centerCode: selectedCenter,
+          });
+
+          if (collectionsResponse.data?.success) {
+            setReportData(collectionsResponse.data.report);
+          } else {
+            throw new Error("Failed to generate collections report");
+          }
+          break;
+
+        case "sales":
+          // For sales report
+          console.log("Generating sales report with params:", {
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate,
+            centerCode: selectedCenter,
+          });
+
+          const salesResponse = await zenotiService.getSalesReport({
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate,
+            centerCode: selectedCenter,
+          });
+
+          if (salesResponse.data?.success) {
+            setReportData(salesResponse.data.report);
+          } else {
+            throw new Error("Failed to generate sales report");
+          }
+          break;
+
+        case "client-activity":
+          // For client activity report
+          console.log("Generating client activity report with params:", {
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate,
+            centerCode: selectedCenter,
+          });
+
+          const clientActivityResponse =
+            await zenotiService.generateClientActivityReport({
+              startDate: dateRange.startDate,
+              endDate: dateRange.endDate,
+              centerCode: selectedCenter,
+            });
+
+          if (clientActivityResponse.data?.success) {
+            setReportData(clientActivityResponse.data.report);
+          } else {
+            throw new Error("Failed to generate client activity report");
+          }
+          break;
+
+        default:
+          throw new Error(`Unsupported report type: ${reportType}`);
+      }
+    } catch (err) {
+      console.error(`Error generating ${reportType} report:`, err);
+      setError(`Failed to generate ${reportType} report: ${err.message}`);
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
   // Format date
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
@@ -417,30 +654,45 @@ const CRMDashboard = ({ onClose }) => {
     });
   };
 
-  // Get weekly report data
-  const loadWeeklyReport = async () => {
+  // Format currency
+  const formatCurrency = (amount) => {
+    if (typeof amount !== "number") return "$0.00";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  // Export report to CSV or PDF
+  const exportReport = async (format) => {
     try {
       setIsLoading(true);
 
-      // Get the current week's start date (Sunday)
-      const today = new Date();
-      const day = today.getDay();
-      const diff = today.getDate() - day;
-      const weekStart = new Date(today.setDate(diff));
-      const formattedDate = weekStart.toISOString().split("T")[0];
+      if (!reportData) {
+        setError("No report data to export");
+        return;
+      }
 
-      const response = await zenotiService.generateWeeklyReport({
-        weekStartDate: formattedDate,
-        centerCode: selectedCenter,
-        compareWithPreviousWeek: true,
-      });
+      const response = await zenotiService.generateReportFile(
+        reportData,
+        format,
+        `${reportType}-report-${new Date().toISOString().split("T")[0]}`
+      );
 
       if (response.data?.success) {
-        setReports([response.data.report || response.data.overview]);
+        // Create download link
+        const downloadLink = document.createElement("a");
+        downloadLink.href =
+          response.data.result.downloadUrl || response.data.result.fileUrl;
+        downloadLink.download = response.data.result.filename;
+        downloadLink.click();
+      } else {
+        throw new Error(`Failed to export report as ${format}`);
       }
     } catch (err) {
-      console.error("Error loading weekly report:", err);
-      setError("Failed to load weekly report");
+      console.error(`Error exporting report as ${format}:`, err);
+      setError(`Failed to export report: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -528,7 +780,7 @@ const CRMDashboard = ({ onClose }) => {
               className={activeSection === "reports" ? "active" : ""}
               onClick={() => {
                 setActiveSection("reports");
-                loadWeeklyReport();
+                // Don't automatically load reports
               }}
             >
               Reports
@@ -538,10 +790,7 @@ const CRMDashboard = ({ onClose }) => {
           {centers.length > 0 && (
             <div className="center-selector">
               <h3>Select Center</h3>
-              <select
-                value={selectedCenter}
-                onChange={(e) => setSelectedCenter(e.target.value)}
-              >
+              <select value={selectedCenter} onChange={handleCenterChange}>
                 {centers.map((center) => (
                   <option key={center.code} value={center.code}>
                     {center.name}
@@ -600,9 +849,14 @@ const CRMDashboard = ({ onClose }) => {
                 <h3>Recent Contacts</h3>
                 <button
                   onClick={loadRecentContacts}
-                  disabled={!connectionStatus?.connected}
+                  disabled={
+                    !connectionStatus?.connected || loadingContactsRef.current
+                  }
                 >
-                  <RefreshCw size={14} />
+                  <RefreshCw
+                    size={14}
+                    className={loadingContactsRef.current ? "spinning" : ""}
+                  />
                   <span>Refresh</span>
                 </button>
               </div>
@@ -729,12 +983,56 @@ const CRMDashboard = ({ onClose }) => {
                   </button>
                   <button
                     onClick={loadAppointments}
-                    disabled={!connectionStatus?.connected}
+                    disabled={
+                      !connectionStatus?.connected ||
+                      loadingAppointmentsRef.current
+                    }
                   >
-                    <RefreshCw size={14} />
+                    <RefreshCw
+                      size={14}
+                      className={
+                        loadingAppointmentsRef.current ? "spinning" : ""
+                      }
+                    />
                     <span>Refresh</span>
                   </button>
                 </div>
+              </div>
+
+              {/* Date range selector for appointments */}
+              <div className="date-range-selector">
+                <div className="date-field">
+                  <label htmlFor="appointmentStartDate">Start Date:</label>
+                  <input
+                    type="date"
+                    id="appointmentStartDate"
+                    value={appointmentDateRange.startDate}
+                    onChange={(e) =>
+                      handleAppointmentDateChange("startDate", e.target.value)
+                    }
+                  />
+                </div>
+                <div className="date-field">
+                  <label htmlFor="appointmentEndDate">End Date:</label>
+                  <input
+                    type="date"
+                    id="appointmentEndDate"
+                    value={appointmentDateRange.endDate}
+                    onChange={(e) =>
+                      handleAppointmentDateChange("endDate", e.target.value)
+                    }
+                  />
+                </div>
+                <button
+                  className="apply-date-btn"
+                  onClick={loadAppointments}
+                  disabled={
+                    !connectionStatus?.connected ||
+                    loadingAppointmentsRef.current
+                  }
+                >
+                  Apply Date Range
+                </button>
               </div>
 
               {!connectionStatus?.connected ? (
@@ -750,7 +1048,9 @@ const CRMDashboard = ({ onClose }) => {
                 <div className="loading-message">Loading appointments...</div>
               ) : appointments.length === 0 ? (
                 <div className="empty-state">
-                  <p>No upcoming appointments found.</p>
+                  <p>
+                    No upcoming appointments found for the selected date range.
+                  </p>
                   <button
                     className="create-appointment-btn"
                     onClick={() => setShowCreateAppointment(true)}
@@ -811,9 +1111,14 @@ const CRMDashboard = ({ onClose }) => {
                 <h3>Available Services</h3>
                 <button
                   onClick={loadServices}
-                  disabled={!connectionStatus?.connected}
+                  disabled={
+                    !connectionStatus?.connected || loadingServicesRef.current
+                  }
                 >
-                  <RefreshCw size={14} />
+                  <RefreshCw
+                    size={14}
+                    className={loadingServicesRef.current ? "spinning" : ""}
+                  />
                   <span>Refresh</span>
                 </button>
               </div>
@@ -831,27 +1136,70 @@ const CRMDashboard = ({ onClose }) => {
                   <p>No services found for the selected center.</p>
                 </div>
               ) : (
-                <div className="services-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Service Name</th>
-                        <th>Duration</th>
-                        <th>Price</th>
-                        <th>Category</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {services.map((service) => (
-                        <tr key={service.id}>
-                          <td>{service.name}</td>
-                          <td>{service.duration} mins</td>
-                          <td>${parseFloat(service.price || 0).toFixed(2)}</td>
-                          <td>{service.category || "Uncategorized"}</td>
+                <div className="services-tables-container">
+                  <div className="services-table">
+                    <h4>Available Services</h4>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Service Name</th>
+                          <th>Duration</th>
+                          <th>Price</th>
+                          <th>Category</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {services.map((service) => (
+                          <tr key={service.id}>
+                            <td>{service.name}</td>
+                            <td>{service.duration} mins</td>
+                            <td>
+                              ${parseFloat(service.price || 0).toFixed(2)}
+                            </td>
+                            <td>{service.category || "Uncategorized"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {staffMembers.length > 0 && (
+                    <div className="staff-table">
+                      <h4>Staff Members</h4>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Position</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {staffMembers.map((staff) => (
+                            <tr key={staff.id}>
+                              <td>{`${staff.first_name || ""} ${
+                                staff.last_name || ""
+                              }`}</td>
+                              <td>
+                                {staff.designation || staff.position || "Staff"}
+                              </td>
+                              <td>
+                                <span
+                                  className={`status-badge ${
+                                    staff.status === "Active"
+                                      ? "active"
+                                      : "inactive"
+                                  }`}
+                                >
+                                  {staff.status || "Active"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -861,13 +1209,28 @@ const CRMDashboard = ({ onClose }) => {
             <div className="reports-section">
               <div className="section-header">
                 <h3>Reports</h3>
-                <button
-                  onClick={loadWeeklyReport}
-                  disabled={!connectionStatus?.connected}
-                >
-                  <RefreshCw size={14} />
-                  <span>Refresh</span>
-                </button>
+                <div className="report-actions">
+                  {reportData && (
+                    <>
+                      <button
+                        className="export-csv-btn"
+                        onClick={() => exportReport("csv")}
+                        disabled={!reportData || isLoading}
+                      >
+                        <Download size={14} />
+                        <span>Export CSV</span>
+                      </button>
+                      <button
+                        className="print-btn"
+                        onClick={() => exportReport("pdf")}
+                        disabled={!reportData || isLoading}
+                      >
+                        <Printer size={14} />
+                        <span>Export PDF</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
 
               {!connectionStatus?.connected ? (
@@ -878,46 +1241,330 @@ const CRMDashboard = ({ onClose }) => {
                     Please configure your Zenoti connection to access reports.
                   </p>
                 </div>
-              ) : reports.length === 0 ? (
-                <div className="empty-state">
-                  <p>No report data available.</p>
+              ) : (
+                <div className="report-controls">
+                  <div className="report-type-selector">
+                    <label htmlFor="reportType">Report Type:</label>
+                    <select
+                      id="reportType"
+                      value={reportType}
+                      onChange={(e) => setReportType(e.target.value)}
+                    >
+                      <option value="weekly">Weekly Business Report</option>
+                      <option value="collections">Collections Report</option>
+                      <option value="sales">Sales Report</option>
+                      <option value="client-activity">
+                        Client Activity Report
+                      </option>
+                    </select>
+                  </div>
+
+                  <div className="date-fields">
+                    {reportType === "weekly" ? (
+                      <div className="date-field">
+                        <label htmlFor="weekStartDate">
+                          Week Start Date (Sunday):
+                        </label>
+                        <input
+                          type="date"
+                          id="weekStartDate"
+                          value={dateRange.startDate}
+                          onChange={(e) =>
+                            handleDateRangeChange("startDate", e.target.value)
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <div className="date-field">
+                          <label htmlFor="startDate">Start Date:</label>
+                          <input
+                            type="date"
+                            id="startDate"
+                            value={dateRange.startDate}
+                            onChange={(e) =>
+                              handleDateRangeChange("startDate", e.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="date-field">
+                          <label htmlFor="endDate">End Date:</label>
+                          <input
+                            type="date"
+                            id="endDate"
+                            value={dateRange.endDate}
+                            onChange={(e) =>
+                              handleDateRangeChange("endDate", e.target.value)
+                            }
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+
                   <button
-                    onClick={loadWeeklyReport}
-                    className="load-report-btn"
+                    className="generate-report-btn"
+                    onClick={generateReport}
+                    disabled={generatingReport}
                   >
-                    <Download size={16} />
-                    Load Weekly Report
+                    {generatingReport ? (
+                      <>
+                        <RefreshCw size={16} className="spinning" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <BarChart4 size={16} />
+                        Generate Report
+                      </>
+                    )}
                   </button>
                 </div>
-              ) : (
-                <div className="report-content">
-                  <h4>Weekly Business Summary</h4>
-                  {reports[0] && (
-                    <div className="report-summary">
-                      <div className="report-metric">
-                        <span className="metric-label">Total Revenue</span>
-                        <span className="metric-value">
-                          ${parseFloat(reports[0].totalRevenue || 0).toFixed(2)}
-                        </span>
+              )}
+
+              {/* Report results display */}
+              {reportData && (
+                <div className="report-results">
+                  <h4>
+                    {reportType.charAt(0).toUpperCase() +
+                      reportType.slice(1).replace("-", " ")}{" "}
+                    Report
+                  </h4>
+
+                  {reportType === "weekly" && (
+                    <div className="weekly-report">
+                      <div className="summary-cards">
+                        <div className="summary-card">
+                          <h5>Total Revenue</h5>
+                          <div className="summary-value">
+                            {formatCurrency(reportData.totalRevenue || 0)}
+                          </div>
+                        </div>
+                        <div className="summary-card">
+                          <h5>Appointments</h5>
+                          <div className="summary-value">
+                            {reportData.appointmentCount || 0}
+                          </div>
+                        </div>
+                        <div className="summary-card">
+                          <h5>New Clients</h5>
+                          <div className="summary-value">
+                            {reportData.newClients || 0}
+                          </div>
+                        </div>
+                        {reportData.serviceBreakdown && (
+                          <div className="summary-card">
+                            <h5>Top Service</h5>
+                            <div className="summary-value">
+                              {Object.entries(reportData.serviceBreakdown || {})
+                                .sort((a, b) => b[1] - a[1])
+                                .slice(0, 1)
+                                .map(([service]) => service)[0] || "None"}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="report-metric">
-                        <span className="metric-label">Appointments</span>
-                        <span className="metric-value">
-                          {reports[0].appointmentCount || 0}
-                        </span>
-                      </div>
-                      <div className="report-metric">
-                        <span className="metric-label">New Clients</span>
-                        <span className="metric-value">
-                          {reports[0].newClients || 0}
-                        </span>
-                      </div>
+
+                      {/* Add more detailed sections as needed */}
                     </div>
                   )}
-                  <button className="download-report-btn">
-                    <Download size={16} />
-                    Download Full Report
-                  </button>
+
+                  {reportType === "collections" && (
+                    <div className="collections-report">
+                      <div className="summary-cards">
+                        <div className="summary-card">
+                          <h5>Total Collected</h5>
+                          <div className="summary-value">
+                            {formatCurrency(
+                              reportData.summary?.total_collected || 0
+                            )}
+                          </div>
+                        </div>
+                        <div className="summary-card">
+                          <h5>Cash Collections</h5>
+                          <div className="summary-value">
+                            {formatCurrency(
+                              reportData.summary?.total_collected_cash || 0
+                            )}
+                          </div>
+                        </div>
+                        <div className="summary-card">
+                          <h5>Non-Cash Collections</h5>
+                          <div className="summary-value">
+                            {formatCurrency(
+                              reportData.summary?.total_collected_non_cash || 0
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Payment types breakdown if available */}
+                      {reportData.centers &&
+                        Object.keys(reportData.centers).length > 0 && (
+                          <div className="centers-breakdown">
+                            <h5>Collections by Center</h5>
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>Center</th>
+                                  <th>Total</th>
+                                  <th>Cash</th>
+                                  <th>Non-Cash</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {Object.entries(reportData.centers).map(
+                                  ([centerCode, centerData]) => (
+                                    <tr key={centerCode}>
+                                      <td>{centerCode}</td>
+                                      <td>
+                                        {formatCurrency(
+                                          centerData.total_collected || 0
+                                        )}
+                                      </td>
+                                      <td>
+                                        {formatCurrency(
+                                          centerData.total_collected_cash || 0
+                                        )}
+                                      </td>
+                                      <td>
+                                        {formatCurrency(
+                                          centerData.total_collected_non_cash ||
+                                            0
+                                        )}
+                                      </td>
+                                    </tr>
+                                  )
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                    </div>
+                  )}
+
+                  {reportType === "sales" && (
+                    <div className="sales-report">
+                      <div className="summary-cards">
+                        <div className="summary-card">
+                          <h5>Total Sales</h5>
+                          <div className="summary-value">
+                            {formatCurrency(
+                              reportData.summary?.total_sales || 0
+                            )}
+                          </div>
+                        </div>
+                        <div className="summary-card">
+                          <h5>Total Refunds</h5>
+                          <div className="summary-value">
+                            {formatCurrency(
+                              reportData.summary?.total_refunds || 0
+                            )}
+                          </div>
+                        </div>
+                        <div className="summary-card">
+                          <h5>Net Sales</h5>
+                          <div className="summary-value">
+                            {formatCurrency(reportData.summary?.net_sales || 0)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Items breakdown if available */}
+                      {reportData.items && reportData.items.length > 0 && (
+                        <div className="items-breakdown">
+                          <h5>Sales by Item</h5>
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Item</th>
+                                <th>Quantity</th>
+                                <th>Total Amount</th>
+                                <th>Refunds</th>
+                                <th>Net Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {reportData.items.map((item, index) => (
+                                <tr key={index}>
+                                  <td>{item.name}</td>
+                                  <td>{item.quantity || 0}</td>
+                                  <td>
+                                    {formatCurrency(item.total_amount || 0)}
+                                  </td>
+                                  <td>
+                                    {formatCurrency(item.refund_amount || 0)}
+                                  </td>
+                                  <td>
+                                    {formatCurrency(item.net_amount || 0)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {reportType === "client-activity" && (
+                    <div className="client-activity-report">
+                      <div className="summary-cards">
+                        <div className="summary-card">
+                          <h5>Total Clients</h5>
+                          <div className="summary-value">
+                            {reportData.totalClients || 0}
+                          </div>
+                        </div>
+                        <div className="summary-card">
+                          <h5>New Clients</h5>
+                          <div className="summary-value">
+                            {reportData.newClients || 0}
+                          </div>
+                        </div>
+                        <div className="summary-card">
+                          <h5>Returning Clients</h5>
+                          <div className="summary-value">
+                            {reportData.returningClients || 0}
+                          </div>
+                        </div>
+                        <div className="summary-card">
+                          <h5>Avg. Spend</h5>
+                          <div className="summary-value">
+                            {formatCurrency(reportData.averageSpend || 0)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Client breakdown if available */}
+                      {reportData.topClients &&
+                        reportData.topClients.length > 0 && (
+                          <div className="clients-breakdown">
+                            <h5>Top Clients by Spend</h5>
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>Client</th>
+                                  <th>Visits</th>
+                                  <th>Total Spend</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {reportData.topClients.map((client, index) => (
+                                  <tr key={index}>
+                                    <td>{client.name}</td>
+                                    <td>{client.visits || 0}</td>
+                                    <td>
+                                      {formatCurrency(client.totalSpend || 0)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1038,6 +1685,16 @@ const CRMDashboard = ({ onClose }) => {
                 {/* This would fetch and display recent appointments for this contact */}
                 <div className="no-recent-appointments">
                   <p>No recent appointments found.</p>
+                  <button
+                    className="schedule-appointment-btn"
+                    onClick={() => {
+                      setShowCreateAppointment(true);
+                      // Pre-select this contact
+                    }}
+                  >
+                    <Calendar size={16} />
+                    <span>Schedule Appointment</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1073,20 +1730,12 @@ const CRMDashboard = ({ onClose }) => {
               <button onClick={() => setShowCreateAppointment(false)}>×</button>
             </div>
             <div className="modal-content">
-              {/* You'll need to create this AppointmentForm component */}
-              <div className="placeholder-form">
-                <p className="form-message">
-                  <Info size={16} />
-                  The appointment booking form is coming soon. This will be
-                  implemented in the next phase.
-                </p>
-                <button
-                  className="cancel-btn"
-                  onClick={() => setShowCreateAppointment(false)}
-                >
-                  Close
-                </button>
-              </div>
+              <AppointmentForm
+                onSuccess={handleAppointmentCreated}
+                onCancel={() => setShowCreateAppointment(false)}
+                initialContact={selectedContact}
+                centerCode={selectedCenter}
+              />
             </div>
           </div>
         </div>
