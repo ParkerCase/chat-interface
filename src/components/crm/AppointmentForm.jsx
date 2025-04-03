@@ -46,6 +46,7 @@ const AppointmentForm = ({
     const loadServices = async () => {
       try {
         setIsLoading(true);
+        setError(null);
 
         const effectiveCenterCode =
           centerCode || localStorage.getItem("selectedCenterCode");
@@ -63,6 +64,7 @@ const AppointmentForm = ({
         if (response.data?.success) {
           setServices(response.data.services || []);
         } else {
+          console.warn("Failed to load services:", response.data);
           setError("Failed to load services. Please try again.");
         }
       } catch (err) {
@@ -83,6 +85,7 @@ const AppointmentForm = ({
     const loadStaff = async () => {
       try {
         setIsLoading(true);
+        setError(null);
 
         const effectiveCenterCode =
           centerCode || localStorage.getItem("selectedCenterCode");
@@ -98,8 +101,15 @@ const AppointmentForm = ({
         });
 
         if (response.data?.success) {
-          setStaff(response.data.therapists || response.data.staff || []);
+          const staffList =
+            response.data.therapists || response.data.staff || [];
+          setStaff(staffList);
+
+          if (staffList.length === 0) {
+            console.log("No staff returned for service:", formData.serviceId);
+          }
         } else {
+          console.warn("Failed to load staff:", response.data);
           setError("Failed to load staff. Please try again.");
         }
       } catch (err) {
@@ -124,6 +134,7 @@ const AppointmentForm = ({
     const loadAvailableSlots = async () => {
       try {
         setIsLoading(true);
+        setError(null);
 
         const effectiveCenterCode =
           centerCode || localStorage.getItem("selectedCenterCode");
@@ -133,19 +144,20 @@ const AppointmentForm = ({
           return;
         }
 
-        const response = await zenotiService.getAvailability({
+        const params = {
           date: formData.date,
           serviceId: formData.serviceId,
           staffId: formData.staffId,
           centerCode: effectiveCenterCode,
-        });
+        };
 
-        if (response.data?.success) {
-          const slots = response.data.availability?.slots || [];
-          setAvailableSlots(slots);
-          setSlotsFetched(true);
-        } else {
-          setError("Failed to load available slots. Please try again.");
+        const slots = await zenotiService.getAvailableSlots(params);
+
+        setAvailableSlots(slots.slots || []);
+        setSlotsFetched(true);
+
+        if (!slots.slots || slots.slots.length === 0) {
+          console.log("No slots available for the selected criteria:", params);
         }
       } catch (err) {
         console.error("Error loading available slots:", err);
@@ -173,6 +185,7 @@ const AppointmentForm = ({
 
     try {
       setIsLoading(true);
+      setError(null);
 
       const effectiveCenterCode =
         centerCode || localStorage.getItem("selectedCenterCode");
@@ -205,6 +218,7 @@ const AppointmentForm = ({
 
         setSearchResults(formattedContacts);
       } else {
+        console.warn("Search response unsuccessful:", response.data);
         setSearchResults([]);
       }
     } catch (err) {
@@ -229,7 +243,21 @@ const AppointmentForm = ({
   // Format time for display
   const formatTime = (timeString) => {
     try {
-      const [hours, minutes] = timeString.split(":");
+      if (!timeString) return "";
+
+      // Handle different possible formats
+      let hours, minutes;
+
+      if (timeString.includes("T")) {
+        // ISO format like 2023-04-15T14:30:00
+        [hours, minutes] = timeString.split("T")[1].split(":").slice(0, 2);
+      } else if (timeString.includes(":")) {
+        // Simple time format like 14:30
+        [hours, minutes] = timeString.split(":");
+      } else {
+        return timeString; // Return as is if not recognized
+      }
+
       const date = new Date();
       date.setHours(parseInt(hours));
       date.setMinutes(parseInt(minutes));
@@ -240,7 +268,8 @@ const AppointmentForm = ({
         hour12: true,
       });
     } catch (e) {
-      return timeString;
+      console.error("Error formatting time:", e);
+      return timeString || "";
     }
   };
 
@@ -433,6 +462,11 @@ const AppointmentForm = ({
                     </option>
                   ))}
                 </select>
+                {staff.length === 0 && formData.serviceId && (
+                  <div className="help-text">
+                    No staff members available for this service
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -473,34 +507,35 @@ const AppointmentForm = ({
                       </div>
                     ) : (
                       <>
-                        {availableSlots.map((slot) => (
-                          <div
-                            key={slot.start_time}
-                            className={`time-slot ${
-                              formData.time ===
-                              slot.start_time.split("T")[1].substring(0, 5)
-                                ? "selected"
-                                : ""
-                            }`}
-                            onClick={() =>
-                              handleInputChange({
-                                target: {
-                                  name: "time",
-                                  value: slot.start_time
-                                    .split("T")[1]
-                                    .substring(0, 5),
-                                },
-                              })
-                            }
-                          >
-                            <Clock size={14} />
-                            <span>
-                              {formatTime(
-                                slot.start_time.split("T")[1].substring(0, 5)
-                              )}
-                            </span>
-                          </div>
-                        ))}
+                        {availableSlots.map((slot, index) => {
+                          // Handle different slot formats
+                          const startTime = slot.start_time || slot.startTime;
+                          const timeValue = startTime
+                            ? startTime.includes("T")
+                              ? startTime.split("T")[1].substring(0, 5)
+                              : startTime.substring(0, 5)
+                            : "";
+
+                          return (
+                            <div
+                              key={index}
+                              className={`time-slot ${
+                                formData.time === timeValue ? "selected" : ""
+                              }`}
+                              onClick={() =>
+                                handleInputChange({
+                                  target: {
+                                    name: "time",
+                                    value: timeValue,
+                                  },
+                                })
+                              }
+                            >
+                              <Clock size={14} />
+                              <span>{formatTime(startTime)}</span>
+                            </div>
+                          );
+                        })}
                       </>
                     )}
                   </div>

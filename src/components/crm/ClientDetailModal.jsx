@@ -11,9 +11,10 @@ import {
   CreditCard,
   Tag,
   Info,
+  AlertCircle,
 } from "lucide-react";
 import zenotiService from "../../services/zenotiService";
-import "./ClientDetailModal.css"; // Create this CSS file for styling
+import "./ClientDetailModal.css";
 
 const ClientDetailModal = ({ client, onClose, centerCode }) => {
   const [loading, setLoading] = useState(true);
@@ -68,12 +69,14 @@ const ClientDetailModal = ({ client, onClose, centerCode }) => {
 
         // Load purchase history
         try {
-          const historyResponse = await zenotiService.getClient(
-            `${client.id}/history`,
-            centerCode
+          const historyResponse = await zenotiService.getClientPurchaseHistory(
+            client.id,
+            {
+              centerCode,
+            }
           );
 
-          if (historyResponse.data?.success) {
+          if (historyResponse?.data?.success) {
             setPurchaseHistory(historyResponse.data.history || []);
           }
         } catch (historyError) {
@@ -105,6 +108,29 @@ const ClientDetailModal = ({ client, onClose, centerCode }) => {
     });
   };
 
+  // Handle scheduling an appointment for this client
+  const handleScheduleAppointment = () => {
+    // Close this modal first
+    onClose();
+
+    // Here you would typically open the appointment scheduling modal
+    // and pre-select this client
+    if (
+      window.openAppointmentModal &&
+      typeof window.openAppointmentModal === "function"
+    ) {
+      window.openAppointmentModal(client);
+    } else {
+      // Fallback if the global function isn't available
+      console.log("Schedule appointment for client:", client);
+      // You could dispatch an event that the parent component listens for
+      const event = new CustomEvent("scheduleAppointment", {
+        detail: { client },
+      });
+      window.dispatchEvent(event);
+    }
+  };
+
   if (loading) {
     return (
       <div className="client-detail-modal">
@@ -127,7 +153,7 @@ const ClientDetailModal = ({ client, onClose, centerCode }) => {
             </button>
           </div>
           <div className="error-message">
-            <Info size={24} />
+            <AlertCircle size={24} />
             <p>{error}</p>
           </div>
           <div className="modal-actions">
@@ -315,8 +341,11 @@ const ClientDetailModal = ({ client, onClose, centerCode }) => {
             <h3>Client Appointments</h3>
             {appointments.length > 0 ? (
               <div className="appointments-list">
-                {appointments.map((appointment) => (
-                  <div key={appointment.id} className="appointment-card">
+                {appointments.map((appointment, index) => (
+                  <div
+                    key={appointment.id || index}
+                    className="appointment-card"
+                  >
                     <div className="appointment-header">
                       <div className="appointment-date">
                         <Calendar size={16} />
@@ -327,13 +356,19 @@ const ClientDetailModal = ({ client, onClose, centerCode }) => {
                         <span>{formatTime(appointment.start_time)}</span>
                       </div>
                       <div
-                        className={`appointment-status ${appointment.status}`}
+                        className={`appointment-status ${
+                          appointment.status?.toLowerCase() || "booked"
+                        }`}
                       >
-                        {appointment.status}
+                        {appointment.status || "Booked"}
                       </div>
                     </div>
                     <div className="appointment-details">
-                      <h4>{appointment.service_name || "Service"}</h4>
+                      <h4>
+                        {appointment.service_name ||
+                          appointment.service?.name ||
+                          "Service"}
+                      </h4>
                       {appointment.therapist && (
                         <p className="therapist-name">
                           Provider: {appointment.therapist}
@@ -357,10 +392,7 @@ const ClientDetailModal = ({ client, onClose, centerCode }) => {
                 <p>No appointments found for this client.</p>
                 <button
                   className="schedule-button"
-                  onClick={() => {
-                    onClose();
-                    // You need to set up the logic to open appointment creation with this client
-                  }}
+                  onClick={handleScheduleAppointment}
                 >
                   Schedule Appointment
                 </button>
@@ -413,10 +445,7 @@ const ClientDetailModal = ({ client, onClose, centerCode }) => {
           <button onClick={onClose}>Close</button>
           <button
             className="schedule-button"
-            onClick={() => {
-              onClose();
-              // Logic to open appointment creation with this client
-            }}
+            onClick={handleScheduleAppointment}
           >
             Schedule Appointment
           </button>
