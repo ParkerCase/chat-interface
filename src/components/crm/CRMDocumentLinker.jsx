@@ -40,8 +40,10 @@ const CRMDocumentLinker = ({
         try {
           const response = await apiService.storage.getMetadata(documentPath);
 
-          if (response.data.success) {
+          if (response.data?.success) {
             setDocumentMetadata(response.data.metadata);
+          } else {
+            console.warn("Metadata response unsuccessful:", response.data);
           }
         } catch (err) {
           console.error("Error loading document metadata:", err);
@@ -86,7 +88,7 @@ const CRMDocumentLinker = ({
         documentMetadata: docMetadata,
       });
 
-      if (result.success) {
+      if (result?.success) {
         setSuccess(true);
 
         // Call success callback after a short delay for better UX
@@ -100,10 +102,10 @@ const CRMDocumentLinker = ({
           }
         }, 1500);
       } else {
-        setError(result.error || "Failed to link document");
+        setError(result?.error || "Failed to link document");
       }
     } catch (err) {
-      setError(err.message || "Failed to link document to contact");
+      setError(err?.message || "Failed to link document to contact");
     } finally {
       setIsLoading(false);
     }

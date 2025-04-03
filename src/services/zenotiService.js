@@ -1,14 +1,16 @@
-// src/services/zenotiService.js - Updated with proper API handling
+// src/services/zenotiService.js - Complete implementation with proper error handling
 import { apiClient } from "./apiService";
 
 /**
- * Service to handle all Zenoti-related API calls
+ * Service to handle all Zenoti-related API calls with comprehensive error handling
  */
 const zenotiService = {
   // Connection & Configuration
   checkConnectionStatus: async () => {
     try {
+      console.log("Checking Zenoti connection status...");
       const response = await apiClient.get("/api/zenoti/status");
+      console.log("Connection status response:", response);
       return response;
     } catch (error) {
       console.error("Error checking Zenoti connection:", error);
@@ -98,7 +100,6 @@ const zenotiService = {
     }
   },
 
-  // Fixed: Using proper endpoint path
   getClient: async (clientId, centerCode = null) => {
     try {
       const params = centerCode ? { centerCode } : {};
@@ -161,7 +162,25 @@ const zenotiService = {
     }
   },
 
-  // FIXED: Appointments - Ensure proper parameters are sent
+  // Get client purchase history
+  getClientPurchaseHistory: async (clientId, params = {}) => {
+    try {
+      return await apiClient.get(`/api/zenoti/client/${clientId}/history`, {
+        params,
+      });
+    } catch (error) {
+      console.error("Error getting client purchase history:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to get purchase history",
+          history: [],
+        },
+      };
+    }
+  },
+
+  // APPOINTMENTS
   getAppointments: async (params = {}) => {
     try {
       console.log("Getting Zenoti appointments with params:", params);
@@ -174,8 +193,6 @@ const zenotiService = {
 
         params.startDate = today.toISOString().split("T")[0];
         params.endDate = twoWeeksLater.toISOString().split("T")[0];
-
-        console.log("Added default date range:", params);
       }
 
       const response = await apiClient.get("/api/zenoti/appointments", {
@@ -249,12 +266,28 @@ const zenotiService = {
   },
 
   // Get availability
-  getAvailability: async (params) => {
+  getAvailableSlots: async (params) => {
     try {
-      return await apiClient.get("/api/zenoti/availability", { params });
+      const response = await apiClient.get("/api/zenoti/availability", {
+        params,
+      });
+      return response.data?.availability || { slots: [] };
     } catch (error) {
       console.error("Error getting availability:", error);
-      throw error;
+      return { slots: [] };
+    }
+  },
+
+  getAvailableSlotsAcrossAllCenters: async (params) => {
+    try {
+      const allCentersParams = { ...params, allCenters: true };
+      const response = await apiClient.get("/api/zenoti/availability", {
+        params: allCentersParams,
+      });
+      return response.data || { centerResults: {} };
+    } catch (error) {
+      console.error("Error getting availability across centers:", error);
+      return { centerResults: {} };
     }
   },
 
@@ -283,7 +316,14 @@ const zenotiService = {
       });
     } catch (error) {
       console.error("Error getting services across all centers:", error);
-      throw error;
+      return {
+        data: {
+          success: false,
+          combinedData: [],
+          centerResults: {},
+          error: error.message,
+        },
+      };
     }
   },
 
@@ -312,11 +352,18 @@ const zenotiService = {
       });
     } catch (error) {
       console.error("Error getting staff across all centers:", error);
-      throw error;
+      return {
+        data: {
+          success: false,
+          combinedData: [],
+          centerResults: {},
+          error: error.message,
+        },
+      };
     }
   },
 
-  // Reports - FIXED: Add proper weekly report implementation
+  // Reports - Adding implementations for missing report functions
   generateWeeklyReport: async (params) => {
     try {
       console.log("Generating weekly report with params:", params);
@@ -332,7 +379,55 @@ const zenotiService = {
         data: {
           success: false,
           error: error.message || "Failed to generate weekly report",
+          report: {
+            totalRevenue: 0,
+            appointmentCount: 0,
+            newClients: 0,
+            serviceBreakdown: {},
+          },
+        },
+      };
+    }
+  },
+
+  generateWeeklyBusinessReport: async (params) => {
+    try {
+      console.log("Generating weekly business report with params:", params);
+      if (!params.weekStartDate) {
+        throw new Error("Week start date is required");
+      }
+
+      return await apiClient.get("/api/zenoti/reports/weekly", { params });
+    } catch (error) {
+      console.error("Error generating weekly business report:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to generate weekly business report",
           report: null,
+        },
+      };
+    }
+  },
+
+  generateWeeklyBusinessReportForAllCenters: async (params) => {
+    try {
+      const allCentersParams = { ...params, allCenters: true };
+      return await apiClient.get("/api/zenoti/reports/weekly", {
+        params: allCentersParams,
+      });
+    } catch (error) {
+      console.error("Error generating weekly report for all centers:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message,
+          overview: {
+            centerCount: 0,
+            totalRevenue: 0,
+            appointmentCount: 0,
+            newClients: 0,
+          },
         },
       };
     }
@@ -340,17 +435,114 @@ const zenotiService = {
 
   generateClientActivityReport: async (params) => {
     try {
+      if (!params.startDate || !params.endDate) {
+        throw new Error("Start date and end date are required");
+      }
+
       return await apiClient.get("/api/zenoti/reports/client-activity", {
         params,
       });
     } catch (error) {
       console.error("Error generating client activity report:", error);
-      throw error;
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to generate client activity report",
+          report: {
+            totalClients: 0,
+            newClients: 0,
+            returningClients: 0,
+            averageSpend: 0,
+            topClients: [],
+          },
+        },
+      };
     }
   },
 
-  // Added: New export report functionality
-  exportReport: async (reportData, format, filename) => {
+  generateClientActivityReportAcrossAllCenters: async (params) => {
+    try {
+      const allCentersParams = { ...params, allCenters: true };
+      return await apiClient.get("/api/zenoti/reports/client-activity", {
+        params: allCentersParams,
+      });
+    } catch (error) {
+      console.error(
+        "Error generating client activity report across centers:",
+        error
+      );
+      return {
+        data: {
+          success: false,
+          error: error.message,
+          report: {
+            centerCount: 0,
+            totalClients: 0,
+            newClients: 0,
+            returningClients: 0,
+          },
+        },
+      };
+    }
+  },
+
+  // Adding missing report functions
+  getCollectionsReport: async (params) => {
+    try {
+      if (!params.startDate || !params.endDate) {
+        throw new Error("Start date and end date are required");
+      }
+
+      return await apiClient.get("/api/zenoti/reports/collections", { params });
+    } catch (error) {
+      console.error("Error getting collections report:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to get collections report",
+          report: {
+            summary: {
+              total_collected: 0,
+              total_collected_cash: 0,
+              total_collected_non_cash: 0,
+            },
+            centers: {},
+            transactions: [],
+          },
+        },
+      };
+    }
+  },
+
+  getSalesReport: async (params) => {
+    try {
+      if (!params.startDate || !params.endDate) {
+        throw new Error("Start date and end date are required");
+      }
+
+      return await apiClient.get("/api/zenoti/reports/sales", { params });
+    } catch (error) {
+      console.error("Error getting sales report:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to get sales report",
+          report: {
+            summary: {
+              total_sales: 0,
+              total_refunds: 0,
+              net_sales: 0,
+            },
+            items: [],
+            centers: {},
+          },
+        },
+      };
+    }
+  },
+
+  // Report file generation
+  generateReportFile: async (reportData, format, filename) => {
     try {
       return await apiClient.post("/api/zenoti/reports/export", {
         reportData,
@@ -358,20 +550,33 @@ const zenotiService = {
         filename,
       });
     } catch (error) {
-      console.error("Error exporting report:", error);
-      throw error;
+      console.error("Error generating report file:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to generate report file",
+        },
+      };
     }
   },
 
+  // List report files
   getReportFiles: async () => {
     try {
       return await apiClient.get("/api/zenoti/reports/list");
     } catch (error) {
       console.error("Error getting report files:", error);
-      throw error;
+      return {
+        data: {
+          success: false,
+          files: [],
+          error: error.message,
+        },
+      };
     }
   },
 
+  // Download report file
   downloadReport: async (filename) => {
     try {
       return await apiClient.get(`/api/zenoti/reports/download/${filename}`, {
@@ -380,6 +585,22 @@ const zenotiService = {
     } catch (error) {
       console.error("Error downloading report:", error);
       throw error;
+    }
+  },
+
+  // Webhook stats
+  getWebhookStats: async () => {
+    try {
+      return await apiClient.get("/api/zenoti/webhooks/stats");
+    } catch (error) {
+      console.error("Error getting webhook stats:", error);
+      return {
+        data: {
+          success: false,
+          stats: {},
+          error: error.message,
+        },
+      };
     }
   },
 };

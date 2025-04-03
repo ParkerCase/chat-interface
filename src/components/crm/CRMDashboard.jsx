@@ -31,6 +31,7 @@ import apiService from "../../services/apiService";
 import CRMContactLookup from "./CRMContactLookup";
 import CreateContactForm from "./CreateContactForm";
 import AppointmentForm from "./AppointmentForm";
+import ClientDetailModal from "./ClientDetailModal";
 import "./CRMDashboard.css";
 
 const CRMDashboard = ({ onClose }) => {
@@ -77,6 +78,28 @@ const CRMDashboard = ({ onClose }) => {
   const loadingAppointmentsRef = useRef(false);
   const loadingServicesRef = useRef(false);
   const loadingStaffRef = useRef(false);
+
+  // Make the appointment modal accessible globally
+  useEffect(() => {
+    window.openAppointmentModal = (client) => {
+      setSelectedContact(client);
+      setShowCreateAppointment(true);
+    };
+
+    // Add event listener for the scheduleAppointment event
+    const handleScheduleEvent = (event) => {
+      if (event.detail && event.detail.client) {
+        window.openAppointmentModal(event.detail.client);
+      }
+    };
+
+    window.addEventListener("scheduleAppointment", handleScheduleEvent);
+
+    return () => {
+      window.removeEventListener("scheduleAppointment", handleScheduleEvent);
+      delete window.openAppointmentModal;
+    };
+  }, []);
 
   // Set up a refresh interval for auto-refreshing data
   useEffect(() => {
@@ -402,27 +425,13 @@ const CRMDashboard = ({ onClose }) => {
   // Handle contact selection
   const handleContactSelect = (contact) => {
     setSelectedContact(contact);
-    loadContactDetails(contact.id);
+    setShowContactDetails(true);
   };
 
-  // Load contact details
-  const loadContactDetails = async (contactId) => {
-    try {
-      setIsLoading(true);
-
-      // Use the correct method name - getClient instead of getClientDetails
-      const response = await zenotiService.getClient(contactId, selectedCenter);
-
-      if (response.data?.success) {
-        setContactDetails(response.data.client);
-        setShowContactDetails(true);
-      }
-    } catch (err) {
-      console.error("Error loading contact details:", err);
-      setError("Failed to load contact details");
-    } finally {
-      setIsLoading(false);
-    }
+  // Close contact details modal
+  const handleCloseContactDetails = () => {
+    setShowContactDetails(false);
+    setContactDetails(null);
   };
 
   // Handle center selection
@@ -522,20 +531,18 @@ const CRMDashboard = ({ onClose }) => {
       switch (reportType) {
         case "weekly":
           // For weekly reports, we need a week start date
-          // Default to the most recent Sunday
-          const weekStartDate = dateRange.startDate;
-
           console.log("Generating weekly report with params:", {
-            weekStartDate,
+            weekStartDate: dateRange.startDate,
             centerCode: selectedCenter,
             compareWithPreviousWeek: true,
           });
 
-          const weeklyResponse = await zenotiService.generateWeeklyReport({
-            weekStartDate,
-            centerCode: selectedCenter,
-            compareWithPreviousWeek: true,
-          });
+          const weeklyResponse =
+            await zenotiService.generateWeeklyBusinessReport({
+              weekStartDate: dateRange.startDate,
+              centerCode: selectedCenter,
+              compareWithPreviousWeek: true,
+            });
 
           if (weeklyResponse.data?.success) {
             setReportData(
@@ -547,7 +554,6 @@ const CRMDashboard = ({ onClose }) => {
           break;
 
         case "collections":
-          // For collections report
           console.log("Generating collections report with params:", {
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
@@ -568,7 +574,6 @@ const CRMDashboard = ({ onClose }) => {
           break;
 
         case "sales":
-          // For sales report
           console.log("Generating sales report with params:", {
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
@@ -589,7 +594,6 @@ const CRMDashboard = ({ onClose }) => {
           break;
 
         case "client-activity":
-          // For client activity report
           console.log("Generating client activity report with params:", {
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
@@ -1061,8 +1065,11 @@ const CRMDashboard = ({ onClose }) => {
                 </div>
               ) : (
                 <div className="appointments-list">
-                  {appointments.map((appointment) => (
-                    <div key={appointment.id} className="appointment-card">
+                  {appointments.map((appointment, index) => (
+                    <div
+                      key={appointment.id || index}
+                      className="appointment-card"
+                    >
                       <div className="appointment-header">
                         <div className="appointment-date">
                           <Calendar size={16} />
@@ -1570,137 +1577,16 @@ const CRMDashboard = ({ onClose }) => {
             </div>
           )}
         </div>
-
-        {/* Contact details panel */}
-        {showContactDetails && contactDetails && (
-          <div className="contact-details-panel">
-            {/* Close button for mobile */}
-            <button
-              className="close-details-button"
-              onClick={() => setShowContactDetails(false)}
-            >
-              <X size={16} />
-            </button>
-
-            <div className="contact-info">
-              <div className="contact-name">
-                <h2>
-                  {contactDetails.personal_info?.first_name ||
-                    contactDetails.first_name ||
-                    ""}{" "}
-                  {contactDetails.personal_info?.last_name ||
-                    contactDetails.last_name ||
-                    ""}
-                </h2>
-              </div>
-
-              <div className="contact-details-section">
-                <h4>Contact Information</h4>
-                <div className="detail-item">
-                  <Mail size={16} />
-                  <span>Email:</span>
-                  <span>
-                    {contactDetails.personal_info?.email ||
-                      contactDetails.email ||
-                      "—"}
-                  </span>
-                </div>
-                <div className="detail-item">
-                  <Phone size={16} />
-                  <span>Phone:</span>
-                  <span>
-                    {contactDetails.personal_info?.mobile_phone?.number ||
-                      contactDetails.personal_info?.mobile ||
-                      contactDetails.mobile ||
-                      contactDetails.phone ||
-                      "—"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="contact-details-section">
-                <h4>Personal Information</h4>
-                {contactDetails.date_of_birth && (
-                  <div className="detail-item">
-                    <Calendar size={16} />
-                    <span>Birthday:</span>
-                    <span>
-                      {new Date(
-                        contactDetails.date_of_birth
-                      ).toLocaleDateString()}
-                    </span>
-                  </div>
-                )}
-                {contactDetails.gender && (
-                  <div className="detail-item">
-                    <Tag size={16} />
-                    <span>Gender:</span>
-                    <span>{contactDetails.gender}</span>
-                  </div>
-                )}
-
-                {contactDetails.center_code && (
-                  <div className="detail-item">
-                    <Info size={16} />
-                    <span>Center:</span>
-                    <span>
-                      {centers.find(
-                        (c) => c.code === contactDetails.center_code
-                      )?.name || contactDetails.center_code}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="contact-details-section">
-                <h4>Actions</h4>
-                <div className="action-buttons">
-                  <button className="action-button">
-                    <MessageSquare size={16} />
-                    <span>Message</span>
-                  </button>
-                  <button
-                    className="action-button"
-                    onClick={() => {
-                      setShowCreateAppointment(true);
-                      // Pre-select this contact for the appointment
-                    }}
-                  >
-                    <Calendar size={16} />
-                    <span>Schedule</span>
-                  </button>
-                  <button className="action-button">
-                    <FileText size={16} />
-                    <span>Notes</span>
-                  </button>
-                  <button className="action-button">
-                    <Edit size={16} />
-                    <span>Edit</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="contact-details-section">
-                <h4>Recent Appointments</h4>
-                {/* This would fetch and display recent appointments for this contact */}
-                <div className="no-recent-appointments">
-                  <p>No recent appointments found.</p>
-                  <button
-                    className="schedule-appointment-btn"
-                    onClick={() => {
-                      setShowCreateAppointment(true);
-                      // Pre-select this contact
-                    }}
-                  >
-                    <Calendar size={16} />
-                    <span>Schedule Appointment</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Contact details modal */}
+      {showContactDetails && selectedContact && (
+        <ClientDetailModal
+          client={selectedContact}
+          onClose={handleCloseContactDetails}
+          centerCode={selectedCenter}
+        />
+      )}
 
       {/* Create contact modal */}
       {showCreateContact && (
