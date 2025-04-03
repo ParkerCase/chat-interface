@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -16,30 +16,52 @@ import {
   Tag,
   ChevronRight,
   MoreHorizontal,
+  Edit,
+  X,
+  AlertCircle,
+  CheckCircle,
+  Info,
 } from "lucide-react";
 import zenotiService from "../../services/zenotiService";
 import apiService from "../../services/apiService";
 import CRMContactLookup from "./CRMContactLookup";
 import CreateContactForm from "./CreateContactForm";
+import AppointmentForm from "./AppointmentForm"; // You'll need to create this component
 import "./CRMDashboard.css";
 
-const CRMDashboard = () => {
+const CRMDashboard = ({ onClose }) => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [contacts, setContacts] = useState([]);
   const [recentContacts, setRecentContacts] = useState([]);
   const [activeSection, setActiveSection] = useState("contacts");
   const [showCreateContact, setShowCreateContact] = useState(false);
+  const [showCreateAppointment, setShowCreateAppointment] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState(null);
   const [centers, setCenters] = useState([]);
   const [selectedCenter, setSelectedCenter] = useState("");
   const [appointments, setAppointments] = useState([]);
+  const [services, setServices] = useState([]);
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedContact, setSelectedContact] = useState(null);
   const [contactDetails, setContactDetails] = useState(null);
   const [showContactDetails, setShowContactDetails] = useState(false);
   const [error, setError] = useState(null);
+  const [loadingMessage, setLoadingMessage] = useState("Loading data...");
+  const [reports, setReports] = useState([]);
+
+  // Set up a refresh interval for auto-refreshing data
+  useEffect(() => {
+    // Refresh data every 5 minutes
+    const refreshInterval = setInterval(() => {
+      if (activeSection === "appointments") {
+        loadAppointments();
+      }
+    }, 300000); // 5 minutes
+
+    return () => clearInterval(refreshInterval);
+  }, [activeSection]);
 
   // Check connection status and load initial data
   useEffect(() => {
@@ -47,9 +69,12 @@ const CRMDashboard = () => {
       try {
         setIsLoading(true);
         setError(null);
+        setLoadingMessage("Checking Zenoti connection...");
 
         // Check Zenoti connection status
         const statusResponse = await zenotiService.checkConnectionStatus();
+        console.log("Connection status response:", statusResponse);
+
         const isConnected =
           statusResponse.data?.success &&
           statusResponse.data?.status === "connected";
@@ -59,25 +84,41 @@ const CRMDashboard = () => {
           message: isConnected
             ? "Connected to Zenoti"
             : "Not connected to Zenoti",
+          details: statusResponse.data,
         });
 
         if (isConnected) {
           // Load centers
+          setLoadingMessage("Loading centers...");
           const centersResponse = await zenotiService.getCenters();
+          console.log("Centers response:", centersResponse);
+
           if (centersResponse.data?.success) {
-            setCenters(centersResponse.data.centers || []);
+            // Process centers data - check both possible formats from backend
+            const centersData =
+              centersResponse.data.centers ||
+              centersResponse.data.centerMapping ||
+              [];
+
+            setCenters(centersData);
 
             // Set default center if available
-            if (centersResponse.data.centers?.length > 0) {
-              setSelectedCenter(centersResponse.data.centers[0].code);
+            if (centersData.length > 0) {
+              setSelectedCenter(centersData[0].code);
             }
           }
 
           // Load recent contacts
+          setLoadingMessage("Loading recent contacts...");
           await loadRecentContacts();
 
           // Load upcoming appointments
+          setLoadingMessage("Loading appointments...");
           await loadAppointments();
+
+          // Load services
+          setLoadingMessage("Loading services...");
+          await loadServices();
         }
       } catch (err) {
         console.error("Error initializing CRM:", err);
@@ -86,6 +127,7 @@ const CRMDashboard = () => {
         );
       } finally {
         setIsLoading(false);
+        setLoadingMessage("");
       }
     };
 
@@ -99,6 +141,7 @@ const CRMDashboard = () => {
       const response = await zenotiService.searchClients({
         sort: "last_visit",
         limit: 10,
+        centerCode: selectedCenter,
       });
 
       console.log("Recent contacts response:", response);
@@ -147,25 +190,28 @@ const CRMDashboard = () => {
   // Load appointments
   const loadAppointments = async () => {
     try {
+      setIsLoading(true);
+
+      // Get date range for appointments (today to next 2 weeks)
       const today = new Date();
-      const nextWeek = new Date();
-      nextWeek.setDate(today.getDate() + 7);
+      const nextTwoWeeks = new Date();
+      nextTwoWeeks.setDate(today.getDate() + 14);
 
       const formattedToday = today.toISOString().split("T")[0];
-      const formattedNextWeek = nextWeek.toISOString().split("T")[0];
+      const formattedNextTwoWeeks = nextTwoWeeks.toISOString().split("T")[0];
 
       console.log("Requesting appointments with params:", {
         startDate: formattedToday,
-        endDate: formattedNextWeek,
+        endDate: formattedNextTwoWeeks,
         centerCode: selectedCenter,
-        status: "confirmed",
+        status: filter === "all" ? "" : filter,
       });
 
       const response = await zenotiService.getAppointments({
         startDate: formattedToday,
-        endDate: formattedNextWeek,
+        endDate: formattedNextTwoWeeks,
         centerCode: selectedCenter,
-        status: "confirmed",
+        status: filter === "all" ? "" : filter,
       });
 
       console.log("Appointment response:", response);
@@ -189,10 +235,10 @@ const CRMDashboard = () => {
               : "No Client";
 
             return {
-              id: appointment.appointment_id,
+              id: appointment.appointment_id || appointment.id,
               service_name: serviceName,
               client_name: clientName,
-              start_time: appointment.start_time,
+              start_time: appointment.start_time || appointment.startTime,
               duration: appointment.blockout
                 ? appointment.blockout.duration
                 : appointment.service
@@ -205,6 +251,8 @@ const CRMDashboard = () => {
                     appointment.therapist.last_name || ""
                   }`.trim()
                 : "Unassigned",
+              guest: appointment.guest || null,
+              center: appointment.center || null,
             };
           }
         );
@@ -221,6 +269,27 @@ const CRMDashboard = () => {
       console.error("Error loading appointments:", err);
       // Set to empty array if API call fails
       setAppointments([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Load services
+  const loadServices = async () => {
+    try {
+      const response = await zenotiService.getServices({
+        centerCode: selectedCenter,
+        limit: 20,
+      });
+
+      if (response.data?.success) {
+        setServices(response.data.services || []);
+      } else {
+        setServices([]);
+      }
+    } catch (err) {
+      console.error("Error loading services:", err);
+      setServices([]);
     }
   };
 
@@ -231,14 +300,12 @@ const CRMDashboard = () => {
   };
 
   // Load contact details
-  // Load contact details
-  // Change this in CRMDashboard.jsx
   const loadContactDetails = async (contactId) => {
     try {
       setIsLoading(true);
 
-      // This line needs to change from getClientDetails to getClient
-      const response = await zenotiService.getClient(contactId);
+      // Use the correct method name - getClient instead of getClientDetails
+      const response = await zenotiService.getClient(contactId, selectedCenter);
 
       if (response.data?.success) {
         setContactDetails(response.data.client);
@@ -263,7 +330,14 @@ const CRMDashboard = () => {
     handleContactSelect(newContact);
   };
 
-  // Handle search
+  // Handle appointment creation
+  const handleAppointmentCreated = (newAppointment) => {
+    setShowCreateAppointment(false);
+
+    // Reload appointments to show the new one
+    loadAppointments();
+  };
+
   // Handle search
   const handleSearch = async () => {
     if (!searchTerm) return;
@@ -333,6 +407,45 @@ const CRMDashboard = () => {
     }
   };
 
+  // Format time
+  const formatTime = (dateTimeString) => {
+    if (!dateTimeString) return "";
+
+    return new Date(dateTimeString).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  // Get weekly report data
+  const loadWeeklyReport = async () => {
+    try {
+      setIsLoading(true);
+
+      // Get the current week's start date (Sunday)
+      const today = new Date();
+      const day = today.getDay();
+      const diff = today.getDate() - day;
+      const weekStart = new Date(today.setDate(diff));
+      const formattedDate = weekStart.toISOString().split("T")[0];
+
+      const response = await zenotiService.generateWeeklyReport({
+        weekStartDate: formattedDate,
+        centerCode: selectedCenter,
+        compareWithPreviousWeek: true,
+      });
+
+      if (response.data?.success) {
+        setReports([response.data.report || response.data.overview]);
+      }
+    } catch (err) {
+      console.error("Error loading weekly report:", err);
+      setError("Failed to load weekly report");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="crm-dashboard">
       {/* Header */}
@@ -355,13 +468,27 @@ const CRMDashboard = () => {
             )}
           </div>
         )}
+        {onClose && (
+          <button className="close-button" onClick={onClose}>
+            <X size={20} />
+          </button>
+        )}
       </div>
 
       {/* Error message */}
       {error && (
         <div className="error-message">
+          <AlertCircle size={16} />
           <span>{error}</span>
           <button onClick={() => setError(null)}>Dismiss</button>
+        </div>
+      )}
+
+      {/* Loading indicator */}
+      {isLoading && (
+        <div className="loading-overlay">
+          <div className="loading-spinner"></div>
+          <span>{loadingMessage || "Loading..."}</span>
         </div>
       )}
 
@@ -381,19 +508,28 @@ const CRMDashboard = () => {
             </button>
             <button
               className={activeSection === "appointments" ? "active" : ""}
-              onClick={() => setActiveSection("appointments")}
+              onClick={() => {
+                setActiveSection("appointments");
+                loadAppointments();
+              }}
             >
               Appointments
             </button>
             <button
               className={activeSection === "services" ? "active" : ""}
-              onClick={() => setActiveSection("services")}
+              onClick={() => {
+                setActiveSection("services");
+                loadServices();
+              }}
             >
               Services
             </button>
             <button
               className={activeSection === "reports" ? "active" : ""}
-              onClick={() => setActiveSection("reports")}
+              onClick={() => {
+                setActiveSection("reports");
+                loadWeeklyReport();
+              }}
             >
               Reports
             </button>
@@ -419,6 +555,7 @@ const CRMDashboard = () => {
             <button
               className="create-contact-btn"
               onClick={() => setShowCreateContact(true)}
+              disabled={!connectionStatus?.connected}
             >
               <UserPlus size={16} />
               Create Contact
@@ -437,14 +574,18 @@ const CRMDashboard = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+                disabled={!connectionStatus?.connected}
               />
-              <button onClick={handleSearch} disabled={!searchTerm}>
+              <button
+                onClick={handleSearch}
+                disabled={!searchTerm || !connectionStatus?.connected}
+              >
                 <Search size={18} />
                 <span>Search</span>
               </button>
             </div>
             <div className="search-filters">
-              <button>
+              <button disabled={!connectionStatus?.connected}>
                 <Filter size={16} />
                 <span>Filters</span>
                 <ChevronDown size={14} />
@@ -457,13 +598,24 @@ const CRMDashboard = () => {
             <div className="contacts-section">
               <div className="section-header">
                 <h3>Recent Contacts</h3>
-                <button onClick={loadRecentContacts}>
+                <button
+                  onClick={loadRecentContacts}
+                  disabled={!connectionStatus?.connected}
+                >
                   <RefreshCw size={14} />
                   <span>Refresh</span>
                 </button>
               </div>
 
-              {isLoading ? (
+              {!connectionStatus?.connected ? (
+                <div className="not-connected-message">
+                  <AlertCircle size={48} />
+                  <h3>Not Connected to Zenoti</h3>
+                  <p>
+                    Please configure your Zenoti connection to access contacts.
+                  </p>
+                </div>
+              ) : isLoading ? (
                 <div className="loading-message">Loading contacts...</div>
               ) : recentContacts.length === 0 ? (
                 <div className="empty-state">
@@ -566,18 +718,43 @@ const CRMDashboard = () => {
             <div className="appointments-section">
               <div className="section-header">
                 <h3>Upcoming Appointments</h3>
-                <button onClick={loadAppointments}>
-                  <RefreshCw size={14} />
-                  <span>Refresh</span>
-                </button>
+                <div className="appointment-actions">
+                  <button
+                    className="create-appointment-btn"
+                    onClick={() => setShowCreateAppointment(true)}
+                    disabled={!connectionStatus?.connected}
+                  >
+                    <Calendar size={16} />
+                    Schedule Appointment
+                  </button>
+                  <button
+                    onClick={loadAppointments}
+                    disabled={!connectionStatus?.connected}
+                  >
+                    <RefreshCw size={14} />
+                    <span>Refresh</span>
+                  </button>
+                </div>
               </div>
 
-              {isLoading ? (
+              {!connectionStatus?.connected ? (
+                <div className="not-connected-message">
+                  <AlertCircle size={48} />
+                  <h3>Not Connected to Zenoti</h3>
+                  <p>
+                    Please configure your Zenoti connection to access
+                    appointments.
+                  </p>
+                </div>
+              ) : isLoading ? (
                 <div className="loading-message">Loading appointments...</div>
               ) : appointments.length === 0 ? (
                 <div className="empty-state">
                   <p>No upcoming appointments found.</p>
-                  <button className="create-appointment-btn">
+                  <button
+                    className="create-appointment-btn"
+                    onClick={() => setShowCreateAppointment(true)}
+                  >
                     <Calendar size={16} />
                     Schedule Appointment
                   </button>
@@ -597,14 +774,7 @@ const CRMDashboard = () => {
                         </div>
                         <div className="appointment-time">
                           <Clock size={16} />
-                          <span>
-                            {new Date(
-                              appointment.start_time
-                            ).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
+                          <span>{formatTime(appointment.start_time)}</span>
                         </div>
                       </div>
                       <div className="appointment-details">
@@ -639,11 +809,51 @@ const CRMDashboard = () => {
             <div className="services-section">
               <div className="section-header">
                 <h3>Available Services</h3>
+                <button
+                  onClick={loadServices}
+                  disabled={!connectionStatus?.connected}
+                >
+                  <RefreshCw size={14} />
+                  <span>Refresh</span>
+                </button>
               </div>
 
-              <div className="empty-state">
-                <p>Service management will be available in the next update.</p>
-              </div>
+              {!connectionStatus?.connected ? (
+                <div className="not-connected-message">
+                  <AlertCircle size={48} />
+                  <h3>Not Connected to Zenoti</h3>
+                  <p>
+                    Please configure your Zenoti connection to access services.
+                  </p>
+                </div>
+              ) : services.length === 0 ? (
+                <div className="empty-state">
+                  <p>No services found for the selected center.</p>
+                </div>
+              ) : (
+                <div className="services-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Service Name</th>
+                        <th>Duration</th>
+                        <th>Price</th>
+                        <th>Category</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {services.map((service) => (
+                        <tr key={service.id}>
+                          <td>{service.name}</td>
+                          <td>{service.duration} mins</td>
+                          <td>${parseFloat(service.price || 0).toFixed(2)}</td>
+                          <td>{service.category || "Uncategorized"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
@@ -651,11 +861,65 @@ const CRMDashboard = () => {
             <div className="reports-section">
               <div className="section-header">
                 <h3>Reports</h3>
+                <button
+                  onClick={loadWeeklyReport}
+                  disabled={!connectionStatus?.connected}
+                >
+                  <RefreshCw size={14} />
+                  <span>Refresh</span>
+                </button>
               </div>
 
-              <div className="empty-state">
-                <p>Reporting features will be available in the next update.</p>
-              </div>
+              {!connectionStatus?.connected ? (
+                <div className="not-connected-message">
+                  <AlertCircle size={48} />
+                  <h3>Not Connected to Zenoti</h3>
+                  <p>
+                    Please configure your Zenoti connection to access reports.
+                  </p>
+                </div>
+              ) : reports.length === 0 ? (
+                <div className="empty-state">
+                  <p>No report data available.</p>
+                  <button
+                    onClick={loadWeeklyReport}
+                    className="load-report-btn"
+                  >
+                    <Download size={16} />
+                    Load Weekly Report
+                  </button>
+                </div>
+              ) : (
+                <div className="report-content">
+                  <h4>Weekly Business Summary</h4>
+                  {reports[0] && (
+                    <div className="report-summary">
+                      <div className="report-metric">
+                        <span className="metric-label">Total Revenue</span>
+                        <span className="metric-value">
+                          ${parseFloat(reports[0].totalRevenue || 0).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="report-metric">
+                        <span className="metric-label">Appointments</span>
+                        <span className="metric-value">
+                          {reports[0].appointmentCount || 0}
+                        </span>
+                      </div>
+                      <div className="report-metric">
+                        <span className="metric-label">New Clients</span>
+                        <span className="metric-value">
+                          {reports[0].newClients || 0}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <button className="download-report-btn">
+                    <Download size={16} />
+                    Download Full Report
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -663,7 +927,14 @@ const CRMDashboard = () => {
         {/* Contact details panel */}
         {showContactDetails && contactDetails && (
           <div className="contact-details-panel">
-            {/* ... */}
+            {/* Close button for mobile */}
+            <button
+              className="close-details-button"
+              onClick={() => setShowContactDetails(false)}
+            >
+              <X size={16} />
+            </button>
+
             <div className="contact-info">
               <div className="contact-name">
                 <h2>
@@ -720,6 +991,18 @@ const CRMDashboard = () => {
                     <span>{contactDetails.gender}</span>
                   </div>
                 )}
+
+                {contactDetails.center_code && (
+                  <div className="detail-item">
+                    <Info size={16} />
+                    <span>Center:</span>
+                    <span>
+                      {centers.find(
+                        (c) => c.code === contactDetails.center_code
+                      )?.name || contactDetails.center_code}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="contact-details-section">
@@ -729,7 +1012,13 @@ const CRMDashboard = () => {
                     <MessageSquare size={16} />
                     <span>Message</span>
                   </button>
-                  <button className="action-button">
+                  <button
+                    className="action-button"
+                    onClick={() => {
+                      setShowCreateAppointment(true);
+                      // Pre-select this contact for the appointment
+                    }}
+                  >
                     <Calendar size={16} />
                     <span>Schedule</span>
                   </button>
@@ -737,6 +1026,18 @@ const CRMDashboard = () => {
                     <FileText size={16} />
                     <span>Notes</span>
                   </button>
+                  <button className="action-button">
+                    <Edit size={16} />
+                    <span>Edit</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="contact-details-section">
+                <h4>Recent Appointments</h4>
+                {/* This would fetch and display recent appointments for this contact */}
+                <div className="no-recent-appointments">
+                  <p>No recent appointments found.</p>
                 </div>
               </div>
             </div>
@@ -758,6 +1059,34 @@ const CRMDashboard = () => {
                 onSuccess={handleContactCreated}
                 onCancel={() => setShowCreateContact(false)}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create appointment modal */}
+      {showCreateAppointment && (
+        <div className="modal-overlay">
+          <div className="modal-container">
+            <div className="modal-header">
+              <h3>Schedule Appointment</h3>
+              <button onClick={() => setShowCreateAppointment(false)}>×</button>
+            </div>
+            <div className="modal-content">
+              {/* You'll need to create this AppointmentForm component */}
+              <div className="placeholder-form">
+                <p className="form-message">
+                  <Info size={16} />
+                  The appointment booking form is coming soon. This will be
+                  implemented in the next phase.
+                </p>
+                <button
+                  className="cancel-btn"
+                  onClick={() => setShowCreateAppointment(false)}
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
