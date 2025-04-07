@@ -281,6 +281,7 @@ const CRMDashboard = ({ onClose }) => {
   };
 
   // Load appointments
+  // In CRMDashboard.jsx - Enhanced appointment loading
   const loadAppointments = async () => {
     // Prevent duplicate loading
     if (loadingAppointmentsRef.current) return;
@@ -288,6 +289,9 @@ const CRMDashboard = ({ onClose }) => {
     try {
       loadingAppointmentsRef.current = true;
       setIsLoading(true);
+
+      // Clear any previous error
+      setError(null);
 
       console.log("Requesting appointments with params:", {
         startDate: appointmentDateRange.startDate,
@@ -301,63 +305,92 @@ const CRMDashboard = ({ onClose }) => {
         endDate: appointmentDateRange.endDate,
         centerCode: selectedCenter,
         status: filter === "all" ? "" : filter,
+        // For wider date ranges, backend will chunk into multiple requests
+        // Add a freshData flag to bypass cache if needed
+        freshData: false,
       });
 
       console.log("Appointment response:", response);
 
       if (response.data?.success) {
-        // Transform the appointments data to match expected format
-        const formattedAppointments = (response.data.appointments || []).map(
-          (appointment) => {
-            // Get service name from either blockout or service property
-            const serviceName = appointment.blockout
-              ? appointment.blockout.name
-              : appointment.service
-              ? appointment.service.name
-              : "Admin Time";
+        // Handle possible data formats
+        let formattedAppointments = [];
 
-            // Handle client name when guest is null
-            const clientName = appointment.guest
-              ? `${appointment.guest.first_name || ""} ${
-                  appointment.guest.last_name || ""
-                }`.trim()
-              : "No Client";
-
-            return {
-              id: appointment.appointment_id || appointment.id,
-              service_name: serviceName,
-              client_name: clientName,
-              start_time: appointment.start_time || appointment.startTime,
-              duration: appointment.blockout
-                ? appointment.blockout.duration
+        if (Array.isArray(response.data.appointments)) {
+          // Transform the appointments data to match expected format
+          formattedAppointments = response.data.appointments.map(
+            (appointment) => {
+              // Get service name from either blockout or service property
+              const serviceName = appointment.blockout
+                ? appointment.blockout.name
                 : appointment.service
-                ? appointment.service.duration
-                : 60,
-              status: appointment.status,
-              notes: appointment.notes || "",
-              therapist: appointment.therapist
-                ? `${appointment.therapist.first_name || ""} ${
-                    appointment.therapist.last_name || ""
+                ? appointment.service.name
+                : appointment.service_name || "Admin Time";
+
+              // Handle client name when guest is null
+              const clientName = appointment.guest
+                ? `${appointment.guest.first_name || ""} ${
+                    appointment.guest.last_name || ""
                   }`.trim()
-                : "Unassigned",
-              guest: appointment.guest || null,
-              center: appointment.center || null,
-            };
-          }
-        );
+                : appointment.client_name || "No Client";
+
+              return {
+                id: appointment.appointment_id || appointment.id,
+                service_name: serviceName,
+                client_name: clientName,
+                start_time: appointment.start_time || appointment.startTime,
+                duration: appointment.blockout
+                  ? appointment.blockout.duration
+                  : appointment.service
+                  ? appointment.service.duration
+                  : appointment.duration || 60,
+                status: appointment.status,
+                notes: appointment.notes || "",
+                therapist: appointment.therapist
+                  ? `${appointment.therapist.first_name || ""} ${
+                      appointment.therapist.last_name || ""
+                    }`.trim()
+                  : appointment.provider_name || "Unassigned",
+                guest: appointment.guest || null,
+                center: appointment.center || null,
+              };
+            }
+          );
+        }
 
         setAppointments(formattedAppointments);
+
+        // Show a notice if data was fetched in chunks
+        if (response.data.processing?.chunking) {
+          console.log(
+            `Fetched ${formattedAppointments.length} appointments in ${response.data.processing.chunks.total} chunks.`
+          );
+
+          // Handle any failed chunks
+          if (response.data.processing.chunks.failed > 0) {
+            setError(
+              `${response.data.processing.chunks.failed} out of ${response.data.processing.chunks.total} data chunks failed to load. Some appointments may be missing.`
+            );
+          }
+        }
       } else {
         console.warn(
           "No appointments found or error in response",
           response.data
         );
         setAppointments([]);
+
+        if (response.data?.error) {
+          setError(`Failed to load appointments: ${response.data.error}`);
+        }
       }
     } catch (err) {
       console.error("Error loading appointments:", err);
       // Set to empty array if API call fails
       setAppointments([]);
+      setError(
+        "Failed to load appointments: " + (err.message || "Unknown error")
+      );
     } finally {
       setIsLoading(false);
       loadingAppointmentsRef.current = false;
@@ -528,94 +561,120 @@ const CRMDashboard = ({ onClose }) => {
       setError(null);
       setReportData(null);
 
+      // Define report params based on type
+      const reportParams = {
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        centerCode: selectedCenter,
+      };
+
+      // Add debugging before making API call
+      console.log(`Generating ${reportType} report with params:`, reportParams);
+
+      let response = null;
+
       switch (reportType) {
         case "weekly":
           // For weekly reports, we need a week start date
-          console.log("Generating weekly report with params:", {
+          const weeklyParams = {
             weekStartDate: dateRange.startDate,
             centerCode: selectedCenter,
             compareWithPreviousWeek: true,
-          });
+          };
 
-          const weeklyResponse =
-            await zenotiService.generateWeeklyBusinessReport({
-              weekStartDate: dateRange.startDate,
-              centerCode: selectedCenter,
-              compareWithPreviousWeek: true,
-            });
-
-          if (weeklyResponse.data?.success) {
-            setReportData(
-              weeklyResponse.data.report || weeklyResponse.data.overview
-            );
-          } else {
-            throw new Error("Failed to generate weekly report");
-          }
+          console.log("Generating weekly report with params:", weeklyParams);
+          response = await zenotiService.generateWeeklyBusinessReport(
+            weeklyParams
+          );
           break;
 
         case "collections":
-          console.log("Generating collections report with params:", {
-            startDate: dateRange.startDate,
-            endDate: dateRange.endDate,
-            centerCode: selectedCenter,
-          });
-
-          const collectionsResponse = await zenotiService.getCollectionsReport({
-            startDate: dateRange.startDate,
-            endDate: dateRange.endDate,
-            centerCode: selectedCenter,
-          });
-
-          if (collectionsResponse.data?.success) {
-            setReportData(collectionsResponse.data.report);
-          } else {
-            throw new Error("Failed to generate collections report");
-          }
+          console.log(
+            "Generating collections report with params:",
+            reportParams
+          );
+          response = await zenotiService.getCollectionsReport(reportParams);
           break;
 
         case "sales":
-          console.log("Generating sales report with params:", {
-            startDate: dateRange.startDate,
-            endDate: dateRange.endDate,
-            centerCode: selectedCenter,
-          });
-
-          const salesResponse = await zenotiService.getSalesReport({
-            startDate: dateRange.startDate,
-            endDate: dateRange.endDate,
-            centerCode: selectedCenter,
-          });
-
-          if (salesResponse.data?.success) {
-            setReportData(salesResponse.data.report);
-          } else {
-            throw new Error("Failed to generate sales report");
-          }
+          console.log("Generating sales report with params:", reportParams);
+          response = await zenotiService.getSalesReport(reportParams);
           break;
 
         case "client-activity":
-          console.log("Generating client activity report with params:", {
-            startDate: dateRange.startDate,
-            endDate: dateRange.endDate,
-            centerCode: selectedCenter,
-          });
+          console.log(
+            "Generating client activity report with params:",
+            reportParams
+          );
+          response = await zenotiService.generateClientActivityReport(
+            reportParams
+          );
+          break;
 
-          const clientActivityResponse =
-            await zenotiService.generateClientActivityReport({
-              startDate: dateRange.startDate,
-              endDate: dateRange.endDate,
-              centerCode: selectedCenter,
-            });
+        case "invoices":
+          // Special case for invoices - use searchInvoices instead if direct report fails
+          console.log("Generating invoice report with params:", reportParams);
+          try {
+            // First attempt to use any specific invoice report endpoint
+            response = await zenotiService.getInvoiceReport(reportParams);
+          } catch (invoiceReportError) {
+            console.error(
+              "Invoice report endpoint failed:",
+              invoiceReportError
+            );
+            console.log("Falling back to searchInvoices endpoint...");
 
-          if (clientActivityResponse.data?.success) {
-            setReportData(clientActivityResponse.data.report);
-          } else {
-            throw new Error("Failed to generate client activity report");
+            // Fall back to searchInvoices
+            const searchResponse = await zenotiService.searchInvoices(
+              reportParams
+            );
+
+            if (searchResponse.data?.success) {
+              // Transform the invoice search results into a report format
+              response = {
+                data: {
+                  success: true,
+                  report: {
+                    summary: {
+                      total_amount:
+                        searchResponse.data.invoices?.reduce(
+                          (sum, inv) => sum + (parseFloat(inv.amount) || 0),
+                          0
+                        ) || 0,
+                      count: searchResponse.data.invoices?.length || 0,
+                    },
+                    invoices: searchResponse.data.invoices || [],
+                    dateRange: searchResponse.data.dateRange,
+                  },
+                },
+              };
+            } else {
+              throw new Error("Failed to retrieve invoice data");
+            }
           }
           break;
 
         default:
           throw new Error(`Unsupported report type: ${reportType}`);
+      }
+
+      if (response?.data?.success) {
+        // Handle different response formats
+        const reportData =
+          response.data.report ||
+          response.data.overview ||
+          (response.data.invoices
+            ? { invoices: response.data.invoices }
+            : null);
+
+        if (reportData) {
+          setReportData(reportData);
+          console.log("Report data loaded successfully:", reportData);
+        } else {
+          throw new Error("Received successful response but no report data");
+        }
+      } else {
+        throw new Error(response?.data?.error || "Failed to generate report");
       }
     } catch (err) {
       console.error(`Error generating ${reportType} report:`, err);

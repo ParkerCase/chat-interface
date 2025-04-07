@@ -100,7 +100,7 @@ export function useCRM(initialProvider = null) {
     [selectedProvider]
   );
 
-  // Search contacts
+  // Search contacts with proper error handling
   const searchContacts = useCallback(
     async (searchTerm, options = {}) => {
       if (!searchTerm || searchTerm.length < 2) {
@@ -204,7 +204,7 @@ export function useCRM(initialProvider = null) {
     [selectedProvider, providerStatus]
   );
 
-  // Get contact documents
+  // Get contact documents with improved error handling
   const getContactDocuments = useCallback(
     async (contactId) => {
       if (!contactId || !selectedProvider) {
@@ -217,19 +217,24 @@ export function useCRM(initialProvider = null) {
 
         // Use the actual API if provider status is connected
         if (providerStatus[selectedProvider]) {
-          const response = await apiService.crm.getContactDocuments(
-            contactId,
-            selectedProvider
-          );
+          try {
+            const response = await apiService.crm.getContactDocuments(
+              contactId,
+              selectedProvider
+            );
 
-          if (response.data && response.data.success) {
-            return {
-              documents: response.data.documents || [],
-              total:
-                response.data.totalCount ||
-                response.data.documents?.length ||
-                0,
-            };
+            if (response.data && response.data.success) {
+              return {
+                documents: response.data.documents || [],
+                total:
+                  response.data.totalCount ||
+                  response.data.documents?.length ||
+                  0,
+              };
+            }
+          } catch (err) {
+            console.error("Error getting contact documents:", err);
+            // Continue to fallback instead of throwing
           }
         }
 
@@ -261,7 +266,7 @@ export function useCRM(initialProvider = null) {
     [selectedProvider, providerStatus]
   );
 
-  // Link document to contact
+  // Link document to contact with improved error handling
   const linkDocumentToContact = useCallback(
     async (contactId, documentData) => {
       if (!contactId || !selectedProvider || !documentData.documentPath) {
@@ -274,18 +279,29 @@ export function useCRM(initialProvider = null) {
 
         // Use the actual API if provider status is connected
         if (providerStatus[selectedProvider]) {
-          const response = await apiService.crm.linkDocument(contactId, {
-            ...documentData,
-            provider: selectedProvider,
-          });
+          try {
+            const response = await apiService.crm.linkDocument(contactId, {
+              ...documentData,
+              provider: selectedProvider,
+            });
 
-          if (response.data && response.data.success) {
+            if (response.data && response.data.success) {
+              return {
+                success: true,
+                document: response.data.document,
+              };
+            } else {
+              throw new Error(
+                response.data?.error || "Failed to link document"
+              );
+            }
+          } catch (err) {
+            console.error("Error linking document:", err);
+            // Continue to fallback instead of immediately throwing
             return {
-              success: true,
-              document: response.data.document,
+              success: false,
+              error: err.message || "Failed to link document to contact",
             };
-          } else {
-            throw new Error(response.data?.error || "Failed to link document");
           }
         }
 
@@ -309,7 +325,7 @@ export function useCRM(initialProvider = null) {
     [selectedProvider, providerStatus]
   );
 
-  // Create contact
+  // Create contact with improved error handling
   const createContact = useCallback(
     async (contactData) => {
       if (!selectedProvider) {
@@ -322,34 +338,59 @@ export function useCRM(initialProvider = null) {
 
         // Use the actual API if provider status is connected
         if (providerStatus[selectedProvider]) {
-          let response;
+          try {
+            let response;
 
-          if (selectedProvider === "zenoti") {
-            // Format the contact data for Zenoti
-            const zenotiContactData = {
-              first_name: contactData.firstName,
-              last_name: contactData.lastName,
-              email: contactData.email,
-              mobile: contactData.phone,
-              gender: contactData.gender || "NA",
-              // Add other fields as needed
-            };
+            if (selectedProvider === "zenoti") {
+              // Format the contact data for Zenoti
+              const zenotiContactData = {
+                first_name: contactData.firstName,
+                last_name: contactData.lastName,
+                email: contactData.email,
+                mobile: contactData.phone,
+                gender: contactData.gender || "NA",
+                // Add other fields as needed
+              };
 
-            response = await zenotiService.createClient(zenotiContactData);
-          } else {
-            response = await apiService.crm.createContact(
-              contactData,
-              selectedProvider
-            );
-          }
+              response = await zenotiService.createClient(zenotiContactData);
+            } else {
+              response = await apiService.crm.createContact(
+                contactData,
+                selectedProvider
+              );
+            }
 
-          if (response.data && response.data.success) {
+            if (response.data && response.data.success) {
+              // Handle different response formats
+              const contact = response.data.client || response.data.contact;
+
+              // Format the contact data consistently
+              const formattedContact = {
+                id: contact.id || contact.guest_id,
+                name: `${contact.first_name || ""} ${
+                  contact.last_name || ""
+                }`.trim(),
+                email: contact.email,
+                phone: contact.mobile || contact.phone,
+                provider: selectedProvider,
+              };
+
+              return {
+                success: true,
+                contact: formattedContact,
+              };
+            } else {
+              throw new Error(
+                response.data?.error || "Failed to create contact"
+              );
+            }
+          } catch (err) {
+            console.error("Error creating contact:", err);
+            // Continue to fallback instead of immediately throwing
             return {
-              success: true,
-              contact: response.data.client || response.data.contact,
+              success: false,
+              error: err.message || "Failed to create contact",
             };
-          } else {
-            throw new Error(response.data?.error || "Failed to create contact");
           }
         }
 

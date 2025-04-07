@@ -63,6 +63,10 @@ const AppointmentForm = ({
 
         if (response.data?.success) {
           setServices(response.data.services || []);
+
+          if (response.data.services?.length === 0) {
+            console.log("No services returned from API");
+          }
         } else {
           console.warn("Failed to load services:", response.data);
           setError("Failed to load services. Please try again.");
@@ -101,8 +105,10 @@ const AppointmentForm = ({
         });
 
         if (response.data?.success) {
+          // Handle different response formats
           const staffList =
             response.data.therapists || response.data.staff || [];
+
           setStaff(staffList);
 
           if (staffList.length === 0) {
@@ -151,13 +157,18 @@ const AppointmentForm = ({
           centerCode: effectiveCenterCode,
         };
 
+        console.log("Fetching availability slots with params:", params);
         const slots = await zenotiService.getAvailableSlots(params);
+        console.log("Available slots response:", slots);
 
-        setAvailableSlots(slots.slots || []);
+        // Handle case where slots might be nested in an availability object
+        const slotsArray = slots.slots || slots.availability?.slots || [];
+
+        setAvailableSlots(slotsArray);
         setSlotsFetched(true);
 
-        if (!slots.slots || slots.slots.length === 0) {
-          console.log("No slots available for the selected criteria:", params);
+        if (slotsArray.length === 0) {
+          console.log("No slots available for the selected criteria");
         }
       } catch (err) {
         console.error("Error loading available slots:", err);
@@ -201,7 +212,9 @@ const AppointmentForm = ({
 
         // Format contacts
         const formattedContacts = contacts.map((client) => {
+          // Handle nested personal_info or direct properties
           const personalInfo = client.personal_info || client;
+
           return {
             id: client.id || client.guest_id,
             name: `${personalInfo.first_name || ""} ${
@@ -295,6 +308,11 @@ const AppointmentForm = ({
       const effectiveCenterCode =
         centerCode || localStorage.getItem("selectedCenterCode");
 
+      if (!effectiveCenterCode) {
+        setError("No center code available. Please select a center.");
+        return;
+      }
+
       // Create appointment data
       const appointmentData = {
         guestId: formData.contactId,
@@ -304,11 +322,16 @@ const AppointmentForm = ({
         notes: formData.notes,
       };
 
+      console.log("Booking appointment with data:", appointmentData);
+      console.log("Using center code:", effectiveCenterCode);
+
       // Book appointment
       const response = await zenotiService.bookAppointment(
         appointmentData,
         effectiveCenterCode
       );
+
+      console.log("Appointment booking response:", response);
 
       if (response.data?.success) {
         setSuccess(true);
