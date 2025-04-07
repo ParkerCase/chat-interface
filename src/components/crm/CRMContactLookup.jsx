@@ -40,9 +40,11 @@ const CRMContactLookup = ({
     defaultProvider,
     isLoading: crmLoading,
     error: crmError,
+    providerStatus,
     setSelectedProvider,
     searchContacts,
     getContactDocuments,
+    checkProviderStatus,
   } = useCRM(provider);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -51,41 +53,14 @@ const CRMContactLookup = ({
   const [error, setError] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [providerStatus, setProviderStatus] = useState({});
-  // Add state for active tab
   const [activeTab, setActiveTab] = useState("search");
 
-  const checkProviderStatus = async () => {
-    if (!selectedProvider) return;
-
-    try {
-      // For Zenoti provider
-      if (selectedProvider === "zenoti") {
-        const response = await fetch("/api/zenoti/status");
-        const data = await response.json();
-        setProviderStatus((prev) => ({
-          ...prev,
-          [selectedProvider]: data.status === "connected",
-        }));
-      } else {
-        // Generic check for other providers
-        const response = await fetch(
-          `/api/crm/config?provider=${encodeURIComponent(selectedProvider)}`
-        );
-        const data = await response.json();
-        setProviderStatus((prev) => ({
-          ...prev,
-          [selectedProvider]: data.success,
-        }));
-      }
-    } catch (err) {
-      console.error(`Error checking ${selectedProvider} status:`, err);
-      setProviderStatus((prev) => ({
-        ...prev,
-        [selectedProvider]: false,
-      }));
+  // Check provider status on component mount
+  useEffect(() => {
+    if (selectedProvider) {
+      checkProviderStatus(selectedProvider);
     }
-  };
+  }, [selectedProvider, checkProviderStatus]);
 
   // Debounced search function
   const debouncedSearch = useCallback(
@@ -100,9 +75,13 @@ const CRMContactLookup = ({
 
       try {
         const result = await searchContacts(term, { provider });
-        setContacts(result.contacts || []);
 
-        if (result.contacts?.length === 0) {
+        // Handle different possible response formats
+        const contactsData = result.contacts || result.data?.contacts || [];
+
+        setContacts(contactsData);
+
+        if (contactsData.length === 0) {
           setError("No contacts found");
         }
       } catch (err) {
@@ -155,9 +134,12 @@ const CRMContactLookup = ({
     try {
       const result = await getContactDocuments(contactId);
 
+      // Handle different possible response formats
+      const documentsData = result.documents || result.data?.documents || [];
+
       setDocuments((prev) => ({
         ...prev,
-        [contactId]: result.documents || [],
+        [contactId]: documentsData,
       }));
     } catch (err) {
       console.error("Error loading contact documents:", err);
@@ -180,12 +162,6 @@ const CRMContactLookup = ({
   const handleTabChange = (tab) => {
     setActiveTab(tab);
   };
-
-  useEffect(() => {
-    if (selectedProvider) {
-      checkProviderStatus();
-    }
-  }, [selectedProvider]);
 
   // Render loading state for CRM providers
   if (crmLoading && providers.length === 0) {
@@ -367,12 +343,15 @@ const CRMContactLookup = ({
                                   <Button
                                     size="xs"
                                     variant="ghost"
-                                    asChild
-                                    href={doc.viewUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                    asChild={true}
                                   >
-                                    <ExternalLink className="h-3 w-3" />
+                                    <a
+                                      href={doc.viewUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                    </a>
                                   </Button>
                                 </td>
                               </tr>

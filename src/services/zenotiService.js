@@ -1,4 +1,4 @@
-// src/services/zenotiService.js - Complete implementation with proper error handling
+// src/services/zenotiService.js
 import { apiClient } from "./apiService";
 
 /**
@@ -100,7 +100,7 @@ const zenotiService = {
     }
   },
 
-  getClient: async (clientId, centerCode = null) => {
+  getClientDetails: async (clientId, centerCode = null) => {
     try {
       const params = centerCode ? { centerCode } : {};
       return await apiClient.get(`/api/zenoti/client/${clientId}`, { params });
@@ -226,7 +226,7 @@ const zenotiService = {
     }
   },
 
-  // Book appointment - fixed with proper parameter structure
+  // Book appointment
   bookAppointment: async (appointmentData, centerCode) => {
     try {
       return await apiClient.post("/api/zenoti/appointment", {
@@ -363,33 +363,7 @@ const zenotiService = {
     }
   },
 
-  // Reports - Adding implementations for missing report functions
-  generateWeeklyReport: async (params) => {
-    try {
-      console.log("Generating weekly report with params:", params);
-      // Validate required parameters
-      if (!params.weekStartDate) {
-        throw new Error("Week start date is required");
-      }
-
-      return await apiClient.get("/api/zenoti/reports/weekly", { params });
-    } catch (error) {
-      console.error("Error generating weekly report:", error);
-      return {
-        data: {
-          success: false,
-          error: error.message || "Failed to generate weekly report",
-          report: {
-            totalRevenue: 0,
-            appointmentCount: 0,
-            newClients: 0,
-            serviceBreakdown: {},
-          },
-        },
-      };
-    }
-  },
-
+  // Reports
   generateWeeklyBusinessReport: async (params) => {
     try {
       console.log("Generating weekly business report with params:", params);
@@ -486,7 +460,7 @@ const zenotiService = {
     }
   },
 
-  // Adding missing report functions
+  // Collections Report
   getCollectionsReport: async (params) => {
     try {
       if (!params.startDate || !params.endDate) {
@@ -514,6 +488,7 @@ const zenotiService = {
     }
   },
 
+  // Sales Report
   getSalesReport: async (params) => {
     try {
       if (!params.startDate || !params.endDate) {
@@ -570,34 +545,6 @@ const zenotiService = {
         data: {
           success: false,
           files: [],
-          error: error.message,
-        },
-      };
-    }
-  },
-
-  // Download report file
-  downloadReport: async (filename) => {
-    try {
-      return await apiClient.get(`/api/zenoti/reports/download/${filename}`, {
-        responseType: "blob",
-      });
-    } catch (error) {
-      console.error("Error downloading report:", error);
-      throw error;
-    }
-  },
-
-  // Webhook stats
-  getWebhookStats: async () => {
-    try {
-      return await apiClient.get("/api/zenoti/webhooks/stats");
-    } catch (error) {
-      console.error("Error getting webhook stats:", error);
-      return {
-        data: {
-          success: false,
-          stats: {},
           error: error.message,
         },
       };

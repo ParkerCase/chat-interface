@@ -12,11 +12,11 @@ import {
   CardContent,
   CardFooter,
   Spinner,
-} from "@/components/ui";
+} from "../../ui/index.js";
 import { Paperclip, Link, Check, AlertCircle } from "lucide-react";
 import CRMContactLookup from "./CRMContactLookup";
-import apiService from "../../services/apiService";
 import { useCRM } from "../../hooks/useCRM";
+import apiService from "../../services/apiService";
 
 const CRMDocumentLinker = ({
   documentPath,
@@ -38,6 +38,7 @@ const CRMDocumentLinker = ({
     if (!metadata && documentPath) {
       const loadMetadata = async () => {
         try {
+          setIsLoading(true);
           const response = await apiService.storage.getMetadata(documentPath);
 
           if (response.data?.success) {
@@ -47,6 +48,8 @@ const CRMDocumentLinker = ({
           }
         } catch (err) {
           console.error("Error loading document metadata:", err);
+        } finally {
+          setIsLoading(false);
         }
       };
 
@@ -86,6 +89,7 @@ const CRMDocumentLinker = ({
       const result = await linkDocumentToContact(selectedContact.id, {
         documentPath,
         documentMetadata: docMetadata,
+        provider: selectedContact.provider,
       });
 
       if (result?.success) {

@@ -1,29 +1,41 @@
 import React, { useState } from "react";
 import { Download, Clipboard, FileText, FileImage } from "lucide-react";
+import apiService from "../services/apiService";
 import "./ExportButton.css";
 
 function ExportButton({ messages, analysisResult }) {
   const [showOptions, setShowOptions] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState(null);
 
   const handleExport = async (format) => {
     try {
       setIsExporting(true);
+      setExportError(null);
 
       // Determine the type of export
       const exportType = analysisResult ? "analysis" : "chat";
       const content = analysisResult || messages;
 
-      const response = await fetch("http://147.182.247.128:4000/api/export", {
+      // Use API service instead of direct fetch
+      const API_URL = apiService.utils.getBaseUrl();
+
+      const response = await fetch(`${API_URL}/api/export`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(localStorage.getItem("authToken")
+            ? {
+                Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+              }
+            : {}),
         },
         body: JSON.stringify({
           format,
           content,
           type: exportType,
         }),
+        credentials: "include",
       });
 
       if (!response.ok) {
@@ -62,7 +74,7 @@ function ExportButton({ messages, analysisResult }) {
 
         // Extract file extension from the image path
         let extension = ".jpg"; // Default extension
-        if (content.imagePath) {
+        if (content && content.imagePath) {
           const imagePath = content.imagePath;
           const lastDotIndex = imagePath.lastIndexOf(".");
           if (lastDotIndex !== -1) {
@@ -86,6 +98,7 @@ function ExportButton({ messages, analysisResult }) {
       setShowOptions(false);
     } catch (error) {
       console.error("Export error:", error);
+      setExportError(error.message);
       alert(`Export failed: ${error.message}`);
     } finally {
       setIsExporting(false);
@@ -166,6 +179,8 @@ function ExportButton({ messages, analysisResult }) {
           </button>
         </div>
       )}
+
+      {exportError && <div className="export-error">{exportError}</div>}
     </div>
   );
 }
