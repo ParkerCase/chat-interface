@@ -50,12 +50,34 @@ function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("App.jsx detected auth event:", event);
+      
       if (event === "SIGNED_IN") {
-        // Refresh user data
-        // Handle in AuthContext
+        // Check if we're on MFA verification page
+        const isOnMfaPage = window.location.pathname.includes("/mfa") || 
+                           window.location.pathname.includes("/verify");
+        
+        if (isOnMfaPage) {
+          console.log("SIGNED_IN detected on MFA page - forcing redirect to admin");
+          // Set all success flags
+          sessionStorage.setItem("mfa_verified", "true");
+          sessionStorage.setItem("mfaSuccess", "true");
+          sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
+          
+          // Force redirect after a small delay to allow other handlers to run
+          setTimeout(() => {
+            window.location.href = "/admin";
+          }, 500);
+        }
+        
+        // Refresh user data handled in AuthContext
       } else if (event === "SIGNED_OUT") {
         // Clear local storage / state
         // Handle in AuthContext
+      } else if (event === "MFA_CHALLENGE_VERIFIED") {
+        console.log("MFA_CHALLENGE_VERIFIED event detected in App.jsx");
+        // Force redirect to admin
+        window.location.href = "/admin";
       }
     });
 
@@ -76,8 +98,22 @@ function App() {
       sessionStorage.removeItem("mfaRedirectPending");
       sessionStorage.removeItem("mfaRedirectTarget");
 
-      // Execute the redirect
-      window.location.replace(redirectTarget);
+      // Execute the redirect - force a page reload for better state refresh
+      window.location.href = redirectTarget;
+    }
+    
+    // Also check for recently verified MFA
+    const mfaVerifiedAt = sessionStorage.getItem("mfaVerifiedAt");
+    if (mfaVerifiedAt) {
+      const verifiedTime = parseInt(mfaVerifiedAt, 10);
+      const now = Date.now();
+      const timeSinceVerification = now - verifiedTime;
+      
+      if (timeSinceVerification < 10000) { // within 10 seconds
+        console.log("Recent MFA verification detected, redirecting to admin");
+        sessionStorage.removeItem("mfaVerifiedAt");
+        window.location.href = "/admin";
+      }
     }
   }, []);
 
@@ -100,6 +136,49 @@ function App() {
 
     // Run check on mount
     checkAndClearMfaRedirect();
+  }, []);
+
+  useEffect(() => {
+    const handleMfaRedirection = () => {
+      // Check for all MFA verification success flags
+      const mfaVerified = sessionStorage.getItem("mfa_verified");
+      const mfaSuccess = sessionStorage.getItem("mfaSuccess");
+      
+      if (mfaVerified === "true" || mfaSuccess === "true") {
+        console.log("MFA verification success detected");
+
+        // Clear all flags
+        sessionStorage.removeItem("mfa_verified");
+        sessionStorage.removeItem("mfaSuccess");
+
+        // Check if we need to redirect
+        const currentPath = window.location.pathname;
+
+        if (currentPath.includes("/mfa") || currentPath.includes("/verify")) {
+          console.log("Redirecting from MFA page to admin");
+          
+          // Force a complete page reload to refresh auth state
+          window.location.href = "/admin";
+          
+          // Backup redirect with replace in case the first fails
+          setTimeout(() => {
+            window.location.replace("/admin");
+          }, 500);
+        }
+      }
+    };
+
+    // Run check on mount
+    handleMfaRedirection();
+
+    // Also run on focus and at a regular interval to catch any missed events
+    window.addEventListener("focus", handleMfaRedirection);
+    const interval = setInterval(handleMfaRedirection, 2000);
+
+    return () => {
+      window.removeEventListener("focus", handleMfaRedirection);
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {

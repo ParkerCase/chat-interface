@@ -1,13 +1,10 @@
-// Replace the ENTIRE MfaVerify.jsx file with this updated version:
-
-import React, { useState, useEffect, navigate } from "react";
-import { useLocation } from "react-router-dom";
+// src/components/MfaVerify.jsx
+import React, { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { supabase } from "../lib/supabase";
-import SupabaseAuthHandler from "./auth/SupabaseAuthHandler";
-
+import { supabase, enhancedAuth } from "../lib/supabase";
 import MFAVerification from "./auth/MFAVerification";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import "./auth.css";
 
 function MfaVerify() {
@@ -17,8 +14,10 @@ function MfaVerify() {
   const [type, setType] = useState("totp");
   const [email, setEmail] = useState("");
   const [redirectUrl, setRedirectUrl] = useState("/");
+  const [mfaData, setMfaData] = useState(null);
 
   const location = useLocation();
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
 
   // Extract parameters from URL and initialize the component
@@ -26,130 +25,140 @@ function MfaVerify() {
     const initMfaVerification = async () => {
       try {
         setIsLoading(true);
+        console.log("MFA verification initializing...");
+
         const params = new URLSearchParams(location.search);
 
         // Get redirect URL from query params
         const returnUrl = params.get("returnUrl") || "/";
         setRedirectUrl(returnUrl);
-
-        console.log("MFA Verify initializing with returnUrl:", returnUrl);
+        console.log("Return URL set to:", returnUrl);
 
         // Get factor ID and other MFA data
         let factorIdFromParams = params.get("factorId");
         let methodIdFromParams = params.get("methodId");
         let typeFromParams = params.get("type") || "totp";
 
+        // Check for session MFA requirements
+        try {
+          console.log("Checking Supabase session for MFA data");
+          const { data: sessionData } = await supabase.auth.getSession();
+
+          if (sessionData?.session) {
+            console.log("Active session found, checking MFA requirements");
+
+            // Get MFA status
+            const { data: mfaData, error: mfaError } =
+              await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+            if (!mfaError && mfaData) {
+              console.log("MFA data:", mfaData);
+
+              // Check if MFA is required
+              if (
+                mfaData.nextLevel &&
+                mfaData.nextLevel !== mfaData.currentLevel
+              ) {
+                console.log("MFA verification required");
+
+                // Set factor ID if available
+                if (mfaData.currentFactorId) {
+                  factorIdFromParams = mfaData.currentFactorId;
+                }
+              } else {
+                console.log("MFA not required, redirecting");
+                navigate(returnUrl);
+                return;
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error checking MFA status:", error);
+        }
+
+        // Prefer URL parameters over session data
         if (factorIdFromParams) {
-          console.log("Using factorId from URL params:", factorIdFromParams);
           setFactorId(factorIdFromParams);
           setType(typeFromParams);
+          console.log("Using factor ID from URL:", factorIdFromParams);
+        } else if (methodIdFromParams) {
+          setFactorId(methodIdFromParams);
+          setType(typeFromParams);
+          console.log("Using method ID from URL:", methodIdFromParams);
         } else {
-          // Try to get MFA status from Supabase session
-          try {
-            console.log("Checking Supabase session for MFA data");
-            const { data: sessionData } = await supabase.auth.getSession();
-
-            if (sessionData?.session) {
-              console.log("Active Supabase session found");
-              // Try to get MFA status for the current session
-              const { data: mfaData, error: mfaError } =
-                await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-
-              if (!mfaError && mfaData) {
-                console.log("Session MFA data:", mfaData);
-
-                // Check if MFA is currently required for this session
-                if (
-                  mfaData.nextLevel &&
-                  mfaData.nextLevel !== mfaData.currentLevel
-                ) {
-                  // We should prompt for MFA verification
-                  setFactorId(mfaData.currentFactorId);
-                  setType("totp"); // Default to TOTP
-                  console.log(
-                    "MFA verification required with factorId:",
-                    mfaData.currentFactorId
-                  );
-                } else {
-                  console.log("MFA not required for this session, redirecting");
-                  // MFA is not required, redirect to destination
-                  handleForceRedirect(returnUrl);
-                  return;
-                }
-              } else if (mfaError) {
-                console.warn("Error getting MFA status:", mfaError);
-              }
-            } else if (!currentUser) {
-              console.log(
-                "No active session and no user, redirecting to login"
-              );
-              // No active session and no user - redirect to login
-              handleForceRedirect(
-                `/login?returnUrl=${encodeURIComponent(returnUrl)}`
-              );
-              return;
-            }
-          } catch (err) {
-            console.error("Error getting MFA status:", err);
-            throw new Error("Failed to get MFA status");
-          }
+          console.warn("No factor ID or method ID found");
         }
 
         // Get email from current user or params
-        if (currentUser) {
+        if (currentUser?.email) {
           setEmail(currentUser.email);
-          console.log("Using email from current user:", currentUser.email);
         } else {
           const emailFromParams = params.get("email");
           if (emailFromParams) {
             setEmail(emailFromParams);
-            console.log("Using email from URL params:", emailFromParams);
           }
         }
 
-        // Reset loading state once all data is loaded
-        setIsLoading(false);
+        // Create MFA data object
+        const mfaDataObject = {
+          factorId: factorIdFromParams || methodIdFromParams,
+          methodId: methodIdFromParams || factorIdFromParams,
+          type: typeFromParams,
+          email: currentUser?.email || params.get("email"),
+        };
+
+        setMfaData(mfaDataObject);
+        console.log("MFA data prepared:", mfaDataObject);
       } catch (err) {
         console.error("Error initializing MFA verification:", err);
-        setError("Failed to initialize MFA verification. Please try again.");
+        setError("Failed to initialize MFA verification");
+      } finally {
         setIsLoading(false);
       }
     };
 
     initMfaVerification();
-  }, [location, currentUser]);
+  }, [location, currentUser, navigate]);
 
-  // NEW FUNCTION: Force redirect with window.location
-  const handleForceRedirect = (url) => {
-    console.log(`Force redirecting to: ${url}`);
-    // Set a flag to indicate we're redirecting
-    sessionStorage.setItem("mfaRedirecting", "true");
-
-    // CRITICAL: Force page reload/redirect
-    window.location.href = url;
-  };
-
-  // Handle successful verification
   // Handle successful verification
   const handleSuccess = () => {
-    console.log("MFA verification successful, redirecting to admin");
+    console.log("MFA verification successful in MfaVerify component");
 
-    // Store verification state
+    // Set multiple flags for better detection
+    sessionStorage.setItem("mfa_verified", "true");
+    sessionStorage.setItem("mfaSuccess", "true");
+    sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
+    sessionStorage.setItem("mfaRedirectPending", "true");
+    sessionStorage.setItem("mfaRedirectTarget", "/admin");
+    
+    // Use multiple approaches to ensure navigation works
     try {
-      sessionStorage.setItem("mfa_verified", "true");
+      console.log("Executing primary navigation to /admin");
+      // Force a complete page reload
+      window.location.href = "/admin";
+      
+      // Use timeout for secondary navigation attempt
+      setTimeout(() => {
+        console.log("Executing secondary navigation attempt");
+        window.location.replace("/admin");
+        
+        // Last resort - if we're still here after 1.5s, try navigate API
+        setTimeout(() => {
+          console.log("Executing tertiary navigation attempt");
+          navigate("/admin", { replace: true });
+        }, 1000);
+      }, 500);
     } catch (e) {
-      console.error("Error setting storage:", e);
+      console.error("Navigation error in MfaVerify:", e);
+      // Direct navigation as last resort
+      window.location = "/admin";
     }
-
-    // Only navigate to admin panel, don't force reload
-    navigate("/admin");
   };
 
   // Handle cancellation
   const handleCancel = () => {
-    console.log("MFA verification cancelled, redirecting to login");
-    // Redirect to login page
-    handleForceRedirect("/login");
+    console.log("MFA verification cancelled");
+    navigate("/login");
   };
 
   // Show loading state
@@ -170,10 +179,23 @@ function MfaVerify() {
           <AlertCircle size={36} className="error-icon" />
           <h2>Verification Error</h2>
           <p>{error}</p>
-          <button
-            onClick={() => handleForceRedirect("/login")}
-            className="back-button"
-          >
+          <button onClick={() => navigate("/login")} className="back-button">
+            Back to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // No valid MFA data
+  if (!mfaData?.factorId && !mfaData?.methodId) {
+    return (
+      <div className="mfa-container error">
+        <div className="error-content">
+          <AlertCircle size={36} className="error-icon" />
+          <h2>Verification Error</h2>
+          <p>No MFA authentication method found.</p>
+          <button onClick={() => navigate("/login")} className="back-button">
             Back to Login
           </button>
         </div>
@@ -184,17 +206,9 @@ function MfaVerify() {
   // Render MFA verification component
   return (
     <div className="mfa-container">
-      {/* Add this component to catch successful auth events */}
-      <SupabaseAuthHandler />
-
       <MFAVerification
         standalone={true}
-        mfaData={{
-          factorId,
-          methodId: factorId,
-          type,
-          email,
-        }}
+        mfaData={mfaData}
         onSuccess={handleSuccess}
         onCancel={handleCancel}
         redirectUrl="/admin"

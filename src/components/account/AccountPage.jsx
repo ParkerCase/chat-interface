@@ -183,6 +183,7 @@ function ProfileSection({ setSuccess, setError }) {
   // Initialize form data when user data is available
   useEffect(() => {
     if (currentUser) {
+      console.log("ProfileSection received updated currentUser:", currentUser);
       setFormData({
         name: currentUser.name || "",
         firstName: currentUser.firstName || "",
@@ -190,7 +191,7 @@ function ProfileSection({ setSuccess, setError }) {
         email: currentUser.email || "",
       });
     }
-  }, [currentUser]);
+  }, [currentUser]); // This will re-run whenever currentUser changes
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -206,6 +207,8 @@ function ProfileSection({ setSuccess, setError }) {
 
     try {
       setIsLoading(true);
+      console.log("Starting profile update with current form data:", formData);
+      console.log("Current user data:", currentUser);
 
       // Only include fields that have changed
       const updates = {};
@@ -215,12 +218,26 @@ function ProfileSection({ setSuccess, setError }) {
       if (formData.lastName !== currentUser.lastName)
         updates.lastName = formData.lastName;
 
+      console.log("Detected changes:", updates);
+
       // Only call API if there are changes
       if (Object.keys(updates).length > 0) {
+        console.log("Calling updateProfile with changes:", updates);
         const success = await updateProfile(updates);
 
         if (success) {
+          // Force refresh current user data to ensure UI is in sync
+          // This will trigger the useEffect hook to update the form data
+          console.log("Profile update reported success");
           setSuccess("Profile updated successfully");
+          
+          // Manually update the form with the latest changes to ensure UI reflects changes
+          setFormData(prevData => ({
+            ...prevData,
+            ...updates
+          }));
+        } else {
+          setError("Profile update failed. Please try again.");
         }
       } else {
         setSuccess("No changes to save");
