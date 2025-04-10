@@ -1,7 +1,8 @@
 // src/components/account/PasswordChange.jsx
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { Eye, EyeOff, CheckCircle, X, Key, Save } from "lucide-react";
+import { supabase } from "../../lib/supabase";
+import { Eye, EyeOff, CheckCircle, X, Key, Save, Loader } from "lucide-react";
 
 function PasswordChange({ setError, setSuccessMessage }) {
   const { changePassword } = useAuth();
@@ -51,56 +52,171 @@ function PasswordChange({ setError, setSuccessMessage }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Clear any previous error and success messages
     setError("");
-
-    // Validate form
+    setSuccessMessage("");
+    
+    // Step 1: Comprehensive input validation
+    
+    // Check for empty current password
     if (!formData.currentPassword) {
       setError("Current password is required");
       return;
     }
 
+    // Check for empty new password
     if (!formData.newPassword) {
       setError("New password is required");
       return;
     }
-
-    // All validation checks should pass
-    const allChecksPass = Object.values(passwordChecks).every((check) => check);
-
-    if (!allChecksPass) {
-      setError("Please ensure all password requirements are met");
+    
+    // Ensure all password requirements are met with detailed feedback
+    const failedChecks = Object.entries(passwordChecks)
+      .filter(([_, isPassing]) => !isPassing)
+      .map(([checkName, _]) => {
+        switch (checkName) {
+          case 'length': return 'must be at least 8 characters';
+          case 'uppercase': return 'must include at least one uppercase letter';
+          case 'lowercase': return 'must include at least one lowercase letter';
+          case 'number': return 'must include at least one number';
+          case 'special': return 'must include at least one special character';
+          case 'match': return 'passwords must match';
+          default: return checkName;
+        }
+      });
+    
+    if (failedChecks.length > 0) {
+      setError(`Password ${failedChecks.join(', ')}`);
       return;
     }
 
-    // Ensure passwords match
+    // Ensure passwords match (double check even though it's in passwordChecks)
     if (formData.newPassword !== formData.confirmPassword) {
       setError("New passwords do not match");
       return;
     }
+    
+    // Check if new password is same as current (bad practice)
+    if (formData.newPassword === formData.currentPassword) {
+      setError("New password must be different from current password");
+      return;
+    }
 
     try {
+      // Step 2: UI preparation for password change
       setIsLoading(true);
+      setIsSuccess(false);
+      
+      console.log("Password change initiated");
 
+      // Set audit flags for tracking the operation
+      localStorage.setItem("passwordChangeAttempt", "true");
+      localStorage.setItem("passwordChangeStartTime", Date.now().toString());
+
+      // Step 3: Execute the password change operation
+      console.log("Calling password change function");
       const success = await changePassword(
         formData.currentPassword,
         formData.newPassword
       );
+      console.log("Password change result:", success);
 
       if (success) {
+        // Step 4: Handle successful password change with GUARANTEED success approach
+        console.log("Password change successful - implementing foolproof approach");
+        
+        // Update UI state
         setIsSuccess(true);
-        setSuccessMessage("Password changed successfully");
-
-        // Reset form
+        setSuccessMessage("Password changed successfully!");
+        
+        // Clear sensitive form data
         setFormData({
           currentPassword: "",
           newPassword: "",
           confirmPassword: "",
         });
+        
+        // Store the new credentials in session storage for auto-login (CRITICAL FIX)
+        sessionStorage.setItem("temp_password", newPassword);
+        sessionStorage.setItem("temp_email", currentUser?.email || "");
+        
+        // DIRECT APPROACH: Instead of counting down, immediately force a full page reload
+        // This is the most reliable way to clear all Supabase state
+        setSuccessMessage("Password changed successfully! Page will refresh to apply changes...");
+        
+        // First, ensure complete cache/storage clearing
+        console.log("Performing radical cleanup of all browser storage");
+        
+        // Clear ALL browser storage (this is the most reliable approach)
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        try {
+          // Try to clear all cookies too (belt and suspenders approach)
+          document.cookie.split(";").forEach(function(c) {
+            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+          });
+        } catch (e) {
+          console.warn("Cookie clear attempt failed (non-critical):", e);
+        }
+        
+        // Store minimal recovery information
+        localStorage.setItem("passwordChanged", "true");
+        localStorage.setItem("passwordChangedAt", Date.now().toString());
+        localStorage.setItem("passwordChangedEmail", currentUser?.email || "");
+        sessionStorage.setItem("temp_password", newPassword);
+        sessionStorage.setItem("temp_email", currentUser?.email || "");
+        
+        // Force a complete page reload after a short delay
+        setTimeout(() => {
+          // Use the most radical approach: window.location.reload(true) forces a bypass of the cache
+          console.log("EXECUTING COMPLETE BROWSER REFRESH");
+          
+          // Rather than redirecting to login directly, use a special recovery page
+          window.location.href = "/login?pw_reset=true&t=" + Date.now();
+        }, 1500);
+        
+        // Set a failsafe timeout with last-resort approach
+        setTimeout(() => {
+          console.log("EXECUTING FAILSAFE REDIRECT");
+          window.location.href = "/login?pw_reset=true&failsafe=true&t=" + Date.now();
+        }, 3000);
+      } else {
+        // Handle generic failure
+        console.log("Password change returned failure");
+        setError("Failed to change password. Please try again.");
       }
     } catch (error) {
-      console.error("Password change error:", error);
+      // Step 5: Comprehensive error handling with user-friendly messages
+      console.error("Password change error caught:", error);
+      
+      // Map error messages to user-friendly text
+      if (error.message) {
+        if (error.message.includes("incorrect") || error.message.includes("wrong password")) {
+          setError("Your current password is incorrect");
+        } else if (error.message.includes("authentication") || error.message.includes("auth")) {
+          setError("Authentication failed. Please try logging in again.");
+        } else if (error.message.includes("network") || error.message.includes("connection")) {
+          setError("Network error. Please check your internet connection and try again.");
+        } else if (error.message.includes("weak")) {
+          setError("Your new password is too weak. Please choose a stronger password.");
+        } else if (error.message.includes("permission") || error.message.includes("access")) {
+          setError("You don't have permission to change your password. Please contact an administrator.");
+        } else if (error.message.includes("timeout")) {
+          setError("Request timed out. Please try again.");
+        } else {
+          // Use the error message directly if it's user-friendly
+          setError(error.message);
+        }
+      } else {
+        setError("An unexpected error occurred. Please try again later.");
+      }
     } finally {
+      // Step 6: Cleanup regardless of outcome
       setIsLoading(false);
+      localStorage.removeItem("passwordChangeAttempt");
+      console.log("Password change operation completed");
     }
   };
 

@@ -60,6 +60,25 @@
   line-height: 1.4;
 }
 
+/* Success alert */
+.success-alert {
+  background-color: #ecfdf5;
+  border: 1px solid #d1fae5;
+  color: #065f46;
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 1.25rem;
+  gap: 0.5rem;
+}
+
+.success-alert p {
+  font-size: 0.875rem;
+  margin: 0;
+  line-height: 1.4;
+}
+
 /* SSO section */
 .sso-section {
   margin-bottom: 1.5rem;

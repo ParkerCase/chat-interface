@@ -7,6 +7,9 @@ import { useTheme } from "../../context/ThemeContext";
 import apiService from "../../services/apiService";
 import CRMTabContent from "./CRMTabContent";
 import ChatbotTabContent from "./ChatbotTabContent"; // Import ChatbotTabContent component
+import CRMContactLookup from "../crm/CRMContactLookup";
+import ThemeCustomizer from "../ThemeCustomizer";
+import "./Admin.css";
 import "./CRMTab.css";
 import "./ChatbotTabContent.css"; // Make sure to import the CSS
 import "../crm/CRMDashboard.css";
@@ -34,10 +37,830 @@ import {
   Trash,
   Globe,
   Smartphone,
+  CheckCircle,
+  X,
+  Mail,
+  RefreshCw,
+  Edit,
+  Lock,
+  Unlock,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
-import CRMContactLookup from "../crm/CRMContactLookup";
-import "./Admin.css";
-import ThemeCustomizer from "../ThemeCustomizer";
+
+// User Management Tab Component
+function UserManagementTab({ users, currentUser, formatDate, setError }) {
+  const [usersList, setUsersList] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [userToEdit, setUserToEdit] = useState(null);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [userToReset, setUserToReset] = useState(null);
+  const [successMessage, setSuccessMessage] = useState("");
+  
+  // Form state for editing user
+  const [editForm, setEditForm] = useState({
+    name: "",
+    email: "",
+    role: ""
+  });
+  
+  // Initialize users list when component mounts or users prop changes
+  useEffect(() => {
+    setUsersList(users);
+  }, [users]);
+  
+  // Clear success message after a delay
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage("");
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+  
+  // Check if current user can edit/delete another user
+  const canManageUser = (user) => {
+    // Super admins can manage anyone except themselves
+    if (currentUser.roles.includes("super_admin")) {
+      return user.id !== currentUser.id; // Can't delete yourself
+    }
+    
+    // Admins can only manage non-admin users
+    if (currentUser.roles.includes("admin")) {
+      return !user.role.includes("admin") && !user.role.includes("super_admin");
+    }
+    
+    // Regular users can't manage anyone
+    return false;
+  };
+  
+  // Handle delete user
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    
+    try {
+      setIsLoading(true);
+      
+      // Import supabase
+      const { supabase } = await import("../../lib/supabase");
+      
+      // First delete from profiles table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userToDelete.id);
+      
+      if (profileError) {
+        console.error("Error deleting user profile:", profileError);
+        throw new Error(`Failed to delete user profile: ${profileError.message}`);
+      }
+      
+      // Then delete the auth user if we have admin access
+      try {
+        const { error: authError } = await supabase.auth.admin.deleteUser(userToDelete.id);
+        
+        if (authError) {
+          console.warn("Could not delete auth user (might require higher permissions):", authError);
+          // Continue anyway as we've deleted the profile
+        }
+      } catch (adminError) {
+        console.warn("Admin API access error:", adminError);
+        // Continue anyway as we've deleted the profile
+      }
+      
+      // Update local state
+      setUsersList(usersList.filter(user => user.id !== userToDelete.id));
+      setSuccessMessage(`User ${userToDelete.name} successfully deleted`);
+      
+      // Close modal
+      setShowDeleteModal(false);
+      setUserToDelete(null);
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      setError(`Failed to delete user: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Handle opening edit modal
+  const openEditModal = (user) => {
+    setUserToEdit(user);
+    setEditForm({
+      name: user.name || "",
+      email: user.email || "",
+      role: user.role || "user"
+    });
+    setShowEditModal(true);
+  };
+  
+  // Handle edit user form change
+  const handleEditFormChange = (e) => {
+    const { name, value } = e.target;
+    setEditForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+  
+  // Handle edit user submission
+  const handleEditUserSubmit = async (e) => {
+    e.preventDefault();
+    if (!userToEdit) return;
+    
+    try {
+      setIsLoading(true);
+      
+      // Import supabase
+      const { supabase } = await import("../../lib/supabase");
+      
+      // Create roles array based on selected role
+      let roles = ['user'];
+      if (editForm.role === 'admin') {
+        roles = ['admin', 'user'];
+      } else if (editForm.role === 'super_admin') {
+        roles = ['super_admin', 'admin', 'user'];
+      }
+      
+      // Update profile in Supabase
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: editForm.name,
+          roles: roles,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userToEdit.id);
+      
+      if (error) {
+        console.error("Error updating user:", error);
+        throw new Error(`Failed to update user: ${error.message}`);
+      }
+      
+      // Update user list
+      setUsersList(usersList.map(user => {
+        if (user.id === userToEdit.id) {
+          return {
+            ...user,
+            name: editForm.name,
+            role: editForm.role
+          };
+        }
+        return user;
+      }));
+      
+      setSuccessMessage(`User ${editForm.name} successfully updated`);
+      setShowEditModal(false);
+      setUserToEdit(null);
+    } catch (error) {
+      console.error("Error updating user:", error);
+      setError(`Failed to update user: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Handle reset password
+  const handleResetPassword = async () => {
+    if (!userToReset) return;
+    
+    try {
+      setIsLoading(true);
+      
+      // Import supabase
+      const { supabase } = await import("../../lib/supabase");
+      
+      // Send password reset email
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        userToReset.email,
+        {
+          redirectTo: `${window.location.origin}/reset-password`,
+        }
+      );
+      
+      if (error) {
+        console.error("Error sending password reset:", error);
+        throw new Error(`Failed to send password reset: ${error.message}`);
+      }
+      
+      setSuccessMessage(`Password reset email sent to ${userToReset.email}`);
+      setShowResetModal(false);
+      setUserToReset(null);
+    } catch (error) {
+      console.error("Error resetting password:", error);
+      setError(`Failed to reset password: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Handle managing MFA for a user
+  const [showMfaModal, setShowMfaModal] = useState(false);
+  const [userForMfa, setUserForMfa] = useState(null);
+  const [mfaOptions, setMfaOptions] = useState({ requireMfa: false, methods: [] });
+  
+  // Open MFA management modal for a user
+  const openMfaModal = async (user) => {
+    try {
+      setIsLoading(true);
+      
+      // Import supabase
+      const { supabase } = await import("../../lib/supabase");
+      
+      // Get user's current MFA settings from profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('mfa_methods')
+        .eq('id', user.id)
+        .single();
+      
+      if (profileError) {
+        console.error("Error fetching MFA methods:", profileError);
+        throw new Error(`Failed to fetch MFA methods: ${profileError.message}`);
+      }
+      
+      // Set user and MFA options
+      setUserForMfa(user);
+      setMfaOptions({
+        requireMfa: profileData?.mfa_methods?.length > 0 || false,
+        methods: profileData?.mfa_methods || []
+      });
+      setShowMfaModal(true);
+    } catch (error) {
+      console.error("Error opening MFA modal:", error);
+      setError(`Failed to open MFA settings: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Handle saving MFA settings for a user
+  const handleSaveMfaSettings = async () => {
+    if (!userForMfa) return;
+    
+    try {
+      setIsLoading(true);
+      
+      // Import supabase
+      const { supabase } = await import("../../lib/supabase");
+      
+      // Create a default email MFA method if required and none exists
+      let updatedMethods = [...mfaOptions.methods];
+      
+      if (mfaOptions.requireMfa && updatedMethods.length === 0) {
+        // Create a default email MFA method
+        const emailMfaMethod = {
+          id: `email-${userForMfa.email.replace(/[^a-zA-Z0-9]/g, "")}`,
+          type: "email",
+          createdAt: new Date().toISOString(),
+          email: userForMfa.email
+        };
+        
+        updatedMethods.push(emailMfaMethod);
+      } else if (!mfaOptions.requireMfa) {
+        // If MFA is not required, remove all methods
+        updatedMethods = [];
+      }
+      
+      // Update profile in Supabase
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          mfa_methods: updatedMethods,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userForMfa.id);
+      
+      if (profileError) {
+        console.error("Error updating MFA settings:", profileError);
+        throw new Error(`Failed to update MFA settings: ${profileError.message}`);
+      }
+      
+      // Send reset password email if enabling MFA to force user to set up MFA
+      if (mfaOptions.requireMfa && !mfaOptions.methods.length) {
+        await supabase.auth.resetPasswordForEmail(
+          userForMfa.email,
+          {
+            redirectTo: `${window.location.origin}/reset-password`,
+          }
+        );
+      }
+      
+      setSuccessMessage(`MFA settings updated for ${userForMfa.name}`);
+      setShowMfaModal(false);
+      setUserForMfa(null);
+      
+      // Refresh user list
+      await refreshUserList();
+    } catch (error) {
+      console.error("Error saving MFA settings:", error);
+      setError(`Failed to save MFA settings: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Handle refreshing user list
+  const refreshUserList = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Import supabase
+      const { supabase } = await import("../../lib/supabase");
+      
+      // Get users from Supabase
+      let { data: supabaseUsers, error: usersError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (usersError) {
+        console.error("Error loading users:", usersError);
+        throw usersError;
+      }
+      
+      // Format profile data
+      const enrichedUsers = supabaseUsers.map(profile => ({
+        id: profile.id,
+        name: profile.full_name || profile.email,
+        email: profile.email,
+        role: Array.isArray(profile.roles) && profile.roles.length > 0 ? 
+              (profile.roles.includes('super_admin') ? 'super_admin' : 
+               profile.roles.includes('admin') ? 'admin' : 'user') : 'user',
+        status: 'Active',
+        lastActive: profile.last_login || profile.created_at,
+        mfaEnabled: Array.isArray(profile.mfa_methods) && profile.mfa_methods.length > 0,
+        mfaMethods: profile.mfa_methods || []
+      }));
+      
+      setUsersList(enrichedUsers);
+      setSuccessMessage("User list refreshed successfully");
+    } catch (error) {
+      console.error("Error refreshing users:", error);
+      setError(`Failed to refresh users: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  return (
+    <div className="admin-users">
+      <div className="admin-section">
+        <h2 className="admin-section-title">User Management</h2>
+        
+        {/* Success message */}
+        {successMessage && (
+          <div className="success-message">
+            <CheckCircle className="success-icon" size={18} />
+            <p>{successMessage}</p>
+          </div>
+        )}
+        
+        <div className="admin-actions">
+          <Link to="/admin/register" className="admin-button">
+            <UserPlus size={18} />
+            <span>Register New User</span>
+          </Link>
+          
+          <button 
+            className="action-button refresh-button"
+            onClick={refreshUserList}
+            disabled={isLoading}
+          >
+            <RefreshCw size={18} className={isLoading ? "spinning" : ""} />
+            <span>Refresh Users</span>
+          </button>
+        </div>
+
+        <div className="users-list-container">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Last Login</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {usersList.map((user) => (
+                <tr key={user.id}>
+                  <td>{user.name}</td>
+                  <td>{user.email}</td>
+                  <td>
+                    <span
+                      className={`user-badge ${
+                        user.role === "super_admin" 
+                          ? "super-admin-badge" 
+                          : user.role === "admin" 
+                            ? "admin-badge" 
+                            : ""
+                      }`}
+                    >
+                      {user.role === "super_admin" 
+                        ? "Super Admin" 
+                        : user.role === "admin" 
+                          ? "Admin" 
+                          : "User"}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`user-status ${user.status.toLowerCase()}`}>
+                      {user.status}
+                    </span>
+                  </td>
+                  <td>{formatDate(user.lastActive)}</td>
+                  <td>
+                    <div className="action-buttons">
+                      {/* Edit button - visible to admins for non-admins and super_admins for everyone */}
+                      {canManageUser(user) || currentUser.roles.includes("super_admin") ? (
+                        <button 
+                          className="action-button edit-button"
+                          onClick={() => openEditModal(user)}
+                          title="Edit User"
+                        >
+                          <Edit size={14} />
+                        </button>
+                      ) : null}
+                      
+                      {/* Reset password button - visible to admins and super_admins */}
+                      {(currentUser.roles.includes("admin") || currentUser.roles.includes("super_admin")) && (
+                        <button 
+                          className="action-button reset-password-button"
+                          onClick={() => {
+                            setUserToReset(user);
+                            setShowResetModal(true);
+                          }}
+                          title="Reset Password"
+                        >
+                          <Key size={14} />
+                        </button>
+                      )}
+                      
+                      {/* MFA management button - visible to admins and super_admins */}
+                      {(currentUser.roles.includes("admin") || currentUser.roles.includes("super_admin")) && (
+                        <button 
+                          className="action-button mfa-button"
+                          onClick={() => openMfaModal(user)}
+                          title="Manage MFA Settings"
+                        >
+                          {user.mfaEnabled ? <Lock size={14} /> : <Unlock size={14} />}
+                        </button>
+                      )}
+                      
+                      {/* Delete button - only for users that can be managed */}
+                      {canManageUser(user) && (
+                        <button 
+                          className="action-button delete-button"
+                          onClick={() => {
+                            setUserToDelete(user);
+                            setShowDeleteModal(true);
+                          }}
+                          title="Delete User"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {/* Delete User Modal */}
+      {showDeleteModal && userToDelete && (
+        <div className="modal-overlay">
+          <div className="modal-container">
+            <div className="modal-header">
+              <h3>Delete User</h3>
+              <button 
+                className="modal-close" 
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setUserToDelete(null);
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to delete the following user?</p>
+              <div className="user-info">
+                <p><strong>Name:</strong> {userToDelete.name}</p>
+                <p><strong>Email:</strong> {userToDelete.email}</p>
+                <p><strong>Role:</strong> {userToDelete.role}</p>
+              </div>
+              <p className="warning-text">This action cannot be undone.</p>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="cancel-button" 
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setUserToDelete(null);
+                }}
+                disabled={isLoading}
+              >
+                Cancel
+              </button>
+              <button 
+                className="delete-button" 
+                onClick={handleDeleteUser}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader size={14} className="spinner" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={14} />
+                    Delete User
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Edit User Modal */}
+      {showEditModal && userToEdit && (
+        <div className="modal-overlay">
+          <div className="modal-container">
+            <div className="modal-header">
+              <h3>Edit User</h3>
+              <button 
+                className="modal-close" 
+                onClick={() => {
+                  setShowEditModal(false);
+                  setUserToEdit(null);
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <form onSubmit={handleEditUserSubmit}>
+                <div className="form-group">
+                  <label htmlFor="name">Full Name</label>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    value={editForm.name}
+                    onChange={handleEditFormChange}
+                    className="form-input"
+                    required
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="email">Email</label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={editForm.email}
+                    className="form-input"
+                    disabled
+                  />
+                  <p className="input-help">Email cannot be changed</p>
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="role">Role</label>
+                  <select
+                    id="role"
+                    name="role"
+                    value={editForm.role}
+                    onChange={handleEditFormChange}
+                    className="form-select"
+                    required
+                    disabled={!currentUser.roles.includes("super_admin") && editForm.role === "admin"}
+                  >
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                    {currentUser.roles.includes("super_admin") && (
+                      <option value="super_admin">Super Admin</option>
+                    )}
+                  </select>
+                </div>
+                
+                <div className="modal-footer">
+                  <button 
+                    type="button" 
+                    className="cancel-button" 
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setUserToEdit(null);
+                    }}
+                    disabled={isLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="save-button" 
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader size={14} className="spinner" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={14} />
+                        Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Reset Password Modal */}
+      {showResetModal && userToReset && (
+        <div className="modal-overlay">
+          <div className="modal-container">
+            <div className="modal-header">
+              <h3>Reset Password</h3>
+              <button 
+                className="modal-close" 
+                onClick={() => {
+                  setShowResetModal(false);
+                  setUserToReset(null);
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>Send password reset email to:</p>
+              <div className="user-info">
+                <p><strong>Name:</strong> {userToReset.name}</p>
+                <p><strong>Email:</strong> {userToReset.email}</p>
+              </div>
+              <p>A password reset link will be sent to the user's email address.</p>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="cancel-button" 
+                onClick={() => {
+                  setShowResetModal(false);
+                  setUserToReset(null);
+                }}
+                disabled={isLoading}
+              >
+                Cancel
+              </button>
+              <button 
+                className="send-button" 
+                onClick={handleResetPassword}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader size={14} className="spinner" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Mail size={14} />
+                    Send Reset Email
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* MFA Management Modal */}
+      {showMfaModal && userForMfa && (
+        <div className="modal-overlay">
+          <div className="modal-container">
+            <div className="modal-header">
+              <h3>MFA Settings</h3>
+              <button 
+                className="modal-close" 
+                onClick={() => {
+                  setShowMfaModal(false);
+                  setUserForMfa(null);
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="user-info">
+                <p><strong>User:</strong> {userForMfa.name}</p>
+                <p><strong>Email:</strong> {userForMfa.email}</p>
+              </div>
+              
+              <div className="mfa-settings">
+                <div className="mfa-toggle">
+                  <label className="toggle-label">
+                    <span>Require Multi-Factor Authentication</span>
+                    <button 
+                      type="button" 
+                      className={`toggle-button ${mfaOptions.requireMfa ? 'enabled' : 'disabled'}`}
+                      onClick={() => setMfaOptions({...mfaOptions, requireMfa: !mfaOptions.requireMfa})}
+                    >
+                      {mfaOptions.requireMfa ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                    </button>
+                  </label>
+                </div>
+                
+                <div className="mfa-info">
+                  {mfaOptions.requireMfa ? (
+                    <div className="info-box enabled">
+                      <Lock size={18} />
+                      <div>
+                        <p><strong>MFA Enabled</strong></p>
+                        <p>User will be required to set up and use MFA to login.</p>
+                        {mfaOptions.methods && mfaOptions.methods.length > 0 ? (
+                          <ul className="mfa-methods-list">
+                            {mfaOptions.methods.map(method => (
+                              <li key={method.id} className="mfa-method">
+                                {method.type === 'email' ? (
+                                  <><Mail size={14} /> Email: {method.email || userForMfa.email}</>
+                                ) : method.type === 'totp' ? (
+                                  <><Smartphone size={14} /> Authenticator App</>
+                                ) : (
+                                  <><Shield size={14} /> {method.type}</>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="setup-note">
+                            <strong>Note:</strong> The user will be prompted to set up MFA on next login.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="info-box disabled">
+                      <Unlock size={18} />
+                      <div>
+                        <p><strong>MFA Disabled</strong></p>
+                        <p>User can log in with password only. Enable MFA to increase security.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="cancel-button" 
+                onClick={() => {
+                  setShowMfaModal(false);
+                  setUserForMfa(null);
+                }}
+                disabled={isLoading}
+              >
+                Cancel
+              </button>
+              <button 
+                className="save-button" 
+                onClick={handleSaveMfaSettings}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader size={14} className="spinner" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save size={14} />
+                    Save Settings
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const AdminPanel = () => {
   const { currentUser, isAdmin, logout } = useAuth();
@@ -79,67 +902,89 @@ const AdminPanel = () => {
       try {
         setIsLoading(true);
 
-        // Fetch current user profile (we'll use the currentUser for now)
-        setUserProfile(
-          currentUser || {
-            name: "Admin User",
-            email: "admin@tatt2away.com",
-            role: "admin",
-          }
-        );
+        // Set current user profile
+        setUserProfile(currentUser);
 
-        // Fetch admin stats (in a real app, this would be an API call)
+        // Import supabase directly here to avoid circular dependencies
+        const { supabase } = await import("../../lib/supabase");
+
+        // Get users from Supabase
+        let { data: supabaseUsers, error: usersError } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (usersError) {
+          console.error("Error loading users:", usersError);
+          throw usersError;
+        }
+
+        // Get auth users to get last login times and merge with profiles
+        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+        
+        // If auth users request fails, we'll just use the profiles data
+        let enrichedUsers = supabaseUsers;
+        
+        if (!authError && authUsers) {
+          const authUsersMap = new Map();
+          authUsers.users.forEach(user => {
+            authUsersMap.set(user.id, user);
+          });
+          
+          // Merge profile data with auth data
+          enrichedUsers = supabaseUsers.map(profile => {
+            const authUser = authUsersMap.get(profile.id);
+            return {
+              ...profile,
+              id: profile.id,
+              name: profile.full_name || profile.email,
+              email: profile.email,
+              role: Array.isArray(profile.roles) && profile.roles.length > 0 ? 
+                    (profile.roles.includes('super_admin') ? 'super_admin' : 
+                     profile.roles.includes('admin') ? 'admin' : 'user') : 'user',
+              status: authUser?.confirmed_at ? 'Active' : 'Pending',
+              lastActive: authUser?.last_sign_in_at || profile.last_login || profile.created_at,
+              mfaEnabled: Array.isArray(profile.mfa_methods) && profile.mfa_methods.length > 0,
+              mfaMethods: profile.mfa_methods || []
+            };
+          });
+        } else {
+          // Format profile data if auth data isn't available
+          enrichedUsers = supabaseUsers.map(profile => ({
+            id: profile.id,
+            name: profile.full_name || profile.email,
+            email: profile.email,
+            role: Array.isArray(profile.roles) && profile.roles.length > 0 ? 
+                  (profile.roles.includes('super_admin') ? 'super_admin' : 
+                   profile.roles.includes('admin') ? 'admin' : 'user') : 'user',
+            status: 'Active',
+            lastActive: profile.last_login || profile.created_at,
+            mfaEnabled: Array.isArray(profile.mfa_methods) && profile.mfa_methods.length > 0,
+            mfaMethods: profile.mfa_methods || []
+          }));
+        }
+        
+        // Get counts for stats
+        const totalUsers = enrichedUsers.length;
+        const activeUsers = enrichedUsers.filter(user => 
+          user.status === 'Active' && 
+          new Date(user.lastActive) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // active in last 30 days
+        ).length;
+        
+        // Set users and generate stats
+        setRecentUsers(enrichedUsers);
+        
+        // Set stats data
         const statsData = {
-          totalUsers: 25,
-          activeUsers: 18,
-          totalMessages: 1248,
-          filesProcessed: 352,
-          averageResponseTime: 0.8,
+          totalUsers: totalUsers,
+          activeUsers: activeUsers,
+          totalMessages: 0, // You'd need a messages table to count this
+          filesProcessed: 0, // You'd need a files table to count this
+          averageResponseTime: 0,
           lastUpdateTime: new Date().toISOString(),
         };
 
         setStats(statsData);
-
-        // Fetch recent users (in a real app, this would be an API call)
-        const usersData = [
-          {
-            id: 1,
-            name: "John Doe",
-            email: "john@tatt2away.com",
-            role: "admin",
-            lastActive: new Date(Date.now() - 3600000).toISOString(),
-          },
-          {
-            id: 2,
-            name: "Jane Smith",
-            email: "jane@tatt2away.com",
-            role: "user",
-            lastActive: new Date(Date.now() - 7200000).toISOString(),
-          },
-          {
-            id: 3,
-            name: "Mike Johnson",
-            email: "mike@tatt2away.com",
-            role: "user",
-            lastActive: new Date(Date.now() - 86400000).toISOString(),
-          },
-          {
-            id: 4,
-            name: "Sarah Williams",
-            email: "sarah@tatt2away.com",
-            role: "user",
-            lastActive: new Date(Date.now() - 172800000).toISOString(),
-          },
-          {
-            id: 5,
-            name: "Robert Brown",
-            email: "robert@tatt2away.com",
-            role: "user",
-            lastActive: new Date(Date.now() - 259200000).toISOString(),
-          },
-        ];
-
-        setRecentUsers(usersData);
       } catch (err) {
         console.error("Error loading admin data:", err);
         setError("Failed to load admin data. Please try again.");
@@ -398,69 +1243,12 @@ const AdminPanel = () => {
 
           {/* Users Tab */}
           {activeTab === "users" && (
-            <div className="admin-users">
-              <div className="admin-section">
-                <h2 className="admin-section-title">User Management</h2>
-
-                <div className="admin-actions">
-                  <Link to="/admin/register" className="action-button">
-                    <UserPlus size={18} />
-                    Register New User
-                  </Link>
-                </div>
-
-                <div className="users-list-container">
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                        <th>Last Login</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recentUsers.map((user) => (
-                        <tr key={user.id}>
-                          <td>{user.name}</td>
-                          <td>{user.email}</td>
-                          <td>
-                            <span
-                              className={`user-badge ${
-                                user.role === "admin" ? "admin-badge" : ""
-                              }`}
-                            >
-                              {user.role}
-                            </span>
-                          </td>
-                          <td>
-                            <span className="user-status active">Active</span>
-                          </td>
-                          <td>{formatDate(user.lastActive)}</td>
-                          <td>
-                            <div className="action-buttons">
-                              <button className="action-button edit-button">
-                                <Settings size={14} title="Edit User" />
-                              </button>
-                              <button className="action-button reset-password-button">
-                                <Key size={14} title="Reset Password" />
-                              </button>
-                              {user.role !== "admin" && (
-                                <button className="action-button delete-button">
-                                  <Trash2 size={14} title="Delete User" />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+            <UserManagementTab 
+              users={recentUsers} 
+              currentUser={currentUser}
+              formatDate={formatDate}
+              setError={setError}
+            />
           )}
 
           {/* Profile Tab */}
