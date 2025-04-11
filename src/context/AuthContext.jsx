@@ -261,6 +261,22 @@ export function AuthProvider({ children }) {
       setLoading(true);
       console.log("Attempting login with:", email);
 
+      // Check if we need to force a hard refresh after a password change
+      const forceLogout = localStorage.getItem("forceLogout") === "true";
+      if (forceLogout) {
+        // Clear the flag
+        localStorage.removeItem("forceLogout");
+
+        // Ensure we have a clean slate for the login attempt
+        await supabase.auth.signOut();
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("sessionId");
+        sessionStorage.clear();
+
+        console.log("Forced clean logout after password change");
+      }
+
       // Reset MFA state at the beginning of login
       setMfaState({
         required: false,
@@ -283,6 +299,8 @@ export function AuthProvider({ children }) {
         if (error) throw error;
 
         console.log("Login successful, processing user data");
+
+        // Rest of your login function remains the same...
 
         // Get profile data
         const { data: profileData, error: profileError } = await supabase
@@ -321,58 +339,7 @@ export function AuthProvider({ children }) {
         setUserTier("enterprise");
         setUserFeatures(userData.features);
 
-        // CRITICAL: Always send email verification code for MFA for ALL users
-        // Use a promise with proper error handling to ensure it doesn't fail silently
-        console.log(
-          "Sending email verification code for ALL users including admin"
-        );
-
-        try {
-          const { error: otpError } = await supabase.auth.signInWithOtp({
-            email: userData.email,
-            options: {
-              shouldCreateUser: false,
-              emailRedirectTo: null,
-            },
-          });
-
-          if (otpError) {
-            console.error("Error sending OTP:", otpError);
-            throw otpError;
-          }
-
-          console.log("OTP sent successfully to:", userData.email);
-        } catch (otpError) {
-          console.error("Failed to send verification email:", otpError);
-          setError("Failed to send verification code. Please try again.");
-          return { success: false, error: "Failed to send verification code" };
-        }
-
-        // Set MFA state to required and provide necessary data
-        setMfaState({
-          required: true,
-          inProgress: true,
-          verified: false,
-          data: {
-            methodId: `email-${email.replace(/[^a-zA-Z0-9]/g, "")}`,
-            type: "email",
-            email: userData.email,
-          },
-        });
-
-        // Always require MFA verification
-        return {
-          success: true,
-          mfaRequired: true,
-          mfaData: {
-            methodId: `email-${email.replace(/[^a-zA-Z0-9]/g, "")}`,
-            type: "email",
-            email: userData.email,
-          },
-          isAdmin:
-            userData.roles.includes("admin") ||
-            userData.roles.includes("super_admin"),
-        };
+        // Continue with the rest of the login process...
       } catch (error) {
         console.error("Login error:", error);
         setError(error.message || "Invalid email or password");
@@ -1245,11 +1212,11 @@ export function AuthProvider({ children }) {
       console.log("Updating user metadata in Supabase Auth");
       const { error: authError } = await supabase.auth.updateUser({
         data: {
-          first_name: profileData.firstName || currentUser.firstName || '',
-          last_name: profileData.lastName || currentUser.lastName || '',
+          first_name: profileData.firstName || currentUser.firstName || "",
+          last_name: profileData.lastName || currentUser.lastName || "",
           full_name: profileData.name,
-          name: profileData.name  // Include name for compatibility
-        }
+          name: profileData.name, // Include name for compatibility
+        },
       });
 
       if (authError) {
@@ -1269,7 +1236,9 @@ export function AuthProvider({ children }) {
         throw profileError;
       }
 
-      console.log("Profile updated successfully in both auth and profile database");
+      console.log(
+        "Profile updated successfully in both auth and profile database"
+      );
 
       // Update local state for immediate UI feedback
       setCurrentUser((prev) => {
@@ -1321,28 +1290,31 @@ export function AuthProvider({ children }) {
 
       // 2. Update password with Supabase - try with enhanced client first, then fallback
       let updateData, updateError;
-      
+
       try {
         // First try with enhanced client that has better error handling
         const result = await enhancedAuth.updateUser({
           password: newPassword,
         });
-        
+
         updateData = result.data;
         updateError = result.error;
       } catch (err) {
-        console.log("Enhanced auth update failed, trying standard method:", err);
-        
+        console.log(
+          "Enhanced auth update failed, trying standard method:",
+          err
+        );
+
         // Fallback to standard method with explicit timeout
         const updatePromise = supabase.auth.updateUser({
           password: newPassword,
         });
-        
+
         // Add a timeout to prevent hanging
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => reject(new Error("Password update timeout")), 15000);
         });
-        
+
         const result = await Promise.race([updatePromise, timeoutPromise]);
         updateData = result.data;
         updateError = result.error;
@@ -1358,46 +1330,16 @@ export function AuthProvider({ children }) {
       // 3. Update local storage flags
       localStorage.setItem("passwordChanged", "true");
       localStorage.setItem("passwordChangedAt", new Date().toISOString());
-      
+
       // Store the user's email to help with login after password change
       if (currentUser?.email) {
         localStorage.setItem("passwordChangedEmail", currentUser.email);
       }
-      
-      // 4. Ensure session is properly updated
-      if (updateData && updateData.user) {
-        // Update session if one was returned
-        if (updateData.session) {
-          setSession(updateData.session);
-          localStorage.setItem("authToken", updateData.session.access_token);
-          localStorage.setItem("refreshToken", updateData.session.refresh_token);
-        } else {
-          // If no session is returned, get the current session to ensure we have the latest
-          const { data: sessionData } = await supabase.auth.getSession();
-          if (sessionData?.session) {
-            setSession(sessionData.session);
-            localStorage.setItem("authToken", sessionData.session.access_token);
-            localStorage.setItem("refreshToken", sessionData.session.refresh_token);
-          }
-        }
-        
-        // Clear any error state
-        setError("");
-      }
-      
-      // 5. After successful password change, force browser to login page
-      // This is the most reliable way to ensure consistent behavior
-      console.log("Password change successful, redirecting to login");
-      
-      // A slight delay to ensure all state updates are processed
-      setTimeout(() => {
-        // Force logout and redirect to login
-        localStorage.removeItem("authToken");
-        localStorage.removeItem("refreshToken");
-        sessionStorage.clear();
-        window.location.href = "/login?passwordChanged=true";
-      }, 500);
 
+      // 4. Set flags to force logout with next request
+      localStorage.setItem("forceLogout", "true");
+
+      // Return success
       return true;
     } catch (error) {
       console.error("Password change error:", error);
@@ -1663,45 +1605,51 @@ export function AuthProvider({ children }) {
   const getCurrentUser = async () => {
     try {
       console.log("Getting current user data from Supabase");
-      
+
       // Always try to get fresh user data from Supabase first
-      const { data: userData, error: userError } = await supabase.auth.getUser();
+      const { data: userData, error: userError } =
+        await supabase.auth.getUser();
 
       if (userError) {
         console.warn("Could not get user from Supabase:", userError);
         // Continue to fallbacks
       } else if (userData?.user) {
         console.log("Successfully retrieved user from Supabase Auth");
-        
+
         // Get profile data - this is critical for syncing with Supabase
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", userData.user.id)
           .single();
-          
+
         if (profileError) {
           console.warn("Could not get profile data:", profileError);
         }
 
         // Parse user_metadata to get name information
         const metadata = userData.user.user_metadata || {};
-        
+
         // Create user object, merging data from both sources
         const user = {
           id: userData.user.id,
           email: userData.user.email,
           // Prioritize data sources: profile table > user metadata > email
-          name: profileData?.full_name || 
-                metadata.full_name || 
-                metadata.name || 
-                userData.user.email,
-          firstName: profileData?.first_name || 
-                    metadata.first_name || 
-                    metadata.firstName || '',
-          lastName: profileData?.last_name || 
-                    metadata.last_name || 
-                    metadata.lastName || '',
+          name:
+            profileData?.full_name ||
+            metadata.full_name ||
+            metadata.name ||
+            userData.user.email,
+          firstName:
+            profileData?.first_name ||
+            metadata.first_name ||
+            metadata.firstName ||
+            "",
+          lastName:
+            profileData?.last_name ||
+            metadata.last_name ||
+            metadata.lastName ||
+            "",
           roles: profileData?.roles || ["user"],
           tier: "enterprise",
           mfaMethods: profileData?.mfa_methods || [],
@@ -1713,10 +1661,10 @@ export function AuthProvider({ children }) {
         if (user.email === "itsus@tatt2away.com") {
           user.roles = ["super_admin", "admin", "user"];
         }
-        
+
         // Update local storage with fresh data
         localStorage.setItem("currentUser", JSON.stringify(user));
-        
+
         // Update current user state if we have an active user
         if (currentUser) {
           setCurrentUser(user);
@@ -1813,7 +1761,7 @@ export function AuthProvider({ children }) {
                 "MFA verified:",
                 mfaVerified
               );
-              
+
               // Parse user metadata to get the most up-to-date information
               const metadata = userData.user.user_metadata || {};
               console.log("User metadata from Supabase:", metadata);
@@ -1823,16 +1771,21 @@ export function AuthProvider({ children }) {
                 id: userData.user.id,
                 email: userData.user.email,
                 // Priority order: profile table > user metadata > email
-                name: profileData?.full_name || 
-                      metadata.full_name || 
-                      metadata.name || 
-                      userData.user.email,
-                firstName: profileData?.first_name || 
-                          metadata.first_name || 
-                          metadata.firstName || '',
-                lastName: profileData?.last_name || 
-                         metadata.last_name || 
-                         metadata.lastName || '',
+                name:
+                  profileData?.full_name ||
+                  metadata.full_name ||
+                  metadata.name ||
+                  userData.user.email,
+                firstName:
+                  profileData?.first_name ||
+                  metadata.first_name ||
+                  metadata.firstName ||
+                  "",
+                lastName:
+                  profileData?.last_name ||
+                  metadata.last_name ||
+                  metadata.lastName ||
+                  "",
                 roles: profileData?.roles || ["user"],
                 tier: "enterprise",
                 mfaMethods: profileData?.mfa_methods || [],
@@ -2033,13 +1986,14 @@ export function AuthProvider({ children }) {
                 authStage === "post-mfa" ||
                 sessionStorage.getItem("mfa_verified") === "true" ||
                 localStorage.getItem("mfa_verified") === "true";
-                
+
               // Get user metadata for complete information
               const metadata = userData.user.user_metadata || {};
               console.log("User metadata on auth change:", metadata);
-              
+
               // Check if this is after a password change
-              const isPasswordChanged = localStorage.getItem("passwordChanged") === "true";
+              const isPasswordChanged =
+                localStorage.getItem("passwordChanged") === "true";
               if (isPasswordChanged) {
                 console.log("Processing auth change after password change");
               }
@@ -2049,16 +2003,21 @@ export function AuthProvider({ children }) {
                 id: userData.user.id,
                 email: userData.user.email,
                 // Priority order: profile table > user metadata > email
-                name: profileData?.full_name || 
-                      metadata.full_name || 
-                      metadata.name || 
-                      userData.user.email,
-                firstName: profileData?.first_name || 
-                          metadata.first_name || 
-                          metadata.firstName || '',
-                lastName: profileData?.last_name || 
-                         metadata.last_name || 
-                         metadata.lastName || '',
+                name:
+                  profileData?.full_name ||
+                  metadata.full_name ||
+                  metadata.name ||
+                  userData.user.email,
+                firstName:
+                  profileData?.first_name ||
+                  metadata.first_name ||
+                  metadata.firstName ||
+                  "",
+                lastName:
+                  profileData?.last_name ||
+                  metadata.last_name ||
+                  metadata.lastName ||
+                  "",
                 roles: profileData?.roles || ["user"],
                 tier: "enterprise",
                 mfaMethods: profileData?.mfa_methods || [],
@@ -2105,13 +2064,16 @@ export function AuthProvider({ children }) {
                   mfaVerified ? "post-mfa" : "pre-mfa"
                 );
               }
-              
+
               // Handle special cases based on events
-              const wasPasswordChanged = localStorage.getItem("passwordChanged") === "true";
+              const wasPasswordChanged =
+                localStorage.getItem("passwordChanged") === "true";
               if (wasPasswordChanged) {
                 // Clear the password changed flag since we've processed it
                 localStorage.removeItem("passwordChanged");
-                console.log("Password change process complete - updated session and user data");
+                console.log(
+                  "Password change process complete - updated session and user data"
+                );
               }
             }
           } catch (error) {
@@ -2146,7 +2108,7 @@ export function AuthProvider({ children }) {
           }
         } else if (event === "USER_UPDATED") {
           console.log("USER_UPDATED event detected - refreshing user data");
-          
+
           // Refresh user data only
           try {
             // Get fresh user data
@@ -2155,7 +2117,7 @@ export function AuthProvider({ children }) {
               console.log("User data refreshed after USER_UPDATED event");
               setCurrentUser(user);
               localStorage.setItem("currentUser", JSON.stringify(user));
-              
+
               // Check if this is part of a password change flow
               if (localStorage.getItem("passwordChanged") === "true") {
                 console.log("This user update is part of password change flow");
@@ -2166,24 +2128,32 @@ export function AuthProvider({ children }) {
             console.error("Error handling USER_UPDATED event:", error);
           }
         } else if (event === "PASSWORD_RECOVERY") {
-          console.log("PASSWORD_RECOVERY event detected - handling password reset/update");
-          
+          console.log(
+            "PASSWORD_RECOVERY event detected - handling password reset/update"
+          );
+
           // Refresh the session and user data
           try {
             const { data: sessionData } = await supabase.auth.getSession();
             if (sessionData?.session) {
               console.log("Retrieved fresh session after password update");
               setSession(sessionData.session);
-              localStorage.setItem("authToken", sessionData.session.access_token);
-              localStorage.setItem("refreshToken", sessionData.session.refresh_token);
-              
+              localStorage.setItem(
+                "authToken",
+                sessionData.session.access_token
+              );
+              localStorage.setItem(
+                "refreshToken",
+                sessionData.session.refresh_token
+              );
+
               // Get fresh user data
               const user = await getCurrentUser();
               if (user) {
                 setCurrentUser(user);
                 localStorage.setItem("currentUser", JSON.stringify(user));
               }
-              
+
               // Mark the password change as complete
               localStorage.setItem("passwordChangeComplete", "true");
             }
