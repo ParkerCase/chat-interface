@@ -72,29 +72,45 @@ function AuthPage() {
       setResetToken(params.get("token"));
     }
 
-    // Check for password change flag
+    // Enhanced password change detection
     const passwordChanged =
       localStorage.getItem("passwordChanged") === "true" ||
       params.get("passwordChanged") === "true";
+
     const passwordChangedEmail = localStorage.getItem("passwordChangedEmail");
+    const passwordChangedAt = localStorage.getItem("passwordChangedAt");
 
     if (passwordChanged && (authMode === "login" || pathname === "/login")) {
       console.log("Detected login after password change");
 
-      // Show success message
+      // Clear errors
       setFormError("");
       setAuthError("");
-      setSuccessMessage(
-        "Password changed successfully. Please log in with your new credentials."
-      );
+
+      // Set detailed success message with time if available
+      let successMsg =
+        "Password changed successfully. Please log in with your new credentials.";
+
+      if (passwordChangedAt) {
+        try {
+          const changeTime = new Date(passwordChangedAt);
+          successMsg = `Password changed successfully at ${changeTime.toLocaleTimeString()}. Please log in with your new credentials.`;
+        } catch (e) {
+          console.error("Error formatting password change time:", e);
+        }
+      }
+
+      setSuccessMessage(successMsg);
 
       // Pre-fill the email field if available
       if (passwordChangedEmail) {
         setEmail(passwordChangedEmail);
-        setSuccessMessage(
-          `Password changed successfully. Please log in with your new password for ${passwordChangedEmail}.`
-        );
       }
+
+      // Clear the password change flags after using them
+      localStorage.removeItem("passwordChanged");
+      localStorage.removeItem("passwordChangedEmail");
+      localStorage.removeItem("passwordChangedAt");
     }
 
     // Debug what auth mode we're in
