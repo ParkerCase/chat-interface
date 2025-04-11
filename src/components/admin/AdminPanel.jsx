@@ -59,19 +59,19 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
   const [showResetModal, setShowResetModal] = useState(false);
   const [userToReset, setUserToReset] = useState(null);
   const [successMessage, setSuccessMessage] = useState("");
-  
+
   // Form state for editing user
   const [editForm, setEditForm] = useState({
     name: "",
     email: "",
-    role: ""
+    role: "",
   });
-  
+
   // Initialize users list when component mounts or users prop changes
   useEffect(() => {
     setUsersList(users);
   }, [users]);
-  
+
   // Clear success message after a delay
   useEffect(() => {
     if (successMessage) {
@@ -81,61 +81,68 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
       return () => clearTimeout(timer);
     }
   }, [successMessage]);
-  
+
   // Check if current user can edit/delete another user
   const canManageUser = (user) => {
     // Super admins can manage anyone except themselves
     if (currentUser.roles.includes("super_admin")) {
       return user.id !== currentUser.id; // Can't delete yourself
     }
-    
+
     // Admins can only manage non-admin users
     if (currentUser.roles.includes("admin")) {
       return !user.role.includes("admin") && !user.role.includes("super_admin");
     }
-    
+
     // Regular users can't manage anyone
     return false;
   };
-  
+
   // Handle delete user
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
-    
+
     try {
       setIsLoading(true);
-      
+
       // Import supabase
       const { supabase } = await import("../../lib/supabase");
-      
+
       // First delete from profiles table
       const { error: profileError } = await supabase
-        .from('profiles')
+        .from("profiles")
         .delete()
-        .eq('id', userToDelete.id);
-      
+        .eq("id", userToDelete.id);
+
       if (profileError) {
         console.error("Error deleting user profile:", profileError);
-        throw new Error(`Failed to delete user profile: ${profileError.message}`);
+        throw new Error(
+          `Failed to delete user profile: ${profileError.message}`
+        );
       }
-      
+
       // Then delete the auth user if we have admin access
       try {
-        const { error: authError } = await supabase.auth.admin.deleteUser(userToDelete.id);
-        
+        const { error: authError } = await supabase.auth.admin.deleteUser(
+          userToDelete.id
+        );
+
         if (authError) {
-          console.warn("Could not delete auth user (might require higher permissions):", authError);
+          console.warn(
+            "Could not delete auth user (might require higher permissions):",
+            authError
+          );
           // Continue anyway as we've deleted the profile
         }
       } catch (adminError) {
         console.warn("Admin API access error:", adminError);
         // Continue anyway as we've deleted the profile
       }
-      
+
       // Update local state
-      setUsersList(usersList.filter(user => user.id !== userToDelete.id));
+      setUsersList(usersList.filter((user) => user.id !== userToDelete.id));
       setSuccessMessage(`User ${userToDelete.name} successfully deleted`);
-      
+
       // Close modal
       setShowDeleteModal(false);
       setUserToDelete(null);
@@ -146,73 +153,150 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
       setIsLoading(false);
     }
   };
-  
+
   // Handle opening edit modal
   const openEditModal = (user) => {
     setUserToEdit(user);
+
+    // Determine the highest role for display in dropdown
+    let displayRole = "user";
+
+    // Use the roleArray to determine the highest role
+    if (user.roleArray) {
+      if (user.roleArray.includes("super_admin")) {
+        displayRole = "super_admin";
+      } else if (user.roleArray.includes("admin")) {
+        displayRole = "admin";
+      }
+    } else {
+      // Fallback to simple role if roleArray not available
+      displayRole = user.role;
+    }
+
+    // Override for special admin user
+    if (user.email === "itsus@tatt2away.com") {
+      displayRole = "super_admin";
+    }
+
     setEditForm({
       name: user.name || "",
       email: user.email || "",
-      role: user.role || "user"
+      role: displayRole,
     });
+
     setShowEditModal(true);
   };
-  
+
   // Handle edit user form change
   const handleEditFormChange = (e) => {
     const { name, value } = e.target;
-    setEditForm(prev => ({
+    setEditForm((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
-  
+
   // Handle edit user submission
   const handleEditUserSubmit = async (e) => {
     e.preventDefault();
     if (!userToEdit) return;
-    
+
     try {
       setIsLoading(true);
-      
+
       // Import supabase
       const { supabase } = await import("../../lib/supabase");
-      
-      // Create roles array based on selected role
-      let roles = ['user'];
-      if (editForm.role === 'admin') {
-        roles = ['admin', 'user'];
-      } else if (editForm.role === 'super_admin') {
-        roles = ['super_admin', 'admin', 'user'];
+
+      // First get the current roles from the database to ensure we preserve any specialized roles
+      let existingRoles = userToEdit.roleArray || ["user"];
+
+      // If we don't have roleArray in userToEdit, fetch from database
+      if (!userToEdit.roleArray) {
+        try {
+          const { data: userData, error: userError } = await supabase
+            .from("profiles")
+            .select("roles")
+            .eq("id", userToEdit.id)
+            .single();
+
+          if (!userError && userData && Array.isArray(userData.roles)) {
+            existingRoles = userData.roles;
+          }
+        } catch (fetchError) {
+          console.warn("Failed to fetch current roles:", fetchError);
+          // Continue with default roles
+        }
       }
-      
+
+      // Determine what roles to add/remove based on the selected role in the form
+      let newRoles = [...existingRoles];
+
+      // Remove existing role levels we're changing
+      newRoles = newRoles.filter(
+        (role) => role !== "user" && role !== "admin" && role !== "super_admin"
+      );
+
+      // Add the appropriate roles based on selected level
+      if (editForm.role === "super_admin") {
+        newRoles.push("super_admin", "admin", "user");
+      } else if (editForm.role === "admin") {
+        newRoles.push("admin", "user");
+      } else {
+        newRoles.push("user");
+      }
+
+      // Remove duplicates
+      newRoles = [...new Set(newRoles)];
+
+      // Special case for admin user
+      if (userToEdit.email === "itsus@tatt2away.com") {
+        console.log("Ensuring admin user has super_admin role");
+        if (!newRoles.includes("super_admin")) {
+          newRoles.push("super_admin");
+        }
+        if (!newRoles.includes("admin")) {
+          newRoles.push("admin");
+        }
+        if (!newRoles.includes("user")) {
+          newRoles.push("user");
+        }
+      }
+
+      console.log(`Updating user ${userToEdit.email} with roles:`, newRoles);
+
       // Update profile in Supabase
-      const { data, error } = await supabase
-        .from('profiles')
+      const { error } = await supabase
+        .from("profiles")
         .update({
           full_name: editForm.name,
-          roles: roles,
-          updated_at: new Date().toISOString()
+          roles: newRoles,
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', userToEdit.id);
-      
+        .eq("id", userToEdit.id);
+
       if (error) {
         console.error("Error updating user:", error);
         throw new Error(`Failed to update user: ${error.message}`);
       }
-      
-      // Update user list
-      setUsersList(usersList.map(user => {
-        if (user.id === userToEdit.id) {
-          return {
-            ...user,
-            name: editForm.name,
-            role: editForm.role
-          };
-        }
-        return user;
-      }));
-      
+
+      // Update user list with the new data
+      setUsersList(
+        usersList.map((user) => {
+          if (user.id === userToEdit.id) {
+            return {
+              ...user,
+              name: editForm.name,
+              role:
+                userToEdit.email === "itsus@tatt2away.com"
+                  ? "super_admin"
+                  : editForm.role,
+              roleArray: newRoles,
+            };
+          }
+          return user;
+        })
+      );
+
       setSuccessMessage(`User ${editForm.name} successfully updated`);
       setShowEditModal(false);
       setUserToEdit(null);
@@ -223,17 +307,17 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
       setIsLoading(false);
     }
   };
-  
+
   // Handle reset password
   const handleResetPassword = async () => {
     if (!userToReset) return;
-    
+
     try {
       setIsLoading(true);
-      
+
       // Import supabase
       const { supabase } = await import("../../lib/supabase");
-      
+
       // Send password reset email
       const { error } = await supabase.auth.resetPasswordForEmail(
         userToReset.email,
@@ -241,12 +325,12 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
           redirectTo: `${window.location.origin}/reset-password`,
         }
       );
-      
+
       if (error) {
         console.error("Error sending password reset:", error);
         throw new Error(`Failed to send password reset: ${error.message}`);
       }
-      
+
       setSuccessMessage(`Password reset email sent to ${userToReset.email}`);
       setShowResetModal(false);
       setUserToReset(null);
@@ -257,37 +341,40 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
       setIsLoading(false);
     }
   };
-  
+
   // Handle managing MFA for a user
   const [showMfaModal, setShowMfaModal] = useState(false);
   const [userForMfa, setUserForMfa] = useState(null);
-  const [mfaOptions, setMfaOptions] = useState({ requireMfa: false, methods: [] });
-  
+  const [mfaOptions, setMfaOptions] = useState({
+    requireMfa: false,
+    methods: [],
+  });
+
   // Open MFA management modal for a user
   const openMfaModal = async (user) => {
     try {
       setIsLoading(true);
-      
+
       // Import supabase
       const { supabase } = await import("../../lib/supabase");
-      
+
       // Get user's current MFA settings from profile
       const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('mfa_methods')
-        .eq('id', user.id)
+        .from("profiles")
+        .select("mfa_methods")
+        .eq("id", user.id)
         .single();
-      
+
       if (profileError) {
         console.error("Error fetching MFA methods:", profileError);
         throw new Error(`Failed to fetch MFA methods: ${profileError.message}`);
       }
-      
+
       // Set user and MFA options
       setUserForMfa(user);
       setMfaOptions({
         requireMfa: profileData?.mfa_methods?.length > 0 || false,
-        methods: profileData?.mfa_methods || []
+        methods: profileData?.mfa_methods || [],
       });
       setShowMfaModal(true);
     } catch (error) {
@@ -297,63 +384,62 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
       setIsLoading(false);
     }
   };
-  
+
   // Handle saving MFA settings for a user
   const handleSaveMfaSettings = async () => {
     if (!userForMfa) return;
-    
+
     try {
       setIsLoading(true);
-      
+
       // Import supabase
       const { supabase } = await import("../../lib/supabase");
-      
+
       // Create a default email MFA method if required and none exists
       let updatedMethods = [...mfaOptions.methods];
-      
+
       if (mfaOptions.requireMfa && updatedMethods.length === 0) {
         // Create a default email MFA method
         const emailMfaMethod = {
           id: `email-${userForMfa.email.replace(/[^a-zA-Z0-9]/g, "")}`,
           type: "email",
           createdAt: new Date().toISOString(),
-          email: userForMfa.email
+          email: userForMfa.email,
         };
-        
+
         updatedMethods.push(emailMfaMethod);
       } else if (!mfaOptions.requireMfa) {
         // If MFA is not required, remove all methods
         updatedMethods = [];
       }
-      
+
       // Update profile in Supabase
       const { error: profileError } = await supabase
-        .from('profiles')
+        .from("profiles")
         .update({
           mfa_methods: updatedMethods,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', userForMfa.id);
-      
+        .eq("id", userForMfa.id);
+
       if (profileError) {
         console.error("Error updating MFA settings:", profileError);
-        throw new Error(`Failed to update MFA settings: ${profileError.message}`);
-      }
-      
-      // Send reset password email if enabling MFA to force user to set up MFA
-      if (mfaOptions.requireMfa && !mfaOptions.methods.length) {
-        await supabase.auth.resetPasswordForEmail(
-          userForMfa.email,
-          {
-            redirectTo: `${window.location.origin}/reset-password`,
-          }
+        throw new Error(
+          `Failed to update MFA settings: ${profileError.message}`
         );
       }
-      
+
+      // Send reset password email if enabling MFA to force user to set up MFA
+      if (mfaOptions.requireMfa && !mfaOptions.methods.length) {
+        await supabase.auth.resetPasswordForEmail(userForMfa.email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+      }
+
       setSuccessMessage(`MFA settings updated for ${userForMfa.name}`);
       setShowMfaModal(false);
       setUserForMfa(null);
-      
+
       // Refresh user list
       await refreshUserList();
     } catch (error) {
@@ -363,40 +449,105 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
       setIsLoading(false);
     }
   };
-  
+
   // Handle refreshing user list
   const refreshUserList = async () => {
     try {
       setIsLoading(true);
-      
+
       // Import supabase
       const { supabase } = await import("../../lib/supabase");
-      
-      // Get users from Supabase
-      let { data: supabaseUsers, error: usersError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (usersError) {
-        console.error("Error loading users:", usersError);
-        throw usersError;
+
+      console.log("Fetching users from Supabase");
+
+      // Get profiles with a longer timeout
+      const profilesPromise = new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Profiles query timed out after 10 seconds"));
+        }, 10000);
+
+        supabase
+          .from("profiles")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .then((result) => {
+            clearTimeout(timeout);
+            if (result.error) reject(result.error);
+            else resolve(result.data || []);
+          })
+          .catch((error) => {
+            clearTimeout(timeout);
+            reject(error);
+          });
+      });
+
+      // Await the profiles
+      const supabaseUsers = await profilesPromise;
+
+      console.log("Received user profiles:", supabaseUsers.length);
+
+      // Process the profiles into user objects
+      const enrichedUsers = supabaseUsers.map((profile) => {
+        // Extract the actual roles from the profile
+        let roleValue = "user"; // Default role if none found
+
+        // Extract the highest priority role from the roles array
+        if (Array.isArray(profile.roles) && profile.roles.length > 0) {
+          if (profile.roles.includes("super_admin")) {
+            roleValue = "super_admin";
+          } else if (profile.roles.includes("admin")) {
+            roleValue = "admin";
+          }
+        }
+
+        // Special override ONLY for the admin account
+        if (profile.email === "itsus@tatt2away.com") {
+          roleValue = "super_admin";
+        }
+
+        return {
+          id: profile.id,
+          name: profile.full_name || profile.email,
+          email: profile.email,
+          role: roleValue,
+          // Store the complete roles array for accurate editing
+          roleArray: Array.isArray(profile.roles) ? profile.roles : ["user"],
+          status: "Active",
+          lastActive: profile.last_login || profile.created_at,
+          mfaEnabled:
+            Array.isArray(profile.mfa_methods) &&
+            profile.mfa_methods.length > 0,
+          mfaMethods: profile.mfa_methods || [],
+        };
+      });
+
+      // Check if admin account exists in the list
+      const hasAdminAccount = enrichedUsers.some(
+        (user) => user.email === "itsus@tatt2away.com"
+      );
+
+      if (!hasAdminAccount) {
+        console.log("Adding default admin account to list");
+        enrichedUsers.unshift({
+          id: "admin-default-id",
+          name: "Tatt2Away Admin",
+          email: "itsus@tatt2away.com",
+          role: "super_admin",
+          roleArray: ["super_admin", "admin", "user"],
+          status: "Active",
+          lastActive: new Date().toISOString(),
+          mfaEnabled: true,
+          mfaMethods: [
+            {
+              id: "default-admin-mfa",
+              type: "email",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        });
       }
-      
-      // Format profile data
-      const enrichedUsers = supabaseUsers.map(profile => ({
-        id: profile.id,
-        name: profile.full_name || profile.email,
-        email: profile.email,
-        role: Array.isArray(profile.roles) && profile.roles.length > 0 ? 
-              (profile.roles.includes('super_admin') ? 'super_admin' : 
-               profile.roles.includes('admin') ? 'admin' : 'user') : 'user',
-        status: 'Active',
-        lastActive: profile.last_login || profile.created_at,
-        mfaEnabled: Array.isArray(profile.mfa_methods) && profile.mfa_methods.length > 0,
-        mfaMethods: profile.mfa_methods || []
-      }));
-      
+
+      console.log("Processed user list with roles:", enrichedUsers);
       setUsersList(enrichedUsers);
       setSuccessMessage("User list refreshed successfully");
     } catch (error) {
@@ -406,12 +557,12 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
       setIsLoading(false);
     }
   };
-  
+
   return (
     <div className="admin-users">
       <div className="admin-section">
         <h2 className="admin-section-title">User Management</h2>
-        
+
         {/* Success message */}
         {successMessage && (
           <div className="success-message">
@@ -419,14 +570,14 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
             <p>{successMessage}</p>
           </div>
         )}
-        
+
         <div className="admin-actions">
           <Link to="/admin/register" className="admin-button">
             <UserPlus size={18} />
             <span>Register New User</span>
           </Link>
-          
-          <button 
+
+          <button
             className="action-button refresh-button"
             onClick={refreshUserList}
             disabled={isLoading}
@@ -456,22 +607,41 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
                   <td>
                     <span
                       className={`user-badge ${
-                        user.role === "super_admin" 
-                          ? "super-admin-badge" 
-                          : user.role === "admin" 
-                            ? "admin-badge" 
-                            : ""
+                        user.role === "super_admin"
+                          ? "super-admin-badge"
+                          : user.role === "admin"
+                          ? "admin-badge"
+                          : ""
                       }`}
                     >
-                      {user.role === "super_admin" 
-                        ? "Super Admin" 
-                        : user.role === "admin" 
-                          ? "Admin" 
-                          : "User"}
+                      {user.role === "super_admin"
+                        ? "Super Admin"
+                        : user.role === "admin"
+                        ? "Admin"
+                        : "User"}
                     </span>
+                    {user.roleArray &&
+                      user.roleArray.length > 1 &&
+                      user.roleArray.some(
+                        (r) => !["user", "admin", "super_admin"].includes(r)
+                      ) && (
+                        <span
+                          className="additional-roles-tooltip"
+                          title={user.roleArray
+                            .filter(
+                              (r) =>
+                                !["user", "admin", "super_admin"].includes(r)
+                            )
+                            .join(", ")}
+                        >
+                          +
+                        </span>
+                      )}
                   </td>
                   <td>
-                    <span className={`user-status ${user.status.toLowerCase()}`}>
+                    <span
+                      className={`user-status ${user.status.toLowerCase()}`}
+                    >
                       {user.status}
                     </span>
                   </td>
@@ -479,8 +649,9 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
                   <td>
                     <div className="action-buttons">
                       {/* Edit button - visible to admins for non-admins and super_admins for everyone */}
-                      {canManageUser(user) || currentUser.roles.includes("super_admin") ? (
-                        <button 
+                      {canManageUser(user) ||
+                      currentUser.roles.includes("super_admin") ? (
+                        <button
                           className="action-button edit-button"
                           onClick={() => openEditModal(user)}
                           title="Edit User"
@@ -488,10 +659,11 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
                           <Edit size={14} />
                         </button>
                       ) : null}
-                      
+
                       {/* Reset password button - visible to admins and super_admins */}
-                      {(currentUser.roles.includes("admin") || currentUser.roles.includes("super_admin")) && (
-                        <button 
+                      {(currentUser.roles.includes("admin") ||
+                        currentUser.roles.includes("super_admin")) && (
+                        <button
                           className="action-button reset-password-button"
                           onClick={() => {
                             setUserToReset(user);
@@ -502,21 +674,26 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
                           <Key size={14} />
                         </button>
                       )}
-                      
+
                       {/* MFA management button - visible to admins and super_admins */}
-                      {(currentUser.roles.includes("admin") || currentUser.roles.includes("super_admin")) && (
-                        <button 
+                      {(currentUser.roles.includes("admin") ||
+                        currentUser.roles.includes("super_admin")) && (
+                        <button
                           className="action-button mfa-button"
                           onClick={() => openMfaModal(user)}
                           title="Manage MFA Settings"
                         >
-                          {user.mfaEnabled ? <Lock size={14} /> : <Unlock size={14} />}
+                          {user.mfaEnabled ? (
+                            <Lock size={14} />
+                          ) : (
+                            <Unlock size={14} />
+                          )}
                         </button>
                       )}
-                      
+
                       {/* Delete button - only for users that can be managed */}
                       {canManageUser(user) && (
-                        <button 
+                        <button
                           className="action-button delete-button"
                           onClick={() => {
                             setUserToDelete(user);
@@ -535,15 +712,15 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
           </table>
         </div>
       </div>
-      
+
       {/* Delete User Modal */}
       {showDeleteModal && userToDelete && (
         <div className="modal-overlay">
           <div className="modal-container">
             <div className="modal-header">
               <h3>Delete User</h3>
-              <button 
-                className="modal-close" 
+              <button
+                className="modal-close"
                 onClick={() => {
                   setShowDeleteModal(false);
                   setUserToDelete(null);
@@ -555,15 +732,21 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
             <div className="modal-body">
               <p>Are you sure you want to delete the following user?</p>
               <div className="user-info">
-                <p><strong>Name:</strong> {userToDelete.name}</p>
-                <p><strong>Email:</strong> {userToDelete.email}</p>
-                <p><strong>Role:</strong> {userToDelete.role}</p>
+                <p>
+                  <strong>Name:</strong> {userToDelete.name}
+                </p>
+                <p>
+                  <strong>Email:</strong> {userToDelete.email}
+                </p>
+                <p>
+                  <strong>Role:</strong> {userToDelete.role}
+                </p>
               </div>
               <p className="warning-text">This action cannot be undone.</p>
             </div>
             <div className="modal-footer">
-              <button 
-                className="cancel-button" 
+              <button
+                className="cancel-button"
                 onClick={() => {
                   setShowDeleteModal(false);
                   setUserToDelete(null);
@@ -572,8 +755,8 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
               >
                 Cancel
               </button>
-              <button 
-                className="delete-button" 
+              <button
+                className="delete-button"
                 onClick={handleDeleteUser}
                 disabled={isLoading}
               >
@@ -593,15 +776,15 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
           </div>
         </div>
       )}
-      
+
       {/* Edit User Modal */}
       {showEditModal && userToEdit && (
         <div className="modal-overlay">
           <div className="modal-container">
             <div className="modal-header">
               <h3>Edit User</h3>
-              <button 
-                className="modal-close" 
+              <button
+                className="modal-close"
                 onClick={() => {
                   setShowEditModal(false);
                   setUserToEdit(null);
@@ -624,7 +807,7 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
                     required
                   />
                 </div>
-                
+
                 <div className="form-group">
                   <label htmlFor="email">Email</label>
                   <input
@@ -637,7 +820,7 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
                   />
                   <p className="input-help">Email cannot be changed</p>
                 </div>
-                
+
                 <div className="form-group">
                   <label htmlFor="role">Role</label>
                   <select
@@ -647,7 +830,10 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
                     onChange={handleEditFormChange}
                     className="form-select"
                     required
-                    disabled={!currentUser.roles.includes("super_admin") && editForm.role === "admin"}
+                    disabled={
+                      !currentUser.roles.includes("super_admin") &&
+                      editForm.role === "admin"
+                    }
                   >
                     <option value="user">User</option>
                     <option value="admin">Admin</option>
@@ -656,11 +842,11 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
                     )}
                   </select>
                 </div>
-                
+
                 <div className="modal-footer">
-                  <button 
-                    type="button" 
-                    className="cancel-button" 
+                  <button
+                    type="button"
+                    className="cancel-button"
                     onClick={() => {
                       setShowEditModal(false);
                       setUserToEdit(null);
@@ -669,9 +855,9 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
                   >
                     Cancel
                   </button>
-                  <button 
-                    type="submit" 
-                    className="save-button" 
+                  <button
+                    type="submit"
+                    className="save-button"
                     disabled={isLoading}
                   >
                     {isLoading ? (
@@ -692,15 +878,15 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
           </div>
         </div>
       )}
-      
+
       {/* Reset Password Modal */}
       {showResetModal && userToReset && (
         <div className="modal-overlay">
           <div className="modal-container">
             <div className="modal-header">
               <h3>Reset Password</h3>
-              <button 
-                className="modal-close" 
+              <button
+                className="modal-close"
                 onClick={() => {
                   setShowResetModal(false);
                   setUserToReset(null);
@@ -712,14 +898,20 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
             <div className="modal-body">
               <p>Send password reset email to:</p>
               <div className="user-info">
-                <p><strong>Name:</strong> {userToReset.name}</p>
-                <p><strong>Email:</strong> {userToReset.email}</p>
+                <p>
+                  <strong>Name:</strong> {userToReset.name}
+                </p>
+                <p>
+                  <strong>Email:</strong> {userToReset.email}
+                </p>
               </div>
-              <p>A password reset link will be sent to the user's email address.</p>
+              <p>
+                A password reset link will be sent to the user's email address.
+              </p>
             </div>
             <div className="modal-footer">
-              <button 
-                className="cancel-button" 
+              <button
+                className="cancel-button"
                 onClick={() => {
                   setShowResetModal(false);
                   setUserToReset(null);
@@ -728,8 +920,8 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
               >
                 Cancel
               </button>
-              <button 
-                className="send-button" 
+              <button
+                className="send-button"
                 onClick={handleResetPassword}
                 disabled={isLoading}
               >
@@ -749,15 +941,15 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
           </div>
         </div>
       )}
-      
+
       {/* MFA Management Modal */}
       {showMfaModal && userForMfa && (
         <div className="modal-overlay">
           <div className="modal-container">
             <div className="modal-header">
               <h3>MFA Settings</h3>
-              <button 
-                className="modal-close" 
+              <button
+                className="modal-close"
                 onClick={() => {
                   setShowMfaModal(false);
                   setUserForMfa(null);
@@ -768,48 +960,75 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
             </div>
             <div className="modal-body">
               <div className="user-info">
-                <p><strong>User:</strong> {userForMfa.name}</p>
-                <p><strong>Email:</strong> {userForMfa.email}</p>
+                <p>
+                  <strong>User:</strong> {userForMfa.name}
+                </p>
+                <p>
+                  <strong>Email:</strong> {userForMfa.email}
+                </p>
               </div>
-              
+
               <div className="mfa-settings">
                 <div className="mfa-toggle">
                   <label className="toggle-label">
                     <span>Require Multi-Factor Authentication</span>
-                    <button 
-                      type="button" 
-                      className={`toggle-button ${mfaOptions.requireMfa ? 'enabled' : 'disabled'}`}
-                      onClick={() => setMfaOptions({...mfaOptions, requireMfa: !mfaOptions.requireMfa})}
+                    <button
+                      type="button"
+                      className={`toggle-button ${
+                        mfaOptions.requireMfa ? "enabled" : "disabled"
+                      }`}
+                      onClick={() =>
+                        setMfaOptions({
+                          ...mfaOptions,
+                          requireMfa: !mfaOptions.requireMfa,
+                        })
+                      }
                     >
-                      {mfaOptions.requireMfa ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                      {mfaOptions.requireMfa ? (
+                        <ToggleRight size={24} />
+                      ) : (
+                        <ToggleLeft size={24} />
+                      )}
                     </button>
                   </label>
                 </div>
-                
+
                 <div className="mfa-info">
                   {mfaOptions.requireMfa ? (
                     <div className="info-box enabled">
                       <Lock size={18} />
                       <div>
-                        <p><strong>MFA Enabled</strong></p>
-                        <p>User will be required to set up and use MFA to login.</p>
+                        <p>
+                          <strong>MFA Enabled</strong>
+                        </p>
+                        <p>
+                          User will be required to set up and use MFA to login.
+                        </p>
                         {mfaOptions.methods && mfaOptions.methods.length > 0 ? (
                           <ul className="mfa-methods-list">
-                            {mfaOptions.methods.map(method => (
+                            {mfaOptions.methods.map((method) => (
                               <li key={method.id} className="mfa-method">
-                                {method.type === 'email' ? (
-                                  <><Mail size={14} /> Email: {method.email || userForMfa.email}</>
-                                ) : method.type === 'totp' ? (
-                                  <><Smartphone size={14} /> Authenticator App</>
+                                {method.type === "email" ? (
+                                  <>
+                                    <Mail size={14} /> Email:{" "}
+                                    {method.email || userForMfa.email}
+                                  </>
+                                ) : method.type === "totp" ? (
+                                  <>
+                                    <Smartphone size={14} /> Authenticator App
+                                  </>
                                 ) : (
-                                  <><Shield size={14} /> {method.type}</>
+                                  <>
+                                    <Shield size={14} /> {method.type}
+                                  </>
                                 )}
                               </li>
                             ))}
                           </ul>
                         ) : (
                           <p className="setup-note">
-                            <strong>Note:</strong> The user will be prompted to set up MFA on next login.
+                            <strong>Note:</strong> The user will be prompted to
+                            set up MFA on next login.
                           </p>
                         )}
                       </div>
@@ -818,8 +1037,13 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
                     <div className="info-box disabled">
                       <Unlock size={18} />
                       <div>
-                        <p><strong>MFA Disabled</strong></p>
-                        <p>User can log in with password only. Enable MFA to increase security.</p>
+                        <p>
+                          <strong>MFA Disabled</strong>
+                        </p>
+                        <p>
+                          User can log in with password only. Enable MFA to
+                          increase security.
+                        </p>
                       </div>
                     </div>
                   )}
@@ -827,8 +1051,8 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
               </div>
             </div>
             <div className="modal-footer">
-              <button 
-                className="cancel-button" 
+              <button
+                className="cancel-button"
                 onClick={() => {
                   setShowMfaModal(false);
                   setUserForMfa(null);
@@ -837,8 +1061,8 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
               >
                 Cancel
               </button>
-              <button 
-                className="save-button" 
+              <button
+                className="save-button"
                 onClick={handleSaveMfaSettings}
                 disabled={isLoading}
               >
@@ -891,9 +1115,100 @@ const AdminPanel = () => {
 
   const navigate = useNavigate();
 
+  const ensureAdminUser = async () => {
+    try {
+      console.log("Ensuring admin user exists in database");
+
+      const { supabase } = await import("../../lib/supabase");
+
+      // First check if the admin user already exists
+      const { data: existingAdmin, error: queryError } = await supabase
+        .from("profiles")
+        .select("id, email, roles")
+        .eq("email", "itsus@tatt2away.com")
+        .maybeSingle();
+
+      if (queryError) {
+        console.error("Error checking for admin user:", queryError);
+        return;
+      }
+
+      if (existingAdmin) {
+        console.log("Admin user exists, ensuring super_admin role");
+
+        // Ensure admin has super_admin role
+        if (
+          !existingAdmin.roles ||
+          !existingAdmin.roles.includes("super_admin")
+        ) {
+          const roles = ["super_admin", "admin", "user"];
+
+          // Update roles
+          const { error: updateError } = await supabase
+            .from("profiles")
+            .update({ roles })
+            .eq("id", existingAdmin.id);
+
+          if (updateError) {
+            console.error("Error updating admin roles:", updateError);
+          } else {
+            console.log("Admin user roles updated successfully");
+          }
+        }
+      } else {
+        console.log("Admin user doesn't exist, attempting to create");
+
+        // Try to create admin user
+        // First create auth user if possible
+        try {
+          const { data: authData, error: authError } =
+            await supabase.auth.admin.createUser({
+              email: "itsus@tatt2away.com",
+              password: "password",
+              email_confirm: true,
+              user_metadata: {
+                full_name: "Tatt2Away Admin",
+              },
+            });
+
+          if (authError) {
+            console.error("Error creating admin auth user:", authError);
+          } else {
+            console.log("Created admin auth user");
+
+            // Create profile
+            const { error: profileError } = await supabase
+              .from("profiles")
+              .insert([
+                {
+                  id: authData.user.id,
+                  email: "itsus@tatt2away.com",
+                  full_name: "Tatt2Away Admin",
+                  roles: ["super_admin", "admin", "user"],
+                  tier: "enterprise",
+                  created_at: new Date().toISOString(),
+                },
+              ]);
+
+            if (profileError) {
+              console.error("Error creating admin profile:", profileError);
+            } else {
+              console.log("Admin user created successfully");
+            }
+          }
+        } catch (createError) {
+          console.error("Error in admin user creation:", createError);
+        }
+      }
+    } catch (error) {
+      console.error("Error in ensureAdminUser:", error);
+    }
+  };
+
   // Load admin data
   useEffect(() => {
     const loadAdminData = async () => {
+      // Redirect to home if not admin
       if (!isAdmin) {
         navigate("/");
         return;
@@ -901,85 +1216,145 @@ const AdminPanel = () => {
 
       try {
         setIsLoading(true);
+        console.log("Loading admin panel data");
 
         // Set current user profile
         setUserProfile(currentUser);
 
+        // Ensure admin user exists in database
+        try {
+          await ensureAdminUser();
+        } catch (adminError) {
+          console.warn("Admin user check failed, continuing:", adminError);
+          // Non-critical error, continue loading
+        }
+
         // Import supabase directly here to avoid circular dependencies
         const { supabase } = await import("../../lib/supabase");
 
-        // Get users from Supabase
-        let { data: supabaseUsers, error: usersError } = await supabase
-          .from('profiles')
-          .select('*')
-          .order('created_at', { ascending: false });
+        // Get users from Supabase with timeout protection
+        const userPromise = new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("User query timed out after 15 seconds"));
+          }, 15000);
 
-        if (usersError) {
-          console.error("Error loading users:", usersError);
-          throw usersError;
+          supabase
+            .from("profiles")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .then((result) => {
+              clearTimeout(timeout);
+              if (result.error) reject(result.error);
+              else resolve(result.data || []);
+            })
+            .catch((error) => {
+              clearTimeout(timeout);
+              reject(error);
+            });
+        });
+
+        // Fetch users with error handling
+        let supabaseUsers = [];
+        try {
+          supabaseUsers = await userPromise;
+          console.log(
+            "Successfully retrieved users from database:",
+            supabaseUsers.length
+          );
+        } catch (fetchError) {
+          console.error("Error fetching users:", fetchError);
+          // Continue with empty array - we'll add admin user later
         }
 
-        // Get auth users to get last login times and merge with profiles
-        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-        
-        // If auth users request fails, we'll just use the profiles data
-        let enrichedUsers = supabaseUsers;
-        
-        if (!authError && authUsers) {
-          const authUsersMap = new Map();
-          authUsers.users.forEach(user => {
-            authUsersMap.set(user.id, user);
-          });
-          
-          // Merge profile data with auth data
-          enrichedUsers = supabaseUsers.map(profile => {
-            const authUser = authUsersMap.get(profile.id);
-            return {
-              ...profile,
-              id: profile.id,
-              name: profile.full_name || profile.email,
-              email: profile.email,
-              role: Array.isArray(profile.roles) && profile.roles.length > 0 ? 
-                    (profile.roles.includes('super_admin') ? 'super_admin' : 
-                     profile.roles.includes('admin') ? 'admin' : 'user') : 'user',
-              status: authUser?.confirmed_at ? 'Active' : 'Pending',
-              lastActive: authUser?.last_sign_in_at || profile.last_login || profile.created_at,
-              mfaEnabled: Array.isArray(profile.mfa_methods) && profile.mfa_methods.length > 0,
-              mfaMethods: profile.mfa_methods || []
-            };
-          });
-        } else {
-          // Format profile data if auth data isn't available
-          enrichedUsers = supabaseUsers.map(profile => ({
+        // Process user profiles with accurate role handling
+        const enrichedUsers = supabaseUsers.map((profile) => {
+          // Determine primary visible role from complete role array
+          let primaryRole = "user";
+          const rolesArray = Array.isArray(profile.roles)
+            ? profile.roles
+            : ["user"];
+
+          if (rolesArray.includes("super_admin")) {
+            primaryRole = "super_admin";
+          } else if (rolesArray.includes("admin")) {
+            primaryRole = "admin";
+          }
+
+          // Special case for admin user - ALWAYS super_admin
+          if (profile.email === "itsus@tatt2away.com") {
+            primaryRole = "super_admin";
+          }
+
+          // Format last activity time
+          const lastActivity =
+            profile.last_login ||
+            profile.last_active ||
+            profile.created_at ||
+            new Date().toISOString();
+
+          // Process MFA methods
+          const hasMfa =
+            Array.isArray(profile.mfa_methods) &&
+            profile.mfa_methods.length > 0;
+
+          return {
             id: profile.id,
-            name: profile.full_name || profile.email,
+            name: profile.full_name || profile.email || "Unknown User",
             email: profile.email,
-            role: Array.isArray(profile.roles) && profile.roles.length > 0 ? 
-                  (profile.roles.includes('super_admin') ? 'super_admin' : 
-                   profile.roles.includes('admin') ? 'admin' : 'user') : 'user',
-            status: 'Active',
-            lastActive: profile.last_login || profile.created_at,
-            mfaEnabled: Array.isArray(profile.mfa_methods) && profile.mfa_methods.length > 0,
-            mfaMethods: profile.mfa_methods || []
-          }));
+            role: primaryRole, // For display
+            roleArray: rolesArray, // Complete role array for editing
+            status: profile.status || "Active",
+            lastActive: lastActivity,
+            mfaEnabled: hasMfa,
+            mfaMethods: profile.mfa_methods || [],
+          };
+        });
+
+        // Check if admin user is in the list
+        const hasAdminAccount = enrichedUsers.some(
+          (user) => user.email === "itsus@tatt2away.com"
+        );
+
+        // Final user list with admin account guaranteed
+        let finalUserList = [...enrichedUsers];
+
+        if (!hasAdminAccount) {
+          console.log("Adding default admin account to list");
+          finalUserList.unshift({
+            id: "admin-default-id",
+            name: "Tatt2Away Admin",
+            email: "itsus@tatt2away.com",
+            role: "super_admin",
+            roleArray: ["super_admin", "admin", "user"],
+            status: "Active",
+            lastActive: new Date().toISOString(),
+            mfaEnabled: true,
+            mfaMethods: [
+              {
+                id: "default-admin-mfa",
+                type: "email",
+                createdAt: new Date().toISOString(),
+              },
+            ],
+          });
         }
-        
-        // Get counts for stats
-        const totalUsers = enrichedUsers.length;
-        const activeUsers = enrichedUsers.filter(user => 
-          user.status === 'Active' && 
-          new Date(user.lastActive) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // active in last 30 days
-        ).length;
-        
+
+        console.log("Final processed user list:", finalUserList.length);
+
         // Set users and generate stats
-        setRecentUsers(enrichedUsers);
-        
-        // Set stats data
+        setRecentUsers(finalUserList);
+
+        // Calculate stats
         const statsData = {
-          totalUsers: totalUsers,
-          activeUsers: activeUsers,
-          totalMessages: 0, // You'd need a messages table to count this
-          filesProcessed: 0, // You'd need a files table to count this
+          totalUsers: finalUserList.length,
+          activeUsers: finalUserList.filter(
+            (user) =>
+              user.status === "Active" &&
+              new Date(user.lastActive) >
+                new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // active in last 30 days
+          ).length,
+          totalMessages: 0, // Would be populated from actual message stats
+          filesProcessed: 0, // Would be populated from actual file stats
           averageResponseTime: 0,
           lastUpdateTime: new Date().toISOString(),
         };
@@ -988,6 +1363,31 @@ const AdminPanel = () => {
       } catch (err) {
         console.error("Error loading admin data:", err);
         setError("Failed to load admin data. Please try again.");
+
+        // Emergency fallback - ensure we have at least the admin user
+        try {
+          const emergencyUser = {
+            id: "admin-emergency-id",
+            name: "Tatt2Away Admin",
+            email: "itsus@tatt2away.com",
+            role: "super_admin",
+            roleArray: ["super_admin", "admin", "user"],
+            status: "Active",
+            lastActive: new Date().toISOString(),
+          };
+
+          setRecentUsers([emergencyUser]);
+          setStats({
+            totalUsers: 1,
+            activeUsers: 1,
+            totalMessages: 0,
+            filesProcessed: 0,
+            averageResponseTime: 0,
+            lastUpdateTime: new Date().toISOString(),
+          });
+        } catch (fallbackError) {
+          console.error("Even emergency fallback failed:", fallbackError);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -1243,8 +1643,8 @@ const AdminPanel = () => {
 
           {/* Users Tab */}
           {activeTab === "users" && (
-            <UserManagementTab 
-              users={recentUsers} 
+            <UserManagementTab
+              users={recentUsers}
               currentUser={currentUser}
               formatDate={formatDate}
               setError={setError}
