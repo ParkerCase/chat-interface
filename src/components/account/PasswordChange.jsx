@@ -5,7 +5,7 @@ import { supabase } from "../../lib/supabase";
 import { Eye, EyeOff, CheckCircle, X, Key, Save, Loader } from "lucide-react";
 
 function PasswordChange({ setError, setSuccessMessage }) {
-  const { changePassword } = useAuth();
+  const { changePassword, currentUser } = useAuth();
 
   const [formData, setFormData] = useState({
     currentPassword: "",
@@ -138,7 +138,7 @@ function PasswordChange({ setError, setSuccessMessage }) {
         });
         
         // Store the new credentials in session storage for auto-login (CRITICAL FIX)
-        sessionStorage.setItem("temp_password", newPassword);
+        sessionStorage.setItem("temp_password", formData.newPassword);
         sessionStorage.setItem("temp_email", currentUser?.email || "");
         
         // DIRECT APPROACH: Instead of counting down, immediately force a full page reload
@@ -165,7 +165,7 @@ function PasswordChange({ setError, setSuccessMessage }) {
         localStorage.setItem("passwordChanged", "true");
         localStorage.setItem("passwordChangedAt", Date.now().toString());
         localStorage.setItem("passwordChangedEmail", currentUser?.email || "");
-        sessionStorage.setItem("temp_password", newPassword);
+        sessionStorage.setItem("temp_password", formData.newPassword);
         sessionStorage.setItem("temp_email", currentUser?.email || "");
         
         // Force a complete page reload after a short delay

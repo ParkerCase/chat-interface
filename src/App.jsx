@@ -7,6 +7,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { NotificationProvider } from "./context/NotificationContext";
 import { FeatureFlagProvider } from "./utils/featureFlags";
 import MainApp from "./components/MainApp";
 import Register from "./components/admin/Register";
@@ -337,65 +338,67 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <FeatureFlagProvider>
-          <Router>
-            <div className="app-container">
-              <Routes>
-                {/* Public routes */}
-                <Route path="/login" element={<AuthPage />} />
-                <Route path="/forgot-password" element={<AuthPage />} />
-                <Route path="/reset-password" element={<AuthPage />} />
-                <Route path="/mfa/verify" element={<MfaVerify />} />
-                <Route path="/auth/callback" element={<SSOCallback />} />
+        <NotificationProvider>
+          <FeatureFlagProvider>
+            <Router>
+              <div className="app-container">
+                <Routes>
+                  {/* Public routes */}
+                  <Route path="/login" element={<AuthPage />} />
+                  <Route path="/forgot-password" element={<AuthPage />} />
+                  <Route path="/reset-password" element={<AuthPage />} />
+                  <Route path="/mfa/verify" element={<MfaVerify />} />
+                  <Route path="/auth/callback" element={<SSOCallback />} />
 
-                {/* Protected routes that require authentication */}
-                <Route element={<ProtectedRoute />}>
-                  <Route path="/" element={<MainApp />} />
-                  <Route
-                    path="/profile"
-                    element={<AccountPage tab="profile" />}
-                  />
-                  <Route
-                    path="/security"
-                    element={<AccountPage tab="security" />}
-                  />
-                  <Route
-                    path="/sessions"
-                    element={<AccountPage tab="sessions" />}
-                  />
-                  <Route path="/analytics" element={<AnalyticsDashboard />} />
-                  <Route path="/workflows" element={<WorkflowManagement />} />
-                  <Route
-                    path="/integrations"
-                    element={<IntegrationSettings />}
-                  />
-                  <Route path="/alerts" element={<AlertsManagement />} />
-
-                  {/* Admin-only routes for user management */}
-                  <Route element={<AdminRoute />}>
-                    <Route path="/admin" element={<AdminPanel />} />
-                    <Route path="/admin/register" element={<Register />} />
+                  {/* Protected routes that require authentication */}
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="/" element={<Navigate to="/admin" replace />} />
                     <Route
-                      path="/admin/users"
-                      element={<AdminPanel tab="users" />}
+                      path="/profile"
+                      element={<AccountPage tab="profile" />}
                     />
+                    <Route
+                      path="/security"
+                      element={<AccountPage tab="security" />}
+                    />
+                    <Route
+                      path="/sessions"
+                      element={<AccountPage tab="sessions" />}
+                    />
+                    <Route path="/analytics" element={<AnalyticsDashboard />} />
+                    <Route path="/workflows" element={<WorkflowManagement />} />
+                    <Route
+                      path="/integrations"
+                      element={<IntegrationSettings />}
+                    />
+                    <Route path="/alerts" element={<AlertsManagement />} />
+
+                    {/* Admin-only routes for user management */}
+                    <Route element={<AdminRoute />}>
+                      <Route path="/admin" element={<AdminPanel />} />
+                      <Route path="/admin/register" element={<Register />} />
+                      <Route
+                        path="/admin/users"
+                        element={<AdminPanel tab="users" />}
+                      />
+                    </Route>
+
+                    {/* Admin-only routes for file permissions */}
+                    <Route element={<FilePermissionsRoute />}>
+                      <Route
+                        path="/admin/permissions"
+                        element={<FilePermissionsManager />}
+                      />
+                    </Route>
                   </Route>
 
-                  {/* Admin-only routes for file permissions */}
-                  <Route element={<FilePermissionsRoute />}>
-                    <Route
-                      path="/admin/permissions"
-                      element={<FilePermissionsManager />}
-                    />
-                  </Route>
-                </Route>
-
-                {/* Fallback route */}
-                <Route path="*" element={<Navigate to="/" />} />
-              </Routes>
-            </div>
-          </Router>
-        </FeatureFlagProvider>
+                  {/* Fallback route */}
+                  <Route path="*" element={<Navigate to="/admin" />} />
+                </Routes>
+              </div>
+            </Router>
+          </FeatureFlagProvider>
+        </NotificationProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

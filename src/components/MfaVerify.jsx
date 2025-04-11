@@ -130,6 +130,7 @@ function MfaVerify() {
     sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
     sessionStorage.setItem("mfaRedirectPending", "true");
     sessionStorage.setItem("mfaRedirectTarget", "/admin");
+    localStorage.setItem("isAuthenticated", "true");
     
     // Use multiple approaches to ensure navigation works
     try {
