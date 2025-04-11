@@ -52,25 +52,28 @@ function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("App.jsx detected auth event:", event);
-      
+
       if (event === "SIGNED_IN") {
         // Check if we're on MFA verification page
-        const isOnMfaPage = window.location.pathname.includes("/mfa") || 
-                           window.location.pathname.includes("/verify");
-        
+        const isOnMfaPage =
+          window.location.pathname.includes("/mfa") ||
+          window.location.pathname.includes("/verify");
+
         if (isOnMfaPage) {
-          console.log("SIGNED_IN detected on MFA page - forcing redirect to admin");
+          console.log(
+            "SIGNED_IN detected on MFA page - forcing redirect to admin"
+          );
           // Set all success flags
           sessionStorage.setItem("mfa_verified", "true");
           sessionStorage.setItem("mfaSuccess", "true");
           sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
-          
+
           // Force redirect after a small delay to allow other handlers to run
           setTimeout(() => {
             window.location.href = "/admin";
           }, 500);
         }
-        
+
         // Refresh user data handled in AuthContext
       } else if (event === "SIGNED_OUT") {
         // Clear local storage / state
@@ -102,15 +105,16 @@ function App() {
       // Execute the redirect - force a page reload for better state refresh
       window.location.href = redirectTarget;
     }
-    
+
     // Also check for recently verified MFA
     const mfaVerifiedAt = sessionStorage.getItem("mfaVerifiedAt");
     if (mfaVerifiedAt) {
       const verifiedTime = parseInt(mfaVerifiedAt, 10);
       const now = Date.now();
       const timeSinceVerification = now - verifiedTime;
-      
-      if (timeSinceVerification < 10000) { // within 10 seconds
+
+      if (timeSinceVerification < 10000) {
+        // within 10 seconds
         console.log("Recent MFA verification detected, redirecting to admin");
         sessionStorage.removeItem("mfaVerifiedAt");
         window.location.href = "/admin";
@@ -140,11 +144,32 @@ function App() {
   }, []);
 
   useEffect(() => {
+    // Redirect based on MFA flags on every render
+    const checkAndRedirect = () => {
+      const mfaSuccess = sessionStorage.getItem("mfaSuccess") === "true";
+      const mfaVerified = sessionStorage.getItem("mfa_verified") === "true";
+
+      if (mfaSuccess || mfaVerified) {
+        console.log("MFA success detected, redirecting to admin");
+
+        // Clear flags to prevent redirect loops
+        sessionStorage.removeItem("mfaSuccess");
+        sessionStorage.removeItem("mfa_verified");
+
+        // Force redirect to admin
+        window.location.href = "/admin";
+      }
+    };
+
+    checkAndRedirect();
+  }, []);
+
+  useEffect(() => {
     const handleMfaRedirection = () => {
       // Check for all MFA verification success flags
       const mfaVerified = sessionStorage.getItem("mfa_verified");
       const mfaSuccess = sessionStorage.getItem("mfaSuccess");
-      
+
       if (mfaVerified === "true" || mfaSuccess === "true") {
         console.log("MFA verification success detected");
 
@@ -157,10 +182,10 @@ function App() {
 
         if (currentPath.includes("/mfa") || currentPath.includes("/verify")) {
           console.log("Redirecting from MFA page to admin");
-          
+
           // Force a complete page reload to refresh auth state
           window.location.href = "/admin";
-          
+
           // Backup redirect with replace in case the first fails
           setTimeout(() => {
             window.location.replace("/admin");
@@ -352,7 +377,10 @@ function App() {
 
                   {/* Protected routes that require authentication */}
                   <Route element={<ProtectedRoute />}>
-                    <Route path="/" element={<Navigate to="/admin" replace />} />
+                    <Route
+                      path="/"
+                      element={<Navigate to="/admin" replace />}
+                    />
                     <Route
                       path="/profile"
                       element={<AccountPage tab="profile" />}
