@@ -1,5 +1,4 @@
-// src/components/auth/MFAVerification.jsx - Complete replacement
-
+// src/components/auth/MFAVerification.jsx - FIXED VERSION
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -21,7 +20,7 @@ function MFAVerification({
   onCancel,
   mfaData = {},
   standalone = false,
-  redirectUrl = null,
+  redirectUrl = "/admin",
 }) {
   const [verificationCode, setVerificationCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -29,55 +28,34 @@ function MFAVerification({
   const [countdown, setCountdown] = useState(30);
   const [canResend, setCanResend] = useState(false);
   const [verificationSuccess, setVerificationSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const navigate = useNavigate();
-  const { verifyMfa, getCurrentUser } = useAuth();
+  const { verifyMfa, currentUser, mfaState } = useAuth();
   const codeInputRef = useRef(null);
   const timerRef = useRef(null);
+  const redirectTimeoutRef = useRef(null);
 
-  // For direct testing/development (disabled - using real auth)
-  const TEST_EMAIL = "";
-  const TEST_CODE = "";
-
-  // Setup auth state change listener for direct handling of verification events
+  // Clear any lingering timeouts when component unmounts
   useEffect(() => {
-    // Listen for Supabase auth events directly in the MFA component
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("MFA component detected auth event:", event);
-
-      // If we get a SIGNED_IN event while on this screen, treat it as successful verification
-      if (event === "SIGNED_IN" || event === "MFA_CHALLENGE_VERIFIED") {
-        console.log("Auth event indicates successful verification");
-        setVerificationSuccess(true);
-
-        // Set all the necessary session flags
-        sessionStorage.setItem("mfa_verified", "true");
-        sessionStorage.setItem("mfaSuccess", "true");
-        sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
-        sessionStorage.setItem("mfaRedirectPending", "true");
-        sessionStorage.setItem("mfaRedirectTarget", "/admin");
-
-        // Trigger onSuccess callback as a backup
-        if (onSuccess) {
-          setTimeout(() => onSuccess(), 300);
-        }
-      }
-    });
-
-    // Cleanup on unmount
     return () => {
-      subscription.unsubscribe();
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (redirectTimeoutRef.current) clearTimeout(redirectTimeoutRef.current);
     };
-  }, [onSuccess]);
+  }, []);
 
-  // Focus code input when component mounts
+  // Focus code input when component mounts but DO NOT automatically send verification code
+  // The login process already sends the verification code
   useEffect(() => {
     if (codeInputRef.current) {
       codeInputRef.current.focus();
     }
-  }, []);
+    
+    // REMOVED automatic code sending to prevent duplicate emails
+    // We rely on the code already sent during login in AuthContext.jsx
+    console.log("MFA verification component mounted - using code already sent during login");
+    
+  }, [mfaData, currentUser]);
 
   // Start countdown for resend code
   useEffect(() => {
@@ -91,48 +69,49 @@ function MFAVerification({
     }
   }, [countdown]);
 
-  // In src/components/auth/MFAVerification.jsx
+  // Handle verification success state with explicit window.location.href for reliable navigation
   useEffect(() => {
     if (verificationSuccess) {
-      console.log(
-        "Verification success detected in effect - applying fallback redirect"
-      );
+      console.log("MFA verification success detected, preparing redirect");
 
-      // Fallback redirect after a short delay if the immediate redirect fails
-      const redirectTimer = setTimeout(() => {
-        window.location.href = "/admin";
-      }, 1000);
+      // Set all the necessary flags
+      localStorage.setItem("authStage", "post-mfa");
+      localStorage.setItem("mfa_verified", "true");
+      sessionStorage.setItem("mfa_verified", "true");
+      sessionStorage.setItem("mfaSuccess", "true");
+      sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
 
-      return () => clearTimeout(redirectTimer);
-    }
-  }, [verificationSuccess]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
+      // Use multiple redirect approaches for reliability
+      if (onSuccess) {
+        console.log("Calling onSuccess callback");
+        try {
+          onSuccess();
+        } catch (err) {
+          console.error("Error in onSuccess callback:", err);
+        }
       }
-    };
-  }, []);
 
-  // Log important information for debugging
-  useEffect(() => {
-    console.log("MFA Verification initialized with data:", {
-      factorId: mfaData.factorId || "Not provided",
-      methodId: mfaData.methodId || "Not provided",
-      type: mfaData.type || "Not provided",
-      email: mfaData.email || "Not provided",
-      standalone,
-      redirectUrl,
-    });
-  }, [mfaData, standalone, redirectUrl]);
+      // Set a backup timer for redirect if callback doesn't work
+      redirectTimeoutRef.current = setTimeout(() => {
+        console.log("Backup redirect timer triggered");
+        if (redirectUrl) {
+          console.log(`Redirecting to ${redirectUrl}`);
+          // Force a complete page reload to ensure state is refreshed properly
+          window.location.href = redirectUrl;
+        }
+      }, 500); // Reduced timeout for faster fallback
+    }
+  }, [verificationSuccess, onSuccess, redirectUrl]);
 
   /**
-   * Handle verification code submission
+   * Handle verification code submission - FIXED
    */
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+
+    // Prevent multiple submissions
+    if (isSubmitting) return;
+
     setError("");
 
     if (!verificationCode || verificationCode.length !== 6) {
@@ -142,294 +121,67 @@ function MFAVerification({
 
     try {
       setIsLoading(true);
-      console.log(`Verifying code for ${mfaData.email}`);
+      setIsSubmitting(true);
 
-      // For email verification - use proper verification for ALL users
-      if (mfaData.type === "email") {
-        console.log("Starting email OTP verification");
+      // Determine the appropriate method ID to use
+      const methodId = mfaData.methodId || mfaData.factorId;
+      const userEmail = mfaData.email || currentUser?.email;
 
-        // Try multiple verification methods since Supabase can be inconsistent
-        let verified = false;
-
-        // First try with magiclink type
-        try {
-          const { error } = await supabase.auth.verifyOtp({
-            email: mfaData.email,
-            token: verificationCode,
-            type: "magiclink",
-          });
-
-          if (!error) {
-            console.log("Magiclink verification successful");
-            verified = true;
-          } else if (
-            error.message &&
-            (error.message.includes("already confirmed") ||
-              error.message.includes("already logged in"))
-          ) {
-            console.log("User already verified (benign error):", error.message);
-            verified = true;
-          } else {
-            console.log("Magiclink verification failed, trying email type");
-          }
-        } catch (err) {
-          console.warn(
-            "Error in magiclink verification, trying next method:",
-            err
-          );
-        }
-
-        // Try email type if magiclink failed
-        if (!verified) {
-          try {
-            const { error } = await supabase.auth.verifyOtp({
-              email: mfaData.email,
-              token: verificationCode,
-              type: "email",
-            });
-
-            if (!error) {
-              console.log("Email type verification successful");
-              verified = true;
-            } else if (
-              error.message &&
-              (error.message.includes("already confirmed") ||
-                error.message.includes("already logged in"))
-            ) {
-              console.log(
-                "User already verified (benign error):",
-                error.message
-              );
-              verified = true;
-            } else {
-              console.log("Email verification failed, trying recovery type");
-            }
-          } catch (err) {
-            console.warn(
-              "Error in email verification, trying next method:",
-              err
-            );
-          }
-        }
-
-        // Try recovery type as last resort
-        if (!verified) {
-          try {
-            const { error } = await supabase.auth.verifyOtp({
-              email: mfaData.email,
-              token: verificationCode,
-              type: "recovery",
-            });
-
-            if (!error) {
-              console.log("Recovery type verification successful");
-              verified = true;
-            } else if (
-              error.message &&
-              (error.message.includes("already confirmed") ||
-                error.message.includes("already logged in"))
-            ) {
-              console.log(
-                "User already verified (benign error):",
-                error.message
-              );
-              verified = true;
-            } else {
-              console.error("All verification methods failed:", error);
-              throw new Error(
-                "Verification failed. Please check the code and try again."
-              );
-            }
-          } catch (err) {
-            if (!verified) {
-              console.error("Final verification attempt failed:", err);
-              throw err;
-            }
-          }
-        }
-
-        if (verified) {
-          // Set success and force redirect
-          console.log("Email verification successful");
-          setVerificationSuccess(true);
-
-          // Set session flags
-          sessionStorage.setItem("mfa_verified", "true");
-          sessionStorage.setItem("mfaSuccess", "true");
-          sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
-
-          // Force redirect
-          setTimeout(() => {
-            if (onSuccess) {
-              onSuccess();
-            } else {
-              window.location.href = "/admin";
-            }
-          }, 500);
-        } else {
-          throw new Error(
-            "Verification failed. Please check the code and try again."
-          );
-        }
+      if (!methodId) {
+        throw new Error("Missing authentication method ID");
       }
-      // Handle other verification types if needed
-    } catch (error) {
-      console.error("Verification error:", error);
-      setError(
-        error.message ||
-          "Verification failed. Please check the code and try again."
+
+      debugAuth.log(
+        "MFAVerification",
+        `Verifying code ${verificationCode} for method ${methodId}`
       );
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const handleVerification = async () => {
-    if (!verificationCode || verificationCode.length !== 6) {
-      setError("Please enter a valid 6-digit code");
-      return;
-    }
+      // Use the verifyMfa function from the auth context
+      const success = await verifyMfa(methodId, verificationCode);
 
-    try {
-      setIsLoading(true);
-      setError("");
+      if (success) {
+        debugAuth.log("MFAVerification", "Verification successful");
 
-      // Get the appropriate factor or method ID
-      const factorId = mfaData.factorId || mfaData.methodId;
-      if (!factorId) {
-        throw new Error("Missing authentication factor ID");
-      }
-
-      console.log(`Verifying code ${verificationCode} for factor ${factorId}`);
-
-      // Use the verifyMfa function from auth context if available
-      if (verifyMfa) {
-        const success = await verifyMfa(factorId, verificationCode);
-
-        if (success) {
-          console.log("MFA verification successful");
-          setVerificationSuccess(true);
-
-          // Call the onSuccess callback provided by parent component
-          if (onSuccess) {
-            onSuccess();
-          }
-          return;
-        } else {
-          throw new Error("Verification failed");
-        }
-      } else {
-        // Direct verification as fallback
-        // Step 1: Create a challenge for this factor
-        const { data: challengeData, error: challengeError } =
-          await supabase.auth.mfa.challenge({
-            factorId: factorId,
-          });
-
-        if (challengeError) {
-          throw challengeError;
-        }
-
-        // Step 2: Verify the challenge with the user's code
-        const { data, error } = await supabase.auth.mfa.verify({
-          factorId: factorId,
-          challengeId: challengeData.id,
-          code: verificationCode,
-        });
-
-        if (error) throw error;
-
-        console.log("MFA verification successful");
+        // Set success state in this component
         setVerificationSuccess(true);
 
-        // Call the onSuccess callback provided by parent component
-        if (onSuccess) {
-          onSuccess();
-        }
+        // No need to call onSuccess here - the useEffect will handle it
+      } else {
+        debugAuth.log("MFAVerification", "Verification failed");
+        setError("Verification failed. Please check your code and try again.");
       }
     } catch (error) {
       console.error("MFA verification error:", error);
-
-      // Format error message for user
-      let errorMessage = "Verification failed. Please try again.";
-      if (error.message) {
-        if (error.message.includes("Invalid code")) {
-          errorMessage = "Invalid verification code. Please try again.";
-        } else {
-          errorMessage = `Error: ${error.message}`;
-        }
-      }
-
-      setError(errorMessage);
+      setError(error.message || "Verification failed. Please try again.");
     } finally {
       setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   /**
-   * Request a new MFA challenge/code with multiple attempts
+   * Request a new verification code
    */
   const handleResendCode = async () => {
     try {
       setIsLoading(true);
       setError("");
 
-      // For email verification, send a new code using OTP
-      if (mfaData.type === "email") {
-        console.log(
-          "Requesting new email verification code for:",
-          mfaData.email
+      const email = mfaData.email || currentUser?.email;
+      if (!email) {
+        throw new Error(
+          "Email address is required to resend verification code"
         );
-
-        // Send OTP via Supabase
-        const { error } = await supabase.auth.signInWithOtp({
-          email: mfaData.email,
-          options: {
-            shouldCreateUser: false,
-            emailRedirectTo: null,
-          },
-        });
-
-        if (error) {
-          // Handle rate limiting errors gracefully
-          if (
-            error.status === 429 ||
-            (error.message && error.message.includes("rate limit"))
-          ) {
-            console.log("Rate limited when sending verification code");
-            setError(
-              "Please wait a few minutes before requesting another code."
-            );
-            return;
-          }
-
-          throw error;
-        }
-
-        console.log("New verification code sent successfully");
-
-        // Reset countdown
-        setCountdown(30);
-        setCanResend(false);
-
-        // Show success message
-        setError("Verification code has been sent to your email.");
       }
-      // For TOTP (if implemented), create new challenge
-    } catch (err) {
-      console.error("Error resending code:", err);
-      setError("Failed to resend verification code. Please try again later.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const testEmailSending = async (email) => {
-    try {
-      console.log("Testing email sending to:", email);
+      debugAuth.log(
+        "MFAVerification",
+        `Requesting new verification code for: ${email}`
+      );
 
-      const { data, error } = await supabase.auth.signInWithOtp({
-        email: email || mfaData.email,
+      // Send a new OTP through Supabase
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
         options: {
           shouldCreateUser: false,
           emailRedirectTo: null,
@@ -437,15 +189,36 @@ function MFAVerification({
       });
 
       if (error) {
-        console.error("Test email error:", error);
-        alert(`Error sending test email: ${error.message}`);
-      } else {
-        console.log("Test email sent successfully:", data);
-        alert("Test email sent successfully! Check your inbox.");
+        // Handle rate limiting gracefully
+        if (error.status === 429 || error.message?.includes("rate limit")) {
+          setError("Please wait a few minutes before requesting another code.");
+          return;
+        }
+        throw error;
       }
-    } catch (e) {
-      console.error("Exception in test email:", e);
-      alert(`Exception sending test email: ${e.message}`);
+
+      debugAuth.log(
+        "MFAVerification",
+        "New verification code sent successfully"
+      );
+
+      // Reset countdown
+      setCountdown(30);
+      setCanResend(false);
+
+      // Show success message
+      setError("");
+      setVerificationCode("");
+
+      // Focus the input field again
+      if (codeInputRef.current) {
+        codeInputRef.current.focus();
+      }
+    } catch (err) {
+      console.error("Error resending code:", err);
+      setError("Failed to send verification code. Please try again later.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -481,11 +254,6 @@ function MFAVerification({
               }`
             : "Enter the verification code from your authenticator app"}
         </p>
-        {mfaData.email === TEST_EMAIL && (
-          <div className="test-mode-notice">
-            <p>Test mode active - use code: {TEST_CODE}</p>
-          </div>
-        )}
       </div>
 
       {error && (
@@ -511,11 +279,11 @@ function MFAVerification({
             maxLength={6}
             inputMode="numeric"
             pattern="[0-9]*"
-            disabled={isLoading}
+            disabled={isLoading || verificationSuccess}
             autoComplete="one-time-code"
           />
           <div className="code-hint">
-            <p>Enter the 6-digit code from your authenticator app or email</p>
+            <p>Enter the 6-digit code from your email</p>
           </div>
         </div>
 
@@ -524,7 +292,7 @@ function MFAVerification({
             type="button"
             className="resend-code-button"
             onClick={handleResendCode}
-            disabled={!canResend || isLoading}
+            disabled={!canResend || isLoading || verificationSuccess}
           >
             {!canResend ? (
               <>
@@ -545,7 +313,7 @@ function MFAVerification({
                 type="button"
                 onClick={onCancel}
                 className="cancel-button"
-                disabled={isLoading}
+                disabled={isLoading || verificationSuccess}
               >
                 Cancel
               </button>
@@ -554,7 +322,12 @@ function MFAVerification({
             <button
               type="submit"
               className="verify-button"
-              disabled={verificationCode.length !== 6 || isLoading}
+              disabled={
+                verificationCode.length !== 6 ||
+                isLoading ||
+                verificationSuccess ||
+                isSubmitting
+              }
             >
               {isLoading ? (
                 <>

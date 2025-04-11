@@ -947,6 +947,14 @@
   border-color: #fecaca;
 }
 
+.action-button.delete-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: #f3f4f6;
+  color: #9ca3af;
+  border-color: #e5e7eb;
+}
+
 /* Users list container */
 .users-list-container {
   position: relative;

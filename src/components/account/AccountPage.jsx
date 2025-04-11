@@ -232,7 +232,6 @@ function ProfileSection({ setSuccess, setError }) {
 
         if (success) {
           // Force refresh current user data to ensure UI is in sync
-          // This will trigger the useEffect hook to update the form data
           console.log("Profile update reported success");
           setSuccess("Profile updated successfully");
 
@@ -241,6 +240,12 @@ function ProfileSection({ setSuccess, setError }) {
             ...prevData,
             ...updates,
           }));
+          
+          // Force page refresh to ensure all components reflect the updated name
+          // This is important for the header/navbar that displays the user name
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
         } else {
           setError("Profile update failed. Please try again.");
         }
@@ -406,12 +411,14 @@ function PasswordSection({ setSuccess, setError }) {
     try {
       setIsLoading(true);
 
+      console.log("Changing password - submitting to AuthContext");
       const success = await changePassword(
         formData.currentPassword,
         formData.newPassword
       );
 
       if (success) {
+        console.log("Password change reported as successful");
         setSuccess("Password changed successfully");
 
         // Reset form
@@ -420,11 +427,19 @@ function PasswordSection({ setSuccess, setError }) {
           newPassword: "",
           confirmPassword: "",
         });
+        
+        // Show completion message for longer
+        setTimeout(() => {
+          setSuccess("Password change complete. Your new password is now active.");
+        }, 1000);
+      } else {
+        console.error("Password change returned false");
+        setError("Password change failed. Please try again.");
       }
     } catch (error) {
       console.error("Password change error:", error);
       setError(
-        "Failed to change password. Please verify your current password is correct."
+        error.message || "Failed to change password. Please verify your current password is correct."
       );
     } finally {
       setIsLoading(false);

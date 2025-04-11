@@ -1,13 +1,39 @@
-// Header.jsx - Updated with theme switcher
+// Header.jsx - Updated with theme switcher and user profile display
 import React, { useState, useEffect } from "react";
-import { LogOut, Moon, Sun, Palette } from "lucide-react";
+import { LogOut, Moon, Sun, Palette, User } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 import "./Header.css";
 
-function Header({ onLogout }) {
+function Header({ onLogout, currentUser: propCurrentUser }) {
+  const { currentUser: contextCurrentUser, getCurrentUser } = useAuth();
   const [themes, setThemes] = useState([]);
   const [currentTheme, setCurrentTheme] = useState("default");
   const [showThemeOptions, setShowThemeOptions] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [userData, setUserData] = useState(null);
+
+  // Use user data from props or context, and refresh it on mount
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        // Attempt to get fresh user data
+        const freshUserData = await getCurrentUser();
+        if (freshUserData) {
+          setUserData(freshUserData);
+        } else if (propCurrentUser) {
+          setUserData(propCurrentUser);
+        } else if (contextCurrentUser) {
+          setUserData(contextCurrentUser);
+        }
+      } catch (error) {
+        console.error("Error fetching current user in Header:", error);
+        // Use whatever user data is available as fallback
+        setUserData(propCurrentUser || contextCurrentUser);
+      }
+    };
+
+    fetchCurrentUser();
+  }, [propCurrentUser, contextCurrentUser, getCurrentUser]);
 
   useEffect(() => {
     // Fetch available themes
@@ -81,6 +107,16 @@ function Header({ onLogout }) {
       </div>
 
       <div className="header-actions">
+        {/* User profile display */}
+        {userData && (
+          <div className="user-profile">
+            <div className="user-avatar">
+              <User size={16} />
+            </div>
+            <span className="user-name">{userData.name}</span>
+          </div>
+        )}
+        
         <button
           onClick={toggleDarkMode}
           className="theme-toggle"

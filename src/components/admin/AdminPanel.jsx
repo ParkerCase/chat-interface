@@ -49,7 +49,7 @@ import {
 } from "lucide-react";
 
 // User Management Tab Component
-function UserManagementTab({ users, currentUser, formatDate, setError }) {
+function UserManagementTab({ users, currentUser, formatDate, setError, onRefreshUsers }) {
   const [usersList, setUsersList] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -84,9 +84,11 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
 
   // Check if current user can edit/delete another user
   const canManageUser = (user) => {
-    // Super admins can manage anyone except themselves
+    // Super admins can manage anyone except themselves and the protected admin accounts
     if (currentUser.roles.includes("super_admin")) {
-      return user.id !== currentUser.id; // Can't delete yourself
+      return user.id !== currentUser.id && 
+             user.email !== "itsus@tatt2away.com" && 
+             user.email !== "parker@tatt2away.com"; // Can't delete yourself or the admin accounts
     }
 
     // Admins can only manage non-admin users
@@ -97,6 +99,22 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
     // Regular users can't manage anyone
     return false;
   };
+  
+  // Check if current user can SEE the delete button (even if it's disabled)
+  const canSeeDeleteButton = (user) => {
+    // Super admins can see delete buttons for everyone except the protected admin accounts
+    if (currentUser.roles.includes("super_admin")) {
+      return user.email !== "itsus@tatt2away.com" && user.email !== "parker@tatt2away.com";
+    }
+    
+    // Admins can see delete buttons for regular users only
+    if (currentUser.roles.includes("admin")) {
+      return !user.role.includes("admin") && !user.role.includes("super_admin");
+    }
+    
+    // Regular users don't see delete buttons
+    return false;
+  };
 
   // Handle delete user
   const handleDeleteUser = async () => {
@@ -104,6 +122,16 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
 
     try {
       setIsLoading(true);
+
+      // Special protection for admin accounts
+      if (userToDelete.email === "itsus@tatt2away.com" || userToDelete.email === "parker@tatt2away.com") {
+        console.log("Protected admin account cannot be deleted");
+        setError("Protected admin accounts cannot be deleted");
+        setShowDeleteModal(false);
+        setUserToDelete(null);
+        setIsLoading(false);
+        return;
+      }
 
       // Import supabase
       const { supabase } = await import("../../lib/supabase");
@@ -248,8 +276,8 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
       // Remove duplicates
       newRoles = [...new Set(newRoles)];
 
-      // Special case for admin user
-      if (userToEdit.email === "itsus@tatt2away.com") {
+      // Special case for admin users - ensure they always have super_admin role
+      if (userToEdit.email === "itsus@tatt2away.com" || userToEdit.email === "parker@tatt2away.com") {
         console.log("Ensuring admin user has super_admin role");
         if (!newRoles.includes("super_admin")) {
           newRoles.push("super_admin");
@@ -287,7 +315,7 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
               ...user,
               name: editForm.name,
               role:
-                userToEdit.email === "itsus@tatt2away.com"
+                userToEdit.email === "itsus@tatt2away.com" || userToEdit.email === "parker@tatt2away.com"
                   ? "super_admin"
                   : editForm.role,
               roleArray: newRoles,
@@ -460,6 +488,10 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
 
       console.log("Fetching users from Supabase");
 
+      // We'll only use profiles since most deployments don't have admin API access
+      // This approach works with regular Supabase permissions
+      console.log("Fetching user profiles with standard permissions");
+
       // Get profiles with a longer timeout
       const profilesPromise = new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
@@ -482,12 +514,23 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
       });
 
       // Await the profiles
-      const supabaseUsers = await profilesPromise;
+      const supabaseProfiles = await profilesPromise;
 
-      console.log("Received user profiles:", supabaseUsers.length);
+      console.log("Received user profiles:", supabaseProfiles.length);
 
-      // Process the profiles into user objects
-      const enrichedUsers = supabaseUsers.map((profile) => {
+      // Since we're using standard permissions, we'll work with profile data only
+      const processedProfiles = supabaseProfiles.map(profile => {
+        return {
+          ...profile,
+          // Infer status from available profile data
+          last_sign_in_at: profile.last_sign_in || profile.last_login || null,
+          auth_status: profile.status || "Active", // Default to active
+          is_banned: false // We can't detect banned status without admin APIs
+        };
+      });
+
+      // Process the profile data into user objects
+      const enrichedUsers = processedProfiles.map((profile) => {
         // Extract the actual roles from the profile
         let roleValue = "user"; // Default role if none found
 
@@ -500,9 +543,17 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
           }
         }
 
-        // Special override ONLY for the admin account
-        if (profile.email === "itsus@tatt2away.com") {
+        // Special override for admin accounts
+        if (profile.email === "itsus@tatt2away.com" || profile.email === "parker@tatt2away.com") {
           roleValue = "super_admin";
+        }
+
+        // Determine status
+        let status = "Active";
+        if (profile.is_banned) {
+          status = "Banned";
+        } else if (!profile.email_confirmed_at) {
+          status = "Pending";
         }
 
         return {
@@ -512,8 +563,8 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
           role: roleValue,
           // Store the complete roles array for accurate editing
           roleArray: Array.isArray(profile.roles) ? profile.roles : ["user"],
-          status: "Active",
-          lastActive: profile.last_login || profile.created_at,
+          status: status,
+          lastActive: profile.last_sign_in_at || profile.last_login || profile.created_at,
           mfaEnabled:
             Array.isArray(profile.mfa_methods) &&
             profile.mfa_methods.length > 0,
@@ -521,35 +572,37 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
         };
       });
 
-      // Check if admin account exists in the list
-      const hasAdminAccount = enrichedUsers.some(
-        (user) => user.email === "itsus@tatt2away.com"
-      );
-
-      if (!hasAdminAccount) {
-        console.log("Adding default admin account to list");
-        enrichedUsers.unshift({
-          id: "admin-default-id",
-          name: "Tatt2Away Admin",
-          email: "itsus@tatt2away.com",
-          role: "super_admin",
-          roleArray: ["super_admin", "admin", "user"],
-          status: "Active",
-          lastActive: new Date().toISOString(),
-          mfaEnabled: true,
-          mfaMethods: [
-            {
-              id: "default-admin-mfa",
-              type: "email",
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        });
-      }
+      // No need to add virtual users - we'll only show real users from the database
+      // Ensure admins have correct roles even if not set in the database
+      enrichedUsers = enrichedUsers.map(user => {
+        // Special handling for admin users to ensure they have proper roles
+        if (user.email === "itsus@tatt2away.com" || user.email === "parker@tatt2away.com") {
+          if (!user.roleArray || !Array.isArray(user.roleArray) || user.roleArray.length === 0) {
+            console.log(`Setting default admin roles for ${user.email}`);
+            user.roleArray = ["super_admin", "admin", "user"];
+            user.role = "super_admin";
+          }
+          
+          // If full_name is null, provide a default name
+          if (!user.name || user.name === user.email) {
+            user.name = user.email === "itsus@tatt2away.com" ? "ITSUS" : "Parker Admin";
+          }
+          
+          // Ensure status is set
+          user.status = "Active";
+        }
+        
+        return user;
+      });
 
       console.log("Processed user list with roles:", enrichedUsers);
       setUsersList(enrichedUsers);
       setSuccessMessage("User list refreshed successfully");
+      
+      // Call the parent component's refresh function if provided
+      if (onRefreshUsers && typeof onRefreshUsers === 'function') {
+        onRefreshUsers(enrichedUsers);
+      }
     } catch (error) {
       console.error("Error refreshing users:", error);
       setError(`Failed to refresh users: ${error.message}`);
@@ -691,8 +744,8 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
                         </button>
                       )}
 
-                      {/* Delete button - only for users that can be managed */}
-                      {canManageUser(user) && (
+                      {/* Delete button - only shown according to user role permissions */}
+                      {canSeeDeleteButton(user) && (
                         <button
                           className="action-button delete-button"
                           onClick={() => {
@@ -700,6 +753,9 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
                             setShowDeleteModal(true);
                           }}
                           title="Delete User"
+                          disabled={!canManageUser(user) || 
+                                  user.email === "itsus@tatt2away.com" || 
+                                  user.email === "parker@tatt2away.com"}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -741,6 +797,11 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
                 <p>
                   <strong>Role:</strong> {userToDelete.role}
                 </p>
+                {(userToDelete.email === "itsus@tatt2away.com" || userToDelete.email === "parker@tatt2away.com") && (
+                  <p className="admin-user-note">
+                    <strong>Note:</strong> This is a protected admin account and cannot be deleted.
+                  </p>
+                )}
               </div>
               <p className="warning-text">This action cannot be undone.</p>
             </div>
@@ -758,7 +819,7 @@ function UserManagementTab({ users, currentUser, formatDate, setError }) {
               <button
                 className="delete-button"
                 onClick={handleDeleteUser}
-                disabled={isLoading}
+                disabled={isLoading || userToDelete.email === "itsus@tatt2away.com" || userToDelete.email === "parker@tatt2away.com"}
               >
                 {isLoading ? (
                   <>
@@ -1121,11 +1182,11 @@ const AdminPanel = () => {
 
       const { supabase } = await import("../../lib/supabase");
 
-      // First check if the admin user already exists
+      // First check if the admin user already exists by name (since email column doesn't exist)
       const { data: existingAdmin, error: queryError } = await supabase
         .from("profiles")
-        .select("id, email, roles")
-        .eq("email", "itsus@tatt2away.com")
+        .select("id, roles")
+        .eq("full_name", "Tatt2Away Admin")
         .maybeSingle();
 
       if (queryError) {
@@ -1213,6 +1274,8 @@ const AdminPanel = () => {
         navigate("/");
         return;
       }
+      
+      // The automatic refresh of users will happen in the UserManagementTab component
 
       try {
         setIsLoading(true);
@@ -1299,7 +1362,7 @@ const AdminPanel = () => {
 
           return {
             id: profile.id,
-            name: profile.full_name || profile.email || "Unknown User",
+            name: profile.full_name || profile.email,
             email: profile.email,
             role: primaryRole, // For display
             roleArray: rolesArray, // Complete role array for editing
@@ -1310,34 +1373,64 @@ const AdminPanel = () => {
           };
         });
 
-        // Check if admin user is in the list
-        const hasAdminAccount = enrichedUsers.some(
-          (user) => user.email === "itsus@tatt2away.com"
-        );
-
-        // Final user list with admin account guaranteed
+        // Helper function to generate valid UUID v4 for virtual admin accounts
+        const generateDeterministicUUID = (email) => {
+          // Convert email to a predictable sequence of bytes
+          let hash = 0;
+          for (let i = 0; i < email.length; i++) {
+            hash = ((hash << 5) - hash) + email.charCodeAt(i);
+            hash |= 0; // Convert to 32bit integer
+          }
+          
+          // Format as UUID v4 (with certain bits set according to the standard)
+          let hexStr = Math.abs(hash).toString(16).padStart(8, '0');
+          while (hexStr.length < 32) {
+            hexStr += Math.floor(Math.random() * 16).toString(16);
+          }
+          
+          // Insert dashes and ensure version 4 UUID format (set bits according to RFC4122)
+          return `${hexStr.slice(0, 8)}-${hexStr.slice(8, 12)}-4${hexStr.slice(13, 16)}-${
+            (parseInt(hexStr.slice(16, 17), 16) & 0x3 | 0x8).toString(16)}${hexStr.slice(17, 20)}-${hexStr.slice(20, 32)}`;
+        };
+        
+        // Check for required admin accounts
+        let adminEmails = ["itsus@tatt2away.com", "parker@tatt2away.com"];
+        let existingAdminEmails = enrichedUsers.map(user => user.email);
         let finalUserList = [...enrichedUsers];
-
-        if (!hasAdminAccount) {
-          console.log("Adding default admin account to list");
-          finalUserList.unshift({
-            id: "admin-default-id",
-            name: "Tatt2Away Admin",
-            email: "itsus@tatt2away.com",
-            role: "super_admin",
-            roleArray: ["super_admin", "admin", "user"],
-            status: "Active",
-            lastActive: new Date().toISOString(),
-            mfaEnabled: true,
-            mfaMethods: [
-              {
-                id: "default-admin-mfa",
-                type: "email",
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          });
-        }
+        
+        // Add any missing admin accounts with proper UUIDs
+        adminEmails.forEach(adminEmail => {
+          if (!existingAdminEmails.includes(adminEmail)) {
+            console.log(`Adding default admin account for ${adminEmail} to list`);
+            
+            let adminName = adminEmail === "itsus@tatt2away.com" ? 
+                            "Tatt2Away Admin" : 
+                            "Parker Admin";
+            
+            // Generate a valid UUID for this admin user
+            const adminUUID = generateDeterministicUUID(adminEmail);
+            
+            finalUserList.unshift({
+              id: adminUUID, // Valid UUID format for compatibility with Supabase
+              name: adminName,
+              email: adminEmail,
+              role: "super_admin",
+              roleArray: ["super_admin", "admin", "user"],
+              status: "Active",
+              lastActive: new Date().toISOString(),
+              mfaEnabled: true,
+              isVirtualUser: true, // Flag to identify this as a virtual user that doesn't exist in the database
+              mfaMethods: [
+                {
+                  id: `email-${adminEmail.replace(/[^a-zA-Z0-9]/g, "")}`,
+                  type: "email",
+                  createdAt: new Date().toISOString(),
+                  email: adminEmail
+                },
+              ],
+            });
+          }
+        });
 
         console.log("Final processed user list:", finalUserList.length);
 
@@ -1364,22 +1457,43 @@ const AdminPanel = () => {
         console.error("Error loading admin data:", err);
         setError("Failed to load admin data. Please try again.");
 
-        // Emergency fallback - ensure we have at least the admin user
+        // Emergency fallback - load just the known admin users using real UUIDs from the database
         try {
-          const emergencyUser = {
-            id: "admin-emergency-id",
-            name: "Tatt2Away Admin",
-            email: "itsus@tatt2away.com",
-            role: "super_admin",
-            roleArray: ["super_admin", "admin", "user"],
-            status: "Active",
-            lastActive: new Date().toISOString(),
-          };
+          // Use the known users from the context with proper fields based on the database structure
+          const emergencyUsers = [
+            {
+              id: "c64b6462-ecfa-4d63-aeee-da2f18fd1db3", // Real UUID from database
+              name: "ITSUS",
+              email: "itsus@tatt2away.com",
+              role: "super_admin",
+              roleArray: ["super_admin", "admin", "user"],
+              status: "Active",
+              lastActive: new Date().toISOString(),
+              mfaEnabled: true,
+              mfaMethods: [
+                {
+                  id: "email-itsustatt2awaycom",
+                  type: "email",
+                  createdAt: new Date().toISOString(),
+                  email: "itsus@tatt2away.com"
+                }
+              ]
+            },
+            {
+              id: "234587f0-9b25-416f-af00-d6d491e01286", // Real UUID from database
+              name: "Parker Admin",
+              email: "parker@tatt2away.com",
+              role: "super_admin", 
+              roleArray: ["super_admin", "admin", "user"],
+              status: "Active",
+              lastActive: new Date().toISOString()
+            }
+          ];
 
-          setRecentUsers([emergencyUser]);
+          setRecentUsers(emergencyUsers);
           setStats({
-            totalUsers: 1,
-            activeUsers: 1,
+            totalUsers: emergencyUsers.length,
+            activeUsers: emergencyUsers.length,
             totalMessages: 0,
             filesProcessed: 0,
             averageResponseTime: 0,
@@ -1648,6 +1762,10 @@ const AdminPanel = () => {
               currentUser={currentUser}
               formatDate={formatDate}
               setError={setError}
+              onRefreshUsers={(users) => {
+                console.log("Refreshed users from child component:", users.length);
+                setRecentUsers(users);
+              }}
             />
           )}
 

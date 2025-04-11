@@ -1,4 +1,4 @@
-// src/context/AuthContext.jsx
+// src/context/AuthContext.jsx - FIXED MFA FLOW
 import React, {
   createContext,
   useState,
@@ -7,7 +7,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { supabase, enhancedAuth, getSupabaseConfig } from "../lib/supabase";
+import { supabase, enhancedAuth } from "../lib/supabase";
 import { debugAuth } from "../utils/authDebug";
 
 import apiService from "../services/apiService";
@@ -26,6 +26,12 @@ export function AuthProvider({ children }) {
   const [userTier, setUserTier] = useState("enterprise"); // Default to enterprise tier
   const [userFeatures, setUserFeatures] = useState({});
   const [isInitialized, setIsInitialized] = useState(false);
+  const [mfaState, setMfaState] = useState({
+    required: false,
+    inProgress: false,
+    verified: false,
+    data: null,
+  });
   const supabaseListenerRef = useRef(null);
 
   // Get a valid token, refreshing if needed
@@ -248,13 +254,20 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Login function with MFA support
-
+  // Login function with MFA support - FIXED
   const login = async (email, password, signal) => {
     try {
       setError("");
       setLoading(true);
       console.log("Attempting login with:", email);
+
+      // Reset MFA state at the beginning of login
+      setMfaState({
+        required: false,
+        inProgress: false,
+        verified: false,
+        data: null,
+      });
 
       // Standard login flow for ALL users
       try {
@@ -301,6 +314,7 @@ export function AuthProvider({ children }) {
         localStorage.setItem("refreshToken", authData.session.refresh_token);
         localStorage.setItem("currentUser", JSON.stringify(userData));
         localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem("authStage", "pre-mfa"); // Track auth stage
 
         setCurrentUser(userData);
         setSession(authData.session);
@@ -333,6 +347,18 @@ export function AuthProvider({ children }) {
           setError("Failed to send verification code. Please try again.");
           return { success: false, error: "Failed to send verification code" };
         }
+
+        // Set MFA state to required and provide necessary data
+        setMfaState({
+          required: true,
+          inProgress: true,
+          verified: false,
+          data: {
+            methodId: `email-${email.replace(/[^a-zA-Z0-9]/g, "")}`,
+            type: "email",
+            email: userData.email,
+          },
+        });
 
         // Always require MFA verification
         return {
@@ -525,13 +551,19 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Verify MFA during login
+  // Verify MFA during login - FIXED
   const verifyMfa = async (methodId, verificationCode) => {
     try {
       setError("");
       console.log(
         `Verifying MFA with ID: ${methodId}, code: ${verificationCode}`
       );
+
+      // Update MFA state to show verification in progress
+      setMfaState((prev) => ({
+        ...prev,
+        inProgress: true,
+      }));
 
       // Determine if this is email or TOTP
       const isEmail = methodId.startsWith("email-");
@@ -598,11 +630,56 @@ export function AuthProvider({ children }) {
         success = true;
       }
 
+      // Update MFA state based on verification result
+      if (success) {
+        console.log("MFA VERIFICATION SUCCESSFUL - Updating state");
+        setMfaState({
+          required: false,
+          inProgress: false,
+          verified: true,
+          data: null,
+        });
+
+        // Update authentication stage in localStorage
+        localStorage.setItem("authStage", "post-mfa");
+        localStorage.setItem("mfa_verified", "true");
+        sessionStorage.setItem("mfa_verified", "true");
+        sessionStorage.setItem("mfaSuccess", "true");
+        sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
+
+        // Set a flag for the user session
+        if (currentUser) {
+          setCurrentUser({
+            ...currentUser,
+            mfaVerified: true,
+          });
+
+          // Update localStorage
+          const userData = JSON.parse(
+            localStorage.getItem("currentUser") || "{}"
+          );
+          userData.mfaVerified = true;
+          localStorage.setItem("currentUser", JSON.stringify(userData));
+        }
+      } else {
+        setMfaState((prev) => ({
+          ...prev,
+          inProgress: false,
+        }));
+      }
+
       // Return verification result
       return success;
     } catch (error) {
       console.error("MFA verification error:", error);
       setError(error.message || "Verification failed. Please try again.");
+
+      // Update MFA state on error
+      setMfaState((prev) => ({
+        ...prev,
+        inProgress: false,
+      }));
+
       return false;
     }
   };
@@ -867,6 +944,7 @@ export function AuthProvider({ children }) {
         "needsMfaSetup",
         "ssoAttempt",
         "ssoProvider",
+        "authStage",
       ];
 
       // Clear localStorage items
@@ -905,6 +983,14 @@ export function AuthProvider({ children }) {
       setUserTier("enterprise");
       setUserFeatures({});
       setError("");
+
+      // Reset MFA state
+      setMfaState({
+        required: false,
+        inProgress: false,
+        verified: false,
+        data: null,
+      });
 
       console.log("Logout process completed successfully");
       return true;
@@ -978,12 +1064,25 @@ export function AuthProvider({ children }) {
             );
             localStorage.setItem("currentUser", JSON.stringify(user));
             localStorage.setItem("isAuthenticated", "true");
+            localStorage.setItem("authStage", "pre-mfa"); // Track auth stage
 
             // Update state
             setCurrentUser(user);
             setSession(sessionData.session);
             setUserTier("enterprise");
             setUserFeatures(user.features);
+
+            // Set MFA as required for SSO users too
+            setMfaState({
+              required: true,
+              inProgress: false,
+              verified: false,
+              data: {
+                methodId: `email-${user.email.replace(/[^a-zA-Z0-9]/g, "")}`,
+                type: "email",
+                email: user.email,
+              },
+            });
 
             return true;
           }
@@ -1000,6 +1099,8 @@ export function AuthProvider({ children }) {
         // Store tokens
         localStorage.setItem("authToken", response.data.token);
         localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem("authStage", "pre-mfa"); // Track auth stage
+
         if (response.data.refreshToken) {
           localStorage.setItem("refreshToken", response.data.refreshToken);
         }
@@ -1026,6 +1127,21 @@ export function AuthProvider({ children }) {
           setCurrentUser(response.data.user);
           setUserTier("enterprise");
           setUserFeatures(response.data.user.features);
+
+          // Set MFA as required
+          setMfaState({
+            required: true,
+            inProgress: false,
+            verified: false,
+            data: {
+              methodId: `email-${response.data.user.email.replace(
+                /[^a-zA-Z0-9]/g,
+                ""
+              )}`,
+              type: "email",
+              email: response.data.user.email,
+            },
+          });
         }
 
         return true;
@@ -1125,7 +1241,24 @@ export function AuthProvider({ children }) {
         updateData.last_name = profileData.lastName;
       }
 
-      // Update profile in Supabase
+      // Step 1: Update auth user metadata to ensure name changes are reflected everywhere
+      console.log("Updating user metadata in Supabase Auth");
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          first_name: profileData.firstName || currentUser.firstName || '',
+          last_name: profileData.lastName || currentUser.lastName || '',
+          full_name: profileData.name,
+          name: profileData.name  // Include name for compatibility
+        }
+      });
+
+      if (authError) {
+        console.error("User metadata update failed:", authError);
+        throw authError;
+      }
+
+      // Step 2: Update profile in Supabase profiles table
+      console.log("Updating profile in Supabase profiles table");
       const { error: profileError } = await supabase
         .from("profiles")
         .update(updateData)
@@ -1136,7 +1269,7 @@ export function AuthProvider({ children }) {
         throw profileError;
       }
 
-      console.log("Profile updated successfully in database");
+      console.log("Profile updated successfully in both auth and profile database");
 
       // Update local state for immediate UI feedback
       setCurrentUser((prev) => {
@@ -1166,7 +1299,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Simple, focused password change function
+  // Improved password change function with better completion handling
   const changePassword = async (currentPassword, newPassword) => {
     try {
       setError("");
@@ -1186,21 +1319,84 @@ export function AuthProvider({ children }) {
 
       console.log("Current password validated successfully");
 
-      // 2. Update password with Supabase - single direct attempt for clarity
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
+      // 2. Update password with Supabase - try with enhanced client first, then fallback
+      let updateData, updateError;
+      
+      try {
+        // First try with enhanced client that has better error handling
+        const result = await enhancedAuth.updateUser({
+          password: newPassword,
+        });
+        
+        updateData = result.data;
+        updateError = result.error;
+      } catch (err) {
+        console.log("Enhanced auth update failed, trying standard method:", err);
+        
+        // Fallback to standard method with explicit timeout
+        const updatePromise = supabase.auth.updateUser({
+          password: newPassword,
+        });
+        
+        // Add a timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("Password update timeout")), 15000);
+        });
+        
+        const result = await Promise.race([updatePromise, timeoutPromise]);
+        updateData = result.data;
+        updateError = result.error;
+      }
 
       if (updateError) {
         console.error("Password update failed:", updateError);
         throw updateError;
       }
 
-      console.log("Password updated successfully");
+      console.log("Password updated successfully", updateData);
 
       // 3. Update local storage flags
       localStorage.setItem("passwordChanged", "true");
       localStorage.setItem("passwordChangedAt", new Date().toISOString());
+      
+      // Store the user's email to help with login after password change
+      if (currentUser?.email) {
+        localStorage.setItem("passwordChangedEmail", currentUser.email);
+      }
+      
+      // 4. Ensure session is properly updated
+      if (updateData && updateData.user) {
+        // Update session if one was returned
+        if (updateData.session) {
+          setSession(updateData.session);
+          localStorage.setItem("authToken", updateData.session.access_token);
+          localStorage.setItem("refreshToken", updateData.session.refresh_token);
+        } else {
+          // If no session is returned, get the current session to ensure we have the latest
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session) {
+            setSession(sessionData.session);
+            localStorage.setItem("authToken", sessionData.session.access_token);
+            localStorage.setItem("refreshToken", sessionData.session.refresh_token);
+          }
+        }
+        
+        // Clear any error state
+        setError("");
+      }
+      
+      // 5. After successful password change, force browser to login page
+      // This is the most reliable way to ensure consistent behavior
+      console.log("Password change successful, redirecting to login");
+      
+      // A slight delay to ensure all state updates are processed
+      setTimeout(() => {
+        // Force logout and redirect to login
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("refreshToken");
+        sessionStorage.clear();
+        window.location.href = "/login?passwordChanged=true";
+      }, 500);
 
       return true;
     } catch (error) {
@@ -1340,6 +1536,7 @@ export function AuthProvider({ children }) {
               );
             }
             localStorage.setItem("isAuthenticated", "true");
+            localStorage.setItem("authStage", "pre-mfa"); // Track auth stage
 
             // Force refresh user data
             try {
@@ -1452,6 +1649,7 @@ export function AuthProvider({ children }) {
       // Update localStorage
       localStorage.setItem("currentUser", JSON.stringify(userData));
       localStorage.setItem("isAuthenticated", "true");
+      localStorage.setItem("authStage", "pre-mfa"); // Track auth stage
 
       return true;
     } catch (error) {
@@ -1461,66 +1659,99 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Get current user
+  // Get current user with refreshed data from Supabase
   const getCurrentUser = async () => {
     try {
-      // Check if we already have user data
-      if (currentUser) {
-        return currentUser;
-      }
+      console.log("Getting current user data from Supabase");
+      
+      // Always try to get fresh user data from Supabase first
+      const { data: userData, error: userError } = await supabase.auth.getUser();
 
-      // Try to get user from Supabase
-      const { data: userData, error: userError } =
-        await supabase.auth.getUser();
-
-      if (userError) throw userError;
-
-      if (userData?.user) {
-        // Get profile data
-        const { data: profileData } = await supabase
+      if (userError) {
+        console.warn("Could not get user from Supabase:", userError);
+        // Continue to fallbacks
+      } else if (userData?.user) {
+        console.log("Successfully retrieved user from Supabase Auth");
+        
+        // Get profile data - this is critical for syncing with Supabase
+        const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", userData.user.id)
           .single();
+          
+        if (profileError) {
+          console.warn("Could not get profile data:", profileError);
+        }
 
-        // Create user object
+        // Parse user_metadata to get name information
+        const metadata = userData.user.user_metadata || {};
+        
+        // Create user object, merging data from both sources
         const user = {
           id: userData.user.id,
           email: userData.user.email,
-          name:
-            profileData?.full_name ||
-            userData.user.user_metadata?.name ||
-            userData.user.email,
+          // Prioritize data sources: profile table > user metadata > email
+          name: profileData?.full_name || 
+                metadata.full_name || 
+                metadata.name || 
+                userData.user.email,
+          firstName: profileData?.first_name || 
+                    metadata.first_name || 
+                    metadata.firstName || '',
+          lastName: profileData?.last_name || 
+                    metadata.last_name || 
+                    metadata.lastName || '',
           roles: profileData?.roles || ["user"],
           tier: "enterprise",
           mfaMethods: profileData?.mfa_methods || [],
           features: getEnterpriseFeatures(),
+          mfaVerified: localStorage.getItem("authStage") === "post-mfa",
         };
 
         // Special case for super admin
         if (user.email === "itsus@tatt2away.com") {
           user.roles = ["super_admin", "admin", "user"];
         }
+        
+        // Update local storage with fresh data
+        localStorage.setItem("currentUser", JSON.stringify(user));
+        
+        // Update current user state if we have an active user
+        if (currentUser) {
+          setCurrentUser(user);
+        }
 
         return user;
       }
 
-      // Fall back to stored user
-      const storedUser = localStorage.getItem("currentUser");
+      // If Supabase call failed, check if we already have user data in state
+      if (currentUser) {
+        return currentUser;
+      }
 
+      // Fall back to stored user as last resort
+      const storedUser = localStorage.getItem("currentUser");
       if (storedUser) {
-        return JSON.parse(storedUser);
+        try {
+          return JSON.parse(storedUser);
+        } catch (e) {
+          console.error("Failed to parse stored user:", e);
+        }
       }
 
       return null;
     } catch (error) {
       console.error("Get current user error:", error);
 
-      // Fall back to stored user
-      const storedUser = localStorage.getItem("currentUser");
-
-      if (storedUser) {
-        return JSON.parse(storedUser);
+      // Emergency fallback to stored user
+      try {
+        const storedUser = localStorage.getItem("currentUser");
+        if (storedUser) {
+          return JSON.parse(storedUser);
+        }
+      } catch (e) {
+        console.error("Failed to use fallback user data:", e);
       }
 
       return null;
@@ -1569,15 +1800,44 @@ export function AuthProvider({ children }) {
                 console.warn("Error fetching profile:", profileError);
               }
 
-              // Create user object with defaults
+              // Get current auth stage from localStorage
+              const authStage = localStorage.getItem("authStage") || "pre-mfa";
+              const mfaVerified =
+                authStage === "post-mfa" ||
+                sessionStorage.getItem("mfa_verified") === "true" ||
+                localStorage.getItem("mfa_verified") === "true";
+
+              console.log(
+                "Current auth stage:",
+                authStage,
+                "MFA verified:",
+                mfaVerified
+              );
+              
+              // Parse user metadata to get the most up-to-date information
+              const metadata = userData.user.user_metadata || {};
+              console.log("User metadata from Supabase:", metadata);
+
+              // Create user object with defaults, merging data from multiple sources
               let user = {
                 id: userData.user.id,
                 email: userData.user.email,
-                name: profileData?.full_name || userData.user.email,
+                // Priority order: profile table > user metadata > email
+                name: profileData?.full_name || 
+                      metadata.full_name || 
+                      metadata.name || 
+                      userData.user.email,
+                firstName: profileData?.first_name || 
+                          metadata.first_name || 
+                          metadata.firstName || '',
+                lastName: profileData?.last_name || 
+                         metadata.last_name || 
+                         metadata.lastName || '',
                 roles: profileData?.roles || ["user"],
                 tier: "enterprise",
                 mfaMethods: profileData?.mfa_methods || [],
                 features: getEnterpriseFeatures(),
+                mfaVerified: mfaVerified,
               };
 
               // Special handling for admin user
@@ -1592,6 +1852,23 @@ export function AuthProvider({ children }) {
               setUserTier("enterprise");
               setUserFeatures(user.features);
 
+              // Update MFA state
+              setMfaState({
+                required: !mfaVerified,
+                inProgress: false,
+                verified: mfaVerified,
+                data: !mfaVerified
+                  ? {
+                      methodId: `email-${user.email.replace(
+                        /[^a-zA-Z0-9]/g,
+                        ""
+                      )}`,
+                      type: "email",
+                      email: user.email,
+                    }
+                  : null,
+              });
+
               // Update localStorage for backup
               localStorage.setItem(
                 "authToken",
@@ -1603,6 +1880,12 @@ export function AuthProvider({ children }) {
               );
               localStorage.setItem("currentUser", JSON.stringify(user));
               localStorage.setItem("isAuthenticated", "true");
+              if (!authStage) {
+                localStorage.setItem(
+                  "authStage",
+                  mfaVerified ? "post-mfa" : "pre-mfa"
+                );
+              }
 
               console.log("Authentication initialized with Supabase session");
             }
@@ -1618,6 +1901,11 @@ export function AuthProvider({ children }) {
           const isAuthenticated =
             localStorage.getItem("isAuthenticated") === "true";
           const authToken = localStorage.getItem("authToken");
+          const authStage = localStorage.getItem("authStage") || "pre-mfa";
+          const mfaVerified =
+            authStage === "post-mfa" ||
+            sessionStorage.getItem("mfa_verified") === "true" ||
+            localStorage.getItem("mfa_verified") === "true";
 
           if (storedUser && (isAuthenticated || authToken)) {
             try {
@@ -1625,6 +1913,7 @@ export function AuthProvider({ children }) {
 
               // Always ensure enterprise features
               userData.features = getEnterpriseFeatures();
+              userData.mfaVerified = mfaVerified;
 
               // Always ensure admin has super_admin role
               if (userData.email === "itsus@tatt2away.com") {
@@ -1636,9 +1925,32 @@ export function AuthProvider({ children }) {
               setUserTier("enterprise");
               setUserFeatures(userData.features);
 
+              // Update MFA state
+              setMfaState({
+                required: !mfaVerified,
+                inProgress: false,
+                verified: mfaVerified,
+                data: !mfaVerified
+                  ? {
+                      methodId: `email-${userData.email.replace(
+                        /[^a-zA-Z0-9]/g,
+                        ""
+                      )}`,
+                      type: "email",
+                      email: userData.email,
+                    }
+                  : null,
+              });
+
               // Update localStorage
               localStorage.setItem("currentUser", JSON.stringify(userData));
               localStorage.setItem("isAuthenticated", "true");
+              if (!authStage) {
+                localStorage.setItem(
+                  "authStage",
+                  mfaVerified ? "post-mfa" : "pre-mfa"
+                );
+              }
 
               console.log("Authentication initialized from localStorage");
             } catch (error) {
@@ -1649,14 +1961,27 @@ export function AuthProvider({ children }) {
               localStorage.removeItem("authToken");
               localStorage.removeItem("refreshToken");
               localStorage.removeItem("isAuthenticated");
+              localStorage.removeItem("authStage");
 
               setCurrentUser(null);
               setSession(null);
+              setMfaState({
+                required: false,
+                inProgress: false,
+                verified: false,
+                data: null,
+              });
             }
           } else {
             console.log("No authentication data found, user is not logged in");
             setCurrentUser(null);
             setSession(null);
+            setMfaState({
+              required: false,
+              inProgress: false,
+              verified: false,
+              data: null,
+            });
           }
         }
       } catch (error) {
@@ -1690,6 +2015,7 @@ export function AuthProvider({ children }) {
 
         if (event === "SIGNED_IN" && session) {
           try {
+            console.log("SIGNED_IN event detected, refreshing user data");
             // Get user data
             const { data: userData } = await supabase.auth.getUser();
 
@@ -1701,15 +2027,43 @@ export function AuthProvider({ children }) {
                 .eq("id", userData.user.id)
                 .single();
 
-              // Create user object
+              // Get current auth stage from localStorage
+              const authStage = localStorage.getItem("authStage") || "pre-mfa";
+              const mfaVerified =
+                authStage === "post-mfa" ||
+                sessionStorage.getItem("mfa_verified") === "true" ||
+                localStorage.getItem("mfa_verified") === "true";
+                
+              // Get user metadata for complete information
+              const metadata = userData.user.user_metadata || {};
+              console.log("User metadata on auth change:", metadata);
+              
+              // Check if this is after a password change
+              const isPasswordChanged = localStorage.getItem("passwordChanged") === "true";
+              if (isPasswordChanged) {
+                console.log("Processing auth change after password change");
+              }
+
+              // Create user object with data from multiple sources
               let user = {
                 id: userData.user.id,
                 email: userData.user.email,
-                name: profileData?.full_name || userData.user.email,
+                // Priority order: profile table > user metadata > email
+                name: profileData?.full_name || 
+                      metadata.full_name || 
+                      metadata.name || 
+                      userData.user.email,
+                firstName: profileData?.first_name || 
+                          metadata.first_name || 
+                          metadata.firstName || '',
+                lastName: profileData?.last_name || 
+                         metadata.last_name || 
+                         metadata.lastName || '',
                 roles: profileData?.roles || ["user"],
                 tier: "enterprise",
                 mfaMethods: profileData?.mfa_methods || [],
                 features: getEnterpriseFeatures(),
+                mfaVerified: mfaVerified,
               };
 
               // Special case for admin
@@ -1723,24 +2077,141 @@ export function AuthProvider({ children }) {
               setUserTier("enterprise");
               setUserFeatures(user.features);
 
+              // Update MFA state
+              setMfaState({
+                required: !mfaVerified,
+                inProgress: false,
+                verified: mfaVerified,
+                data: !mfaVerified
+                  ? {
+                      methodId: `email-${user.email.replace(
+                        /[^a-zA-Z0-9]/g,
+                        ""
+                      )}`,
+                      type: "email",
+                      email: user.email,
+                    }
+                  : null,
+              });
+
               // Update localStorage
               localStorage.setItem("authToken", session.access_token);
               localStorage.setItem("refreshToken", session.refresh_token);
               localStorage.setItem("currentUser", JSON.stringify(user));
               localStorage.setItem("isAuthenticated", "true");
+              if (!authStage) {
+                localStorage.setItem(
+                  "authStage",
+                  mfaVerified ? "post-mfa" : "pre-mfa"
+                );
+              }
+              
+              // Handle special cases based on events
+              const wasPasswordChanged = localStorage.getItem("passwordChanged") === "true";
+              if (wasPasswordChanged) {
+                // Clear the password changed flag since we've processed it
+                localStorage.removeItem("passwordChanged");
+                console.log("Password change process complete - updated session and user data");
+              }
             }
           } catch (error) {
             console.error("Error updating user state after SIGNED_IN:", error);
+          }
+        } else if (event === "MFA_CHALLENGE_VERIFIED") {
+          console.log("MFA CHALLENGE VERIFIED event detected");
+
+          // Mark MFA as verified in all possible places
+          localStorage.setItem("authStage", "post-mfa");
+          localStorage.setItem("mfa_verified", "true");
+          sessionStorage.setItem("mfa_verified", "true");
+          sessionStorage.setItem("mfaSuccess", "true");
+          sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
+
+          // Update MFA state
+          setMfaState({
+            required: false,
+            inProgress: false,
+            verified: true,
+            data: null,
+          });
+
+          // Update user state
+          if (currentUser) {
+            const updatedUser = {
+              ...currentUser,
+              mfaVerified: true,
+            };
+            setCurrentUser(updatedUser);
+            localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+          }
+        } else if (event === "USER_UPDATED") {
+          console.log("USER_UPDATED event detected - refreshing user data");
+          
+          // Refresh user data only
+          try {
+            // Get fresh user data
+            const user = await getCurrentUser();
+            if (user) {
+              console.log("User data refreshed after USER_UPDATED event");
+              setCurrentUser(user);
+              localStorage.setItem("currentUser", JSON.stringify(user));
+              
+              // Check if this is part of a password change flow
+              if (localStorage.getItem("passwordChanged") === "true") {
+                console.log("This user update is part of password change flow");
+                // We'll keep the flag for the PASSWORD_RECOVERY event
+              }
+            }
+          } catch (error) {
+            console.error("Error handling USER_UPDATED event:", error);
+          }
+        } else if (event === "PASSWORD_RECOVERY") {
+          console.log("PASSWORD_RECOVERY event detected - handling password reset/update");
+          
+          // Refresh the session and user data
+          try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (sessionData?.session) {
+              console.log("Retrieved fresh session after password update");
+              setSession(sessionData.session);
+              localStorage.setItem("authToken", sessionData.session.access_token);
+              localStorage.setItem("refreshToken", sessionData.session.refresh_token);
+              
+              // Get fresh user data
+              const user = await getCurrentUser();
+              if (user) {
+                setCurrentUser(user);
+                localStorage.setItem("currentUser", JSON.stringify(user));
+              }
+              
+              // Mark the password change as complete
+              localStorage.setItem("passwordChangeComplete", "true");
+            }
+          } catch (error) {
+            console.error("Error handling PASSWORD_RECOVERY event:", error);
           }
         } else if (event === "SIGNED_OUT") {
           // Clear state and localStorage
           setCurrentUser(null);
           setSession(null);
+          setMfaState({
+            required: false,
+            inProgress: false,
+            verified: false,
+            data: null,
+          });
 
           localStorage.removeItem("authToken");
           localStorage.removeItem("refreshToken");
           localStorage.removeItem("currentUser");
           localStorage.removeItem("isAuthenticated");
+          localStorage.removeItem("authStage");
+          localStorage.removeItem("mfa_verified");
+          localStorage.removeItem("passwordChanged");
+          localStorage.removeItem("passwordChangeComplete");
+          localStorage.removeItem("passwordChangedAt");
+          sessionStorage.removeItem("mfa_verified");
+          sessionStorage.removeItem("mfaSuccess");
         }
       });
 
@@ -1796,6 +2267,8 @@ export function AuthProvider({ children }) {
     updateProfile,
     isInitialized,
     getCurrentUser,
+    mfaState, // Expose MFA state to components
+    isMfaVerified: mfaState.verified || currentUser?.mfaVerified,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

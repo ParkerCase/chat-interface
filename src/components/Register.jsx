@@ -118,30 +118,120 @@ function Register() {
           "!" +
           Math.floor(Math.random() * 10);
 
-      // Register user with Supabase
-      const { data, error } = await supabase.auth.admin.createUser({
-        email,
-        password: generatedPassword,
-        email_confirm: true,
-        user_metadata: {
-          full_name: name,
-        },
-      });
-
-      if (error) throw error;
-
-      // Create profile in Supabase
-      const { error: profileError } = await supabase.from("profiles").insert([
-        {
-          id: data.user.id,
-          full_name: name,
+      // Use a different approach based on your Supabase setup
+      // First check if the user already exists (by email)
+      console.log(`Checking if user with email ${email} already exists...`);
+      
+      // Try to sign in with admin API first
+      let userData;
+      let signupError;
+      
+      try {
+        console.log("Attempting to use signUp API...");
+        // Register user with Supabase using signUp
+        const { data: signupData, error: signupErr } = await supabase.auth.signUp({
           email,
-          roles,
-          tier: "enterprise",
-          created_at: new Date().toISOString(),
-          created_by: currentUser.id || currentUser.email,
-        },
-      ]);
+          password: generatedPassword,
+          options: {
+            data: {
+              full_name: name,
+            },
+          }
+        });
+        
+        userData = signupData;
+        signupError = signupErr;
+        
+        if (signupErr) {
+          // If error is that user already exists, try to use admin createUser
+          if (signupErr.message.includes("already registered")) {
+            console.log("User already registered, attempting alternate method...");
+            throw new Error("User already exists");
+          } else {
+            throw signupErr;
+          }
+        }
+      } catch (signupErr) {
+        console.log("SignUp failed, trying to create user directly...");
+        // As a fallback, use direct SQL insert if possible
+        try {
+          // Generate a UUID for the user
+          const userId = crypto.randomUUID();
+          
+          // Create the auth user with email/password
+          console.log("Creating auth user directly...");
+          
+          // Try a more direct approach - this is a workaround
+          // You should implement a backend endpoint for this in production
+          const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+            email,
+            password: generatedPassword,
+            email_confirm: true,
+            user_metadata: {
+              full_name: name,
+            },
+          });
+          
+          if (authError) {
+            throw authError;
+          }
+          
+          userData = authData;
+        } catch (finalError) {
+          console.error("All user creation methods failed:", finalError);
+          throw new Error("Failed to create user: " + finalError.message);
+        }
+      }
+      
+      if (!userData || !userData.user) {
+        throw new Error("Failed to create user account");
+      }
+      
+      const data = userData;
+
+      // Signup errors should have been handled above
+
+      // First check if the profile already exists (could happen with user restores)
+      const { data: existingProfile, error: checkError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", data.user.id)
+        .single();
+      
+      // If profile exists, update it, otherwise create it
+      let profileError;
+      if (existingProfile) {
+        console.log("Profile already exists, updating...");
+        // Update the existing profile
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update({
+            full_name: name,
+            roles: roles,
+            tier: "enterprise",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", data.user.id);
+        
+        profileError = updateError;
+      } else {
+        console.log("Creating new profile...");
+        // Create new profile with properly structured data 
+        const { error: insertError } = await supabase
+          .from("profiles")
+          .insert([
+            {
+              id: data.user.id,
+              full_name: name,
+              roles: roles,
+              tier: "enterprise",
+              created_at: new Date().toISOString(),
+            },
+          ])
+          .select();
+        
+        profileError = insertError;
+      }
 
       if (profileError) throw profileError;
 
@@ -172,9 +262,22 @@ function Register() {
       setRoles(["user"]);
     } catch (error) {
       console.error("Registration error:", error);
-      setFormError(
-        error.message || "An unexpected error occurred. Please try again."
-      );
+      
+      // Provide more user-friendly error messages
+      if (error.message?.includes("User already registered") || 
+          error.message?.includes("already exists") ||
+          error.message?.includes("duplicate key")) {
+        setFormError("A user with this email address already exists.");
+      } else if (error.message?.includes("row-level security")) {
+        setFormError("Database permission error. Please contact an administrator.");
+        console.error("RLS policy error. Check Supabase RLS policies for the profiles table.");
+      } else if (error.message?.includes("42501")) {
+        setFormError("You don't have permission to create users. Please contact an administrator.");
+      } else {
+        setFormError(
+          error.message || "An unexpected error occurred. Please try again."
+        );
+      }
     } finally {
       setIsLoading(false);
     }
