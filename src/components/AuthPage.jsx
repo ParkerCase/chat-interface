@@ -1,4 +1,4 @@
-// src/components/AuthPage.jsx
+// src/components/AuthPage.jsx - MFA FLOW FIX
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -20,6 +20,7 @@ import {
   Save,
   Shield,
 } from "lucide-react";
+import { debugAuth } from "../utils/authDebug";
 import "./auth.css";
 
 function AuthPage() {
@@ -29,7 +30,7 @@ function AuthPage() {
     logout,
     error: authError,
     setError: setAuthError,
-    setCurrentUser,
+    mfaState,
   } = useAuth();
 
   // State for different auth modes
@@ -70,97 +71,47 @@ function AuthPage() {
       setAuthMode("reset");
       setResetToken(params.get("token"));
     }
-    
-    // SPECIAL HANDLING: Check for pw_reset in URL which indicates direct post-password change flow
-    const isPwReset = params.get("pw_reset") === "true";
-    if (isPwReset && pathname === "/login") {
-      console.log("🚨 DETECTED PASSWORD RESET DIRECT FLOW");
-      
-      // Retrieve stored credentials for auto-login (if available)
-      const tempEmail = sessionStorage.getItem("temp_email");
-      const tempPassword = sessionStorage.getItem("temp_password");
-      
-      if (tempEmail && tempPassword) {
-        console.log("Found stored credentials for auto-login");
-        
-        // Apply specific radical clear of ALL browser storage first
-        const passwordChangedEmail = tempEmail; // Save this before clearing
-        
-        // Radical cleanup - clear EVERYTHING
-        localStorage.clear();
-        
-        // Keep only the minimal flags needed
-        localStorage.setItem("passwordChanged", "true");
-        localStorage.setItem("passwordChangedAt", Date.now().toString());
-        localStorage.setItem("passwordChangedEmail", passwordChangedEmail);
-        localStorage.setItem("radicalResetApplied", "true");
-        
-        // Set loading and message to show user what's happening
-        setIsLoading(true);
-        setSuccessMessage("Password updated. Preparing application...");
-        
-        // Set a SIGNIFICANT delay (15+ seconds) to ensure Supabase has fully processed the password change
-        console.log("Implementing guaranteed 15-second delay for Supabase password propagation");
-        setTimeout(() => {
-          console.log("🚨 AUTO-LOGIN SEQUENCE INITIATED");
-          
-          // Pre-fill the form with the stored credentials
-          setEmail(tempEmail);
-          setPassword(tempPassword);
-          
-          // Clear sensitive data after pre-filling
-          sessionStorage.removeItem("temp_email");
-          sessionStorage.removeItem("temp_password");
-          
-          // Show success message
-          setSuccessMessage("Password changed successfully! Logging in with new credentials...");
-          
-          // Wait a short time for UI update, then auto-submit the login form
-          setTimeout(() => {
-            console.log("Auto-submitting login form with new credentials");
-            handlePasswordLogin({preventDefault: () => {}}); // Simulate form submission
-          }, 1000);
-        }, 15000); // 15 seconds minimum for Supabase changes to fully propagate
-        
-        return; // Skip normal processing
-      }
-    }
 
-    // REGULAR FLOW: Check for password change flag with enhanced state tracking
-    const passwordChanged = localStorage.getItem("passwordChanged") === "true" || params.get("passwordChanged") === "true";
-    const passwordChangedAt = localStorage.getItem("passwordChangedAt");
+    // Check for password change flag
+    const passwordChanged =
+      localStorage.getItem("passwordChanged") === "true" ||
+      params.get("passwordChanged") === "true";
     const passwordChangedEmail = localStorage.getItem("passwordChangedEmail");
-    
+
     if (passwordChanged && (authMode === "login" || pathname === "/login")) {
-      console.log("Detected login after password change (standard flow)");
-      
-      // Show user that we're handling things
+      console.log("Detected login after password change");
+
+      // Show success message
       setFormError("");
       setAuthError("");
-      setSuccessMessage("Password changed successfully. Please log in with your new credentials.");
-      
-      // Ensure all Supabase auth state is cleared for a fresh login
-      console.log("Clearing ALL authentication state");
-      localStorage.clear(); // Radical approach - clear everything
-      
-      // Restore minimal password change flags
-      localStorage.setItem("passwordChanged", "true");
-      localStorage.setItem("passwordChangedAt", Date.now().toString());
-      if (passwordChangedEmail) {
-        localStorage.setItem("passwordChangedEmail", passwordChangedEmail);
-        setEmail(passwordChangedEmail);
-      }
-      
+      setSuccessMessage(
+        "Password changed successfully. Please log in with your new credentials."
+      );
+
       // Pre-fill the email field if available
       if (passwordChangedEmail) {
         setEmail(passwordChangedEmail);
-        setSuccessMessage(`Password changed successfully. Please log in with your new password for ${passwordChangedEmail}.`);
+        setSuccessMessage(
+          `Password changed successfully. Please log in with your new password for ${passwordChangedEmail}.`
+        );
       }
     }
 
     // Debug what auth mode we're in
     console.log("Auth mode:", authMode, "Path:", pathname);
   }, [location, authMode]);
+
+  // Check if MFA verification is needed based on mfaState
+  useEffect(() => {
+    if (mfaState?.required && mfaState?.data && !mfaState?.verified) {
+      debugAuth.log("AuthPage", "MFA required, showing verification screen");
+      setShowMfaVerification(true);
+      setMfaData(mfaState.data);
+    } else if (mfaState?.verified) {
+      debugAuth.log("AuthPage", "MFA already verified, redirecting to admin");
+      navigate("/admin");
+    }
+  }, [mfaState, navigate]);
 
   // Handle SSO login
   const handleSSOLogin = async (provider) => {
@@ -178,105 +129,31 @@ function AuthPage() {
         redirectUrl += `?returnUrl=${encodeURIComponent(returnUrl)}`;
       }
 
-      console.log(`Initiating SSO login with ${provider} to redirect: ${redirectUrl}`);
+      console.log(
+        `Initiating SSO login with ${provider} to redirect: ${redirectUrl}`
+      );
 
-      // Special handling for test user
-      if (email === "itsus@tatt2away.com") {
-        console.log("Test user detected for SSO, applying special handling");
-        // Create admin user object
-        const adminUser = {
-          id: "admin-user-" + Date.now(),
-          name: "Tatt2Away Admin",
-          email: "itsus@tatt2away.com",
-          roles: ["super_admin", "admin", "user"],
-          tier: "enterprise",
-          features: {
-            chatbot: true,
-            basic_search: true,
-            file_upload: true,
-            image_analysis: true,
-            advanced_search: true,
-            image_search: true,
-            custom_branding: true,
-            multi_user: true,
-            data_export: true,
-            analytics_basic: true,
-            custom_workflows: true,
-            advanced_analytics: true,
-            multi_department: true,
-            automated_alerts: true,
-            custom_integrations: true,
-            advanced_security: true,
-            sso: true,
-            advanced_roles: true,
-          }
-        };
+      // Set a flag to detect potential auth loop failures
+      sessionStorage.setItem("ssoAttempt", Date.now().toString());
+      sessionStorage.setItem("ssoProvider", provider);
 
-        // Store auth state in localStorage
-        localStorage.setItem("authToken", "demo-admin-token-" + Date.now());
-        localStorage.setItem("refreshToken", "demo-refresh-token-" + Date.now());
-        localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("currentUser", JSON.stringify(adminUser));
+      // Sign in with OAuth provider
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: provider,
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {},
+        },
+      });
 
-        // Redirect to admin
-        setTimeout(() => {
-          window.location.href = "/admin";
-        }, 1000);
-        
-        return;
-      }
+      if (error) throw error;
 
-      // Provider-specific configurations
-      let queryParams = {};
-
-      // For Google, restrict to tatt2away.com domain
-      if (provider === "google") {
-        queryParams.hd = "tatt2away.com";
-      }
-      
-      // Add additional scopes for both providers
-      const scopes = "email profile";
-
-      // Sign in with OAuth provider with improved error handling
-      try {
-        const { data, error } = await supabase.auth.signInWithOAuth({
-          provider: provider,
-          options: {
-            redirectTo: redirectUrl,
-            queryParams,
-            scopes,
-          },
-        });
-
-        if (error) throw error;
-
-        // Handle the redirect URL from Supabase
-        if (data?.url) {
-          console.log(`SSO redirect URL: ${data.url}`);
-          
-          // Set a flag to detect potential auth loop failures
-          sessionStorage.setItem("ssoAttempt", Date.now());
-          sessionStorage.setItem("ssoProvider", provider);
-          
-          // Redirect to the OAuth provider
-          window.location.href = data.url;
-        } else {
-          throw new Error("No redirect URL returned from Supabase");
-        }
-      } catch (supabaseError) {
-        console.error("Supabase SSO error:", supabaseError);
-        
-        // Fallback to alternate method for problematic providers
-        if (provider === "apple") {
-          console.log("Using fallback method for Apple SSO");
-          // Construct alternate Apple login URL
-          const appleLoginUrl = `https://appleid.apple.com/auth/authorize?client_id=${encodeURIComponent("host.tatt2away.login")}&redirect_uri=${encodeURIComponent(redirectUrl)}&response_type=code&scope=${encodeURIComponent("email name")}&response_mode=form_post`;
-          
-          window.location.href = appleLoginUrl;
-          return;
-        }
-        
-        throw supabaseError;
+      // Handle the redirect URL from Supabase
+      if (data?.url) {
+        console.log(`SSO redirect URL: ${data.url}`);
+        window.location.href = data.url;
+      } else {
+        throw new Error("No redirect URL returned from Supabase");
       }
     } catch (error) {
       console.error("SSO login error:", error);
@@ -285,7 +162,7 @@ function AuthPage() {
     }
   };
 
-  // Password login handler
+  // Password login handler - FIXED
   const handlePasswordLogin = async (e) => {
     if (e && e.preventDefault) {
       e.preventDefault();
@@ -303,175 +180,81 @@ function AuthPage() {
       return;
     }
 
-    // Email domain validation for tatt2away.com - skip for automated login
-    const isAutomatedLogin = localStorage.getItem("radicalResetApplied") === "true";
-    if (!isAutomatedLogin && !email.endsWith("@tatt2away.com") && email !== "itsus@tatt2away.com") {
+    // Email domain validation for tatt2away.com
+    if (!email.endsWith("@tatt2away.com") && email !== "itsus@tatt2away.com") {
       setFormError("Only @tatt2away.com email addresses are allowed");
       return;
     }
 
     try {
-      // RADICAL APPROACH: Clear everything except critical flags
-      console.log("APPLYING RADICAL CLEAR BEFORE LOGIN ATTEMPT");
-      
-      // Save critical values before clearing everything
-      const wasPasswordChanged = localStorage.getItem("passwordChanged") === "true";
-      const passwordChangedEmail = localStorage.getItem("passwordChangedEmail");
-      const passwordChangedAt = localStorage.getItem("passwordChangedAt");
-      const radicalResetApplied = localStorage.getItem("radicalResetApplied") === "true";
-      
-      // Clear ALL localStorage except a few critical flags
-      const criticalFlags = {
-        passwordChanged: wasPasswordChanged ? "true" : null,
-        passwordChangedEmail: passwordChangedEmail || null,
-        passwordChangedAt: passwordChangedAt || null,
-        radicalResetApplied: radicalResetApplied ? "true" : null,
-      };
-      
-      // Save the email and password separately to avoid clearing them
-      const loginEmail = email;
-      const loginPassword = password;
-      
-      // Clear everything in localStorage
-      localStorage.clear();
-      
-      // Restore only critical flags
-      Object.entries(criticalFlags).forEach(([key, value]) => {
-        if (value !== null) {
-          localStorage.setItem(key, value);
-        }
-      });
-      
-      // Now clear sessionStorage too (except temp credentials)
-      const tempEmail = sessionStorage.getItem("temp_email");
-      const tempPassword = sessionStorage.getItem("temp_password");
-      
-      sessionStorage.clear();
-      
-      // Set a flag indicating we're doing a fresh login
-      localStorage.setItem("freshLoginAttempt", "true");
-      
+      // Clear any existing auth-related storage
+      localStorage.removeItem("mfa_verified");
+      sessionStorage.removeItem("mfa_verified");
+      sessionStorage.removeItem("mfaSuccess");
+      sessionStorage.removeItem("mfaVerifiedAt");
+
       // Show loading state
       setIsLoading(true);
-      console.log("🚨 Attempting fresh login with purged browser state");
-      
-      // For automated login after password change, use stored credentials
-      if (isAutomatedLogin) {
-        console.log("This is an automated login after password change");
-        setSuccessMessage("Logging in with new password...");
-        
-        // Always add a significant delay for Supabase to sync password changes
-        // This is critical for reliable operation in production
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-      
-      // Execute login with clean state
-      console.log(`Executing login with email: ${loginEmail}`);
-      
-      // Add a timeout to prevent indefinite stalling
-      // This ensures the login attempt doesn't hang indefinitely
-      let abortController = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.log("Login timeout triggered - aborting request");
-        abortController.abort();
-      }, 30000); // Longer timeout for production environment
-      
-      try {
-        // Call login with timeout control
-        const result = await login(loginEmail, loginPassword, abortController.signal);
-        clearTimeout(timeoutId);  // Clear timeout if successful
-        
-        if (result && result.success) {
-          // Check if this was a login after password change
-          const wasPasswordChanged = localStorage.getItem("passwordChanged") === "true";
-          if (wasPasswordChanged) {
-            console.log("Successfully logged in after password change");
-            // Clear all password change flags
-            localStorage.removeItem("passwordChanged");
-            localStorage.removeItem("passwordChangedAt");
-            localStorage.removeItem("passwordChangedEmail");
-            localStorage.removeItem("passwordChangeDuration");
-            localStorage.removeItem("radicalResetApplied");
-            localStorage.removeItem("freshLoginAttempt");
-            localStorage.removeItem("passwordChangeCompleted");
-            localStorage.removeItem("newPasswordReady");
-            localStorage.removeItem("userMustLogin");
-            localStorage.removeItem("testUserPasswordChanged");
-            
-            // Show success message
-            setSuccessMessage("Password changed successfully. You are now logged in with your new password.");
-            setTimeout(() => setSuccessMessage(""), 5000);
-          }
-          
-          if (result.requiresMfaSetup) {
-            console.log("User needs to set up MFA");
-            // Save current authentication state
-            localStorage.setItem("needsMfaSetup", "true");
-            // Redirect to security page to set up MFA
-            navigate("/security?setup=mfa");
-            return;
-          } else if (result.mfaRequired && result.mfaData) {
-            // Show MFA verification screen
-            console.log("MFA verification required:", result.mfaData);
-            setShowMfaVerification(true);
-            setMfaData(result.mfaData);
-          } else {
-            // Fully authenticated, proceed to dashboard or admin panel
-            if (result.isAdmin) {
-              console.log("Admin user detected, redirecting to admin panel");
-              navigate("/admin");
-            } else {
-              // Get redirect URL from query params or default to dashboard
-              const params = new URLSearchParams(location.search);
-              const returnUrl = params.get("returnUrl") || "/";
-              navigate(returnUrl);
-            }
-          }
+
+      debugAuth.log("AuthPage", `Attempting login with ${email}`);
+
+      // Execute login with email/password
+      const result = await login(email, password);
+
+      debugAuth.log("AuthPage", `Login result:`, result);
+
+      if (result && result.success) {
+        if (result.mfaRequired && result.mfaData) {
+          // Show MFA verification screen
+          debugAuth.log(
+            "AuthPage",
+            "MFA verification required, showing screen"
+          );
+          setShowMfaVerification(true);
+          setMfaData(result.mfaData);
         } else {
-          // Special handling for login failures after password change
-          if (localStorage.getItem("passwordChanged") === "true") {
-            console.warn("Login failed after password change");
-            setFormError("Login failed with your new password. Please try again carefully or use the 'Forgot Password' option.");
+          // Fully authenticated, proceed to dashboard or admin panel
+          if (result.isAdmin) {
+            debugAuth.log(
+              "AuthPage",
+              "Admin login successful, redirecting to admin panel"
+            );
+            navigate("/admin");
           } else {
-            setFormError(result?.error || "Invalid credentials");
+            // Get redirect URL from query params or default to dashboard
+            const params = new URLSearchParams(location.search);
+            const returnUrl = params.get("returnUrl") || "/";
+            navigate(returnUrl);
           }
         }
-      } catch (error) {
-        console.error("Login error:", error);
-        
-        // Handle timeout errors specially
-        if (error.message && (error.message.includes("timeout") || error.message.includes("abort"))) {
-          console.log("Login timeout or abort detected");
-          
-          // Clear all Supabase session data in case of partial authentication
-          localStorage.removeItem("sb-rfnglcfyzoyqenofmsev-auth-token");
-          localStorage.removeItem("supabase.auth.token");
-          
-          // Inform user and provide reload option
-          setFormError("The server is taking too long to respond. Please try again.");
-          setIsLoading(false);
-          return;
-        }
-        
-        // More helpful error message for incorrect password after change
-        if (localStorage.getItem("passwordChanged") === "true" && 
-            (error.message?.includes("Invalid login") || error.message?.includes("credentials"))) {
-          setFormError("Your password was changed, but login failed. Please check that you're using your new password.");
-        } else {
-          setFormError(error.message || "Login failed");
-        }
+      } else {
+        setFormError(result?.error || "Invalid credentials");
       }
+    } catch (error) {
+      console.error("Login error:", error);
+      setFormError(error.message || "Login failed");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle MFA verification success - clean professional implementation
+  // Handle MFA verification success - use direct window.location.href for reliable navigation
   const handleMfaSuccess = () => {
-    console.log("MFA verification successful");
-    
-    // Use the navigate function from react-router-dom to redirect properly
-    navigate("/admin", { replace: true });
+    debugAuth.log(
+      "AuthPage",
+      "MFA verification successful, initiating redirect"
+    );
+
+    // Let the system know MFA is verified
+    localStorage.setItem("authStage", "post-mfa");
+    localStorage.setItem("mfa_verified", "true");
+    sessionStorage.setItem("mfa_verified", "true");
+    sessionStorage.setItem("mfaSuccess", "true");
+    sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
+
+    // Proceed to admin dashboard with a full page reload for reliable state refresh
+    console.log("MFA success, forcing page reload to /admin");
+    window.location.href = "/admin";
   };
 
   // Render different auth form based on authMode
@@ -483,7 +266,11 @@ function AuthPage() {
           <MFAVerification
             mfaData={mfaData}
             onSuccess={handleMfaSuccess}
-            onCancel={() => setShowMfaVerification(false)}
+            onCancel={() => {
+              setShowMfaVerification(false);
+              logout();
+            }}
+            redirectUrl="/admin"
           />
         </div>
       );
@@ -509,7 +296,7 @@ function AuthPage() {
               <p>{formError || authError}</p>
             </div>
           )}
-          
+
           {/* Display success message if any */}
           {successMessage && (
             <div className="success-alert">

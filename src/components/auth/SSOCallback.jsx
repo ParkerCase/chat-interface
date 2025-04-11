@@ -117,13 +117,28 @@ function SSOCallback() {
                     console.warn("Error fetching profile:", profileError);
                     // Create a basic profile if not found
                     try {
-                      await supabase.from("profiles").insert({
-                        id: userData.user.id,
-                        email: userData.user.email,
-                        full_name: userData.user.user_metadata?.full_name || userData.user.email,
-                        roles: ["user"],
-                        created_at: new Date().toISOString()
-                      });
+                      // First check if the profile already exists
+                      const { data: existingProfile, error: checkProfileError } = await supabase
+                        .from("profiles")
+                        .select("id")
+                        .eq("id", userData.user.id)
+                        .single();
+                        
+                      if (existingProfile) {
+                        // Update existing profile
+                        await supabase.from("profiles").update({
+                          full_name: userData.user.user_metadata?.full_name || userData.user.email,
+                          updated_at: new Date().toISOString()
+                        }).eq("id", userData.user.id);
+                      } else {
+                        // Create new profile
+                        await supabase.from("profiles").insert({
+                          id: userData.user.id,
+                          full_name: userData.user.user_metadata?.full_name || userData.user.email,
+                          roles: ["user"],
+                          created_at: new Date().toISOString()
+                        });
+                      }
                       console.log("Created new profile for user");
                     } catch (insertError) {
                       console.error("Failed to create profile:", insertError);

@@ -1,7 +1,7 @@
 // src/components/account/PasswordChange.jsx
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { supabase } from "../../lib/supabase";
+import { supabase, enhancedAuth } from "../../lib/supabase";
 import { Eye, EyeOff, CheckCircle, X, Key, Save, Loader } from "lucide-react";
 
 function PasswordChange({ setError, setSuccessMessage }) {
@@ -83,14 +83,92 @@ function PasswordChange({ setError, setSuccessMessage }) {
       setIsLoading(true);
 
       console.log("Initiating password change");
-      const success = await changePassword(
-        formData.currentPassword,
-        formData.newPassword
-      );
+      
+      // Try a direct password update with Supabase for ALL users
+      // This bypasses the context/auth layer entirely for more reliability
+      console.log("Using direct password update method for all users");
+      try {
+        // First validate the current password
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: currentUser.email,
+          password: formData.currentPassword,
+        });
 
-      if (success) {
-        console.log("Password change successful");
-        setSuccessMessage("Password changed successfully!");
+        if (signInError) {
+          console.error("Current password validation failed:", signInError);
+          setError("Current password is incorrect");
+          setIsLoading(false);
+          return;
+        }
+
+        console.log("Current password validated successfully");
+        
+        // Try updating the password with the enhanced method first
+        let result;
+        
+        try {
+          console.log("Trying enhanced auth client first");
+          result = await enhancedAuth.updateUser({
+            password: formData.newPassword
+          });
+          
+          if (result.error) {
+            throw result.error;
+          }
+          
+          console.log("Enhanced auth password update successful!");
+        } catch (enhancedErr) {
+          console.log("Enhanced client failed, falling back to standard method:", enhancedErr);
+          
+          // Fall back to standard method
+          result = await supabase.auth.updateUser({
+            password: formData.newPassword
+          });
+          
+          if (result.error) {
+            console.error("Direct password update failed:", result.error);
+            throw result.error;
+          }
+        }
+        
+        console.log("Password update successful!");
+        
+        // Set success immediately
+        localStorage.setItem("passwordChanged", "true");
+        localStorage.setItem("passwordChangedEmail", currentUser.email);
+        localStorage.setItem("passwordChangedAt", new Date().toISOString());
+        
+        setSuccessMessage("Password changed successfully. Please log in again with your new password.");
+        
+        // Clear form data
+        setFormData({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        });
+        
+        // Redirect after a short delay
+        setTimeout(() => {
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("refreshToken");
+          sessionStorage.clear();
+          window.location.href = "/login?passwordChanged=true";
+        }, 2000);
+        
+        return;
+      } catch (directErr) {
+        console.error("Direct password update method failed, falling back to standard method:", directErr);
+        
+        // If direct method fails, try the standard method through context
+        const success = await changePassword(
+          formData.currentPassword,
+          formData.newPassword
+        );
+        
+        if (success) {
+          console.log("Password change successful");
+          setSuccessMessage("Password changed successfully!");
+        }
 
         // Clear form data for security
         setFormData({
@@ -101,6 +179,8 @@ function PasswordChange({ setError, setSuccessMessage }) {
 
         // Set flags for post-password-change handling
         localStorage.setItem("passwordChanged", "true");
+        // Store the email to pre-fill login form
+        localStorage.setItem("passwordChangedEmail", currentUser.email);
 
         // Alert the user that they'll need to log in again
         setSuccessMessage(
@@ -113,7 +193,7 @@ function PasswordChange({ setError, setSuccessMessage }) {
           localStorage.removeItem("authToken");
           localStorage.removeItem("refreshToken");
           sessionStorage.clear();
-          window.location.href = "/login?pw_changed=true";
+          window.location.href = "/login?passwordChanged=true";
         }, 3000);
       }
     } catch (error) {
