@@ -11,6 +11,8 @@ import AuthPage from "./components/AuthPage";
 import SSOCallback from "./components/auth/SSOCallback";
 import MfaVerify from "./components/MfaVerify";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminRoute from "./components/AdminRoute";
+import FilePermissionsRoute from "./components/FilePermissionsRoute";
 import UnauthorizedPage from "./components/UnauthorizedPage";
 
 // Professional Tier Features
@@ -34,7 +36,7 @@ function AppRoutes() {
 
       {/* Protected routes that require authentication */}
       <Route element={<ProtectedRoute />}>
-        <Route path="/" element={<MainApp />} />
+        <Route path="/" element={<Navigate to="/admin" replace />} />
         <Route path="/profile" element={<AccountPage tab="profile" />} />
         <Route path="/security" element={<AccountPage tab="security" />} />
         <Route path="/sessions" element={<AccountPage tab="sessions" />} />
@@ -60,7 +62,7 @@ function AppRoutes() {
       </Route>
 
       {/* Fallback route */}
-      <Route path="*" element={<Navigate to="/" />} />
+      <Route path="*" element={<Navigate to="/admin" />} />
     </Routes>
   );
 }

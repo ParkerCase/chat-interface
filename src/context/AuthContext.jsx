@@ -85,21 +85,24 @@ export function AuthProvider({ children }) {
       }
 
       console.log(`Setting up email MFA for ${userEmail}`);
-      
+
       // Generate a stable methodId based on the email
       // This ensures the same ID is used for this email in future sessions
       const methodId = `email-${userEmail.replace(/[^a-zA-Z0-9]/g, "")}`;
-      
+
       // Check if this method already exists for the user
-      const existingMethod = currentUser?.mfaMethods?.find(m => 
-        m.id === methodId || (m.type === 'email' && m.email === userEmail)
+      const existingMethod = currentUser?.mfaMethods?.find(
+        (m) =>
+          m.id === methodId || (m.type === "email" && m.email === userEmail)
       );
-      
+
       // If this method already exists, skip sending a new code and just return the method info
       if (existingMethod) {
-        console.log("Email MFA method already exists, sending verification code");
+        console.log(
+          "Email MFA method already exists, sending verification code"
+        );
       }
-      
+
       // Use Supabase's OTP system with explicit code option
       const { error } = await supabase.auth.signInWithOtp({
         email: userEmail,
@@ -155,14 +158,19 @@ export function AuthProvider({ children }) {
         }
 
         // Check if this is just a "User already confirmed" error - which is actually fine
-        if (error.message && (
-            error.message.includes("already confirmed") || 
-            error.message.includes("already logged in"))) {
+        if (
+          error.message &&
+          (error.message.includes("already confirmed") ||
+            error.message.includes("already logged in"))
+        ) {
           console.log("User already confirmed - treating as success");
           return true;
         }
 
-        console.log("Magiclink verification failed, trying fallback approaches", error);
+        console.log(
+          "Magiclink verification failed, trying fallback approaches",
+          error
+        );
       } catch (err) {
         console.log("Error in magiclink verification attempt:", err);
         // Continue to fallback approaches
@@ -174,7 +182,7 @@ export function AuthProvider({ children }) {
         const { data, error } = await supabase.auth.verifyOtp({
           email,
           token: code,
-          type: "email"
+          type: "email",
         });
 
         if (!error) {
@@ -183,10 +191,14 @@ export function AuthProvider({ children }) {
         }
 
         // Check for benign errors again
-        if (error.message && (
-            error.message.includes("already confirmed") || 
-            error.message.includes("already logged in"))) {
-          console.log("User already confirmed in email fallback - treating as success");
+        if (
+          error.message &&
+          (error.message.includes("already confirmed") ||
+            error.message.includes("already logged in"))
+        ) {
+          console.log(
+            "User already confirmed in email fallback - treating as success"
+          );
           return true;
         }
 
@@ -202,7 +214,7 @@ export function AuthProvider({ children }) {
         const { data, error } = await supabase.auth.verifyOtp({
           email,
           token: code,
-          type: "recovery"
+          type: "recovery",
         });
 
         if (!error) {
@@ -211,10 +223,14 @@ export function AuthProvider({ children }) {
         }
 
         // Check for benign errors again
-        if (error.message && (
-            error.message.includes("already confirmed") || 
-            error.message.includes("already logged in"))) {
-          console.log("User already confirmed in recovery fallback - treating as success");
+        if (
+          error.message &&
+          (error.message.includes("already confirmed") ||
+            error.message.includes("already logged in"))
+        ) {
+          console.log(
+            "User already confirmed in recovery fallback - treating as success"
+          );
           return true;
         }
 
@@ -238,21 +254,21 @@ export function AuthProvider({ children }) {
       setError("");
       setLoading(true);
       console.log("Attempting login with:", email);
-      
-      // Add signal abort handler
-      if (signal) {
-        signal.addEventListener('abort', () => {
-          console.log("Login aborted via signal");
-          throw new Error("Login request aborted");
-        });
+
+      // Check if request was already aborted
+      if (signal && signal.aborted) {
+        console.log("Login already aborted");
+        setLoading(false);
+        return { success: false, error: "Login request aborted" };
       }
-      
+
       // Log if we're trying to login after password change
-      const passwordChanged = localStorage.getItem("passwordChanged") === "true";
+      const passwordChanged =
+        localStorage.getItem("passwordChanged") === "true";
       if (passwordChanged) {
         console.log("Login attempt after password change detected");
       }
-      
+
       // Create a fresh client to avoid any session conflicts
       // This is especially important after password changes
       let authData;
@@ -261,90 +277,133 @@ export function AuthProvider({ children }) {
         const { url, key } = getSupabaseConfig();
         const { createClient } = await import("@supabase/supabase-js");
         const loginClient = createClient(url, key, {
-          auth: { 
-            autoRefreshToken: false, 
+          auth: {
+            autoRefreshToken: false,
             persistSession: false,
-            detectSessionInUrl: false
-          }
+            detectSessionInUrl: false,
+          },
         });
-        
+
         // Regular login flow with fresh Supabase client
         console.log("Attempting login with fresh client");
-        
+
         // Create controller for this specific request
         const controller = new AbortController();
-        
+
         // Connect our parent signal to this controller
         if (signal) {
-          signal.addEventListener('abort', () => {
-            controller.abort('Parent request aborted');
-          });
+          // Use a non-throwing approach to handle abort
+          const abortHandler = () => {
+            console.log("Parent request aborting, cleaning up controller");
+            try {
+              controller.abort("Parent request aborted");
+            } catch (e) {
+              console.warn("Error while aborting controller:", e);
+            }
+          };
+          
+          signal.addEventListener("abort", abortHandler);
+          
+          // Ensure we clean up the abort handler after login completes
+          setTimeout(() => {
+            try {
+              signal.removeEventListener("abort", abortHandler);
+            } catch (e) {
+              // Ignore cleanup errors
+            }
+          }, 0);
         }
-        
+
         // Set timeout for this specific request
         const loginTimeout = setTimeout(() => {
-          controller.abort('Login timed out after 8 seconds');
+          try {
+            controller.abort("Login timed out after 8 seconds");
+          } catch (e) {
+            console.warn("Error aborting on timeout:", e);
+          }
         }, 8000);
-        
+
         // Make the login request with fetch options that include signal
-        const loginResult = await loginClient.auth.signInWithPassword({
-          email,
-          password,
-        }, { 
-          abortSignal: controller.signal 
-        });
-        
-        // Clear timeout if successful
-        clearTimeout(loginTimeout);
-        
+        let loginResult;
+        try {
+          loginResult = await loginClient.auth.signInWithPassword(
+            {
+              email,
+              password,
+            },
+            {
+              abortSignal: controller.signal,
+            }
+          );
+        } finally {
+          // Always clear timeout regardless of success/failure
+          clearTimeout(loginTimeout);
+        }
+
         if (loginResult.error) {
           console.error("Login failed with fresh client:", loginResult.error);
           throw loginResult.error;
         }
-        
+
         authData = loginResult.data;
         console.log("Login successful with fresh client, updating main client");
-        
-        // Now update the main Supabase client with the successful session - with timeout
-        const setSessionPromise = supabase.auth.setSession({
-          access_token: authData.session.access_token,
-          refresh_token: authData.session.refresh_token
-        });
-        
-        const setSessionTimeout = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error("Set session request timed out")), 5000);
-        });
-        
+
+        // Now update the main Supabase client with the successful session
         try {
-          const { error: sessionError } = await Promise.race([setSessionPromise, setSessionTimeout]);
+          // Use a simple timeout instead of Promise.race to avoid race conditions
+          const sessionUpdateTimeout = setTimeout(() => {
+            console.warn("Session update taking longer than expected, but continuing");
+          }, 3000);
           
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: authData.session.access_token,
+            refresh_token: authData.session.refresh_token,
+          });
+          
+          clearTimeout(sessionUpdateTimeout);
+
           if (sessionError) {
-            console.warn("Warning: Failed to update main client session:", sessionError);
+            console.warn(
+              "Warning: Failed to update main client session:",
+              sessionError
+            );
             // Continue anyway as we have a successful login
           }
-        } catch (sessionTimeoutError) {
-          console.warn("Warning: Session update timed out:", sessionTimeoutError);
+        } catch (sessionError) {
+          console.warn(
+            "Warning: Error updating session, but continuing:",
+            sessionError
+          );
           // Continue anyway as we have a successful login
         }
       } catch (freshClientError) {
-        console.warn("Fresh client login failed, falling back to main client:", freshClientError);
-        
+        console.warn(
+          "Fresh client login failed, falling back to main client:",
+          freshClientError
+        );
+
         // Add a clear error message for timeout
-        if (freshClientError.message && freshClientError.message.includes("timed out")) {
+        if (
+          freshClientError.message &&
+          freshClientError.message.includes("timed out")
+        ) {
           throw new Error("Login timed out. Please try again.");
         }
+
+        // Regular login flow with Supabase if fresh client fails - without timeout
+        console.log("Using main client for login as fallback");
         
-        // Regular login flow with Supabase if fresh client fails - with timeout
-        const loginPromise = supabase.auth.signInWithPassword({
+        // Set a warning timeout but don't reject the promise
+        const loginWarningTimeout = setTimeout(() => {
+          console.warn("Login taking longer than expected, but continuing to wait");
+        }, 5000);
+        
+        const loginResult = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error("Login request timed out after 10 seconds")), 10000);
-        });
-        
-        const loginResult = await Promise.race([loginPromise, timeoutPromise]);
+        clearTimeout(loginWarningTimeout);
 
         if (loginResult.error) throw loginResult.error;
         authData = loginResult.data;
@@ -362,19 +421,13 @@ export function AuthProvider({ children }) {
         mfaMethods: [],
       };
 
+      // Get profile data - handle race conditions and errors gracefully
       try {
-        // Attempt to get existing profile - with timeout
-        const profilePromise = supabase
+        const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", authData.user.id)
           .single();
-          
-        const profileTimeout = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error("Profile fetch timed out")), 5000);
-        });
-        
-        const { data: profileData, error: profileError } = await Promise.race([profilePromise, profileTimeout]);
 
         if (!profileError && profileData) {
           userData = {
@@ -392,39 +445,32 @@ export function AuthProvider({ children }) {
             id: `email-${email.replace(/[^a-zA-Z0-9]/g, "")}`,
             type: "email",
             createdAt: new Date().toISOString(),
-            email: email
+            email: email,
           };
 
-          // Add profile creation with timeout
-          const createProfilePromise = supabase
-            .from("profiles")
-            .insert([
+          // Add profile creation without timeout to avoid race conditions
+          try {
+            const { error: createError } = await supabase.from("profiles").insert([
               {
                 id: authData.user.id,
                 email: authData.user.email,
-                full_name: authData.user.user_metadata?.name || authData.user.email,
+                full_name:
+                  authData.user.user_metadata?.name || authData.user.email,
                 roles: ["user"],
                 tier: "enterprise",
                 created_at: new Date().toISOString(),
-                mfa_methods: [emailMfaMethod]
-              }
+                mfa_methods: [emailMfaMethod],
+              },
             ]);
-            
-          const createProfileTimeout = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error("Profile creation timed out")), 5000);
-          });
-          
-          try {
-            const { error: createError } = await Promise.race([createProfilePromise, createProfileTimeout]);
-            
+
             if (createError) {
               console.error("Error creating profile:", createError);
             } else {
               // Update userData with the new MFA method
               userData.mfaMethods = [emailMfaMethod];
             }
-          } catch (timeoutError) {
-            console.warn("Profile creation timed out:", timeoutError);
+          } catch (createError) {
+            console.warn("Profile creation failed:", createError);
             // Continue with the MFA method anyway
             userData.mfaMethods = [emailMfaMethod];
           }
@@ -452,38 +498,39 @@ export function AuthProvider({ children }) {
       // Check if user has MFA set up - if not, create an email MFA method
       if (!userData.mfaMethods || userData.mfaMethods.length === 0) {
         console.log("No MFA methods found, creating email MFA method");
-        
+
         // Create default email MFA method
         const emailMfaMethod = {
           id: `email-${email.replace(/[^a-zA-Z0-9]/g, "")}`,
           type: "email",
           createdAt: new Date().toISOString(),
-          email: email
+          email: email,
         };
-        
+
         // Update user data with new MFA method
         userData.mfaMethods = [emailMfaMethod];
-        
+
         // Update profile in database - with timeout
         try {
           const updateProfilePromise = supabase
             .from("profiles")
             .update({ mfa_methods: [emailMfaMethod] })
             .eq("id", userData.id);
+
+          // Remove the timeout that's causing errors
+          try {
+            const { error: updateError } = await updateProfilePromise;
             
-          const updateTimeout = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error("Profile update timed out")), 5000);
-          });
-          
-          const { error } = await Promise.race([updateProfilePromise, updateTimeout]);
-            
-          if (error) {
-            console.error("Error updating profile with MFA method:", error);
+            if (updateError) {
+              console.warn("Error updating profile with MFA method:", updateError);
+            }
+          } catch (e) {
+            console.warn("Profile update failed but continuing:", e);
           }
         } catch (error) {
           console.error("Failed to update profile with MFA method:", error);
         }
-        
+
         // Update localStorage
         localStorage.setItem("currentUser", JSON.stringify(userData));
       }
@@ -492,7 +539,9 @@ export function AuthProvider({ children }) {
       try {
         // Skip OTP sending for critical production user
         if (email === "itsus@tatt2away.com") {
-          console.log("Skipping OTP for production user to avoid rate limiting");
+          console.log(
+            "Skipping OTP for production user to avoid rate limiting"
+          );
           // Mark as success without actually sending
           return {
             success: true,
@@ -502,82 +551,51 @@ export function AuthProvider({ children }) {
               type: "email",
               email: email,
             },
-            isAdmin: true
+            isAdmin: true,
           };
         }
-        
+
         console.log("Sending email verification code for MFA");
-        
-        // Try multiple OTP sending approaches to increase reliability
+
+        // Try single OTP approach to avoid rate limiting
         let sentSuccessfully = false;
         
-        // First attempt: standard signInWithOtp
         try {
-          console.log("Trying standard OTP method");
-          
-          // Add timeout for OTP sending
-          const otpPromise = supabase.auth.signInWithOtp({
+          console.log("Sending OTP using standard method");
+
+          // Use single OTP approach without timeout
+          const { error } = await supabase.auth.signInWithOtp({
             email: userData.email,
             options: {
               shouldCreateUser: false,
               emailRedirectTo: null,
             },
           });
-          
-          const otpTimeout = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error("OTP request timed out")), 5000);
-          });
-          
-          const { error } = await Promise.race([otpPromise, otpTimeout]);
-          
+
           if (!error) {
-            console.log("Standard OTP sent successfully");
+            console.log("OTP sent successfully");
+            // Set success flag
             sentSuccessfully = true;
           } else {
-            console.log("Standard OTP failed, will try alternatives:", error);
+            // Check if rate limited
+            if (error.status === 429 || (error.message && error.message.includes("rate limit"))) {
+              console.log("Rate limited when sending OTP, continuing without error");
+              // For rate limits, continue without considering it an error
+              // The user will still be able to complete MFA
+            } else {
+              console.log("OTP sending failed but continuing:", error);
+            }
           }
         } catch (err) {
-          console.log("Error with standard OTP approach:", err);
+          console.log("Error with OTP approach but continuing:", err);
+          // Continue even if OTP sending fails - user may have received a code earlier
         }
+
+        // Even if OTP sending failed, continue the authentication flow
+        console.log("Continuing MFA flow, OTP send status:", sentSuccessfully ? "success" : "failed/skipped");
         
-        // Second attempt: explicit email type
         if (!sentSuccessfully) {
-          try {
-            console.log("Trying OTP with explicit email type");
-            
-            // Add timeout for the second attempt
-            const otpPromise = supabase.auth.signInWithOtp({
-              email: userData.email,
-              options: {
-                shouldCreateUser: false,
-                emailRedirectTo: null,
-                type: "email",
-              },
-            });
-            
-            const otpTimeout = new Promise((_, reject) => {
-              setTimeout(() => reject(new Error("OTP request timed out")), 5000);
-            });
-            
-            const { error } = await Promise.race([otpPromise, otpTimeout]);
-            
-            if (!error) {
-              console.log("OTP with explicit type sent successfully");
-              sentSuccessfully = true;
-            } else {
-              console.log("OTP with explicit type failed:", error);
-            }
-          } catch (err) {
-            console.log("Error with explicit type OTP approach:", err);
-          }
-        }
-        
-        // Don't do the third attempt to avoid delays - it'll be handled in the MFA verification component if needed
-        
-        if (sentSuccessfully) {
-          console.log("Email verification code sent successfully via one of the methods");
-        } else {
-          console.log("OTP sending methods failed - user can try again on verification screen");
+          console.log("OTP sending was not successful, but user can try again on verification screen");
         }
       } catch (error) {
         console.error("Error sending email verification code:", error);
@@ -585,33 +603,41 @@ export function AuthProvider({ children }) {
       }
 
       // Always require MFA verification
-      const emailMfaMethod = userData.mfaMethods.find(m => m.type === 'email');
+      const emailMfaMethod = userData.mfaMethods.find(
+        (m) => m.type === "email"
+      );
       const mfaMethod = emailMfaMethod || userData.mfaMethods[0];
-      
+
       // Special handling for production user to avoid rate limits
       if (email === "itsus@tatt2away.com") {
-        console.log("Production user login detected - using expedited authentication");
-        
+        console.log(
+          "Production user login detected - using expedited authentication"
+        );
+
         // Skip sending verification code for production account to avoid rate limits
         console.log("Skipping OTP for production account to avoid rate limits");
-        
+
+        localStorage.removeItem("failedLoginAttempts");
+
         return {
           success: true,
           mfaRequired: true,
           mfaData: {
-            methodId: mfaMethod?.id || `email-${email.replace(/[^a-zA-Z0-9]/g, "")}`,
+            methodId:
+              mfaMethod?.id || `email-${email.replace(/[^a-zA-Z0-9]/g, "")}`,
             type: "email",
             email: userData.email,
           },
-          isAdmin: true
+          isAdmin: true,
         };
       }
-      
+
       return {
         success: true,
         mfaRequired: true,
         mfaData: {
-          methodId: mfaMethod?.id || `email-${email.replace(/[^a-zA-Z0-9]/g, "")}`,
+          methodId:
+            mfaMethod?.id || `email-${email.replace(/[^a-zA-Z0-9]/g, "")}`,
           type: mfaMethod?.type || "email",
           email: userData.email,
         },
@@ -621,13 +647,19 @@ export function AuthProvider({ children }) {
       };
     } catch (err) {
       console.error("Login error:", err);
-      
-      // Handle timeout errors specifically
-      if (err.message && err.message.includes("timed out")) {
-        setError("Login request timed out. Please try again.");
-        return { success: false, error: "Login request timed out. Please try again." };
+
+      try {
+        const failedAttempts = parseInt(
+          localStorage.getItem("failedLoginAttempts") || "0"
+        );
+        localStorage.setItem(
+          "failedLoginAttempts",
+          (failedAttempts + 1).toString()
+        );
+      } catch (e) {
+        console.warn("Could not track failed login attempts", e);
       }
-      
+
       setError(err.message || "Invalid email or password");
       return { success: false, error: err.message };
     } finally {
@@ -653,6 +685,8 @@ export function AuthProvider({ children }) {
         }
 
         console.log("MFA enrollment successful:", data);
+
+        localStorage.setItem("mfaEnabled", "true");
 
         return {
           success: true,
@@ -801,7 +835,9 @@ export function AuthProvider({ children }) {
   const verifyMfa = async (methodId, verificationCode) => {
     try {
       setError("");
-      console.log(`Verifying MFA with ID: ${methodId}, code: ${verificationCode}`);
+      console.log(
+        `Verifying MFA with ID: ${methodId}, code: ${verificationCode}`
+      );
 
       // Determine if this is email or TOTP
       const isEmail = methodId.startsWith("email-");
@@ -821,9 +857,11 @@ export function AuthProvider({ children }) {
 
         if (error) {
           // Handle known benign errors that shouldn't block the user
-          if (error.message && (
-              error.message.includes("already confirmed") || 
-              error.message.includes("already logged in"))) {
+          if (
+            error.message &&
+            (error.message.includes("already confirmed") ||
+              error.message.includes("already logged in"))
+          ) {
             console.log("User already confirmed - verification successful");
             success = true;
           } else {
@@ -837,9 +875,9 @@ export function AuthProvider({ children }) {
       } else {
         // TOTP verification - use standard Supabase flow
         console.log(`Verifying TOTP factor: ${methodId}`);
-        
+
         // Step 1: Create a challenge for this factor
-        const { data: challengeData, error: challengeError } = 
+        const { data: challengeData, error: challengeError } =
           await supabase.auth.mfa.challenge({
             factorId: methodId,
           });
@@ -850,7 +888,7 @@ export function AuthProvider({ children }) {
         }
 
         // Step 2: Verify the challenge with the user's code
-        const { data: verifyData, error: verifyError } = 
+        const { data: verifyData, error: verifyError } =
           await supabase.auth.mfa.verify({
             factorId: methodId,
             challengeId: challengeData.id,
@@ -909,6 +947,8 @@ export function AuthProvider({ children }) {
 
           if (error) throw error;
         }
+
+        localStorage.setItem("mfaDisabled", "true");
 
         return true;
       }
@@ -1104,10 +1144,10 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       console.log("Starting comprehensive logout process");
-      
+
       // First try to sign out from Supabase
       try {
-        const { error } = await supabase.auth.signOut({ scope: 'global' }); // 'global' scope signs out from all devices
+        const { error } = await supabase.auth.signOut({ scope: "global" }); // 'global' scope signs out from all devices
         if (error) {
           console.warn("Supabase signOut error:", error);
         } else {
@@ -1132,31 +1172,36 @@ export function AuthProvider({ children }) {
         "mfaRedirectTarget",
         "needsMfaSetup",
         "ssoAttempt",
-        "ssoProvider"
+        "ssoProvider",
       ];
-      
+
       // Clear localStorage items
-      authKeys.forEach(key => {
+      authKeys.forEach((key) => {
         try {
           localStorage.removeItem(key);
         } catch (e) {
           console.warn(`Failed to remove ${key} from localStorage:`, e);
         }
       });
-      
+
       // Clear sessionStorage items
-      authKeys.forEach(key => {
+      authKeys.forEach((key) => {
         try {
           sessionStorage.removeItem(key);
         } catch (e) {
           console.warn(`Failed to remove ${key} from sessionStorage:`, e);
         }
       });
-      
+
       // Clear any Supabase cookies
-      document.cookie.split(";").forEach(function(c) {
+      document.cookie.split(";").forEach(function (c) {
         if (c.trim().startsWith("sb-")) {
-          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+          document.cookie = c
+            .replace(/^ +/, "")
+            .replace(
+              /=.*/,
+              "=;expires=" + new Date().toUTCString() + ";path=/"
+            );
         }
       });
 
@@ -1166,13 +1211,13 @@ export function AuthProvider({ children }) {
       setUserTier("enterprise");
       setUserFeatures({});
       setError("");
-      
+
       console.log("Logout process completed successfully");
       return true;
     } catch (error) {
       console.error("Logout error:", error);
       setError("An error occurred during logout");
-      
+
       // Try fallback manual cleanup
       try {
         localStorage.removeItem("authToken");
@@ -1184,7 +1229,7 @@ export function AuthProvider({ children }) {
       } catch (e) {
         console.error("Fallback cleanup failed:", e);
       }
-      
+
       return false;
     }
   };
@@ -1365,26 +1410,29 @@ export function AuthProvider({ children }) {
     try {
       setError("");
       console.log("Starting profile update with data:", profileData);
-      
+
       // Get current session for auth checks
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData?.session) {
         throw new Error("No active session found");
       }
-      
+
       // Get current user ID
       const userId = currentUser?.id;
       if (!userId) {
         throw new Error("User ID not found");
       }
-      
+
       let updateSuccess = false;
-      
+
       // Log the user metadata from current session to debug
       const userDetails = sessionData.session.user;
-      console.log("Current user metadata from session:", userDetails?.user_metadata);
+      console.log(
+        "Current user metadata from session:",
+        userDetails?.user_metadata
+      );
       console.log("Current user object:", currentUser);
-      
+
       // First, fetch the current profile from Supabase to ensure we have latest data
       try {
         console.log("Fetching latest profile data from Supabase");
@@ -1393,15 +1441,18 @@ export function AuthProvider({ children }) {
           .select("*")
           .eq("id", userId)
           .single();
-          
+
         if (fetchError) {
           console.warn("Failed to fetch current profile:", fetchError);
         } else if (existingProfile) {
-          console.log("Retrieved current profile from Supabase:", existingProfile);
-          
+          console.log(
+            "Retrieved current profile from Supabase:",
+            existingProfile
+          );
+
           // Update local user state with the latest from Supabase
           // This ensures we have the latest data before making changes
-          setCurrentUser(prev => {
+          setCurrentUser((prev) => {
             const updatedUser = {
               ...prev,
               name: existingProfile.full_name || prev.name,
@@ -1409,9 +1460,9 @@ export function AuthProvider({ children }) {
               lastName: existingProfile.last_name || prev.lastName,
               // Add any other profile fields we should sync
               roles: existingProfile.roles || prev.roles,
-              mfaMethods: existingProfile.mfa_methods || prev.mfaMethods
+              mfaMethods: existingProfile.mfa_methods || prev.mfaMethods,
             };
-            
+
             // Update localStorage with the latest data
             localStorage.setItem("currentUser", JSON.stringify(updatedUser));
             return updatedUser;
@@ -1421,7 +1472,7 @@ export function AuthProvider({ children }) {
         console.warn("Error fetching current profile data:", fetchError);
         // Continue with update process using locally available data
       }
-      
+
       // Approach 1: Try direct auth metadata update - most reliable method
       try {
         console.log("Updating user metadata with auth.updateUser");
@@ -1444,32 +1495,32 @@ export function AuthProvider({ children }) {
         console.warn("Auth metadata update failed:", authUpdateError);
         // Continue to direct API approach
       }
-      
+
       // Approach 2: Try direct REST API call if the updateUser failed
       if (!updateSuccess) {
         try {
           console.log("Attempting direct user update via API");
-          
+
           const { url, key } = getSupabaseConfig();
           const accessToken = sessionData.session.access_token;
-          
+
           // Use fetch API for direct control
           const response = await fetch(`${url}/auth/v1/user`, {
             method: "PUT",
             headers: {
               "Content-Type": "application/json",
-              "apikey": key,
-              "Authorization": `Bearer ${accessToken}`
+              apikey: key,
+              Authorization: `Bearer ${accessToken}`,
             },
             body: JSON.stringify({
               user_metadata: {
                 full_name: profileData.name,
                 first_name: profileData.firstName || "",
                 last_name: profileData.lastName || "",
-              }
-            })
+              },
+            }),
           });
-          
+
           if (!response.ok) {
             console.warn("Direct API user update failed:", response.status);
             const errorText = await response.text();
@@ -1492,11 +1543,13 @@ export function AuthProvider({ children }) {
           full_name: profileData.name,
           updated_at: new Date().toISOString(),
         };
-        
+
         // Only add these if they're provided
-        if (profileData.firstName !== undefined) updateData.first_name = profileData.firstName;
-        if (profileData.lastName !== undefined) updateData.last_name = profileData.lastName;
-        
+        if (profileData.firstName !== undefined)
+          updateData.first_name = profileData.firstName;
+        if (profileData.lastName !== undefined)
+          updateData.last_name = profileData.lastName;
+
         const { data: updatedProfileData, error: profileError } = await supabase
           .from("profiles")
           .update(updateData)
@@ -1505,33 +1558,47 @@ export function AuthProvider({ children }) {
 
         if (profileError) {
           console.warn("Profiles table update failed:", profileError);
-          
+
           // Try more direct approach as last resort
-          if (profileError.code === "42501" || profileError.message?.includes("permission denied")) {
+          if (
+            profileError.code === "42501" ||
+            profileError.message?.includes("permission denied")
+          ) {
             try {
-              console.log("Attempting profiles update via REST API due to permission error");
-              
+              console.log(
+                "Attempting profiles update via REST API due to permission error"
+              );
+
               const { url, key } = getSupabaseConfig();
               const accessToken = sessionData.session.access_token;
-              
+
               // Use direct REST API call to bypass RLS
-              const response = await fetch(`${url}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
-                method: "PATCH",
-                headers: {
-                  "Content-Type": "application/json",
-                  "apikey": key,
-                  "Authorization": `Bearer ${accessToken}`,
-                  "Prefer": "return=representation"
-                },
-                body: JSON.stringify(updateData)
-              });
-              
+              const response = await fetch(
+                `${url}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`,
+                {
+                  method: "PATCH",
+                  headers: {
+                    "Content-Type": "application/json",
+                    apikey: key,
+                    Authorization: `Bearer ${accessToken}`,
+                    Prefer: "return=representation",
+                  },
+                  body: JSON.stringify(updateData),
+                }
+              );
+
               if (!response.ok) {
                 const errorText = await response.text();
-                console.warn("REST API profiles update failed:", response.status, errorText);
-                throw new Error(`REST API profiles update failed: ${response.status}`);
+                console.warn(
+                  "REST API profiles update failed:",
+                  response.status,
+                  errorText
+                );
+                throw new Error(
+                  `REST API profiles update failed: ${response.status}`
+                );
               }
-              
+
               console.log("REST API profiles update succeeded");
               updateSuccess = true;
             } catch (restApiError) {
@@ -1543,20 +1610,26 @@ export function AuthProvider({ children }) {
             throw profileError;
           }
         } else {
-          console.log("Profiles table updated successfully:", updatedProfileData);
+          console.log(
+            "Profiles table updated successfully:",
+            updatedProfileData
+          );
           updateSuccess = true;
-          
+
           // Refresh session to ensure it contains updated data
           try {
             await supabase.auth.refreshSession();
             console.log("Session refreshed after profile update");
           } catch (refreshError) {
-            console.warn("Session refresh failed (non-critical):", refreshError);
+            console.warn(
+              "Session refresh failed (non-critical):",
+              refreshError
+            );
           }
         }
       } catch (profileUpdateError) {
         console.warn("Profiles table update failed:", profileUpdateError);
-        
+
         // If all DB approaches failed, log it but continue with local update
         if (!updateSuccess) {
           console.error("All database update approaches failed");
@@ -1569,8 +1642,14 @@ export function AuthProvider({ children }) {
         const updated = {
           ...prev,
           name: profileData.name,
-          firstName: profileData.firstName !== undefined ? profileData.firstName : prev.firstName,
-          lastName: profileData.lastName !== undefined ? profileData.lastName : prev.lastName,
+          firstName:
+            profileData.firstName !== undefined
+              ? profileData.firstName
+              : prev.firstName,
+          lastName:
+            profileData.lastName !== undefined
+              ? profileData.lastName
+              : prev.lastName,
         };
 
         // Update localStorage
@@ -1583,60 +1662,75 @@ export function AuthProvider({ children }) {
         // Clear local storage first to ensure fresh data
         const userBackup = JSON.parse(localStorage.getItem("currentUser"));
         localStorage.removeItem("currentUser");
-        
-        console.log("Explicitly refreshing session and getting latest user data");
-        
+
+        console.log(
+          "Explicitly refreshing session and getting latest user data"
+        );
+
         // First refresh the session
         const { data: refreshData } = await supabase.auth.refreshSession();
-        
+
         if (refreshData?.session) {
           console.log("Session refreshed successfully after profile update");
-          
+
           // Then get the updated user data from both auth and profiles table
           const [userData, profileResponse] = await Promise.all([
             supabase.auth.getUser(),
-            supabase.from("profiles").select("*").eq("id", userId).single()
+            supabase.from("profiles").select("*").eq("id", userId).single(),
           ]);
-          
+
           if (userData?.data?.user) {
-            console.log("Retrieved fresh user data after profile update:", userData.data.user);
+            console.log(
+              "Retrieved fresh user data after profile update:",
+              userData.data.user
+            );
             console.log("User metadata:", userData.data.user.user_metadata);
-            
+
             let mergedData = {
               ...userBackup,
               email: userData.data.user.email,
               id: userData.data.user.id,
-              name: userData.data.user.user_metadata?.full_name || profileData.name,
-              firstName: userData.data.user.user_metadata?.first_name || profileData.firstName,
-              lastName: userData.data.user.user_metadata?.last_name || profileData.lastName,
+              name:
+                userData.data.user.user_metadata?.full_name || profileData.name,
+              firstName:
+                userData.data.user.user_metadata?.first_name ||
+                profileData.firstName,
+              lastName:
+                userData.data.user.user_metadata?.last_name ||
+                profileData.lastName,
             };
-            
+
             // Add profile data if available
             if (!profileResponse.error && profileResponse.data) {
-              console.log("Retrieved fresh profile data:", profileResponse.data);
+              console.log(
+                "Retrieved fresh profile data:",
+                profileResponse.data
+              );
               mergedData = {
                 ...mergedData,
                 name: profileResponse.data.full_name || mergedData.name,
-                firstName: profileResponse.data.first_name || mergedData.firstName,
+                firstName:
+                  profileResponse.data.first_name || mergedData.firstName,
                 lastName: profileResponse.data.last_name || mergedData.lastName,
                 roles: profileResponse.data.roles || mergedData.roles,
-                mfaMethods: profileResponse.data.mfa_methods || mergedData.mfaMethods,
+                mfaMethods:
+                  profileResponse.data.mfa_methods || mergedData.mfaMethods,
               };
             }
-            
+
             console.log("Final merged user data:", mergedData);
-            
+
             // Update localStorage and context state
             localStorage.setItem("currentUser", JSON.stringify(mergedData));
             setCurrentUser(mergedData);
-            
+
             // Force a component re-render by triggering a fake state update
             setError(""); // This will cause React components to re-render
           }
         }
       } catch (refreshError) {
         console.warn("Session refresh error (non-critical):", refreshError);
-        
+
         // Restore backup if refresh failed
         try {
           const userBackup = localStorage.getItem("currentUserBackup");
@@ -1653,7 +1747,7 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error("Profile update error:", error);
       setError(error.message || "Failed to update profile");
-      
+
       // As a last resort, just update the local state anyway
       try {
         console.log("Falling back to local-only update");
@@ -1661,15 +1755,21 @@ export function AuthProvider({ children }) {
           const updated = {
             ...prev,
             name: profileData.name,
-            firstName: profileData.firstName !== undefined ? profileData.firstName : prev.firstName,
-            lastName: profileData.lastName !== undefined ? profileData.lastName : prev.lastName,
+            firstName:
+              profileData.firstName !== undefined
+                ? profileData.firstName
+                : prev.firstName,
+            lastName:
+              profileData.lastName !== undefined
+                ? profileData.lastName
+                : prev.lastName,
           };
 
           // Update localStorage
           localStorage.setItem("currentUser", JSON.stringify(updated));
           return updated;
         });
-        
+
         return true;
       } catch (localError) {
         console.error("Even local update failed:", localError);
@@ -1678,321 +1778,124 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Enterprise-grade password change function for production with comprehensive verification
+  // Simple, focused password change function
   const changePassword = async (currentPassword, newPassword) => {
     try {
       setError("");
-      console.log("Starting enterprise-grade password change process");
-      
-      // Step 1: Validate inputs and user state
-      if (!currentUser || !currentUser.email) {
-        throw new Error("User session invalid. Please log in again.");
+      setLoading(true);
+
+      // 1. First validate the current password with the main Supabase client
+      console.log("Validating current password");
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: currentUser.email,
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        console.error("Current password validation failed:", signInError);
+        throw new Error("Current password is incorrect");
       }
       
-      const userEmail = currentUser.email;
-      const userId = currentUser.id;
+      console.log("Current password validated successfully");
+
+      // 2. Update the password - with retry logic
+      console.log("Updating password");
       
-      console.log(`Password change requested for user: ${userId} (${userEmail})`);
-      
-      // Special handling for test user
-      if (userEmail === "itsus@tatt2away.com") {
-        console.log("Detected test user account");
-        // Instead of simulating success, we'll perform a real password change
-        // But record that this is a test account for special handling
-        localStorage.setItem("isTestAccount", "true");
-      }
-      
-      // Step 2: Verify current password is correct using a separate client
-      console.log("Performing current password verification");
-      let currentPasswordVerified = false;
-      
-      try {
-        // Create a completely separate client for verification to avoid session conflicts
-        const { url, key } = getSupabaseConfig();
-        const { createClient } = await import("@supabase/supabase-js");
-        const verifyClient = createClient(url, key, {
-          auth: { 
-            autoRefreshToken: false, 
-            persistSession: false,
-            detectSessionInUrl: false,
-            storageKey: 'verify-only-supabase-auth'
+      // Try up to 3 times with increasing delays
+      let updateError = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const { error } = await supabase.auth.updateUser({
+            password: newPassword,
+          });
+          
+          if (!error) {
+            console.log(`Password update successful on attempt ${attempt}`);
+            updateError = null;
+            break; // Success - exit the loop
           }
-        });
-        
-        // Attempt sign in with current password
-        const { data: verifyData, error: verifyError } = await verifyClient.auth.signInWithPassword({
-          email: userEmail,
-          password: currentPassword
-        });
-        
-        if (verifyError) {
-          console.error("Current password verification failed:", verifyError);
-          throw new Error("Current password is incorrect");
+          
+          updateError = error;
+          console.warn(`Password update attempt ${attempt} failed:`, error);
+          
+          // If we have more attempts, wait before trying again
+          if (attempt < 3) {
+            await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+          }
+        } catch (err) {
+          updateError = err;
+          console.warn(`Password update attempt ${attempt} failed with exception:`, err);
+          
+          // If we have more attempts, wait before trying again
+          if (attempt < 3) {
+            await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+          }
         }
-        
-        if (verifyData?.user?.id === userId) {
-          console.log("Current password verification successful with confirmed user ID match");
-          currentPasswordVerified = true;
+      }
+      
+      // Check if all attempts failed
+      if (updateError) {
+        // Check for common errors and provide better messages
+        if (updateError.message && updateError.message.includes("Password should be")) {
+          throw new Error(updateError.message);
         } else {
-          console.error("User ID mismatch during verification");
-          throw new Error("Security validation failed during password verification");
+          console.error("All password update attempts failed:", updateError);
+          throw new Error("Password update failed after multiple attempts. Please try again later.");
         }
-      } catch (verifyError) {
-        console.error("Password verification process failed:", verifyError);
-        throw new Error(verifyError.message || "Current password verification failed");
       }
-      
-      // Step 3: If verification passed, proceed with password change
-      if (!currentPasswordVerified) {
-        throw new Error("Password verification did not complete successfully");
-      }
-      
-      console.log("Password verified, proceeding with change process");
-      
-      // CRITICAL: Immediately sign out before changing password to avoid token conflicts
-      // This is the key fix that ensures Supabase's cache doesn't conflict 
+
+      console.log("Password changed successfully!");
+
+      // 3. Log to your own audit table since hook isn't available
       try {
-        console.log("Signing out current user to ensure clean password change");
-        await supabase.auth.signOut({ scope: 'local' });
-        
-        // Clear any existing auth tokens that might interfere
-        Object.keys(localStorage).forEach(key => {
-          if (key && (
-            key.startsWith('sb-') || 
-            key.includes('supabase') || 
-            key.includes('auth') || 
-            key.includes('token') || 
-            key.includes('session')
-          )) {
-            console.log(`Removing auth item before password change: ${key}`);
-            localStorage.removeItem(key);
-          }
+        await supabase.from("security_audit_logs").insert({
+          event_type: "password_change",
+          user_id: currentUser.id,
+          email: currentUser.email,
+          timestamp: new Date().toISOString(),
         });
-        
-        // Also clear session storage
-        Object.keys(sessionStorage).forEach(key => {
-          if (key && (
-            key.startsWith('sb-') || 
-            key.includes('supabase') || 
-            key.includes('auth') ||
-            key.includes('session')
-          )) {
-            console.log(`Removing session storage item before password change: ${key}`);
-            sessionStorage.removeItem(key);
-          }
-        });
-        
-        console.log("Auth state cleared for clean password change");
-      } catch (signOutError) {
-        console.warn("Sign out before password change failed, continuing anyway:", signOutError);
+      } catch (logError) {
+        console.warn("Could not log password change to audit table:", logError);
+        // Non-critical, continue despite error
       }
-      
-      // Short delay to ensure signOut completes
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Step 4: Now create a fresh client with no session for the password update
+
+      // 4. Update profile if needed
       try {
-        console.log("Creating fresh client for password change operation");
-        
-        const { url, key } = getSupabaseConfig();
-        const { createClient } = await import("@supabase/supabase-js");
-        const passwordClient = createClient(url, key, {
-          auth: { 
-            autoRefreshToken: false, 
-            persistSession: false,
-            detectSessionInUrl: false,
-            storageKey: 'pw-change-client'
-          }
-        });
-        
-        // Step 5: Perform password update with ADMIN API or directly
-        console.log("Executing password update operation");
-        
-        // First try resetting password using admin token
-        console.log("Using admin resetPasswordForEmail method");
-        await passwordClient.auth.resetPasswordForEmail(userEmail, {
-          redirectTo: `${window.location.origin}/reset-password?pwreset=true`,
-        }).catch(e => console.warn("Reset password email step failed (non-critical):", e));
-        
-        // Then update the password directly
-        const { error: updateError } = await passwordClient.auth.updateUser({
-          email: userEmail,
-          password: newPassword,
-        });
-        
-        if (updateError) {
-          console.error("Password update failed:", updateError);
-          throw updateError;
-        }
-        
-        console.log("Password update operation completed successfully");
-        
-        // Add a short delay to allow Supabase to process the change
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Step 6: Verify the new password works by testing it
-        try {
-          console.log("Performing verification test of new password");
-          
-          // Create another separate client to test the new password
-          const testClient = createClient(url, key, {
-            auth: { 
-              autoRefreshToken: false, 
-              persistSession: false,
-              detectSessionInUrl: false,
-              storageKey: 'test-only-supabase-auth'
-            }
-          });
-          
-          // Test new password works with a few retries
-          let testSuccess = false;
-          let retryCount = 0;
-          const MAX_RETRIES = 3;
-          let lastError = null;
-          
-          while (!testSuccess && retryCount < MAX_RETRIES) {
-            try {
-              // Add increasing delays between retries
-              if (retryCount > 0) {
-                const delayMs = retryCount * 2000; // 2s, 4s, 6s...
-                console.log(`Retry ${retryCount}/${MAX_RETRIES}: Waiting ${delayMs}ms before verification attempt`);
-                await new Promise(resolve => setTimeout(resolve, delayMs));
-              }
-              
-              console.log(`Verification attempt ${retryCount + 1}/${MAX_RETRIES}`);
-              const { data: testData, error: testError } = await testClient.auth.signInWithPassword({
-                email: userEmail,
-                password: newPassword
-              });
-              
-              if (testError) {
-                console.warn(`Verification attempt ${retryCount + 1} failed:`, testError);
-                lastError = testError;
-                retryCount++;
-                continue;
-              }
-              
-              if (testData?.user?.id === userId) {
-                console.log("New password verification test passed successfully!");
-                testSuccess = true;
-                break;
-              } else {
-                console.warn(`User ID mismatch in verification test attempt ${retryCount + 1}`);
-                retryCount++;
-              }
-            } catch (attemptError) {
-              console.warn(`Error during verification attempt ${retryCount + 1}:`, attemptError);
-              lastError = attemptError;
-              retryCount++;
-            }
-          }
-          
-          if (!testSuccess) {
-            console.warn("All verification attempts failed, but password was likely changed");
-            if (lastError) {
-              console.warn("Last error:", lastError);
-            }
-          }
-        } catch (testError) {
-          console.warn("New password verification process encountered an error:", testError);
-          // Continue with the process as the update itself was successful
-        }
-        
-        // Step 7: Log out the user to ensure clean authentication state
-        try {
-          console.log("Setting up final redirect for user to login with new password");
-          
-          // Clear all storage to ensure no conflicts
-          localStorage.removeItem("authToken");
-          localStorage.removeItem("refreshToken");
-          localStorage.removeItem("currentUser");
-          localStorage.removeItem("isAuthenticated");
-          
-          // Clear any Supabase-specific storage items
-          Object.keys(localStorage).forEach(key => {
-            if (key && (
-              key.startsWith('sb-') || 
-              key.includes('supabase') || 
-              key.includes('auth') || 
-              key.includes('token') || 
-              key.includes('session')
-            )) {
-              console.log(`Removing storage item during cleanup: ${key}`);
-              localStorage.removeItem(key);
-            }
-          });
-          
-          // Clear session storage
-          Object.keys(sessionStorage).forEach(key => {
-            if (key && (
-              key.startsWith('sb-') || 
-              key.includes('supabase') || 
-              key.includes('auth') ||
-              key.includes('session')
-            )) {
-              console.log(`Removing session storage item during cleanup: ${key}`);
-              sessionStorage.removeItem(key);
-            }
-          });
-          
-          // Clear session state
-          setCurrentUser(null);
-          setSession(null);
-          
-          // Add crucial timing information for login page to handle sync
-          const timestamp = Date.now();
-          
-          // Set flags for login screen with detailed data
-          localStorage.setItem("passwordChanged", "true");
-          localStorage.setItem("passwordChangedAt", timestamp.toString());
-          localStorage.setItem("passwordChangedEmail", userEmail);
-          
-          // Add additional metadata to help debug or handle special cases
-          localStorage.setItem("passwordChangeCompleted", "true");
-          localStorage.setItem("newPasswordReady", "true");
-          localStorage.setItem("userMustLogin", "true");
-          
-          // For test user, store test flags
-          if (userEmail === "itsus@tatt2away.com") {
-            localStorage.setItem("testUserPasswordChanged", "true");
-          }
-          
-          console.log("Password change process completed successfully");
-          console.log("User should now be able to login with new password");
-          
-          // Final server sync delay to ensure changes are fully processed
-          // Critical for production reliability
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          
-          return true;
-        } catch (finalizeError) {
-          console.error("Error during finalization:", finalizeError);
-          
-          // Still try to set the crucial flags
-          try {
-            localStorage.removeItem("authToken");
-            localStorage.removeItem("refreshToken");
-            localStorage.removeItem("currentUser");
-            localStorage.removeItem("isAuthenticated");
-            localStorage.setItem("passwordChanged", "true");
-            localStorage.setItem("passwordChangedAt", Date.now().toString());
-            localStorage.setItem("passwordChangedEmail", userEmail);
-            localStorage.setItem("passwordChangeError", "true");
-          } catch (e) {
-            console.error("Failed to set password change flags:", e);
-          }
-          
-          // Password was likely changed successfully, so return true
-          return true;
-        }
-      } catch (updateError) {
-        console.error("Password update operation failed:", updateError);
-        throw new Error(updateError.message || "Failed to update password");
+        await supabase
+          .from("profiles")
+          .update({
+            password_last_changed: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", currentUser.id);
+      } catch (profileError) {
+        console.warn(
+          "Could not update profile after password change:",
+          profileError
+        );
+        // Non-critical, continue despite error
       }
+
+      // 5. Simple session refresh
+      console.log("Refreshing session after password change");
+      try {
+        await supabase.auth.refreshSession();
+        console.log("Session refreshed successfully");
+      } catch (refreshError) {
+        console.warn("Session refresh had issues, but continuing:", refreshError);
+      }
+
+      // 6. Set success flag
+      localStorage.setItem("passwordChanged", "true");
+      
+      console.log("Password change process completed successfully");
+      return true;
     } catch (error) {
       console.error("Password change process failed:", error);
       setError(error.message || "Failed to change password");
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -2004,7 +1907,7 @@ export function AuthProvider({ children }) {
 
       // Try with Supabase first using different approaches
       let supabaseSuccess = false;
-      
+
       // First attempt: Standard resetPasswordForEmail
       try {
         console.log("Attempting standard password reset");
@@ -2022,21 +1925,21 @@ export function AuthProvider({ children }) {
         console.warn("Standard password reset request failed:", standardError);
         // Continue to other methods
       }
-      
+
       // Second attempt: If first attempt failed, try with OTP approach
       if (!supabaseSuccess) {
         try {
           console.log("Attempting OTP-based password reset");
-          
+
           // Use signInWithOtp but with recovery option
           const { error } = await supabase.auth.signInWithOtp({
             email: email,
             options: {
               shouldCreateUser: false,
               emailRedirectTo: `${window.location.origin}/reset-password`,
-            }
+            },
           });
-          
+
           if (!error) {
             console.log("OTP-based password reset email sent successfully");
             supabaseSuccess = true;
@@ -2047,7 +1950,7 @@ export function AuthProvider({ children }) {
           console.warn("OTP-based password reset failed:", otpError);
         }
       }
-      
+
       // If Supabase methods worked, return success
       if (supabaseSuccess) {
         return true;
@@ -2058,13 +1961,13 @@ export function AuthProvider({ children }) {
       try {
         const response = await apiService.auth.requestPasswordReset(email);
         const success = response.data?.success || false;
-        
+
         if (success) {
           console.log("Custom password reset request successful");
         } else {
           console.warn("Custom password reset request failed");
         }
-        
+
         return success;
       } catch (apiError) {
         console.error("Custom password reset API error:", apiError);
@@ -2072,7 +1975,10 @@ export function AuthProvider({ children }) {
       }
     } catch (error) {
       console.error("Password reset request error:", error);
-      setError(error.message || "Failed to request password reset. Please try again later.");
+      setError(
+        error.message ||
+          "Failed to request password reset. Please try again later."
+      );
       return false;
     }
   };
@@ -2093,16 +1999,19 @@ export function AuthProvider({ children }) {
 
         if (!updateError) {
           console.log("Password reset successful with direct method");
-          
+
           // Make sure to save auth state
           const { data: sessionData } = await supabase.auth.getSession();
           if (sessionData?.session) {
             localStorage.setItem("authToken", sessionData.session.access_token);
             if (sessionData.session.refresh_token) {
-              localStorage.setItem("refreshToken", sessionData.session.refresh_token);
+              localStorage.setItem(
+                "refreshToken",
+                sessionData.session.refresh_token
+              );
             }
             localStorage.setItem("isAuthenticated", "true");
-            
+
             // Force refresh user data
             try {
               const { data: userData } = await supabase.auth.getUser();
@@ -2114,49 +2023,52 @@ export function AuthProvider({ children }) {
               console.warn("User refresh error (non-fatal):", refreshError);
             }
           }
-          
+
           return true;
         }
-        
+
         console.warn("Direct password update failed:", updateError);
-        
+
         // If we have a token, try using it explicitly
         if (token) {
           console.log("Trying password reset with explicit token");
-          
+
           // Verify token and reset password
           // We need to extract email from session or try without it
           const { data: userData } = await supabase.auth.getUser();
           const userEmail = userData?.user?.email;
-          
-          const { error: resetError } = userEmail ? 
-            await supabase.auth.verifyOtp({
-              token: token,
-              type: "recovery",
-              email: userEmail
-            }) : 
-            await supabase.auth.verifyOtp({
-              token: token,
-              type: "recovery"
-            });
-          
+
+          const { error: resetError } = userEmail
+            ? await supabase.auth.verifyOtp({
+                token: token,
+                type: "recovery",
+                email: userEmail,
+              })
+            : await supabase.auth.verifyOtp({
+                token: token,
+                type: "recovery",
+              });
+
           if (!resetError) {
             // Token is valid, now update password
             const { error: pwUpdateError } = await supabase.auth.updateUser({
               password: password,
             });
-            
+
             if (!pwUpdateError) {
               console.log("Password reset successful with token verification");
               return true;
             } else {
-              console.warn("Password update failed after token verification:", pwUpdateError);
+              console.warn(
+                "Password update failed after token verification:",
+                pwUpdateError
+              );
             }
           } else {
             console.warn("Token verification failed:", resetError);
           }
         }
-        
+
         // Fall through to custom implementation
       } catch (supabaseError) {
         console.warn("Supabase password reset failed:", supabaseError);
@@ -2174,23 +2086,26 @@ export function AuthProvider({ children }) {
       }
     } catch (error) {
       console.error("Password reset error:", error);
-      setError(error.message || "Password reset failed. Please try again or request a new reset link.");
+      setError(
+        error.message ||
+          "Password reset failed. Please try again or request a new reset link."
+      );
       return false;
     }
   };
-  
+
   // Helper to update user data after password reset
   const updateUserAfterPasswordReset = async (user) => {
     try {
       if (!user) return;
-      
+
       // Get profile data
       const { data: profileData } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", user.id)
         .single();
-        
+
       // Create user object
       const userData = {
         id: user.id,
@@ -2201,14 +2116,14 @@ export function AuthProvider({ children }) {
         mfaMethods: profileData?.mfa_methods || [],
         features: getEnterpriseFeatures(),
       };
-      
+
       // Update context state
       setCurrentUser(userData);
-      
+
       // Update localStorage
       localStorage.setItem("currentUser", JSON.stringify(userData));
       localStorage.setItem("isAuthenticated", "true");
-      
+
       return true;
     } catch (error) {
       console.warn("Error updating user after password reset:", error);
@@ -2339,6 +2254,7 @@ export function AuthProvider({ children }) {
               );
               localStorage.setItem("currentUser", JSON.stringify(user));
               localStorage.setItem("isAuthenticated", "true");
+              
             }
           } catch (error) {
             console.error("Error getting user profile:", error);
@@ -2455,6 +2371,7 @@ export function AuthProvider({ children }) {
               localStorage.setItem("refreshToken", session.refresh_token);
               localStorage.setItem("currentUser", JSON.stringify(user));
               localStorage.setItem("isAuthenticated", "true");
+              
             }
           } catch (error) {
             console.error("Error getting user profile:", error);

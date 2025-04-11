@@ -1,6 +1,8 @@
 // src/components/account/AccountPage.jsx
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
+import SecurityCenter from "../security/SecurityCenter";
+
 import { useNavigate } from "react-router-dom";
 import {
   User,
@@ -151,6 +153,9 @@ function AccountPage() {
               </p>
 
               <MFAModule setSuccessMessage={setSuccess} setError={setError} />
+
+              {/* Add Security Center */}
+              <SecurityCenter />
             </div>
           )}
 
@@ -230,11 +235,11 @@ function ProfileSection({ setSuccess, setError }) {
           // This will trigger the useEffect hook to update the form data
           console.log("Profile update reported success");
           setSuccess("Profile updated successfully");
-          
+
           // Manually update the form with the latest changes to ensure UI reflects changes
-          setFormData(prevData => ({
+          setFormData((prevData) => ({
             ...prevData,
-            ...updates
+            ...updates,
           }));
         } else {
           setError("Profile update failed. Please try again.");
