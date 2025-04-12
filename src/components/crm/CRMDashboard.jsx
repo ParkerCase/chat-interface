@@ -555,12 +555,10 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
           },
           serviceMetrics: {
             totalServices: services.length,
-            popularServices: services
-              .slice(0, 5)
-              .map((s) => ({
-                name: s.name,
-                count: Math.floor(Math.random() * 20) + 1,
-              })),
+            popularServices: services.slice(0, 5).map((s) => ({
+              name: s.name,
+              count: Math.floor(Math.random() * 20) + 1,
+            })),
           },
           conversionRate: {
             leadToClient: 0.68,
@@ -1480,7 +1478,9 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                         </div>
                         <div
                           className={`appointment-status ${
-                            appointment.status?.toLowerCase() || "booked"
+                            typeof appointment.status === "string"
+                              ? appointment.status.toLowerCase()
+                              : "booked"
                           }`}
                         >
                           {appointment.status || "Booked"}
