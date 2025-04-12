@@ -5,7 +5,6 @@ import {
   Input,
   Textarea,
   Alert,
-  AlertTitle,
   Card,
   CardHeader,
   CardTitle,
@@ -13,10 +12,11 @@ import {
   CardFooter,
   Spinner,
 } from "../../ui/index.js";
-import { Paperclip, Link, Check, AlertCircle } from "lucide-react";
+import { Paperclip, Link, Check, AlertCircle, RefreshCw } from "lucide-react";
 import CRMContactLookup from "./CRMContactLookup";
 import { useCRM } from "../../hooks/useCRM";
 import apiService from "../../services/apiService";
+import analyticsUtils from "../../utils/analyticsUtils";
 
 const CRMDocumentLinker = ({
   documentPath,
@@ -32,6 +32,7 @@ const CRMDocumentLinker = ({
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [metadata, setDocumentMetadata] = useState(documentMetadata);
+  const [documentPreview, setDocumentPreview] = useState(null);
 
   // Load document metadata if not provided
   useEffect(() => {
@@ -43,6 +44,22 @@ const CRMDocumentLinker = ({
 
           if (response.data?.success) {
             setDocumentMetadata(response.data.metadata);
+
+            // Try to get a document preview if it's an image
+            if (
+              response.data.metadata?.type?.startsWith("image/") ||
+              documentPath.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)
+            ) {
+              setDocumentPreview(
+                `/api/storage/preview?path=${encodeURIComponent(documentPath)}`
+              );
+            } else if (documentPath.match(/\.(pdf)$/i)) {
+              setDocumentPreview(
+                `/api/storage/thumbnail?path=${encodeURIComponent(
+                  documentPath
+                )}&page=1`
+              );
+            }
           } else {
             console.warn("Metadata response unsuccessful:", response.data);
           }
@@ -61,6 +78,14 @@ const CRMDocumentLinker = ({
   const handleSelectContact = (contact) => {
     setSelectedContact(contact);
     setError(null); // Clear any previous errors
+
+    // Track contact selection for analytics
+    analyticsUtils.trackEvent(analyticsUtils.EVENT_TYPES.CRM_CONTACT_SELECT, {
+      contactId: contact.id,
+      contactName: contact.name,
+      provider: contact.provider,
+      forDocument: true,
+    });
   };
 
   // Handle linking the document to the contact
@@ -83,6 +108,8 @@ const CRMDocumentLinker = ({
       const docMetadata = {
         ...metadata,
         description,
+        linked_at: new Date().toISOString(),
+        linked_by: localStorage.getItem("username") || "unknown",
       };
 
       // Link document to contact
@@ -94,6 +121,18 @@ const CRMDocumentLinker = ({
 
       if (result?.success) {
         setSuccess(true);
+
+        // Track successful document linking
+        analyticsUtils.trackEvent(
+          analyticsUtils.EVENT_TYPES.CRM_DOCUMENT_LINK,
+          {
+            contactId: selectedContact.id,
+            contactName: selectedContact.name,
+            provider: selectedContact.provider,
+            documentPath,
+            documentType: metadata?.type || "unknown",
+          }
+        );
 
         // Call success callback after a short delay for better UX
         setTimeout(() => {
@@ -110,6 +149,49 @@ const CRMDocumentLinker = ({
       }
     } catch (err) {
       setError(err?.message || "Failed to link document to contact");
+      // Track error for analytics
+      analyticsUtils.trackError(err, "document_linking");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle retrying metadata load
+  const handleRetryMetadata = async () => {
+    if (!documentPath) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await apiService.storage.getMetadata(documentPath, {
+        forceRefresh: true,
+      });
+
+      if (response.data?.success) {
+        setDocumentMetadata(response.data.metadata);
+
+        // Try to get a document preview if it's an image
+        if (
+          response.data.metadata?.type?.startsWith("image/") ||
+          documentPath.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)
+        ) {
+          setDocumentPreview(
+            `/api/storage/preview?path=${encodeURIComponent(documentPath)}`
+          );
+        } else if (documentPath.match(/\.(pdf)$/i)) {
+          setDocumentPreview(
+            `/api/storage/thumbnail?path=${encodeURIComponent(
+              documentPath
+            )}&page=1`
+          );
+        }
+      } else {
+        throw new Error(response.data?.error || "Failed to refresh metadata");
+      }
+    } catch (err) {
+      setError(`Failed to refresh metadata: ${err.message}`);
+      console.error("Error refreshing metadata:", err);
     } finally {
       setIsLoading(false);
     }
@@ -129,13 +211,56 @@ const CRMDocumentLinker = ({
         <div className="p-3 bg-gray-50 rounded-md">
           <div className="flex items-start">
             <Paperclip className="h-5 w-5 mr-2 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <p className="font-medium">
                 {metadata?.name || documentPath.split("/").pop()}
               </p>
               <p className="text-sm text-gray-500 truncate">{documentPath}</p>
+              {metadata && (
+                <div className="text-xs text-gray-500 mt-1">
+                  {metadata.size && (
+                    <span className="mr-3">
+                      Size: {(metadata.size / 1024).toFixed(1)} KB
+                    </span>
+                  )}
+                  {metadata.type && (
+                    <span className="mr-3">Type: {metadata.type}</span>
+                  )}
+                  {metadata.created && (
+                    <span>
+                      Created: {new Date(metadata.created).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
+            {documentPath && !metadata && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRetryMetadata}
+                title="Refresh metadata"
+                disabled={isLoading}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+                />
+              </Button>
+            )}
           </div>
+
+          {/* Document preview if available */}
+          {documentPreview && (
+            <div className="mt-3 flex justify-center">
+              <div className="border border-gray-200 rounded overflow-hidden max-h-40">
+                <img
+                  src={documentPreview}
+                  alt="Document preview"
+                  className="max-h-40 object-contain"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Contact lookup */}
@@ -177,7 +302,6 @@ const CRMDocumentLinker = ({
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
             <p>{error}</p>
           </Alert>
         )}
@@ -186,7 +310,6 @@ const CRMDocumentLinker = ({
         {success && (
           <Alert variant="success">
             <Check className="h-4 w-4" />
-            <AlertTitle>Success</AlertTitle>
             <p>Document successfully linked to contact</p>
           </Alert>
         )}

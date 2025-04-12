@@ -32,12 +32,12 @@ export const enhancedAuth = {
           console.error("Missing factorId in MFA challenge");
           throw new Error("MFA configuration error: Missing factor ID");
         }
-        
+
         // Clean any undefined or null values
         const cleanParams = Object.fromEntries(
           Object.entries(params).filter(([_, v]) => v != null)
         );
-        
+
         const result = await supabase.auth.mfa.challenge(cleanParams);
         console.log("Challenge result:", result);
         return result;
@@ -52,32 +52,37 @@ export const enhancedAuth = {
         // Validate required parameters
         if (!params.factorId || !params.challengeId || !params.code) {
           console.error("Missing required parameters in MFA verify:", params);
-          throw new Error("MFA verification error: Missing required parameters");
+          throw new Error(
+            "MFA verification error: Missing required parameters"
+          );
         }
-        
+
         // Ensure code is string (not number)
         const normalizedParams = {
           ...params,
-          code: params.code.toString()
+          code: params.code.toString(),
         };
-        
+
         // Add timeout to prevent hanging
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error("MFA verification timeout")), 10000);
+          setTimeout(
+            () => reject(new Error("MFA verification timeout")),
+            10000
+          );
         });
-        
+
         const resultPromise = supabase.auth.mfa.verify(normalizedParams);
-        
+
         // Race against timeout
         const result = await Promise.race([resultPromise, timeoutPromise]);
         console.log("MFA verify result (complete):", result);
-        
+
         // Special handling for test users
         if (params.email === "itsus@tatt2away.com") {
           console.log("Test user MFA verification - forcing success");
           return { data: { id: "test-verification" }, error: null };
         }
-        
+
         return result;
       } catch (error) {
         console.error("MFA verify error:", error);
@@ -108,7 +113,7 @@ export const isOnMfaPage = () => {
 export const getSupabaseConfig = () => {
   return {
     url: SUPABASE_URL,
-    key: SUPABASE_ANON_KEY
+    key: SUPABASE_ANON_KEY,
   };
 };
 

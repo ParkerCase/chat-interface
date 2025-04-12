@@ -98,104 +98,65 @@ function PasswordChange({ setError, setSuccessMessage }) {
       setIsLoading(true);
       console.log("Starting password change process");
 
-      // Step 1: Validate current password using Supabase
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: currentUser.email,
-        password: formData.currentPassword,
-      });
-
-      if (signInError) {
-        console.error("Current password validation failed:", signInError);
-        setError("Current password is incorrect");
-        setIsLoading(false);
-        return;
-      }
-
-      console.log("Current password validated successfully");
-
-      // Step 2: Update password with enhanced auth for better reliability
-      try {
-        console.log("Updating password with enhanced auth client");
-        const { data, error } = await enhancedAuth.updateUser({
-          password: formData.newPassword,
-        });
-
-        if (error) {
-          console.error("Enhanced auth password update failed:", error);
-          throw error;
-        }
-
-        console.log("Password updated successfully with enhanced auth");
-      } catch (enhancedAuthError) {
-        console.warn(
-          "Enhanced auth failed, falling back to standard method:",
-          enhancedAuthError
-        );
-
-        // Fallback to standard Supabase auth
-        const { error: standardError } = await supabase.auth.updateUser({
-          password: formData.newPassword,
-        });
-
-        if (standardError) {
-          console.error("Standard password update failed:", standardError);
-          throw standardError;
-        }
-
-        console.log("Password updated successfully with standard auth");
-      }
-
-      // Step 3: Set success state and prepare persistent flags for the redirect flow
-      setIsSuccess(true);
-      console.log("Password change successful, preparing for redirect");
-
-      // Store important flags for login page to detect password change
-      localStorage.setItem("passwordChanged", "true");
-      localStorage.setItem("passwordChangedAt", new Date().toISOString());
-      localStorage.setItem("passwordChangedEmail", currentUser.email);
-
-      // Show success message
-      setSuccessMessage(
-        "Password changed successfully. You will be redirected to login with your new password momentarily."
+      // Call the changePassword function
+      const success = await changePassword(
+        formData.currentPassword,
+        formData.newPassword
       );
 
-      // Clear form data for security
-      setFormData({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      });
+      if (success) {
+        // Show success message
+        setIsSuccess(true);
+        setSuccessMessage(
+          "Password changed successfully. You will be redirected to login with your new password momentarily."
+        );
 
-      // Step 4: Force logout and redirect with reliable approach
-      const timer = setTimeout(() => {
-        console.log("Executing redirect after password change");
+        // Clear form data for security
+        setFormData({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        });
 
-        // Force a complete logout
-        try {
-          // 1. Sign out from Supabase
-          supabase.auth.signOut();
+        // Add flag for login page to detect password change
+        localStorage.setItem("passwordChanged", "true");
+        localStorage.setItem("passwordChangedAt", new Date().toISOString());
+        localStorage.setItem("passwordChangedEmail", currentUser.email);
 
-          // 2. Clear all auth tokens and session data
-          localStorage.removeItem("authToken");
-          localStorage.removeItem("refreshToken");
-          localStorage.removeItem("currentUser");
-          localStorage.removeItem("isAuthenticated");
-          sessionStorage.clear();
+        // Wait 3 seconds then redirect to login page
+        const timer = setTimeout(() => {
+          // Force a complete logout
+          try {
+            // 1. Sign out from Supabase
+            supabase.auth.signOut();
 
-          // 3. Use window.location for a complete page refresh to ensure clean state
-          window.location.href = "/login?passwordChanged=true";
-        } catch (redirectError) {
-          console.error("Error during redirect:", redirectError);
-          // Fallback direct navigation as last resort
-          window.location.replace("/login?passwordChanged=true");
-        }
-      }, 3000);
+            // 2. Clear all auth tokens and session data
+            localStorage.removeItem("authToken");
+            localStorage.removeItem("refreshToken");
+            localStorage.removeItem("currentUser");
+            localStorage.removeItem("isAuthenticated");
+            sessionStorage.clear();
 
-      // Store timer reference for cleanup
-      setRedirectTimer(timer);
+            // 3. Use window.location for a complete page refresh
+            window.location.href = "/login?passwordChanged=true";
+          } catch (redirectError) {
+            console.error("Error during redirect:", redirectError);
+            // Fallback direct navigation as last resort
+            window.location.replace("/login?passwordChanged=true");
+          }
+        }, 3000);
+
+        // Store timer reference for cleanup
+        setRedirectTimer(timer);
+      } else {
+        setError(
+          "Failed to change password. Please verify your current password is correct."
+        );
+      }
     } catch (error) {
       console.error("Password change error:", error);
       setError(error.message || "Failed to change password. Please try again.");
+    } finally {
       setIsLoading(false);
     }
   };

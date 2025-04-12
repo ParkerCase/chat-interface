@@ -262,6 +262,7 @@ export function AuthProvider({ children }) {
       console.log("Attempting login with:", email);
 
       // Check if we need to force a hard refresh after a password change
+      // Check if we need to force a hard refresh after a password change
       const forceLogout = localStorage.getItem("forceLogout") === "true";
       if (forceLogout) {
         // Clear the flag

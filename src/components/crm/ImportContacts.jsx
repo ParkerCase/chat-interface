@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Upload,
   AlertCircle,
@@ -10,12 +10,18 @@ import {
   X,
   HelpCircle,
   Download,
+  CloudUpload,
+  Loader,
+  Info,
+  BarChart,
 } from "lucide-react";
 import zenotiService from "../../services/zenotiService";
+import apiService from "../../services/apiService";
 import Papa from "papaparse";
+import analyticsUtils from "../../utils/analyticsUtils";
 import "./ImportContacts.css";
 
-const ImportContacts = ({ onClose, onSuccess }) => {
+const ImportContacts = ({ onClose, onSuccess, centers = [] }) => {
   const [file, setFile] = useState(null);
   const [mappedData, setMappedData] = useState(null);
   const [parsedData, setParsedData] = useState(null);
@@ -25,7 +31,7 @@ const ImportContacts = ({ onClose, onSuccess }) => {
   const [success, setSuccess] = useState(null);
   const [step, setStep] = useState(1);
   const [selectedCenter, setSelectedCenter] = useState("");
-  const [centers, setCenters] = useState([]);
+  const [localCenters, setLocalCenters] = useState([]);
   const [importStats, setImportStats] = useState({
     total: 0,
     success: 0,
@@ -57,33 +63,64 @@ const ImportContacts = ({ onClose, onSuccess }) => {
   ];
 
   // Load centers when component mounts
-  React.useEffect(() => {
+  useEffect(() => {
     const loadCenters = async () => {
       try {
+        setIsLoading(true);
+
+        // First try to use the centers passed as props
+        if (centers && centers.length > 0) {
+          setLocalCenters(centers);
+          // Set default center if available
+          if (centers.length > 0 && !selectedCenter) {
+            setSelectedCenter(centers[0].code);
+          }
+          setIsLoading(false);
+          return;
+        }
+
+        // If no centers were passed, fetch them
         const response = await zenotiService.getCenters();
         if (response.data?.success) {
-          setCenters(response.data.centers || []);
+          // Handle different response formats
+          const centersData =
+            response.data.centers || response.data.centerMapping || [];
+          setLocalCenters(centersData);
 
           // Set default center if available
-          if (response.data.centers?.length > 0) {
-            setSelectedCenter(response.data.centers[0].code);
+          if (centersData.length > 0 && !selectedCenter) {
+            setSelectedCenter(centersData[0].code);
           }
+        } else {
+          throw new Error(response.data?.error || "Failed to load centers");
         }
       } catch (err) {
         console.error("Error loading centers:", err);
         setError(
           "Failed to load Zenoti centers. Please check your connection settings."
         );
+      } finally {
+        setIsLoading(false);
       }
     };
 
     loadCenters();
-  }, []);
+  }, [centers, selectedCenter]);
 
   // Handle file selection
   const handleFileSelect = (e) => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
+
+    // Check file size (10MB limit)
+    const maxFileSize = 10; // MB
+    if (selectedFile.size > maxFileSize * 1024 * 1024) {
+      setError(`File size exceeds ${maxFileSize}MB limit.`);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
 
     setFile(selectedFile);
     setError(null);
@@ -92,12 +129,20 @@ const ImportContacts = ({ onClose, onSuccess }) => {
     Papa.parse(selectedFile, {
       header: true,
       skipEmptyLines: true,
+      dynamicTyping: true,
       complete: (results) => {
         if (results.data.length === 0) {
           setError("The selected file contains no data.");
           setFile(null);
           return;
         }
+
+        // Track file upload for analytics
+        analyticsUtils.trackEvent(analyticsUtils.EVENT_TYPES.CRM_FILE_UPLOAD, {
+          fileType: "csv",
+          fileSize: selectedFile.size,
+          rowCount: results.data.length,
+        });
 
         setParsedData(results.data);
 
@@ -168,7 +213,33 @@ const ImportContacts = ({ onClose, onSuccess }) => {
       // Apply column mapping
       Object.entries(columnMapping).forEach(([csvColumn, zenotiField]) => {
         if (zenotiField && row[csvColumn] !== undefined) {
-          mappedRow[zenotiField] = row[csvColumn];
+          // Perform some data cleansing
+          let value = row[csvColumn];
+
+          // Format date_of_birth if needed (MM/DD/YYYY to YYYY-MM-DD)
+          if (zenotiField === "date_of_birth" && value) {
+            // Check if it's a string in MM/DD/YYYY format
+            if (
+              typeof value === "string" &&
+              value.match(/\d{1,2}\/\d{1,2}\/\d{4}/)
+            ) {
+              const parts = value.split("/");
+              value = `${parts[2]}-${parts[0].padStart(
+                2,
+                "0"
+              )}-${parts[1].padStart(2, "0")}`;
+            }
+          }
+
+          // Format phone numbers if needed
+          if ((zenotiField === "mobile" || zenotiField === "phone") && value) {
+            // Remove non-digit characters
+            if (typeof value === "string") {
+              value = value.replace(/\D/g, "");
+            }
+          }
+
+          mappedRow[zenotiField] = value;
         }
       });
 
@@ -217,6 +288,12 @@ const ImportContacts = ({ onClose, onSuccess }) => {
       details: [],
     };
 
+    // Track import start for analytics
+    analyticsUtils.trackEvent(analyticsUtils.EVENT_TYPES.CRM_IMPORT_START, {
+      contactCount: mappedData.length,
+      centerCode: selectedCenter,
+    });
+
     // Process each contact sequentially
     for (let i = 0; i < mappedData.length; i++) {
       const contact = mappedData[i];
@@ -234,6 +311,17 @@ const ImportContacts = ({ onClose, onSuccess }) => {
       }
 
       try {
+        // Add processing delay to avoid overwhelming the API
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        // Set progress indicator
+        const progress = Math.round((i / mappedData.length) * 100);
+        setImportStats((prevStats) => ({
+          ...prevStats,
+          total: mappedData.length,
+          progress,
+        }));
+
         // Call the API to create contact
         const response = await zenotiService.createClient(
           contact,
@@ -272,6 +360,15 @@ const ImportContacts = ({ onClose, onSuccess }) => {
     setImportStats(stats);
     setIsLoading(false);
 
+    // Track import completion for analytics
+    analyticsUtils.trackEvent(analyticsUtils.EVENT_TYPES.CRM_IMPORT_COMPLETE, {
+      totalContacts: stats.total,
+      successCount: stats.success,
+      errorCount: stats.errors,
+      skippedCount: stats.skipped,
+      centerCode: selectedCenter,
+    });
+
     if (stats.success > 0) {
       setSuccess(
         `Successfully imported ${stats.success} out of ${stats.total} contacts.`
@@ -297,9 +394,28 @@ const ImportContacts = ({ onClose, onSuccess }) => {
       "mobile",
       "gender",
       "date_of_birth",
+      "address_line1",
+      "city",
+      "state",
+      "postal_code",
+      "country",
+      "notes",
     ];
     const sampleData = [
-      ["John", "Doe", "john@example.com", "555-123-4567", "Male", "1985-01-15"],
+      [
+        "John",
+        "Doe",
+        "john@example.com",
+        "555-123-4567",
+        "Male",
+        "1985-01-15",
+        "123 Main St",
+        "Austin",
+        "TX",
+        "78701",
+        "USA",
+        "First treatment scheduled",
+      ],
       [
         "Jane",
         "Smith",
@@ -307,6 +423,26 @@ const ImportContacts = ({ onClose, onSuccess }) => {
         "555-987-6543",
         "Female",
         "1990-05-20",
+        "456 Oak Ave",
+        "Dallas",
+        "TX",
+        "75201",
+        "USA",
+        "Interested in full sleeve removal",
+      ],
+      [
+        "Alex",
+        "Johnson",
+        "alex@example.com",
+        "555-456-7890",
+        "Other",
+        "1988-09-30",
+        "789 Pine Blvd",
+        "Houston",
+        "TX",
+        "77002",
+        "USA",
+        "Referred by Jane Smith",
       ],
     ];
 
@@ -319,7 +455,44 @@ const ImportContacts = ({ onClose, onSuccess }) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "sample_contacts.csv");
+    link.setAttribute("download", "tatt2away_sample_contacts.csv");
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Track download for analytics
+    analyticsUtils.trackEvent(analyticsUtils.EVENT_TYPES.CRM_SAMPLE_DOWNLOAD, {
+      fileType: "csv",
+      template: "contacts",
+    });
+  };
+
+  // Export results to CSV
+  const handleExportResults = () => {
+    if (!importStats.details || importStats.details.length === 0) return;
+
+    const exportData = importStats.details.map((detail) => ({
+      Index: detail.index + 1,
+      Name: `${detail.data.first_name || ""} ${
+        detail.data.last_name || ""
+      }`.trim(),
+      Email: detail.data.email || "",
+      Phone: detail.data.mobile || detail.data.phone || "",
+      Status: detail.status,
+      Message: detail.message || "",
+      ContactID: detail.contactId || "",
+    }));
+
+    const csv = Papa.unparse(exportData);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `import_results_${new Date().toISOString().split("T")[0]}.csv`
+    );
     link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
@@ -329,7 +502,7 @@ const ImportContacts = ({ onClose, onSuccess }) => {
   return (
     <div className="import-contacts">
       <div className="import-header">
-        <h2>Import Contacts</h2>
+        <h2>Import Contacts to Zenoti</h2>
         <button className="close-button" onClick={onClose}>
           <X size={20} />
         </button>
@@ -401,7 +574,8 @@ const ImportContacts = ({ onClose, onSuccess }) => {
                 <HelpCircle size={16} />
                 <span>
                   <strong>Format Notes:</strong> CSV files should use commas as
-                  separators and include a header row.
+                  separators and include a header row. Required fields are First
+                  Name and Last Name.
                 </span>
               </div>
 
@@ -462,7 +636,7 @@ const ImportContacts = ({ onClose, onSuccess }) => {
 
         {step === 2 && parsedData && (
           <div className="mapping-step">
-            <h3>Map CSV Columns to Contact Fields</h3>
+            <h3>Map CSV Columns to Zenoti Contact Fields</h3>
             <p>
               Select which Zenoti field each CSV column should be mapped to.
             </p>
@@ -476,7 +650,7 @@ const ImportContacts = ({ onClose, onSuccess }) => {
                 required
               >
                 <option value="">-- Select a center --</option>
-                {centers.map((center) => (
+                {localCenters.map((center) => (
                   <option key={center.code} value={center.code}>
                     {center.name}
                   </option>
@@ -502,7 +676,10 @@ const ImportContacts = ({ onClose, onSuccess }) => {
                           <div className="sample-data">
                             {parsedData.slice(0, 3).map((row, i) => (
                               <span key={i}>
-                                {row[csvColumn] || "—"}
+                                {row[csvColumn] !== null &&
+                                row[csvColumn] !== undefined
+                                  ? String(row[csvColumn])
+                                  : "—"}
                                 {i < 2 ? ", " : ""}
                               </span>
                             ))}
@@ -513,6 +690,11 @@ const ImportContacts = ({ onClose, onSuccess }) => {
                             value={columnMapping[csvColumn] || ""}
                             onChange={(e) =>
                               handleMappingChange(csvColumn, e.target.value)
+                            }
+                            className={
+                              requiredFields.includes(columnMapping[csvColumn])
+                                ? "required-field"
+                                : ""
                             }
                           >
                             <option value="">-- Do not import --</option>
@@ -561,6 +743,15 @@ const ImportContacts = ({ onClose, onSuccess }) => {
               {mappedData.length} records will be imported.
             </p>
 
+            <div className="import-warning">
+              <Info size={18} />
+              <div>
+                <strong>Important:</strong> This action will create new contacts
+                in Zenoti. Please verify the data before proceeding. The import
+                process may take several minutes for large datasets.
+              </div>
+            </div>
+
             <div className="preview-table">
               <table>
                 <thead>
@@ -589,7 +780,12 @@ const ImportContacts = ({ onClose, onSuccess }) => {
                           Object.values(columnMapping).includes(field.key)
                         )
                         .map((field) => (
-                          <td key={field.key}>{row[field.key] || "—"}</td>
+                          <td key={field.key}>
+                            {row[field.key] !== null &&
+                            row[field.key] !== undefined
+                              ? String(row[field.key])
+                              : "—"}
+                          </td>
                         ))}
                     </tr>
                   ))}
@@ -611,7 +807,17 @@ const ImportContacts = ({ onClose, onSuccess }) => {
                 onClick={handleImport}
                 disabled={isLoading}
               >
-                {isLoading ? "Importing..." : "Import Contacts"}
+                {isLoading ? (
+                  <>
+                    <Loader className="spinner" size={16} />
+                    <span>Importing... {importStats.progress || 0}%</span>
+                  </>
+                ) : (
+                  <>
+                    <CloudUpload size={16} />
+                    <span>Import Contacts</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -637,6 +843,58 @@ const ImportContacts = ({ onClose, onSuccess }) => {
                 <div className="stat-card skipped">
                   <div className="stat-value">{importStats.skipped}</div>
                   <div className="stat-label">Skipped</div>
+                </div>
+              </div>
+
+              {/* Results chart */}
+              <div className="results-chart">
+                <BarChart size={28} />
+                <div className="chart-bars">
+                  {importStats.success > 0 && (
+                    <div
+                      className="chart-bar success"
+                      style={{
+                        width: `${
+                          (importStats.success / importStats.total) * 100
+                        }%`,
+                      }}
+                    >
+                      {importStats.success > 0 &&
+                        Math.round(
+                          (importStats.success / importStats.total) * 100
+                        ) + "%"}
+                    </div>
+                  )}
+                  {importStats.errors > 0 && (
+                    <div
+                      className="chart-bar error"
+                      style={{
+                        width: `${
+                          (importStats.errors / importStats.total) * 100
+                        }%`,
+                      }}
+                    >
+                      {importStats.errors > 0 &&
+                        Math.round(
+                          (importStats.errors / importStats.total) * 100
+                        ) + "%"}
+                    </div>
+                  )}
+                  {importStats.skipped > 0 && (
+                    <div
+                      className="chart-bar skipped"
+                      style={{
+                        width: `${
+                          (importStats.skipped / importStats.total) * 100
+                        }%`,
+                      }}
+                    >
+                      {importStats.skipped > 0 &&
+                        Math.round(
+                          (importStats.skipped / importStats.total) * 100
+                        ) + "%"}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -672,6 +930,12 @@ const ImportContacts = ({ onClose, onSuccess }) => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+                <div className="export-results">
+                  <button onClick={handleExportResults}>
+                    <Download size={16} />
+                    Export Results
+                  </button>
                 </div>
               </div>
             )}
