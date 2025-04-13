@@ -12,6 +12,7 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  AlertCircle,
 } from "lucide-react";
 import zenotiService from "../../services/zenotiService";
 import analyticsUtils from "../../utils/analyticsUtils";
@@ -33,6 +34,9 @@ const CRMReportViewer = ({
   const [expandedSections, setExpandedSections] = useState({});
   const [exportFormat, setExportFormat] = useState("csv");
   const [showExportOptions, setShowExportOptions] = useState(false);
+  const [showComingSoonModal, setShowComingSoonModal] = useState(
+    reportType === "weekly" || reportType === "client-activity"
+  );
 
   // Format currency
   const formatCurrency = (amount) => {
@@ -43,6 +47,15 @@ const CRMReportViewer = ({
       minimumFractionDigits: 2,
     }).format(amount);
   };
+
+  // Check if report type is in development
+  useEffect(() => {
+    if (reportType === "weekly" || reportType === "client-activity") {
+      setShowComingSoonModal(true);
+    } else {
+      setShowComingSoonModal(false);
+    }
+  }, [reportType]);
 
   // Toggle section expansion
   const toggleSection = (sectionId) => {
@@ -179,6 +192,8 @@ const CRMReportViewer = ({
 
   // Weekly business report renderer
   const renderWeeklyReport = () => {
+    if (showComingSoonModal) return null;
+
     return (
       <div className="report-content weekly-report">
         <div className="report-summary">
@@ -560,6 +575,8 @@ const CRMReportViewer = ({
 
   // Client activity report renderer
   const renderClientActivityReport = () => {
+    if (showComingSoonModal) return null;
+
     return (
       <div className="report-content client-activity-report">
         <div className="report-summary">
@@ -788,6 +805,38 @@ const CRMReportViewer = ({
   // Main render
   return (
     <div className="report-viewer">
+      {/* Coming Soon Modal */}
+      {showComingSoonModal && (
+        <div className="coming-soon-overlay">
+          <div className="coming-soon-modal">
+            <div className="coming-soon-header">
+              <h3>Feature Coming Soon!</h3>
+              <button className="close-button" onClick={onClose}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="coming-soon-content">
+              <AlertCircle size={48} className="coming-soon-icon" />
+              <p>
+                {reportType === "weekly"
+                  ? "Weekly Business Reports"
+                  : "Client Activity Reports"}{" "}
+                are currently in development.
+              </p>
+              <p>
+                We're working with Zenoti to finalize this feature and it will
+                be available soon.
+              </p>
+            </div>
+            <div className="coming-soon-footer">
+              <button className="primary-button" onClick={onClose}>
+                OK, I'll check back later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="report-viewer-header">
         <div className="report-title">
           <FileText size={20} />
@@ -813,6 +862,7 @@ const CRMReportViewer = ({
               className="action-button"
               onClick={() => setShowExportOptions(!showExportOptions)}
               title="Export Report"
+              disabled={showComingSoonModal}
             >
               <Download size={18} />
               <span>Export</span>
@@ -832,6 +882,7 @@ const CRMReportViewer = ({
             className="action-button"
             onClick={handlePrint}
             title="Print Report"
+            disabled={showComingSoonModal}
           >
             <Printer size={18} />
             <span>Print</span>
@@ -841,6 +892,7 @@ const CRMReportViewer = ({
             className="action-button"
             onClick={handleEmailReport}
             title="Email Report"
+            disabled={showComingSoonModal}
           >
             <Mail size={18} />
             <span>Email</span>

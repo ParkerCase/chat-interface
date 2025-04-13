@@ -1,5 +1,11 @@
 // src/services/zenotiService.js
+// Fix import statement - use either version depending on how apiService is exported
+// OPTION 1: If apiClient is exported as a named export
 import { apiClient } from "./apiService";
+
+// OPTION 2: If apiClient is a property of the default export
+// import apiService from "./apiService";
+// const apiClient = apiService.apiClient;
 
 /**
  * Service to handle all Zenoti-related API calls with comprehensive error handling
@@ -100,7 +106,7 @@ const zenotiService = {
     }
   },
 
-  getClientDetails: async (clientId, centerCode = null) => {
+  getClient: async (clientId, centerCode = null) => {
     try {
       const params = centerCode ? { centerCode } : {};
       return await apiClient.get(`/api/zenoti/client/${clientId}`, { params });
@@ -222,7 +228,12 @@ const zenotiService = {
       });
     } catch (error) {
       console.error("Error getting appointment details:", error);
-      throw error;
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to get appointment details",
+        },
+      };
     }
   },
 
@@ -271,7 +282,12 @@ const zenotiService = {
       const response = await apiClient.get("/api/zenoti/availability", {
         params,
       });
-      return response.data?.availability || { slots: [] };
+      // Check different response formats
+      if (response.data?.success) {
+        return response.data?.availability || { slots: [] };
+      } else {
+        return { slots: [] };
+      }
     } catch (error) {
       console.error("Error getting availability:", error);
       return { slots: [] };
@@ -294,15 +310,18 @@ const zenotiService = {
   // Services
   getServices: async (params = {}) => {
     try {
-      return await apiClient.get("/api/zenoti/services", { params });
+      const response = await apiClient.get("/api/zenoti/services", { params });
+      // Ensure we always return a proper structure even if the backend response is incorrect
+      if (response.data && !response.data.services && response.data.data) {
+        response.data.services = response.data.data;
+      }
+      return response.data || { services: [], success: false };
     } catch (error) {
       console.error("Error getting services:", error);
       return {
-        data: {
-          success: false,
-          error: error.message || "Failed to get services",
-          services: [],
-        },
+        success: false,
+        error: error.message || "Failed to get services",
+        services: [],
       };
     }
   },
@@ -330,15 +349,41 @@ const zenotiService = {
   // Staff
   getStaff: async (params = {}) => {
     try {
-      return await apiClient.get("/api/zenoti/staff", { params });
+      const response = await apiClient.get("/api/zenoti/staff", { params });
+
+      // If therapists field exists, ensure we have consistent data structure
+      if (response.data && response.data.therapists) {
+        return {
+          therapists: response.data.therapists,
+          total_count:
+            response.data.total_count || response.data.therapists.length,
+          success: response.data.success !== false,
+        };
+      }
+
+      // If staff field exists and therapists doesn't, map it
+      if (response.data && response.data.staff && !response.data.therapists) {
+        return {
+          therapists: response.data.staff,
+          total_count: response.data.total_count || response.data.staff.length,
+          success: response.data.success !== false,
+        };
+      }
+
+      return (
+        response.data || {
+          therapists: [],
+          staff: [],
+          success: false,
+        }
+      );
     } catch (error) {
       console.error("Error getting staff:", error);
       return {
-        data: {
-          success: false,
-          error: error.message || "Failed to get staff",
-          staff: [],
-        },
+        success: false,
+        error: error.message || "Failed to get staff",
+        therapists: [],
+        staff: [],
       };
     }
   },
@@ -371,14 +416,33 @@ const zenotiService = {
         throw new Error("Week start date is required");
       }
 
-      return await apiClient.get("/api/zenoti/reports/weekly", { params });
+      const response = await apiClient.get("/api/zenoti/reports/weekly", {
+        params,
+      });
+
+      // Ensure we return a consistent structure even with empty data
+      if (response.data?.success && !response.data.report) {
+        response.data.report = {
+          totalRevenue: 0,
+          appointmentCount: 0,
+          newClients: 0,
+          serviceBreakdown: {},
+        };
+      }
+
+      return response;
     } catch (error) {
       console.error("Error generating weekly business report:", error);
       return {
         data: {
           success: false,
           error: error.message || "Failed to generate weekly business report",
-          report: null,
+          report: {
+            totalRevenue: 0,
+            appointmentCount: 0,
+            newClients: 0,
+            serviceBreakdown: {},
+          },
         },
       };
     }
@@ -413,9 +477,25 @@ const zenotiService = {
         throw new Error("Start date and end date are required");
       }
 
-      return await apiClient.get("/api/zenoti/reports/client-activity", {
-        params,
-      });
+      const response = await apiClient.get(
+        "/api/zenoti/reports/client-activity",
+        {
+          params,
+        }
+      );
+
+      // Ensure we return a consistent structure even with empty data
+      if (response.data?.success && !response.data.report) {
+        response.data.report = {
+          totalClients: 0,
+          newClients: 0,
+          returningClients: 0,
+          averageSpend: 0,
+          topClients: [],
+        };
+      }
+
+      return response;
     } catch (error) {
       console.error("Error generating client activity report:", error);
       return {
@@ -467,7 +547,25 @@ const zenotiService = {
         throw new Error("Start date and end date are required");
       }
 
-      return await apiClient.get("/api/zenoti/reports/collections", { params });
+      const response = await apiClient.get("/api/zenoti/reports/collections", {
+        params,
+      });
+
+      // Ensure the response has a consistent format
+      if (response.data?.success && !response.data.report) {
+        // Create empty report structure if none exists
+        response.data.report = {
+          summary: {
+            total_collected: 0,
+            total_collected_cash: 0,
+            total_collected_non_cash: 0,
+          },
+          centers: {},
+          transactions: [],
+        };
+      }
+
+      return response;
     } catch (error) {
       console.error("Error getting collections report:", error);
       return {
@@ -495,7 +593,25 @@ const zenotiService = {
         throw new Error("Start date and end date are required");
       }
 
-      return await apiClient.get("/api/zenoti/reports/sales", { params });
+      const response = await apiClient.get("/api/zenoti/reports/sales", {
+        params,
+      });
+
+      // Ensure the response has a consistent format
+      if (response.data?.success && !response.data.report) {
+        // Create empty report structure if none exists
+        response.data.report = {
+          summary: {
+            total_sales: 0,
+            total_refunds: 0,
+            net_sales: 0,
+          },
+          items: [],
+          centers: {},
+        };
+      }
+
+      return response;
     } catch (error) {
       console.error("Error getting sales report:", error);
       return {
@@ -511,6 +627,29 @@ const zenotiService = {
             items: [],
             centers: {},
           },
+        },
+      };
+    }
+  },
+
+  // Search invoices
+  searchInvoices: async (params) => {
+    try {
+      const response = await apiClient.get("/api/zenoti/invoices", { params });
+
+      // Make sure response has a consistent structure
+      if (response.data?.success && !response.data.invoices) {
+        response.data.invoices = [];
+      }
+
+      return response;
+    } catch (error) {
+      console.error("Error searching invoices:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to search invoices",
+          invoices: [],
         },
       };
     }
@@ -535,6 +674,21 @@ const zenotiService = {
     }
   },
 
+  // Email report
+  emailReport: async (emailData) => {
+    try {
+      return await apiClient.post("/api/zenoti/reports/email", emailData);
+    } catch (error) {
+      console.error("Error emailing report:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to email report",
+        },
+      };
+    }
+  },
+
   // List report files
   getReportFiles: async () => {
     try {
@@ -548,6 +702,19 @@ const zenotiService = {
           error: error.message,
         },
       };
+    }
+  },
+
+  // Delete client
+  deleteClient: async (clientId, centerCode = null) => {
+    try {
+      const params = centerCode ? { centerCode } : {};
+      return await apiClient.delete(`/api/zenoti/client/${clientId}`, {
+        params,
+      });
+    } catch (error) {
+      console.error("Error deleting client:", error);
+      throw error;
     }
   },
 };
