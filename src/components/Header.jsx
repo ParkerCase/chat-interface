@@ -116,7 +116,7 @@ function Header({ onLogout, currentUser: propCurrentUser }) {
             <span className="user-name">{userData.name}</span>
           </div>
         )}
-        
+
         <button
           onClick={toggleDarkMode}
           className="theme-toggle"

@@ -25,6 +25,8 @@ import AccountPage from "./components/account/AccountPage";
 import FilePermissionsRoute from "./components/FilePermissionsRoute";
 import AuthDebugger from "./components/AuthDebugger";
 import { debugAuth } from "./utils/authDebug";
+import AuthNavigationGuard from "./components/auth/AuthNavigationGuard";
+import AuthLoading from "./components/auth/AuthLoading";
 // Professional Tier Features
 import APIKeyManagement from "./components/APIKeyManagement";
 
@@ -34,6 +36,7 @@ import AnalyticsDashboard from "./components/enterprise/AnalyticsDashboard";
 import IntegrationSettings from "./components/enterprise/IntegrationSettings";
 import AlertsManagement from "./components/enterprise/AlertsManagement";
 import { setupAuthRedirects } from "./utils/authRedirect";
+import { authRecovery } from "./utils/authRecovery";
 
 import "./App.css";
 
@@ -47,6 +50,21 @@ function App() {
   // Check if we're in an out-of-memory situation (common error)
   const [outOfMemory, setOutOfMemory] = useState(false);
 
+  // Listen for password change events from other tabs
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'passwordChanged' && e.newValue === 'true') {
+        console.log('Password change detected from another tab');
+        // Force page reload to update auth state
+        window.location.reload();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Consolidated MFA handling
   useEffect(() => {
     const {
       data: { subscription },
@@ -60,9 +78,7 @@ function App() {
           window.location.pathname.includes("/verify");
 
         if (isOnMfaPage) {
-          console.log(
-            "SIGNED_IN detected on MFA page - forcing redirect to admin"
-          );
+          console.log("SIGNED_IN detected on MFA page - forcing redirect to admin");
           // Set all success flags
           sessionStorage.setItem("mfa_verified", "true");
           sessionStorage.setItem("mfaSuccess", "true");
@@ -73,13 +89,11 @@ function App() {
             window.location.href = "/admin";
           }, 500);
         }
-
-        // Refresh user data handled in AuthContext
-      } else if (event === "SIGNED_OUT") {
-        // Clear local storage / state
-        // Handle in AuthContext
       } else if (event === "MFA_CHALLENGE_VERIFIED") {
         console.log("MFA_CHALLENGE_VERIFIED event detected in App.jsx");
+        sessionStorage.setItem("mfa_verified", "true");
+        sessionStorage.setItem("mfaSuccess", "true");
+        sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
         // Force redirect to admin
         window.location.href = "/admin";
       }
@@ -90,120 +104,63 @@ function App() {
     };
   }, []);
 
-  // Add this to App.jsx or your root component
+  // Consolidated pending redirects handling
   useEffect(() => {
-    // Check if there's a pending redirect from MFA
-    const pendingRedirect = sessionStorage.getItem("mfaRedirectPending");
-    const redirectTarget = sessionStorage.getItem("mfaRedirectTarget");
-
-    if (pendingRedirect === "true" && redirectTarget) {
-      console.log("Executing pending MFA redirect to:", redirectTarget);
-      // Clear the pending flag
-      sessionStorage.removeItem("mfaRedirectPending");
-      sessionStorage.removeItem("mfaRedirectTarget");
-
-      // Execute the redirect - force a page reload for better state refresh
-      window.location.href = redirectTarget;
-    }
-
-    // Also check for recently verified MFA
-    const mfaVerifiedAt = sessionStorage.getItem("mfaVerifiedAt");
-    if (mfaVerifiedAt) {
-      const verifiedTime = parseInt(mfaVerifiedAt, 10);
-      const now = Date.now();
-      const timeSinceVerification = now - verifiedTime;
-
-      if (timeSinceVerification < 10000) {
-        // within 10 seconds
-        console.log("Recent MFA verification detected, redirecting to admin");
-        sessionStorage.removeItem("mfaVerifiedAt");
+    // Check if there's a pending redirect from MFA or any other flags
+    const checkAndHandleRedirects = () => {
+      // Check mfa flags and handle redirects
+      const mfaVerified = sessionStorage.getItem("mfa_verified") === "true";
+      const mfaSuccess = sessionStorage.getItem("mfaSuccess") === "true";
+      const pendingRedirect = sessionStorage.getItem("mfaRedirectPending") === "true";
+      const redirectTarget = sessionStorage.getItem("mfaRedirectTarget");
+      const mfaVerifiedAt = sessionStorage.getItem("mfaVerifiedAt");
+      const currentPath = window.location.pathname;
+      const isOnMfaPage = currentPath.includes("/mfa") || currentPath.includes("/verify");
+      
+      // Clear MFA verification flags to avoid redirect loops
+      if ((mfaVerified || mfaSuccess) && isOnMfaPage) {
+        console.log("MFA verification success detected on MFA page");
+        sessionStorage.removeItem("mfa_verified");
+        sessionStorage.removeItem("mfaSuccess");
+        
+        // Redirect to admin page
         window.location.href = "/admin";
+        return;
       }
-    }
-  }, []);
-
-  useEffect(() => {
-    const checkAndClearMfaRedirect = () => {
-      // Another check for MFA redirect flag
-      const pendingMfaRedirect = sessionStorage.getItem("mfaRedirectPending");
-
-      if (pendingMfaRedirect === "true") {
-        console.log("Found pending MFA redirect flag - redirecting to admin");
-
-        // Clear flags
+      
+      // Handle explicit redirect requests
+      if (pendingRedirect && redirectTarget) {
+        console.log("Executing pending MFA redirect to:", redirectTarget);
         sessionStorage.removeItem("mfaRedirectPending");
         sessionStorage.removeItem("mfaRedirectTarget");
-
-        // Force admin redirect
-        window.location.href = "/admin";
+        window.location.href = redirectTarget;
+        return;
       }
-    };
-
-    // Run check on mount
-    checkAndClearMfaRedirect();
-  }, []);
-
-  useEffect(() => {
-    // Redirect based on MFA flags on every render
-    const checkAndRedirect = () => {
-      const mfaSuccess = sessionStorage.getItem("mfaSuccess") === "true";
-      const mfaVerified = sessionStorage.getItem("mfa_verified") === "true";
-
-      if (mfaSuccess || mfaVerified) {
-        console.log("MFA success detected, redirecting to admin");
-
-        // Clear flags to prevent redirect loops
-        sessionStorage.removeItem("mfaSuccess");
-        sessionStorage.removeItem("mfa_verified");
-
-        // Force redirect to admin
-        window.location.href = "/admin";
-      }
-    };
-
-    checkAndRedirect();
-  }, []);
-
-  useEffect(() => {
-    const handleMfaRedirection = () => {
-      // Check for all MFA verification success flags
-      const mfaVerified = sessionStorage.getItem("mfa_verified");
-      const mfaSuccess = sessionStorage.getItem("mfaSuccess");
-
-      if (mfaVerified === "true" || mfaSuccess === "true") {
-        console.log("MFA verification success detected");
-
-        // Clear all flags
-        sessionStorage.removeItem("mfa_verified");
-        sessionStorage.removeItem("mfaSuccess");
-
-        // Check if we need to redirect
-        const currentPath = window.location.pathname;
-
-        if (currentPath.includes("/mfa") || currentPath.includes("/verify")) {
-          console.log("Redirecting from MFA page to admin");
-
-          // Force a complete page reload to refresh auth state
-          window.location.href = "/admin";
-
-          // Backup redirect with replace in case the first fails
-          setTimeout(() => {
-            window.location.replace("/admin");
-          }, 500);
+      
+      // Handle recent verifications
+      if (mfaVerifiedAt) {
+        const verifiedTime = parseInt(mfaVerifiedAt, 10);
+        const now = Date.now();
+        const timeSinceVerification = now - verifiedTime;
+        
+        if (timeSinceVerification < 10000) { // within 10 seconds
+          console.log("Recent MFA verification detected");
+          sessionStorage.removeItem("mfaVerifiedAt");
+          
+          if (isOnMfaPage) {
+            console.log("Redirecting from MFA page to admin");
+            window.location.href = "/admin";
+          }
         }
       }
     };
-
-    // Run check on mount
-    handleMfaRedirection();
-
-    // Also run on focus and at a regular interval to catch any missed events
-    window.addEventListener("focus", handleMfaRedirection);
-    const interval = setInterval(handleMfaRedirection, 2000);
-
+    
+    // Run check on mount and on focus
+    checkAndHandleRedirects();
+    window.addEventListener("focus", checkAndHandleRedirects);
+    
     return () => {
-      window.removeEventListener("focus", handleMfaRedirection);
-      clearInterval(interval);
+      window.removeEventListener("focus", checkAndHandleRedirects);
     };
   }, []);
 
@@ -252,56 +209,8 @@ function App() {
     };
   }, []);
 
+  // Handle unhandled promise rejections
   useEffect(() => {
-    // Only check for MFA completion explicitly
-    const handleMfaCompletion = () => {
-      // Check if we just completed MFA
-      const mfaVerified = sessionStorage.getItem("mfa_verified");
-
-      if (mfaVerified === "true") {
-        console.log("Detected successful MFA verification");
-        // Clear the flag
-        sessionStorage.removeItem("mfa_verified");
-
-        // Only redirect if we're still on the MFA page
-        if (
-          window.location.pathname.includes("/mfa") ||
-          window.location.pathname.includes("/verify")
-        ) {
-          console.log("Still on MFA page, redirecting to admin");
-          window.location.href = "/admin";
-        }
-      }
-    };
-
-    // Run once on mount
-    handleMfaCompletion();
-  }, []);
-
-  useEffect(() => {
-    // Check for MFA success on each render/navigation
-    const checkMfaSuccess = () => {
-      const mfaSuccess = sessionStorage.getItem("mfaSuccess");
-      if (mfaSuccess === "true") {
-        debugAuth.log("App", "Detected MFA success flag, handling redirect");
-
-        // Clear the flag
-        sessionStorage.removeItem("mfaSuccess");
-
-        // Get current location
-        const currentPath = window.location.pathname;
-
-        // If not already on admin page, redirect
-        if (currentPath !== "/admin") {
-          debugAuth.log("App", "Redirecting to admin from", currentPath);
-          window.location.replace("/admin");
-        }
-      }
-    };
-
-    checkMfaSuccess();
-
-    // Also add a global handler for unhandled promise rejections
     const handleUnhandledRejection = (event) => {
       debugAuth.log("Global", "Unhandled Promise Rejection", event.reason);
 
@@ -366,64 +275,66 @@ function App() {
         <NotificationProvider>
           <FeatureFlagProvider>
             <Router>
-              <div className="app-container">
-                <Routes>
-                  {/* Public routes */}
-                  <Route path="/login" element={<AuthPage />} />
-                  <Route path="/forgot-password" element={<AuthPage />} />
-                  <Route path="/reset-password" element={<AuthPage />} />
-                  <Route path="/mfa/verify" element={<MfaVerify />} />
-                  <Route path="/auth/callback" element={<SSOCallback />} />
+              <AuthNavigationGuard>
+                <div className="app-container">
+                  <Routes>
+                    {/* Public routes */}
+                    <Route path="/login" element={<AuthPage />} />
+                    <Route path="/forgot-password" element={<AuthPage />} />
+                    <Route path="/reset-password" element={<AuthPage />} />
+                    <Route path="/mfa/verify" element={<MfaVerify />} />
+                    <Route path="/auth/callback" element={<SSOCallback />} />
 
-                  {/* Protected routes that require authentication */}
-                  <Route element={<ProtectedRoute />}>
-                    <Route
-                      path="/"
-                      element={<Navigate to="/admin" replace />}
-                    />
-                    <Route
-                      path="/profile"
-                      element={<AccountPage tab="profile" />}
-                    />
-                    <Route
-                      path="/security"
-                      element={<AccountPage tab="security" />}
-                    />
-                    <Route
-                      path="/sessions"
-                      element={<AccountPage tab="sessions" />}
-                    />
-                    <Route path="/analytics" element={<AnalyticsDashboard />} />
-                    <Route path="/workflows" element={<WorkflowManagement />} />
-                    <Route
-                      path="/integrations"
-                      element={<IntegrationSettings />}
-                    />
-                    <Route path="/alerts" element={<AlertsManagement />} />
-
-                    {/* Admin-only routes for user management */}
-                    <Route element={<AdminRoute />}>
-                      <Route path="/admin" element={<AdminPanel />} />
-                      <Route path="/admin/register" element={<Register />} />
+                    {/* Protected routes that require authentication */}
+                    <Route element={<ProtectedRoute />}>
                       <Route
-                        path="/admin/users"
-                        element={<AdminPanel tab="users" />}
+                        path="/"
+                        element={<Navigate to="/admin" replace />}
                       />
+                      <Route
+                        path="/profile"
+                        element={<AccountPage tab="profile" />}
+                      />
+                      <Route
+                        path="/security"
+                        element={<AccountPage tab="security" />}
+                      />
+                      <Route
+                        path="/sessions"
+                        element={<AccountPage tab="sessions" />}
+                      />
+                      <Route path="/analytics" element={<AnalyticsDashboard />} />
+                      <Route path="/workflows" element={<WorkflowManagement />} />
+                      <Route
+                        path="/integrations"
+                        element={<IntegrationSettings />}
+                      />
+                      <Route path="/alerts" element={<AlertsManagement />} />
+
+                      {/* Admin-only routes for user management */}
+                      <Route element={<AdminRoute />}>
+                        <Route path="/admin" element={<AdminPanel />} />
+                        <Route path="/admin/register" element={<Register />} />
+                        <Route
+                          path="/admin/users"
+                          element={<AdminPanel tab="users" />}
+                        />
+                      </Route>
+
+                      {/* Admin-only routes for file permissions */}
+                      <Route element={<FilePermissionsRoute />}>
+                        <Route
+                          path="/admin/permissions"
+                          element={<FilePermissionsManager />}
+                        />
+                      </Route>
                     </Route>
 
-                    {/* Admin-only routes for file permissions */}
-                    <Route element={<FilePermissionsRoute />}>
-                      <Route
-                        path="/admin/permissions"
-                        element={<FilePermissionsManager />}
-                      />
-                    </Route>
-                  </Route>
-
-                  {/* Fallback route */}
-                  <Route path="*" element={<Navigate to="/admin" />} />
-                </Routes>
-              </div>
+                    {/* Fallback route */}
+                    <Route path="*" element={<Navigate to="/admin" />} />
+                  </Routes>
+                </div>
+              </AuthNavigationGuard>
             </Router>
           </FeatureFlagProvider>
         </NotificationProvider>

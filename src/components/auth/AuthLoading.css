@@ -1,0 +1,60 @@
+.auth-loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  min-height: 200px;
+}
+
+.spinner {
+  animation: spin 1.5s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-message {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+.loading-progress-bar {
+  width: 100%;
+  max-width: 300px;
+  height: 4px;
+  background-color: #e5e7eb;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.loading-progress-fill {
+  height: 100%;
+  background-color: #3b82f6;
+  transition: width 0.5s ease;
+}
+
+.timeout-message {
+  display: flex;
+  align-items: center;
+  color: #f59e0b;
+  font-size: 0.875rem;
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: #fffbeb;
+  border-radius: 0.25rem;
+  max-width: 300px;
+}
+
+.timeout-message svg {
+  margin-right: 0.5rem;
+}

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import SecurityCenter from "../security/SecurityCenter";
-
+import AuthDebugHelper from "../../utils/AuthDebugHelper";
 import { useNavigate } from "react-router-dom";
 import {
   User,
@@ -240,7 +240,7 @@ function ProfileSection({ setSuccess, setError }) {
             ...prevData,
             ...updates,
           }));
-          
+
           // Force page refresh to ensure all components reflect the updated name
           // This is important for the header/navbar that displays the user name
           setTimeout(() => {
@@ -427,10 +427,12 @@ function PasswordSection({ setSuccess, setError }) {
           newPassword: "",
           confirmPassword: "",
         });
-        
+
         // Show completion message for longer
         setTimeout(() => {
-          setSuccess("Password change complete. Your new password is now active.");
+          setSuccess(
+            "Password change complete. Your new password is now active."
+          );
         }, 1000);
       } else {
         console.error("Password change returned false");
@@ -439,7 +441,8 @@ function PasswordSection({ setSuccess, setError }) {
     } catch (error) {
       console.error("Password change error:", error);
       setError(
-        error.message || "Failed to change password. Please verify your current password is correct."
+        error.message ||
+          "Failed to change password. Please verify your current password is correct."
       );
     } finally {
       setIsLoading(false);
@@ -891,6 +894,7 @@ function SessionsSection({ setSuccess, setError }) {
           </div>
         </div>
       )}
+      {process.env.NODE_ENV !== "production" && <AuthDebugHelper />}
     </div>
   );
 }
