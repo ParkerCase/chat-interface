@@ -17,6 +17,7 @@ function PasswordChange({ setError, setSuccessMessage }) {
   const [isSuccess, setIsSuccess] = useState(false);
   const [processingStatus, setProcessingStatus] = useState("");
   const [redirectTimer, setRedirectTimer] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // State for password validation
   const [passwordChecks, setPasswordChecks] = useState({
@@ -27,6 +28,67 @@ function PasswordChange({ setError, setSuccessMessage }) {
     special: false,
     match: false,
   });
+
+  // In src/components/account/PasswordChange.jsx
+  // Add this to your password validation checks
+  const validateNewPassword = (password) => {
+    // Already implemented in your passwordChecks state
+    const checks = {
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /[0-9]/.test(password),
+      special: /[^A-Za-z0-9]/.test(password),
+    };
+
+    return Object.values(checks).every((check) => check);
+  };
+
+  // Add this to your PasswordChange.jsx component
+
+  const requestPasswordReset = async () => {
+    try {
+      setIsLoading(true);
+      setError("");
+
+      // Get current user email
+      const userEmail = currentUser?.email;
+      if (!userEmail) {
+        setError(
+          "No user email found. Please try again or log out and back in."
+        );
+        return false;
+      }
+
+      console.log("Requesting password reset for:", userEmail);
+
+      // Send the reset email through Supabase
+      const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // Show success message
+      setSuccessMessage(
+        `Password reset link sent to ${userEmail}. Please check your email to complete the process.`
+      );
+      setIsSuccess(true);
+
+      return true;
+    } catch (error) {
+      console.error("Password reset request error:", error);
+      setError(
+        error.message ||
+          "Failed to send password reset email. Please try again."
+      );
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Clean up timers on unmount
   useEffect(() => {
@@ -84,27 +146,30 @@ function PasswordChange({ setError, setSuccessMessage }) {
         email: localStorage.getItem("userEmail") || "",
         password: currentPassword,
       });
-      
+
       // Get the current session and user before updating
       const { data: sessionData } = await supabase.auth.getSession();
-      console.log("Current session before update:", sessionData?.session ? "Active" : "None");
-      
+      console.log(
+        "Current session before update:",
+        sessionData?.session ? "Active" : "None"
+      );
+
       // Add a delay before updating password (helps prevent issues)
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       try {
         console.log("Starting password update...");
-        
+
         // First attempt: Try with standard updateUser
         try {
           console.log("Attempt 1: Using standard updateUser method");
           const { error } = await supabase.auth.updateUser({
             password: newPassword,
           });
-          
+
           if (!error) {
             console.log("Password update succeeded with standard method");
-            
+
             // Store success markers
             setProcessingStatus("Password updated successfully!");
             localStorage.setItem("passwordChanged", "true");
@@ -114,31 +179,34 @@ function PasswordChange({ setError, setSuccessMessage }) {
               localStorage.getItem("userEmail") || ""
             );
             localStorage.setItem("forceLogout", "true");
-            
+
             return { success: true };
           }
-          
+
           console.log("Standard method failed, trying alternative approaches");
         } catch (err) {
           console.warn("Standard password update failed:", err);
           // Continue to fallback approaches
         }
-        
-        // If we reach here, the first attempt failed. 
+
+        // If we reach here, the first attempt failed.
         // The error is often "Error during password storage", which is misleading
         // because the password was actually updated - try to verify this
-        
+
         console.log("Attempt 2: Verifying if password was actually changed");
         try {
           // Try to sign in with the new password to verify it was changed
-          const { data: verifyData, error: verifyError } = await supabase.auth.signInWithPassword({
-            email: localStorage.getItem("userEmail") || "",
-            password: newPassword,
-          });
-          
+          const { data: verifyData, error: verifyError } =
+            await supabase.auth.signInWithPassword({
+              email: localStorage.getItem("userEmail") || "",
+              password: newPassword,
+            });
+
           if (!verifyError && verifyData?.user) {
-            console.log("New password verification successful, password was changed");
-            
+            console.log(
+              "New password verification successful, password was changed"
+            );
+
             // Store success markers
             setProcessingStatus("Password updated successfully!");
             localStorage.setItem("passwordChanged", "true");
@@ -148,33 +216,40 @@ function PasswordChange({ setError, setSuccessMessage }) {
               localStorage.getItem("userEmail") || ""
             );
             localStorage.setItem("forceLogout", "true");
-            
+
             return { success: true };
           }
-          
-          console.log("New password verification failed, old password may still be active");
+
+          console.log(
+            "New password verification failed, old password may still be active"
+          );
         } catch (verifyErr) {
           console.warn("Password verification attempt failed:", verifyErr);
         }
-        
+
         // Final attempt: Handle uncertain outcome transparently
         console.log("Password change result uncertain");
-        
+
         // Try signing in with the old password to see if it's still valid
         try {
-          const { data: oldPasswordCheck } = await supabase.auth.signInWithPassword({
-            email: localStorage.getItem("userEmail") || "",
-            password: currentPassword,
-          });
-          
+          const { data: oldPasswordCheck } =
+            await supabase.auth.signInWithPassword({
+              email: localStorage.getItem("userEmail") || "",
+              password: currentPassword,
+            });
+
           if (oldPasswordCheck?.user) {
             console.log("Old password still works - password was NOT changed");
-            throw new Error("Password update failed. The old password is still active.");
+            throw new Error(
+              "Password update failed. The old password is still active."
+            );
           } else {
             // If we can't sign in with old password, then the new password likely took effect
-            console.log("Old password no longer works - password WAS changed successfully");
+            console.log(
+              "Old password no longer works - password WAS changed successfully"
+            );
             setProcessingStatus("Password has been changed successfully!");
-            
+
             localStorage.setItem("passwordChanged", "true");
             localStorage.setItem("passwordChangedAt", new Date().toISOString());
             localStorage.setItem(
@@ -182,23 +257,26 @@ function PasswordChange({ setError, setSuccessMessage }) {
               localStorage.getItem("userEmail") || ""
             );
             localStorage.setItem("forceLogout", "true");
-            
+
             return { success: true };
           }
         } catch (finalCheckErr) {
           console.log("Final password check error:", finalCheckErr);
-          
+
           // Here we truly can't be certain - be honest with the user
           // We'll return success but with warning flag
-          setProcessingStatus("Password change status uncertain. You will be logged out to ensure security.");
+          setProcessingStatus(
+            "Password change status uncertain. You will be logged out to ensure security."
+          );
           localStorage.setItem("passwordChanged", "true");
           localStorage.setItem("passwordChangedUncertain", "true");
           localStorage.setItem("passwordChangedAt", new Date().toISOString());
           localStorage.setItem("forceLogout", "true");
-          
-          return { 
-            success: true, 
-            warning: "Password change had errors but you'll be logged out. Try logging in with your new password. If that fails, use password reset."
+
+          return {
+            success: true,
+            warning:
+              "Password change had errors but you'll be logged out. Try logging in with your new password. If that fails, use password reset.",
           };
         }
       } catch (error) {
@@ -231,6 +309,8 @@ function PasswordChange({ setError, setSuccessMessage }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isSubmitting) return; // Prevent multiple submissions
 
     // Clear previous messages
     setError("");
@@ -267,6 +347,8 @@ function PasswordChange({ setError, setSuccessMessage }) {
 
     try {
       setIsLoading(true);
+      setIsSubmitting(true);
+      console.log("Starting password change process");
       setProcessingStatus("Starting password change process...");
 
       // Store email in local storage for use on login page
@@ -289,11 +371,12 @@ function PasswordChange({ setError, setSuccessMessage }) {
         setProcessingStatus(
           "Password changed successfully! Preparing to redirect..."
         );
-        
+
         // Check if there was a warning
         if (result.warning) {
           setSuccessMessage(
-            result.warning || "Password changed with warnings. You will be logged out for security purposes."
+            result.warning ||
+              "Password changed with warnings. You will be logged out for security purposes."
           );
         } else {
           setSuccessMessage(
@@ -348,196 +431,81 @@ function PasswordChange({ setError, setSuccessMessage }) {
       setProcessingStatus("");
     } finally {
       setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="password-change-container">
-      <h3>Change Password</h3>
+      <h3>Reset Your Password</h3>
       <p className="tab-description">
         Update your password to maintain account security
       </p>
 
-      <form onSubmit={handleSubmit} className="password-change-form">
-        {/* Current Password */}
-        <div className="form-group">
-          <label htmlFor="currentPassword">Current Password</label>
-          <div className="password-input-wrapper">
-            <input
-              type={showCurrentPassword ? "text" : "password"}
-              id="currentPassword"
-              name="currentPassword"
-              value={formData.currentPassword}
-              onChange={handleInputChange}
-              className="form-input"
-              disabled={isLoading || isSuccess}
-            />
-            <button
-              type="button"
-              className="toggle-password"
-              onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-              aria-label={
-                showCurrentPassword ? "Hide password" : "Show password"
-              }
-              disabled={isLoading || isSuccess}
-            >
-              {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          </div>
+      {!isSuccess ? (
+        <div className="password-reset-section">
+          <p>
+            To reset your password, we'll send a password reset link to your
+            email: <strong>{currentUser?.email}</strong>
+          </p>
+
+          <p className="reset-info">
+            <Info size={16} />
+            Once you receive the email, click the link to set a new password of
+            your choice.
+          </p>
+
+          <button
+            onClick={requestPasswordReset}
+            className="reset-password-button"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Loader className="spinner-sm" />
+                Sending Reset Link...
+              </>
+            ) : (
+              <>
+                <Mail size={18} />
+                Send Password Reset Link
+              </>
+            )}
+          </button>
         </div>
-
-        {/* New Password */}
-        <div className="form-group">
-          <label htmlFor="newPassword">New Password</label>
-          <div className="password-input-wrapper">
-            <input
-              type={showNewPassword ? "text" : "password"}
-              id="newPassword"
-              name="newPassword"
-              value={formData.newPassword}
-              onChange={handleInputChange}
-              className="form-input"
-              disabled={isLoading || isSuccess}
-            />
-            <button
-              type="button"
-              className="toggle-password"
-              onClick={() => setShowNewPassword(!showNewPassword)}
-              aria-label={showNewPassword ? "Hide password" : "Show password"}
-              disabled={isLoading || isSuccess}
-            >
-              {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          </div>
-
-          {/* Password requirements */}
-          <div className="password-requirements">
-            <p className="requirements-title">Password must contain:</p>
-            <ul>
-              <li className={passwordChecks.length ? "passed" : ""}>
-                {passwordChecks.length ? (
-                  <CheckCircle size={14} />
-                ) : (
-                  <X size={14} />
-                )}
-                <span>At least 8 characters</span>
-              </li>
-              <li className={passwordChecks.uppercase ? "passed" : ""}>
-                {passwordChecks.uppercase ? (
-                  <CheckCircle size={14} />
-                ) : (
-                  <X size={14} />
-                )}
-                <span>At least one uppercase letter</span>
-              </li>
-              <li className={passwordChecks.lowercase ? "passed" : ""}>
-                {passwordChecks.lowercase ? (
-                  <CheckCircle size={14} />
-                ) : (
-                  <X size={14} />
-                )}
-                <span>At least one lowercase letter</span>
-              </li>
-              <li className={passwordChecks.number ? "passed" : ""}>
-                {passwordChecks.number ? (
-                  <CheckCircle size={14} />
-                ) : (
-                  <X size={14} />
-                )}
-                <span>At least one number</span>
-              </li>
-              <li className={passwordChecks.special ? "passed" : ""}>
-                {passwordChecks.special ? (
-                  <CheckCircle size={14} />
-                ) : (
-                  <X size={14} />
-                )}
-                <span>At least one special character</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        {/* Confirm Password */}
-        <div className="form-group">
-          <label htmlFor="confirmPassword">Confirm New Password</label>
-          <div className="password-input-wrapper">
-            <input
-              type={showConfirmPassword ? "text" : "password"}
-              id="confirmPassword"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleInputChange}
-              className={`form-input ${
-                formData.confirmPassword && !passwordChecks.match
-                  ? "password-mismatch"
-                  : ""
-              }`}
-              disabled={isLoading || isSuccess}
-            />
-            <button
-              type="button"
-              className="toggle-password"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              aria-label={
-                showConfirmPassword ? "Hide password" : "Show password"
-              }
-              disabled={isLoading || isSuccess}
-            >
-              {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          </div>
-          {formData.confirmPassword && !passwordChecks.match && (
-            <p className="password-mismatch-text">Passwords do not match</p>
-          )}
-        </div>
-
-        {/* Processing status message */}
-        {processingStatus && (
-          <div className="processing-status">
-            <Loader className="status-spinner" size={16} />
-            <p>{processingStatus}</p>
-          </div>
-        )}
-
-        <button
-          type="submit"
-          className="password-change-button"
-          disabled={
-            isLoading ||
-            isSuccess ||
-            !Object.values(passwordChecks).every((check) => check)
-          }
-        >
-          {isLoading ? (
-            <>
-              <Loader className="spinner-sm" />
-              <span>Changing Password...</span>
-            </>
-          ) : isSuccess ? (
-            <>
-              <CheckCircle size={18} />
-              <span>Password Changed!</span>
-            </>
-          ) : (
-            <>
-              <Save size={18} />
-              <span>Change Password</span>
-            </>
-          )}
-        </button>
-      </form>
-
-      {isSuccess && (
+      ) : (
         <div className="success-message">
           <CheckCircle className="success-icon" />
-          <p>Password changed successfully! Redirecting to login page...</p>
+          <h4>Reset Link Sent!</h4>
+          <p>{successMessage}</p>
+          <div className="reset-instructions">
+            <ol>
+              <li>Check your email inbox for the reset link</li>
+              <li>Click the link in the email</li>
+              <li>Create your new password when prompted</li>
+              <li>You'll be automatically logged in after resetting</li>
+            </ol>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="error-message">
+          <AlertCircle size={18} />
+          <p>{error}</p>
         </div>
       )}
 
       <div className="password-security-tips">
         <h4>Password Security Tips</h4>
         <ul>
+          <li>
+            <Key size={16} />
+            <span>
+              Use at least 8 characters with uppercase, lowercase, numbers, and
+              special characters
+            </span>
+          </li>
           <li>
             <Key size={16} />
             <span>Don't reuse passwords across multiple sites</span>
@@ -547,13 +515,6 @@ function PasswordChange({ setError, setSuccessMessage }) {
             <span>
               Consider using a password manager to generate and store strong
               passwords
-            </span>
-          </li>
-          <li>
-            <Key size={16} />
-            <span>
-              Change your password regularly, especially if you suspect your
-              account has been compromised
             </span>
           </li>
         </ul>

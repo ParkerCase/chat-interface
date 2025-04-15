@@ -30,7 +30,7 @@ function AppRoutes() {
       {/* Public routes */}
       <Route path="/login" element={<AuthPage />} />
       <Route path="/forgot-password" element={<AuthPage />} />
-      <Route path="/reset-password" element={<AuthPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/mfa/verify" element={<MfaVerify />} />
       <Route path="/auth/callback" element={<SSOCallback />} />
 
