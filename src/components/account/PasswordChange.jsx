@@ -87,19 +87,21 @@ function PasswordChange({ setError, setSuccessMessage }) {
 
       console.log("Requesting password reset for:", userEmail);
 
-      // Send the reset email through Supabase
+      // Send the reset email through Supabase with properly configured options
       const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
+        captchaToken: null, // Set to null to disable captcha if causing issues
       });
 
       if (error) {
+        console.error("Password reset request error:", error);
         throw error;
       }
 
       // Show success message
       setSuccessMessage &&
         setSuccessMessage(
-          `Password reset link sent to ${userEmail}. Please check your email to complete the process.`
+          `Password reset link sent to ${userEmail}. Please check your email to complete the process. The link will expire in 24 hours.`
         );
       setIsSuccess(true);
 

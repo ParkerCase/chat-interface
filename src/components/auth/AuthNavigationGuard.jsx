@@ -16,12 +16,14 @@ function AuthNavigationGuard({ children }) {
   const [isRecovering, setIsRecovering] = useState(false);
   const [recoveryMessage, setRecoveryMessage] = useState("");
 
+  // Identify route types for conditional handling
   const isAuthRoute =
     location.pathname === "/login" ||
     location.pathname === "/register" ||
     location.pathname === "/forgot-password" ||
-    location.pathname === "/reset-password" ||
-    location.pathname.startsWith("/auth/");
+    location.pathname === "/auth/callback";
+
+  const isPasswordResetRoute = location.pathname === "/reset-password";
 
   const isMfaRoute =
     location.pathname === "/mfa/verify" ||
@@ -33,6 +35,35 @@ function AuthNavigationGuard({ children }) {
     if (!isInitialized) return;
 
     const handleNavigation = async () => {
+      // CRITICAL: Check if we're in password reset flow - if so, bypass all redirects
+      const inPasswordResetFlow =
+        localStorage.getItem("password_reset_in_progress") === "true";
+      if (isPasswordResetRoute && inPasswordResetFlow) {
+        console.log(
+          "User is in password reset flow, bypassing all navigation guards"
+        );
+        return;
+      }
+
+      // Check password reset route for token parameters to recognize a fresh reset attempt
+      if (isPasswordResetRoute) {
+        const params = new URLSearchParams(location.search);
+        const hasResetParams =
+          params.has("token") ||
+          params.has("type") ||
+          params.has("access_token") ||
+          window.location.hash;
+
+        if (hasResetParams) {
+          console.log(
+            "Reset parameters detected in URL, allowing access to reset page"
+          );
+          // Set the flag to prevent future redirects during this flow
+          localStorage.setItem("password_reset_in_progress", "true");
+          return;
+        }
+      }
+
       // Check if this is a post-password-change state
       const passwordChanged =
         localStorage.getItem("passwordChanged") === "true";
@@ -63,8 +94,8 @@ function AuthNavigationGuard({ children }) {
 
       // Public routes - no auth needed
       if (isAuthRoute) {
-        // If already authenticated, redirect to dashboard
-        if (currentUser && !loading) {
+        // If already authenticated, redirect to dashboard (except in special cases)
+        if (currentUser && !loading && !isPasswordResetRoute) {
           navigate("/admin", { replace: true });
         }
         return;
@@ -77,7 +108,7 @@ function AuthNavigationGuard({ children }) {
       }
 
       // Protected routes - auth required
-      if (!currentUser && !loading) {
+      if (!currentUser && !loading && !isPasswordResetRoute) {
         console.log("Auth required but no user, redirecting to login");
         // Save the current location to redirect back after login
         const returnUrl = encodeURIComponent(
@@ -112,93 +143,7 @@ function AuthNavigationGuard({ children }) {
     logout,
     isAuthRoute,
     isMfaRoute,
-  ]);
-
-  // Handle serious authentication issues
-  useEffect(() => {
-    if (!isInitialized) return;
-
-    // Check for auth state issues on important routes
-    if (!currentUser && !loading && !isAuthRoute && !isMfaRoute) {
-      console.log("Auth inconsistency detected, attempting recovery...");
-
-      const runRecovery = async () => {
-        setIsRecovering(true);
-        setRecoveryMessage("Checking authentication status...");
-
-        try {
-          // Check if we have a session but no user
-          const { data } = await supabase.auth.getSession();
-
-          if (data?.session) {
-            setRecoveryMessage("Recovering authentication state...");
-
-            try {
-              // Try to get user data
-              const { data: userData } = await supabase.auth.getUser();
-
-              if (userData?.user) {
-                // Get profile data
-                const { data: profileData } = await supabase
-                  .from("profiles")
-                  .select("*")
-                  .eq("id", userData.user.id)
-                  .single();
-
-                // Create user object
-                const user = {
-                  id: userData.user.id,
-                  email: userData.user.email,
-                  name: profileData?.full_name || userData.user.email,
-                  roles: profileData?.roles || ["user"],
-                  tier: "enterprise",
-                };
-
-                // Update localStorage
-                localStorage.setItem("authToken", data.session.access_token);
-                localStorage.setItem(
-                  "refreshToken",
-                  data.session.refresh_token
-                );
-                localStorage.setItem("currentUser", JSON.stringify(user));
-                localStorage.setItem("isAuthenticated", "true");
-
-                // Reload the page to reinitialize auth context
-                window.location.reload();
-                return;
-              }
-            } catch (recoveryError) {
-              console.error("Auth recovery error:", recoveryError);
-            }
-          }
-
-          // If recovery fails or no session, redirect to login
-          console.log(
-            "Auth recovery failed or no session, redirecting to login"
-          );
-          const returnUrl = encodeURIComponent(
-            location.pathname + location.search
-          );
-          navigate(`/login?returnUrl=${returnUrl}`, { replace: true });
-        } catch (error) {
-          console.error("Auth recovery error:", error);
-          // On error, redirect to login
-          navigate("/login", { replace: true });
-        } finally {
-          setIsRecovering(false);
-        }
-      };
-
-      runRecovery();
-    }
-  }, [
-    currentUser,
-    loading,
-    isInitialized,
-    navigate,
-    location,
-    isAuthRoute,
-    isMfaRoute,
+    isPasswordResetRoute,
   ]);
 
   // Show recovery screen when fixing auth issues

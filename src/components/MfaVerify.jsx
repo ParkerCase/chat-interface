@@ -78,13 +78,18 @@ function MfaVerify() {
         // Only send if:
         // 1. Email type is requested AND
         // 2. We haven't sent a code recently (within 2 minutes)
-        if (typeFromParams === "email") {
-          const lastCodeSent = sessionStorage.getItem("lastMfaCodeSent");
+        // 3. There's no specific flag to prevent sending
+        if (typeFromParams === "email" && !params.get("skipCodeSend")) {
+          const lastCodeSent = parseInt(
+            sessionStorage.getItem("lastMfaCodeSent") || "0"
+          );
           const now = Date.now();
-          const needToSendCode =
-            !lastCodeSent || now - parseInt(lastCodeSent) > 120000; // 2 minutes
+          const needToSendCode = !lastCodeSent || now - lastCodeSent > 120000; // 2 minutes
 
           if (needToSendCode) {
+            // Set this first to prevent race conditions where multiple sends happen
+            sessionStorage.setItem("lastMfaCodeSent", now.toString());
+
             debugAuth.log(
               "MfaVerify",
               "No recent code detected, sending new verification code"
@@ -110,7 +115,6 @@ function MfaVerify() {
                   "MfaVerify",
                   "Verification code sent successfully"
                 );
-                sessionStorage.setItem("lastMfaCodeSent", now.toString());
               }
             } catch (err) {
               debugAuth.log(
@@ -125,6 +129,11 @@ function MfaVerify() {
               "Recent code already sent, not sending another"
             );
           }
+        } else {
+          debugAuth.log(
+            "MfaVerify",
+            "Skipping code send based on parameters or non-email type"
+          );
         }
       } catch (err) {
         console.error("Error initializing MFA verification:", err);
