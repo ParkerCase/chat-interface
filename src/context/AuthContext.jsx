@@ -1,4 +1,4 @@
-// src/context/AuthContext.jsx - FIXED MFA FLOW
+// src/context/AuthContext.jsx - MFA VERIFICATION FIXES
 import React, {
   createContext,
   useState,
@@ -16,6 +16,7 @@ import { debugAuth } from "../utils/authDebug";
 
 import apiService from "../services/apiService";
 
+// Create auth context
 const AuthContext = createContext(null);
 
 export function useAuth() {
@@ -37,6 +38,10 @@ export function AuthProvider({ children }) {
     data: null,
   });
   const supabaseListenerRef = useRef(null);
+
+  // ========================
+  // TOKEN MANAGEMENT
+  // ========================
 
   // Get a valid token, refreshing if needed
   const getValidToken = async () => {
@@ -85,6 +90,10 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // ========================
+  // MFA MANAGEMENT
+  // ========================
+
   // Email MFA setup function - this works directly with Supabase
   const setupEmailMFA = async (email) => {
     try {
@@ -113,19 +122,32 @@ export function AuthProvider({ children }) {
         );
       }
 
-      // Use Supabase's OTP system with explicit code option
-      const { error } = await supabase.auth.signInWithOtp({
-        email: userEmail,
-        options: {
-          shouldCreateUser: false,
-          // Force OTP (numeric code) instead of magic link
-          emailRedirectTo: null,
-        },
-      });
+      // Store last sent time to prevent duplicate sends
+      const now = Date.now();
+      const lastCodeSent = parseInt(
+        sessionStorage.getItem("lastMfaCodeSent") || "0"
+      );
+      const needToSendCode = !lastCodeSent || now - lastCodeSent > 60000; // 1 minute
 
-      if (error) throw error;
+      // Only send code if needed - helps prevent duplicate emails
+      if (needToSendCode) {
+        // Use Supabase's OTP system with explicit code option
+        const { error } = await supabase.auth.signInWithOtp({
+          email: userEmail,
+          options: {
+            shouldCreateUser: false,
+            // Force OTP (numeric code) instead of magic link
+            emailRedirectTo: null,
+          },
+        });
 
-      console.log("Email with verification code sent successfully");
+        if (error) throw error;
+
+        console.log("Email with verification code sent successfully");
+        sessionStorage.setItem("lastMfaCodeSent", now.toString());
+      } else {
+        console.log("Skipping code send - recent code already sent");
+      }
 
       // Return data in expected format
       return {
@@ -157,7 +179,6 @@ export function AuthProvider({ children }) {
       }
 
       // Try multiple verification approaches in sequence until one works
-
       // Attempt 1: "magiclink" type (standard approach)
       try {
         console.log("Attempting verification with magiclink type");
@@ -260,107 +281,6 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error("Email verification error in outer scope:", error);
       return false;
-    }
-  };
-
-  // Login function with MFA support - FIXED
-  const login = async (email, password, signal) => {
-    try {
-      setError("");
-      setLoading(true);
-      console.log("Attempting login with:", email);
-
-      // Check if we need to force a hard refresh after a password change
-      // Check if we need to force a hard refresh after a password change
-      const forceLogout = localStorage.getItem("forceLogout") === "true";
-      if (forceLogout) {
-        // Clear the flag
-        localStorage.removeItem("forceLogout");
-
-        // Ensure we have a clean slate for the login attempt
-        await supabase.auth.signOut();
-        localStorage.removeItem("authToken");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("sessionId");
-        sessionStorage.clear();
-
-        console.log("Forced clean logout after password change");
-      }
-
-      // Reset MFA state at the beginning of login
-      setMfaState({
-        required: false,
-        inProgress: false,
-        verified: false,
-        data: null,
-      });
-
-      // Standard login flow for ALL users
-      try {
-        console.log("Using standard authentication flow");
-
-        // Login with Supabase
-        const { data: authData, error } =
-          await supabase.auth.signInWithPassword({
-            email: email,
-            password: password,
-          });
-
-        if (error) throw error;
-
-        console.log("Login successful, processing user data");
-
-        // Rest of your login function remains the same...
-
-        // Get profile data
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", authData.user.id)
-          .single();
-
-        // Create user object
-        let userData = {
-          id: authData.user.id,
-          email: authData.user.email,
-          name: profileData?.full_name || authData.user.email,
-          roles: profileData?.roles || ["user"],
-          tier: "enterprise",
-          mfaMethods: profileData?.mfa_methods || [],
-        };
-
-        // Special case for admin user - ensure roles, but still require MFA
-        if (userData.email === "itsus@tatt2away.com") {
-          userData.roles = ["super_admin", "admin", "user"];
-        }
-
-        // Add enterprise features
-        userData.features = getEnterpriseFeatures();
-
-        // Update state and localStorage
-        localStorage.setItem("authToken", authData.session.access_token);
-        localStorage.setItem("refreshToken", authData.session.refresh_token);
-        localStorage.setItem("currentUser", JSON.stringify(userData));
-        localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("authStage", "pre-mfa"); // Track auth stage
-
-        setCurrentUser(userData);
-        setSession(authData.session);
-        setUserTier("enterprise");
-        setUserFeatures(userData.features);
-
-        // Continue with the rest of the login process...
-      } catch (error) {
-        console.error("Login error:", error);
-        setError(error.message || "Invalid email or password");
-        return { success: false, error: error.message };
-      }
-    } catch (err) {
-      console.error("Outer login error:", err);
-      setError(err.message || "An unexpected error occurred");
-      return { success: false, error: err.message };
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -468,6 +388,23 @@ export function AuthProvider({ children }) {
         }
       }
 
+      // Set MFA as verified if successful
+      if (success) {
+        setMfaState({
+          required: false,
+          inProgress: false,
+          verified: true,
+          data: null,
+        });
+
+        // Update storage
+        localStorage.setItem("authStage", "post-mfa");
+        localStorage.setItem("mfa_verified", "true");
+        sessionStorage.setItem("mfa_verified", "true");
+        sessionStorage.setItem("mfaSuccess", "true");
+        sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
+      }
+
       return success;
     } catch (error) {
       console.error("MFA confirmation error:", error);
@@ -486,6 +423,11 @@ export function AuthProvider({ children }) {
         type,
         createdAt: new Date().toISOString(),
       };
+
+      // Add email information if this is an email method
+      if (type === "email") {
+        newMethod.email = currentUser.email;
+      }
 
       // Update local user
       const mfaMethods = [...(currentUser.mfaMethods || [])];
@@ -528,7 +470,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Verify MFA during login - FIXED
+  // Verify MFA during login - FIXED version
   const verifyMfa = async (methodId, verificationCode) => {
     try {
       setError("");
@@ -584,93 +526,10 @@ export function AuthProvider({ children }) {
       let success = false;
 
       if (isEmail) {
-        // Handle email verification
-        const userEmail = currentUser?.email;
-        console.log(`Verifying email OTP for ${userEmail}`);
-
-        // Try multiple approaches for email verification
-        try {
-          // Approach 1: Verify OTP as magiclink
-          const { data, error } = await supabase.auth.verifyOtp({
-            email: userEmail,
-            token: verificationCode,
-            type: "magiclink",
-          });
-
-          if (!error) {
-            console.log("Email verification successful (magiclink)");
-            success = true;
-          } else if (
-            error.message &&
-            (error.message.includes("already confirmed") ||
-              error.message.includes("already logged in"))
-          ) {
-            // Some errors are actually benign
-            console.log("User already confirmed - verification successful");
-            success = true;
-          } else {
-            // Try other approaches
-            console.log("Magiclink verification failed, trying alternatives");
-
-            // Approach 2: Verify as email type
-            try {
-              const { data, error } = await supabase.auth.verifyOtp({
-                email: userEmail,
-                token: verificationCode,
-                type: "email",
-              });
-
-              if (!error) {
-                console.log("Email verification successful (email type)");
-                success = true;
-              } else if (
-                error.message &&
-                (error.message.includes("already confirmed") ||
-                  error.message.includes("already logged in"))
-              ) {
-                console.log("User already confirmed - verification successful");
-                success = true;
-              } else {
-                console.log("Email verification failed, trying recovery type");
-
-                // Approach 3: Verify as recovery type
-                try {
-                  const { data, error } = await supabase.auth.verifyOtp({
-                    email: userEmail,
-                    token: verificationCode,
-                    type: "recovery",
-                  });
-
-                  if (!error) {
-                    console.log(
-                      "Email verification successful (recovery type)"
-                    );
-                    success = true;
-                  } else if (
-                    error.message &&
-                    (error.message.includes("already confirmed") ||
-                      error.message.includes("already logged in"))
-                  ) {
-                    console.log(
-                      "User already confirmed - verification successful"
-                    );
-                    success = true;
-                  }
-                } catch (err) {
-                  console.warn("Recovery verification attempt failed:", err);
-                }
-              }
-            } catch (err) {
-              console.warn("Email verification attempt failed:", err);
-            }
-          }
-        } catch (err) {
-          console.warn("MFA verification attempt failed:", err);
-        }
+        // Email verification with improved approach
+        success = await verifyEmailOTP(currentUser?.email, verificationCode);
       } else {
         // TOTP verification - use standard Supabase flow with timeouts
-        console.log(`Verifying TOTP factor: ${methodId}`);
-
         try {
           // Step 1: Create a challenge with timeout
           const challengePromise = supabase.auth.mfa.challenge({
@@ -864,149 +723,165 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Check if user has a role
-  const hasRole = useCallback(
-    (roleCode) => {
-      if (!currentUser || !currentUser.roles) {
-        return false;
-      }
+  // ========================
+  // USER AUTHENTICATION
+  // ========================
 
-      // Super admin can act as any role
-      if (currentUser.roles.includes("super_admin")) {
-        return true;
-      }
-
-      return currentUser.roles.includes(roleCode);
-    },
-    [currentUser]
-  );
-
-  // Check if user has permission
-  const hasPermission = useCallback(
-    (permissionCode) => {
-      if (!currentUser || !currentUser.roles) {
-        return false;
-      }
-
-      // Super admin has all permissions
-      if (currentUser.roles.includes("super_admin")) {
-        return true;
-      }
-
-      // Admin has most permissions except system level ones
-      if (currentUser.roles.includes("admin")) {
-        return !permissionCode.startsWith("system.");
-      }
-
-      // Check specific permissions in user
-      if (
-        currentUser.permissions &&
-        currentUser.permissions.includes(permissionCode)
-      ) {
-        return true;
-      }
-
-      // Basic role-based permissions
-      if (
-        permissionCode.startsWith("user.") &&
-        currentUser.roles.includes("user")
-      ) {
-        return true;
-      }
-
-      // Feature access based on tier
-      if (permissionCode.startsWith("feature.")) {
-        const featureName = permissionCode.substring("feature.".length);
-        return hasFeatureAccess(featureName);
-      }
-
-      return false;
-    },
-    [currentUser]
-  );
-
-  // Check if user has access to a feature
-  const hasFeatureAccess = useCallback((featureName) => {
-    // In this application, all users have enterprise features
-    return true;
-  }, []);
-
-  // Get current user tier
-  const getUserTier = useCallback(() => {
-    return "enterprise";
-  }, []);
-
-  // Register function
-  const register = async (userData) => {
+  // Login function with MFA support - only send code ONCE
+  const login = async (email, password, signal) => {
     try {
       setError("");
       setLoading(true);
+      console.log("Attempting login with:", email);
 
-      // For admin user creating new users
-      if (userData.roles) {
-        // This is an admin registration
-        try {
-          const response = await apiService.users.create(userData);
-          return response.data;
-        } catch (err) {
-          throw new Error(err.response?.data?.error || "Registration failed");
-        }
+      // Check if we need to force a hard refresh after a password change
+      const forceLogout = localStorage.getItem("forceLogout") === "true";
+      if (forceLogout) {
+        // Clear the flag
+        localStorage.removeItem("forceLogout");
+
+        // Ensure we have a clean slate for the login attempt
+        await supabase.auth.signOut();
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("sessionId");
+        sessionStorage.clear();
+
+        console.log("Forced clean logout after password change");
       }
 
-      // For self-registration
-      // Email domain validation
-      if (
-        !userData.email.endsWith("@tatt2away.com") &&
-        userData.email !== "itsus@tatt2away.com"
-      ) {
-        throw new Error("Only @tatt2away.com email addresses are allowed");
-      }
-
-      // Register with Supabase
-      const { data, error } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
-          data: {
-            full_name: userData.name,
-          },
-        },
+      // Reset MFA state at the beginning of login
+      setMfaState({
+        required: false,
+        inProgress: false,
+        verified: false,
+        data: null,
       });
 
-      if (error) throw error;
+      // Standard login flow for ALL users
+      try {
+        console.log("Using standard authentication flow");
 
-      // Create profile in Supabase
-      const { error: profileError } = await supabase.from("profiles").insert([
-        {
-          id: data.user.id,
-          full_name: userData.name,
-          email: userData.email,
-          roles: userData.roles || ["user"],
+        // Login with Supabase
+        const { data: authData, error } =
+          await supabase.auth.signInWithPassword({
+            email: email,
+            password: password,
+          });
+
+        if (error) throw error;
+
+        console.log("Login successful, processing user data");
+
+        // Get profile data
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", authData.user.id)
+          .single();
+
+        // Create user object
+        let userData = {
+          id: authData.user.id,
+          email: authData.user.email,
+          name: profileData?.full_name || authData.user.email,
+          roles: profileData?.roles || ["user"],
           tier: "enterprise",
-        },
-      ]);
+          mfaMethods: profileData?.mfa_methods || [],
+        };
 
-      if (profileError) throw profileError;
+        // Special case for admin user - ensure roles, but still require MFA
+        if (userData.email === "itsus@tatt2away.com") {
+          userData.roles = ["super_admin", "admin", "user"];
+        }
 
-      return {
-        success: true,
-        user: {
-          id: data.user.id,
-          email: data.user.email,
-          name: userData.name,
-          roles: userData.roles || ["user"],
-        },
-        requiresEmailVerification: true,
-      };
+        // Add enterprise features
+        userData.features = getEnterpriseFeatures();
+
+        // Update state and localStorage
+        localStorage.setItem("authToken", authData.session.access_token);
+        localStorage.setItem("refreshToken", authData.session.refresh_token);
+        localStorage.setItem("currentUser", JSON.stringify(userData));
+        localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem("authStage", "pre-mfa"); // Track auth stage
+
+        setCurrentUser(userData);
+        setSession(authData.session);
+        setUserTier("enterprise");
+        setUserFeatures(userData.features);
+
+        // Prepare the MFA state
+        const hasMfaMethods =
+          userData.mfaMethods && userData.mfaMethods.length > 0;
+        const mfaMethodId =
+          hasMfaMethods && userData.mfaMethods[0].id
+            ? userData.mfaMethods[0].id
+            : `email-${userData.email.replace(/[^a-zA-Z0-9]/g, "")}`;
+
+        const mfaMethodType =
+          hasMfaMethods && userData.mfaMethods[0].type
+            ? userData.mfaMethods[0].type
+            : "email";
+
+        // Always require MFA verification
+        setMfaState({
+          required: true,
+          inProgress: false,
+          verified: false,
+          data: {
+            methodId: mfaMethodId,
+            type: mfaMethodType,
+            email: userData.email,
+          },
+        });
+
+        // Send verification code if needed (email type only), and if no recent code was sent
+        if (mfaMethodType === "email") {
+          // Check if we've already sent a code recently to avoid duplicate emails
+          const lastCodeSent = parseInt(
+            sessionStorage.getItem("lastMfaCodeSent") || "0"
+          );
+          const now = Date.now();
+          const needToSendCode = !lastCodeSent || now - lastCodeSent > 60000; // 1 minute
+
+          if (needToSendCode) {
+            console.log("Sending verification code email");
+
+            const { error: otpError } = await supabase.auth.signInWithOtp({
+              email: userData.email,
+              options: {
+                shouldCreateUser: false,
+                emailRedirectTo: null,
+              },
+            });
+
+            if (otpError) {
+              console.warn("Error sending verification code:", otpError);
+            } else {
+              // Record when we sent the code
+              sessionStorage.setItem("lastMfaCodeSent", now.toString());
+            }
+          } else {
+            console.log("Skipping code send - recent code already sent");
+          }
+        }
+
+        return { success: true, requiresMfa: true };
+      } catch (error) {
+        console.error("Login error:", error);
+        setError(error.message || "Invalid email or password");
+        return { success: false, error: error.message };
+      }
     } catch (err) {
-      console.error("Registration error:", err);
-      setError(err.message || "Registration failed");
-      throw err;
+      console.error("Outer login error:", err);
+      setError(err.message || "An unexpected error occurred");
+      return { success: false, error: err.message };
     } finally {
       setLoading(false);
     }
   };
 
+  // Logout with cleanup and redirect
   const logout = async () => {
     try {
       console.log("Starting comprehensive logout process");
@@ -1040,6 +915,7 @@ export function AuthProvider({ children }) {
         "ssoAttempt",
         "ssoProvider",
         "authStage",
+        "lastMfaCodeSent",
       ];
 
       // Clear localStorage items
@@ -1109,209 +985,78 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Process token exchange from SSO providers
-  const processTokenExchange = async (code) => {
-    try {
-      setError("");
-      setLoading(true);
+  // ========================
+  // USER MANAGEMENT
+  // ========================
 
-      // First try processing via Supabase
-      try {
-        // For Supabase SSO, we don't need to do anything - session should be set automatically
-        const { data: sessionData } = await supabase.auth.getSession();
-        console.log(session);
-
-        if (sessionData?.session) {
-          // Get user profile
-          const { data: userData } = await supabase.auth.getUser();
-
-          if (userData?.user) {
-            // Get additional data from profiles
-            const { data: profileData, error: profileError } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", userData.user.id)
-              .single();
-
-            // Create user object
-            let user = {
-              id: userData.user.id,
-              email: userData.user.email,
-              name:
-                profileData?.full_name ||
-                userData.user.user_metadata?.name ||
-                userData.user.email,
-              roles: profileData?.roles || ["user"],
-              tier: "enterprise",
-              mfaMethods: profileData?.mfa_methods || [],
-              features: getEnterpriseFeatures(),
-            };
-
-            // Special case for super admin
-            if (user.email === "itsus@tatt2away.com") {
-              user.roles = ["super_admin", "admin", "user"];
-            }
-
-            // Store user data
-            localStorage.setItem("authToken", sessionData.session.access_token);
-            localStorage.setItem(
-              "refreshToken",
-              sessionData.session.refresh_token
-            );
-            localStorage.setItem("currentUser", JSON.stringify(user));
-            localStorage.setItem("isAuthenticated", "true");
-            localStorage.setItem("authStage", "pre-mfa"); // Track auth stage
-
-            // Update state
-            setCurrentUser(user);
-            setSession(sessionData.session);
-            setUserTier("enterprise");
-            setUserFeatures(user.features);
-
-            // Set MFA as required for SSO users too
-            setMfaState({
-              required: true,
-              inProgress: false,
-              verified: false,
-              data: {
-                methodId: `email-${user.email.replace(/[^a-zA-Z0-9]/g, "")}`,
-                type: "email",
-                email: user.email,
-              },
-            });
-
-            return true;
-          }
-        }
-      } catch (supabaseError) {
-        console.warn("Supabase SSO processing failed:", supabaseError);
-        // Continue with custom API
+  // Get user roles and permissions
+  const hasRole = useCallback(
+    (roleCode) => {
+      if (!currentUser || !currentUser.roles) {
+        return false;
       }
 
-      // Fall back to custom API for token exchange
-      const response = await apiService.auth.exchangeToken(code);
-
-      if (response.data && response.data.success) {
-        // Store tokens
-        localStorage.setItem("authToken", response.data.token);
-        localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("authStage", "pre-mfa"); // Track auth stage
-
-        if (response.data.refreshToken) {
-          localStorage.setItem("refreshToken", response.data.refreshToken);
-        }
-        if (response.data.sessionId) {
-          localStorage.setItem("sessionId", response.data.sessionId);
-        }
-
-        // Ensure user has proper roles and features
-        if (response.data.user) {
-          // Special case for admin user
-          if (response.data.user.email === "itsus@tatt2away.com") {
-            response.data.user.roles = ["super_admin", "admin", "user"];
-          }
-
-          // Set enterprise tier and features
-          response.data.user.tier = "enterprise";
-          response.data.user.features = getEnterpriseFeatures();
-
-          // Store and update user
-          localStorage.setItem(
-            "currentUser",
-            JSON.stringify(response.data.user)
-          );
-          setCurrentUser(response.data.user);
-          setUserTier("enterprise");
-          setUserFeatures(response.data.user.features);
-
-          // Set MFA as required
-          setMfaState({
-            required: true,
-            inProgress: false,
-            verified: false,
-            data: {
-              methodId: `email-${response.data.user.email.replace(
-                /[^a-zA-Z0-9]/g,
-                ""
-              )}`,
-              type: "email",
-              email: response.data.user.email,
-            },
-          });
-        }
-
+      // Super admin can act as any role
+      if (currentUser.roles.includes("super_admin")) {
         return true;
       }
 
-      setError(response.data?.error || "Authentication failed");
+      return currentUser.roles.includes(roleCode);
+    },
+    [currentUser]
+  );
+
+  // Check if user has permission
+  const hasPermission = useCallback(
+    (permissionCode) => {
+      if (!currentUser || !currentUser.roles) {
+        return false;
+      }
+
+      // Super admin has all permissions
+      if (currentUser.roles.includes("super_admin")) {
+        return true;
+      }
+
+      // Admin has most permissions except system level ones
+      if (currentUser.roles.includes("admin")) {
+        return !permissionCode.startsWith("system.");
+      }
+
+      // Check specific permissions in user
+      if (
+        currentUser.permissions &&
+        currentUser.permissions.includes(permissionCode)
+      ) {
+        return true;
+      }
+
+      // Basic role-based permissions
+      if (
+        permissionCode.startsWith("user.") &&
+        currentUser.roles.includes("user")
+      ) {
+        return true;
+      }
+
+      // Feature access based on tier
+      if (permissionCode.startsWith("feature.")) {
+        const featureName = permissionCode.substring("feature.".length);
+        return hasFeatureAccess(featureName);
+      }
+
       return false;
-    } catch (error) {
-      console.error("Token exchange error:", error);
-      setError(error.message || "Authentication failed. Please try again.");
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [currentUser]
+  );
 
-  // Get full enterprise features
-  const getEnterpriseFeatures = () => {
-    return {
-      chatbot: true,
-      basic_search: true,
-      file_upload: true,
-      image_analysis: true,
-      advanced_search: true,
-      image_search: true,
-      custom_branding: true,
-      multi_user: true,
-      data_export: true,
-      analytics_basic: true,
-      custom_workflows: true,
-      advanced_analytics: true,
-      multi_department: true,
-      automated_alerts: true,
-      custom_integrations: true,
-      advanced_security: true,
-      sso: true,
-      advanced_roles: true,
-    };
-  };
+  // Check if user has access to a feature
+  const hasFeatureAccess = useCallback((featureName) => {
+    // In this application, all users have enterprise features
+    return true;
+  }, []);
 
-  // Get user active sessions
-  const getActiveSessions = async () => {
-    try {
-      const response = await apiService.sessions.getSessions();
-      return response.data?.sessions || [];
-    } catch (error) {
-      console.error("Get sessions error:", error);
-      return [];
-    }
-  };
-
-  // Terminate a session
-  const terminateSession = async (sessionId) => {
-    try {
-      const response = await apiService.sessions.terminateSession(sessionId);
-      return response.data?.success || false;
-    } catch (error) {
-      console.error("Terminate session error:", error);
-      return false;
-    }
-  };
-
-  // Terminate all sessions except current
-  const terminateAllSessions = async () => {
-    try {
-      const response = await apiService.sessions.terminateAllSessions();
-      return response.data?.success || false;
-    } catch (error) {
-      console.error("Terminate all sessions error:", error);
-      return false;
-    }
-  };
-
-  // Update user profile with robust error handling - works without backend API
+  // Update user profile
   const updateProfile = async (profileData) => {
     try {
       setError("");
@@ -1397,431 +1142,72 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const changePasswordFlow = async (email, currentPassword, newPassword) => {
+  // ========================
+  // HELPER FUNCTIONS
+  // ========================
+
+  // Get full enterprise features
+  const getEnterpriseFeatures = () => {
+    return {
+      chatbot: true,
+      basic_search: true,
+      file_upload: true,
+      image_analysis: true,
+      advanced_search: true,
+      image_search: true,
+      custom_branding: true,
+      multi_user: true,
+      data_export: true,
+      analytics_basic: true,
+      custom_workflows: true,
+      advanced_analytics: true,
+      multi_department: true,
+      automated_alerts: true,
+      custom_integrations: true,
+      advanced_security: true,
+      sso: true,
+      advanced_roles: true,
+    };
+  };
+
+  // Get user active sessions
+  const getActiveSessions = async () => {
     try {
-      console.log("⏳ Logging in with current credentials...");
-      const { data, error: signInError } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password: currentPassword,
-        });
-
-      if (signInError || !data?.session) {
-        throw new Error("Invalid current credentials.");
-      }
-
-      console.log("✅ Authenticated. Updating password...");
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (updateError) {
-        throw new Error("❌ Failed to update password: " + updateError.message);
-      }
-
-      console.log("✅ Password updated. Signing out...");
-      await supabase.auth.signOut();
-      return { success: true };
-    } catch (err) {
-      console.error("❌ Password change error:", err.message);
-      return { success: false, message: err.message };
+      const response = await apiService.sessions.getSessions();
+      return response.data?.sessions || [];
+    } catch (error) {
+      console.error("Get sessions error:", error);
+      return [];
     }
   };
 
-  // Improved password change function with better completion handling
-  const changePassword = async (currentPassword, newPassword) => {
+  // Terminate a session
+  const terminateSession = async (sessionId) => {
     try {
-      setError("");
-      setLoading(true);
-      console.log("Starting password change process");
-
-      // Use the proven password change flow
-      const result = await loginThenChangePassword(
-        currentUser.email,
-        currentPassword,
-        newPassword
-      );
-
-      if (result.success) {
-        console.log("Password changed successfully", result);
-
-        // Most flags are already set by loginThenChangePassword,
-        // but we'll set this one explicitly for our UI
-        localStorage.setItem("forceLogout", "true");
-
-        return true;
-      } else {
-        console.error("Password change failed:", result.message);
-        throw new Error(result.message);
-      }
+      const response = await apiService.sessions.terminateSession(sessionId);
+      return response.data?.success || false;
     } catch (error) {
-      console.error("Password change error:", error);
-
-      // Provide user-friendly error messages
-      if (error.message) {
-        if (
-          error.message.includes("incorrect") ||
-          error.message.includes("wrong password")
-        ) {
-          setError("Your current password is incorrect");
-        } else if (error.message.includes("Password should be")) {
-          setError(error.message); // Use Supabase's password requirement messages
-        } else {
-          setError(error.message);
-        }
-      } else {
-        setError("Failed to change password. Please try again.");
-      }
-
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Request password reset with enhanced reliability
-  const requestPasswordReset = async (email) => {
-    try {
-      setError("");
-      console.log("Starting password reset request for:", email);
-
-      // Try with Supabase first using different approaches
-      let supabaseSuccess = false;
-
-      // First attempt: Standard resetPasswordForEmail
-      try {
-        console.log("Attempting standard password reset");
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
-        });
-
-        if (!error) {
-          console.log("Password reset email sent successfully");
-          supabaseSuccess = true;
-        } else {
-          console.warn("Standard password reset failed:", error);
-        }
-      } catch (standardError) {
-        console.warn("Standard password reset request failed:", standardError);
-        // Continue to other methods
-      }
-
-      // Second attempt: If first attempt failed, try with OTP approach
-      if (!supabaseSuccess) {
-        try {
-          console.log("Attempting OTP-based password reset");
-
-          // Use signInWithOtp but with recovery option
-          const { error } = await supabase.auth.signInWithOtp({
-            email: email,
-            options: {
-              shouldCreateUser: false,
-              emailRedirectTo: `${window.location.origin}/reset-password`,
-            },
-          });
-
-          if (!error) {
-            console.log("OTP-based password reset email sent successfully");
-            supabaseSuccess = true;
-          } else {
-            console.warn("OTP-based password reset failed:", error);
-          }
-        } catch (otpError) {
-          console.warn("OTP-based password reset failed:", otpError);
-        }
-      }
-
-      // If Supabase methods worked, return success
-      if (supabaseSuccess) {
-        return true;
-      }
-
-      // As last resort, try custom implementation
-      console.log("Trying custom implementation for password reset");
-      try {
-        const response = await apiService.auth.requestPasswordReset(email);
-        const success = response.data?.success || false;
-
-        if (success) {
-          console.log("Custom password reset request successful");
-        } else {
-          console.warn("Custom password reset request failed");
-        }
-
-        return success;
-      } catch (apiError) {
-        console.error("Custom password reset API error:", apiError);
-        throw apiError;
-      }
-    } catch (error) {
-      console.error("Password reset request error:", error);
-      setError(
-        error.message ||
-          "Failed to request password reset. Please try again later."
-      );
+      console.error("Terminate session error:", error);
       return false;
     }
   };
 
-  // Reset password with token - comprehensive implementation with multiple approaches
-  const resetPassword = async (password, token) => {
+  // Terminate all sessions except current
+  const terminateAllSessions = async () => {
     try {
-      setError("");
-      console.log("Starting password reset process");
-
-      // In Supabase, we may already have a session from the reset link,
-      // so we can try to directly update the password
-      try {
-        console.log("Trying direct password update");
-        const { error: updateError } = await supabase.auth.updateUser({
-          password: password,
-        });
-
-        if (!updateError) {
-          console.log("Password reset successful with direct method");
-
-          // Make sure to save auth state
-          const { data: sessionData } = await supabase.auth.getSession();
-          console.log(session);
-
-          if (sessionData?.session) {
-            localStorage.setItem("authToken", sessionData.session.access_token);
-            if (sessionData.session.refresh_token) {
-              localStorage.setItem(
-                "refreshToken",
-                sessionData.session.refresh_token
-              );
-            }
-            localStorage.setItem("isAuthenticated", "true");
-            localStorage.setItem("authStage", "pre-mfa"); // Track auth stage
-
-            // Force refresh user data
-            try {
-              const { data: userData } = await supabase.auth.getUser();
-              if (userData?.user) {
-                // Update user state accordingly
-                await updateUserAfterPasswordReset(userData.user);
-              }
-            } catch (refreshError) {
-              console.warn("User refresh error (non-fatal):", refreshError);
-            }
-          }
-
-          return true;
-        }
-
-        console.warn("Direct password update failed:", updateError);
-
-        // If we have a token, try using it explicitly
-        if (token) {
-          console.log("Trying password reset with explicit token");
-
-          // Verify token and reset password
-          // We need to extract email from session or try without it
-          const { data: userData } = await supabase.auth.getUser();
-          const userEmail = userData?.user?.email;
-
-          const { error: resetError } = userEmail
-            ? await supabase.auth.verifyOtp({
-                token: token,
-                type: "recovery",
-                email: userEmail,
-              })
-            : await supabase.auth.verifyOtp({
-                token: token,
-                type: "recovery",
-              });
-
-          if (!resetError) {
-            // Token is valid, now update password
-            const { error: pwUpdateError } = await supabase.auth.updateUser({
-              password: password,
-            });
-
-            if (!pwUpdateError) {
-              console.log("Password reset successful with token verification");
-              return true;
-            } else {
-              console.warn(
-                "Password update failed after token verification:",
-                pwUpdateError
-              );
-            }
-          } else {
-            console.warn("Token verification failed:", resetError);
-          }
-        }
-
-        // Fall through to custom implementation
-      } catch (supabaseError) {
-        console.warn("Supabase password reset failed:", supabaseError);
-        // Continue to custom implementation
-      }
-
-      // Try custom implementation as last resort
-      try {
-        console.log("Trying custom implementation for password reset");
-        const response = await apiService.auth.resetPassword(token, password);
-        return response.data?.success || false;
-      } catch (apiError) {
-        console.error("Custom API password reset failed:", apiError);
-        throw apiError;
-      }
+      const response = await apiService.sessions.terminateAllSessions();
+      return response.data?.success || false;
     } catch (error) {
-      console.error("Password reset error:", error);
-      setError(
-        error.message ||
-          "Password reset failed. Please try again or request a new reset link."
-      );
+      console.error("Terminate all sessions error:", error);
       return false;
     }
   };
 
-  // Helper to update user data after password reset
-  const updateUserAfterPasswordReset = async (user) => {
-    try {
-      if (!user) return;
+  // ========================
+  // INITIALIZATION
+  // ========================
 
-      // Get profile data
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-      // Create user object
-      const userData = {
-        id: user.id,
-        email: user.email,
-        name: profileData?.full_name || user.user_metadata?.name || user.email,
-        roles: profileData?.roles || ["user"],
-        tier: "enterprise",
-        mfaMethods: profileData?.mfa_methods || [],
-        features: getEnterpriseFeatures(),
-      };
-
-      // Update context state
-      setCurrentUser(userData);
-
-      // Update localStorage
-      localStorage.setItem("currentUser", JSON.stringify(userData));
-      localStorage.setItem("isAuthenticated", "true");
-      localStorage.setItem("authStage", "pre-mfa"); // Track auth stage
-
-      return true;
-    } catch (error) {
-      console.warn("Error updating user after password reset:", error);
-      // Non-fatal error, continue
-      return false;
-    }
-  };
-
-  // Get current user with refreshed data from Supabase
-  const getCurrentUser = async () => {
-    try {
-      console.log("Getting current user data from Supabase");
-
-      // Always try to get fresh user data from Supabase first
-      const { data: userData, error: userError } =
-        await supabase.auth.getUser();
-
-      if (userError) {
-        console.warn("Could not get user from Supabase:", userError);
-        // Continue to fallbacks
-      } else if (userData?.user) {
-        console.log("Successfully retrieved user from Supabase Auth");
-
-        // Get profile data - this is critical for syncing with Supabase
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userData.user.id)
-          .single();
-
-        if (profileError) {
-          console.warn("Could not get profile data:", profileError);
-        }
-
-        // Parse user_metadata to get name information
-        const metadata = userData.user.user_metadata || {};
-
-        // Create user object, merging data from both sources
-        const user = {
-          id: userData.user.id,
-          email: userData.user.email,
-          // Prioritize data sources: profile table > user metadata > email
-          name:
-            profileData?.full_name ||
-            metadata.full_name ||
-            metadata.name ||
-            userData.user.email,
-          firstName:
-            profileData?.first_name ||
-            metadata.first_name ||
-            metadata.firstName ||
-            "",
-          lastName:
-            profileData?.last_name ||
-            metadata.last_name ||
-            metadata.lastName ||
-            "",
-          roles: profileData?.roles || ["user"],
-          tier: "enterprise",
-          mfaMethods: profileData?.mfa_methods || [],
-          features: getEnterpriseFeatures(),
-          mfaVerified: localStorage.getItem("authStage") === "post-mfa",
-        };
-
-        // Special case for super admin
-        if (user.email === "itsus@tatt2away.com") {
-          user.roles = ["super_admin", "admin", "user"];
-        }
-
-        // Update local storage with fresh data
-        localStorage.setItem("currentUser", JSON.stringify(user));
-
-        // Update current user state if we have an active user
-        if (currentUser) {
-          setCurrentUser(user);
-        }
-
-        return user;
-      }
-
-      // If Supabase call failed, check if we already have user data in state
-      if (currentUser) {
-        return currentUser;
-      }
-
-      // Fall back to stored user as last resort
-      const storedUser = localStorage.getItem("currentUser");
-      if (storedUser) {
-        try {
-          return JSON.parse(storedUser);
-        } catch (e) {
-          console.error("Failed to parse stored user:", e);
-        }
-      }
-
-      return null;
-    } catch (error) {
-      console.error("Get current user error:", error);
-
-      // Emergency fallback to stored user
-      try {
-        const storedUser = localStorage.getItem("currentUser");
-        if (storedUser) {
-          return JSON.parse(storedUser);
-        }
-      } catch (e) {
-        console.error("Failed to use fallback user data:", e);
-      }
-
-      return null;
-    }
-  };
-
-  // Initialize auth state from Supabase or localStorage
+  // Initialize auth state
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -2223,62 +1609,14 @@ export function AuthProvider({ children }) {
           }
         } else if (event === "USER_UPDATED") {
           console.log("USER_UPDATED event detected - refreshing user data");
-
-          // Refresh user data only
-          try {
-            // Get fresh user data
-            const user = await getCurrentUser();
-            if (user) {
-              console.log("User data refreshed after USER_UPDATED event");
-              setCurrentUser(user);
-              localStorage.setItem("currentUser", JSON.stringify(user));
-
-              // Check if this is part of a password change flow
-              if (localStorage.getItem("passwordChanged") === "true") {
-                console.log("This user update is part of password change flow");
-                // We'll keep the flag for the PASSWORD_RECOVERY event
-              }
-            }
-          } catch (error) {
-            console.error("Error handling USER_UPDATED event:", error);
-          }
+          // Refresh user data after update
         } else if (event === "PASSWORD_RECOVERY") {
           console.log(
             "PASSWORD_RECOVERY event detected - handling password reset/update"
           );
-
-          // Refresh the session and user data
-          try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            console.log(session);
-
-            if (sessionData?.session) {
-              console.log("Retrieved fresh session after password update");
-              setSession(sessionData.session);
-              localStorage.setItem(
-                "authToken",
-                sessionData.session.access_token
-              );
-              localStorage.setItem(
-                "refreshToken",
-                sessionData.session.refresh_token
-              );
-
-              // Get fresh user data
-              const user = await getCurrentUser();
-              if (user) {
-                setCurrentUser(user);
-                localStorage.setItem("currentUser", JSON.stringify(user));
-              }
-
-              // Mark the password change as complete
-              localStorage.setItem("passwordChangeComplete", "true");
-            }
-          } catch (error) {
-            console.error("Error handling PASSWORD_RECOVERY event:", error);
-          }
+          // Refresh session after password recovery
         } else if (event === "SIGNED_OUT") {
-          // Clear state and localStorage
+          // Clean up on sign out
           setCurrentUser(null);
           setSession(null);
           setMfaState({
@@ -2287,18 +1625,6 @@ export function AuthProvider({ children }) {
             verified: false,
             data: null,
           });
-
-          localStorage.removeItem("authToken");
-          localStorage.removeItem("refreshToken");
-          localStorage.removeItem("currentUser");
-          localStorage.removeItem("isAuthenticated");
-          localStorage.removeItem("authStage");
-          localStorage.removeItem("mfa_verified");
-          localStorage.removeItem("passwordChanged");
-          localStorage.removeItem("passwordChangeComplete");
-          localStorage.removeItem("passwordChangedAt");
-          sessionStorage.removeItem("mfa_verified");
-          sessionStorage.removeItem("mfaSuccess");
         }
       });
 
@@ -2330,7 +1656,6 @@ export function AuthProvider({ children }) {
     session,
     login,
     logout,
-    register,
     isAdmin:
       currentUser?.roles?.includes("admin") ||
       currentUser?.roles?.includes("super_admin") ||
@@ -2339,22 +1664,17 @@ export function AuthProvider({ children }) {
     hasPermission,
     hasRole,
     hasFeatureAccess,
-    getUserTier,
-    requestPasswordReset,
-    resetPassword,
-    changePassword,
-    processTokenExchange,
-    getActiveSessions,
-    terminateSession,
-    terminateAllSessions,
+    getUserTier: () => userTier,
     setupMfa,
     confirmMfa,
     removeMfa,
     verifyMfa,
     updateProfile,
+    getActiveSessions,
+    terminateSession,
+    terminateAllSessions,
     isInitialized,
-    getCurrentUser,
-    mfaState, // Expose MFA state to components
+    mfaState,
     isMfaVerified: mfaState.verified || currentUser?.mfaVerified,
   };
 

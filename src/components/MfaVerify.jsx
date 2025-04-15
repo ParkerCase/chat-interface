@@ -74,33 +74,56 @@ function MfaVerify() {
           `MFA data prepared: ${JSON.stringify(mfaDataObject)}`
         );
 
-        // Ensure a verification code has been sent
+        // Check if we need to send a verification code
+        // Only send if:
+        // 1. Email type is requested AND
+        // 2. We haven't sent a code recently (within 2 minutes)
         if (typeFromParams === "email") {
-          try {
-            // Send a new verification code if we don't already have one in progress
-            const { error } = await supabase.auth.signInWithOtp({
-              email: userEmail,
-              options: {
-                shouldCreateUser: false,
-                emailRedirectTo: null,
-              },
-            });
+          const lastCodeSent = sessionStorage.getItem("lastMfaCodeSent");
+          const now = Date.now();
+          const needToSendCode =
+            !lastCodeSent || now - parseInt(lastCodeSent) > 120000; // 2 minutes
 
-            if (error) {
-              debugAuth.log(
-                "MfaVerify",
-                `Error sending verification code: ${error.message}`
-              );
-              // Continue anyway - user can request a new code
-            } else {
-              debugAuth.log("MfaVerify", "Verification code sent successfully");
-            }
-          } catch (err) {
+          if (needToSendCode) {
             debugAuth.log(
               "MfaVerify",
-              `Error sending verification code: ${err.message}`
+              "No recent code detected, sending new verification code"
             );
-            // Continue anyway - user can request a new code
+            try {
+              // Send a new verification code
+              const { error } = await supabase.auth.signInWithOtp({
+                email: userEmail,
+                options: {
+                  shouldCreateUser: false,
+                  emailRedirectTo: null,
+                },
+              });
+
+              if (error) {
+                debugAuth.log(
+                  "MfaVerify",
+                  `Error sending verification code: ${error.message}`
+                );
+                // Continue anyway - user can request a new code
+              } else {
+                debugAuth.log(
+                  "MfaVerify",
+                  "Verification code sent successfully"
+                );
+                sessionStorage.setItem("lastMfaCodeSent", now.toString());
+              }
+            } catch (err) {
+              debugAuth.log(
+                "MfaVerify",
+                `Error sending verification code: ${err.message}`
+              );
+              // Continue anyway - user can request a new code
+            }
+          } else {
+            debugAuth.log(
+              "MfaVerify",
+              "Recent code already sent, not sending another"
+            );
           }
         }
       } catch (err) {
