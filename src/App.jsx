@@ -27,6 +27,9 @@ import AuthDebugger from "./components/AuthDebugger";
 import { debugAuth } from "./utils/authDebug";
 import AuthNavigationGuard from "./components/auth/AuthNavigationGuard";
 import AuthLoading from "./components/auth/AuthLoading";
+// Import our direct reset password component
+import DirectResetPassword from "./components/auth/DirectResetPassword";
+
 // Professional Tier Features
 import APIKeyManagement from "./components/APIKeyManagement";
 
@@ -50,22 +53,61 @@ function App() {
   // Check if we're in an out-of-memory situation (common error)
   const [outOfMemory, setOutOfMemory] = useState(false);
 
+  // Immediately check URL for password reset tokens
+  useEffect(() => {
+    const checkForPasswordReset = () => {
+      // Check if URL contains reset parameters
+      const url = window.location.href;
+      const isResetPath = url.includes("/reset-password");
+      const hasResetParams =
+        url.includes("?token=") ||
+        url.includes("type=recovery") ||
+        url.includes("access_token=") ||
+        (window.location.hash &&
+          window.location.hash.includes("type=recovery"));
+
+      if (isResetPath && hasResetParams) {
+        console.log("🔑 PASSWORD RESET DETECTED - Setting Reset Mode");
+
+        // Flag for the reset flow
+        localStorage.setItem("password_reset_in_progress", "true");
+        sessionStorage.setItem("password_reset_in_progress", "true");
+
+        // Prevent auth redirects during reset flow
+        localStorage.setItem("bypass_auth_redirects", "true");
+
+        // Clear any conflicting flags
+        localStorage.removeItem("authStage");
+        sessionStorage.removeItem("mfa_verified");
+        sessionStorage.removeItem("mfaSuccess");
+      }
+    };
+
+    checkForPasswordReset();
+  }, []);
+
   // Listen for password change events from other tabs
   useEffect(() => {
     const handleStorageChange = (e) => {
-      if (e.key === 'passwordChanged' && e.newValue === 'true') {
-        console.log('Password change detected from another tab');
+      if (e.key === "passwordChanged" && e.newValue === "true") {
+        console.log("Password change detected from another tab");
         // Force page reload to update auth state
         window.location.reload();
       }
     };
-    
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
   // Consolidated MFA handling
   useEffect(() => {
+    // Skip MFA handling if in password reset mode
+    if (localStorage.getItem("password_reset_in_progress") === "true") {
+      console.log("Skipping MFA handling due to password reset in progress");
+      return;
+    }
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -78,7 +120,9 @@ function App() {
           window.location.pathname.includes("/verify");
 
         if (isOnMfaPage) {
-          console.log("SIGNED_IN detected on MFA page - forcing redirect to admin");
+          console.log(
+            "SIGNED_IN detected on MFA page - forcing redirect to admin"
+          );
           // Set all success flags
           sessionStorage.setItem("mfa_verified", "true");
           sessionStorage.setItem("mfaSuccess", "true");
@@ -106,28 +150,38 @@ function App() {
 
   // Consolidated pending redirects handling
   useEffect(() => {
+    // Skip redirect handling if in password reset mode
+    if (localStorage.getItem("password_reset_in_progress") === "true") {
+      console.log(
+        "Skipping redirect handling due to password reset in progress"
+      );
+      return;
+    }
+
     // Check if there's a pending redirect from MFA or any other flags
     const checkAndHandleRedirects = () => {
       // Check mfa flags and handle redirects
       const mfaVerified = sessionStorage.getItem("mfa_verified") === "true";
       const mfaSuccess = sessionStorage.getItem("mfaSuccess") === "true";
-      const pendingRedirect = sessionStorage.getItem("mfaRedirectPending") === "true";
+      const pendingRedirect =
+        sessionStorage.getItem("mfaRedirectPending") === "true";
       const redirectTarget = sessionStorage.getItem("mfaRedirectTarget");
       const mfaVerifiedAt = sessionStorage.getItem("mfaVerifiedAt");
       const currentPath = window.location.pathname;
-      const isOnMfaPage = currentPath.includes("/mfa") || currentPath.includes("/verify");
-      
+      const isOnMfaPage =
+        currentPath.includes("/mfa") || currentPath.includes("/verify");
+
       // Clear MFA verification flags to avoid redirect loops
       if ((mfaVerified || mfaSuccess) && isOnMfaPage) {
         console.log("MFA verification success detected on MFA page");
         sessionStorage.removeItem("mfa_verified");
         sessionStorage.removeItem("mfaSuccess");
-        
+
         // Redirect to admin page
         window.location.href = "/admin";
         return;
       }
-      
+
       // Handle explicit redirect requests
       if (pendingRedirect && redirectTarget) {
         console.log("Executing pending MFA redirect to:", redirectTarget);
@@ -136,17 +190,18 @@ function App() {
         window.location.href = redirectTarget;
         return;
       }
-      
+
       // Handle recent verifications
       if (mfaVerifiedAt) {
         const verifiedTime = parseInt(mfaVerifiedAt, 10);
         const now = Date.now();
         const timeSinceVerification = now - verifiedTime;
-        
-        if (timeSinceVerification < 10000) { // within 10 seconds
+
+        if (timeSinceVerification < 10000) {
+          // within 10 seconds
           console.log("Recent MFA verification detected");
           sessionStorage.removeItem("mfaVerifiedAt");
-          
+
           if (isOnMfaPage) {
             console.log("Redirecting from MFA page to admin");
             window.location.href = "/admin";
@@ -154,17 +209,25 @@ function App() {
         }
       }
     };
-    
+
     // Run check on mount and on focus
     checkAndHandleRedirects();
     window.addEventListener("focus", checkAndHandleRedirects);
-    
+
     return () => {
       window.removeEventListener("focus", checkAndHandleRedirects);
     };
   }, []);
 
   useEffect(() => {
+    // Skip auth redirects if in password reset mode
+    if (localStorage.getItem("password_reset_in_progress") === "true") {
+      console.log(
+        "Skipping auth redirects setup due to password reset in progress"
+      );
+      return;
+    }
+
     // Setup auth redirects
     const subscription = setupAuthRedirects();
 
@@ -269,6 +332,33 @@ function App() {
     );
   }
 
+  // CRITICAL: Check if we're in password reset mode - if so, render DirectResetPassword directly
+  const url = window.location.href;
+  const isResetUrl = url.includes("/reset-password");
+  const inResetMode =
+    localStorage.getItem("password_reset_in_progress") === "true";
+
+  // Emergency bypass for password reset
+  if (isResetUrl && inResetMode) {
+    console.log("🔑 RENDERING DIRECT RESET PASSWORD COMPONENT");
+    return <DirectResetPassword />;
+  }
+
+  // Check for reset in URL
+  if (
+    isResetUrl &&
+    (url.includes("?token=") ||
+      url.includes("type=recovery") ||
+      url.includes("access_token=") ||
+      window.location.hash)
+  ) {
+    console.log(
+      "🔑 RESET PARAMETERS DETECTED IN URL - DIRECT COMPONENT RENDER"
+    );
+    localStorage.setItem("password_reset_in_progress", "true");
+    return <DirectResetPassword />;
+  }
+
   return (
     <ErrorBoundary>
       <AuthProvider>
@@ -281,7 +371,11 @@ function App() {
                     {/* Public routes */}
                     <Route path="/login" element={<AuthPage />} />
                     <Route path="/forgot-password" element={<AuthPage />} />
-                    <Route path="/reset-password" element={<AuthPage />} />
+                    {/* CRITICAL CHANGE: Use dedicated component for reset password */}
+                    <Route
+                      path="/reset-password"
+                      element={<DirectResetPassword />}
+                    />
                     <Route path="/mfa/verify" element={<MfaVerify />} />
                     <Route path="/auth/callback" element={<SSOCallback />} />
 
@@ -303,8 +397,14 @@ function App() {
                         path="/sessions"
                         element={<AccountPage tab="sessions" />}
                       />
-                      <Route path="/analytics" element={<AnalyticsDashboard />} />
-                      <Route path="/workflows" element={<WorkflowManagement />} />
+                      <Route
+                        path="/analytics"
+                        element={<AnalyticsDashboard />}
+                      />
+                      <Route
+                        path="/workflows"
+                        element={<WorkflowManagement />}
+                      />
                       <Route
                         path="/integrations"
                         element={<IntegrationSettings />}
