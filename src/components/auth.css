@@ -288,6 +288,85 @@
   color: #9ca3af;
 }
 
+/* Add these styles to your auth.css file */
+
+/* Debug info section */
+.debug-actions {
+  margin: 15px 0;
+  text-align: center;
+}
+
+.debug-toggle {
+  background: none;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  color: #666;
+  cursor: pointer;
+}
+
+.debug-info {
+  margin-top: 10px;
+  background: #f5f5f5;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  text-align: left;
+  overflow-x: auto;
+  max-height: 200px;
+}
+
+.debug-info pre {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* Refresh button for error state */
+.refresh-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-top: 0.75rem;
+}
+
+.refresh-button:hover {
+  background-color: #4338ca;
+}
+
+/* Password reset tips */
+.password-reset-tips {
+  margin-top: 1.5rem;
+  background-color: #f8fafc;
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+.password-reset-tips p {
+  font-weight: 500;
+  margin: 0 0 0.5rem 0;
+  color: #4b5563;
+}
+
+.password-reset-tips ul {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.password-reset-tips li {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+
 .form-input {
   width: 100%;
   padding: 0.75rem;

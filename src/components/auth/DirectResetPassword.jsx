@@ -1,4 +1,4 @@
-// src/components/auth/DirectResetPassword.jsx
+// src/components/auth/DirectResetPassword.jsx - SIMPLIFIED VERSION
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
@@ -7,7 +7,6 @@ import {
   EyeOff,
   CheckCircle,
   X,
-  Key,
   Save,
   Lock,
   AlertCircle,
@@ -22,10 +21,10 @@ function DirectResetPassword() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isTokenProcessing, setIsTokenProcessing] = useState(true);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
-  const [tokenInfo, setTokenInfo] = useState({});
+  const [processingHash, setProcessingHash] = useState(true);
+  const [hasResetToken, setHasResetToken] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -40,143 +39,57 @@ function DirectResetPassword() {
     match: false,
   });
 
-  // CRITICAL: Process token immediately without allowing redirects
+  // First, process the hash or code if present - this is crucial for Supabase auth
   useEffect(() => {
-    document.title = "Reset Password";
-
-    const processResetToken = async () => {
-      console.log("DirectResetPassword: Starting token processing");
-      setIsTokenProcessing(true);
-
+    const initializeReset = async () => {
       try {
-        // Get URL parameters
-        const queryParams = new URLSearchParams(location.search);
-        const token = queryParams.get("token");
-        const code = queryParams.get("code"); // Add recognition of code parameter
-        const type = queryParams.get("type");
-        const accessToken = queryParams.get("access_token");
-        const refreshToken = queryParams.get("refresh_token");
+        setProcessingHash(true);
+
+        // Check for hash, which is how Supabase recovery flow works
         const hash = window.location.hash;
+        const params = new URLSearchParams(location.search);
+        const hasCode = params.has("code");
+        const hashContainsRecovery = hash && hash.includes("type=recovery");
 
-        // Track parameter info for debugging
-        const info = {
-          hasToken: !!token,
-          hasCode: !!code, // Track if we have a code parameter
-          hasType: !!type,
-          hasAccessToken: !!accessToken,
-          hasRefreshToken: !!refreshToken,
+        console.log("Reset parameters:", {
           hasHash: !!hash,
-          pathname: location.pathname,
-          search: location.search,
-        };
-        setTokenInfo(info);
+          hashContainsRecovery,
+          hasCode,
+          hash: hash || "none",
+          searchParams: location.search,
+        });
 
-        console.log("Reset token parameters:", info);
+        // If we have a hash or code, we should be in a valid reset flow
+        if (hashContainsRecovery || hasCode) {
+          setHasResetToken(true);
 
-        // Check if hash looks like a Supabase recovery token
-        if (hash && hash.includes("type=recovery")) {
-          console.log("Hash contains recovery token");
+          // IMPORTANT: Let Supabase process the hash/code by checking the session
+          // This automatically processes the recovery flow parameters
+          const { data, error } = await supabase.auth.getSession();
 
-          // Explicitly handle the hash-based flow from Supabase
-          // No need to create a session - Supabase's JS client will handle it
-
-          setTimeout(() => {
-            setIsTokenProcessing(false);
-            console.log("Hash token processed, showing password form");
-          }, 1000);
-          return;
-        }
-        // Check for explicit token or code
-        else if (token || code) {
-          console.log("URL contains explicit token or code parameter");
-
-          // This is probably a recovery token
-          try {
-            // If we have a code parameter, use exchangeCodeForSession
-            if (code) {
-              console.log("Using code parameter for password reset");
-              try {
-                const { data, error } =
-                  await supabase.auth.exchangeCodeForSession(code);
-                if (error) {
-                  console.warn("Code exchange warning:", error);
-                  // Continue anyway - session might be set already
-                } else {
-                  console.log("Code exchange successful");
-                }
-              } catch (exchangeError) {
-                console.warn("Code exchange error:", exchangeError);
-                // Continue anyway - might work with current session
-              }
-
-              console.log("Code processed, showing password form");
-              setIsTokenProcessing(false);
-              return;
-            }
-
-            // If we have a token, verify it
-            if (token) {
-              // Verify token is valid
-              await supabase.auth.verifyOtp({
-                token_hash: token,
-                type: type || "recovery",
-              });
-
-              console.log("Token verification successful");
-            }
-            setIsTokenProcessing(false);
-          } catch (verifyError) {
-            console.error("Token verification error:", verifyError);
-            // Continue anyway - Supabase might handle it differently
-            setIsTokenProcessing(false);
+          if (error) {
+            console.warn("Session check error:", error);
+            // Even with an error, we'll show the form as the hash/code may still be valid
+          } else {
+            console.log("Session status:", data.session ? "Active" : "None");
           }
-          return;
-        }
-        // Check for access token
-        else if (accessToken && refreshToken) {
-          console.log("URL contains access and refresh tokens");
-
-          try {
-            // Set the session directly
-            await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-
-            console.log("Session set from tokens");
-            setIsTokenProcessing(false);
-          } catch (sessionError) {
-            console.error("Session setting error:", sessionError);
-            setIsTokenProcessing(false);
-          }
-          return;
-        }
-
-        // If we get here, check if a session already exists from link click
-        const { data } = await supabase.auth.getSession();
-        if (data?.session) {
-          console.log(
-            "Session exists, user is authenticated for password reset"
+        } else {
+          // No valid reset parameters
+          setHasResetToken(false);
+          setError(
+            "No valid password reset token found. Please request a new password reset link."
           );
-          setIsTokenProcessing(false);
-          return;
         }
-
-        // No token found
-        setError(
-          "Invalid or missing password reset token. Please request a new password reset link."
-        );
-        setIsTokenProcessing(false);
       } catch (error) {
-        console.error("Reset token processing error:", error);
-        setError(
-          "An error occurred processing your reset link. Please try again or request a new reset link."
-        );
-        setIsTokenProcessing(false);
+        console.error("Reset initialization error:", error);
+        setError("An error occurred while processing your reset link.");
+        setHasResetToken(false);
+      } finally {
+        setProcessingHash(false);
       }
     };
 
-    processResetToken();
+    initializeReset();
   }, [location]);
 
   // Update password validation checks
@@ -205,91 +118,48 @@ function DirectResetPassword() {
 
     try {
       setIsLoading(true);
-      console.log("Updating password...");
+      console.log("Attempting to update password");
 
-      // Get code parameter from URL if it exists
-      const params = new URLSearchParams(location.search);
-      const code = params.get("code");
-
-      if (code) {
-        console.log("Ensuring session from code parameter");
-        try {
-          // Exchange the code for a session if we haven't already
-          const { data: sessionData, error: sessionError } =
-            await supabase.auth.exchangeCodeForSession(code);
-
-          if (sessionError) {
-            console.error("Session exchange error:", sessionError);
-            // Continue anyway, the session might have been set already
-          }
-        } catch (exchangeError) {
-          console.warn("Code exchange warning:", exchangeError);
-          // Continue anyway, as the session might already be set
-        }
-      }
-
-      // Update password via Supabase
-      const { data, error: updateError } = await supabase.auth.updateUser({
+      // For Supabase, simply call updateUser - the session should be set from the hash/code
+      const { error: updateError } = await supabase.auth.updateUser({
         password: password,
       });
 
       if (updateError) {
-        throw updateError;
+        console.error("Password update error:", updateError);
+
+        if (updateError.message.includes("Auth session missing")) {
+          throw new Error(
+            "Your reset link has expired or is invalid. Please request a new password reset link."
+          );
+        } else {
+          throw updateError;
+        }
       }
 
       console.log("Password updated successfully!");
-
-      // Mark success
       setIsSuccess(true);
 
-      // Force logout after password change
+      // Force logout after password change for security
       try {
         await supabase.auth.signOut();
-      } catch (logoutError) {
-        console.warn("Logout after password change failed:", logoutError);
+      } catch (signOutError) {
+        console.warn("Sign out after password change failed:", signOutError);
       }
 
-      // Store information for login detection
+      // Set flags for login detection
       localStorage.setItem("passwordChanged", "true");
       localStorage.setItem("passwordChangedAt", new Date().toISOString());
-
-      // Try to get user email
-      try {
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData?.user?.email) {
-          localStorage.setItem("passwordChangedEmail", userData.user.email);
-        }
-      } catch (e) {
-        console.error("Error getting user email:", e);
-      }
-
-      // Redirect to login after 3 seconds
-      setTimeout(() => {
-        window.location.href = "/login?passwordChanged=true";
-      }, 3000);
     } catch (error) {
-      console.error("Password update error:", error);
-
-      if (
-        error.message.includes("session expired") ||
-        error.message.includes("JWT expired") ||
-        error.message.includes("Invalid JWT")
-      ) {
-        setError(
-          "Your reset link has expired. Please request a new password reset link."
-        );
-      } else {
-        setError(
-          error.message || "Failed to update password. Please try again."
-        );
-      }
+      console.error("Password reset error:", error);
+      setError(error.message || "Failed to reset password. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
   // Show loading state
-  if (isTokenProcessing) {
+  if (processingHash) {
     return (
       <div className="login-container">
         <div className="login-form reset-password-form">
@@ -329,8 +199,8 @@ function DirectResetPassword() {
     );
   }
 
-  // Token is missing or invalid
-  if (error && !password) {
+  // Show error if no valid token
+  if (!hasResetToken) {
     return (
       <div className="login-container">
         <div className="login-form reset-password-form">
@@ -340,17 +210,6 @@ function DirectResetPassword() {
             </div>
             <h3>Link Invalid or Expired</h3>
             <p>{error}</p>
-            <div
-              className="debug-info"
-              style={{
-                fontSize: "11px",
-                color: "#666",
-                margin: "10px 0",
-                wordBreak: "break-all",
-              }}
-            >
-              <p>Debug Info: {JSON.stringify(tokenInfo)}</p>
-            </div>
             <button
               onClick={() => navigate("/forgot-password")}
               className="login-button"
