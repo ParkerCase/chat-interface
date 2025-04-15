@@ -271,36 +271,6 @@ function PasswordChange({ setError, setSuccessMessage }) {
         Update your password to maintain account security
       </p>
 
-      <div className="password-change-options">
-        <div
-          className={`password-change-option ${
-            !showPasswordForm ? "active" : ""
-          }`}
-        >
-          <button
-            onClick={() => setShowPasswordForm(false)}
-            className="option-button"
-          >
-            <Mail size={18} />
-            <span>Reset via Email</span>
-          </button>
-        </div>
-
-        <div
-          className={`password-change-option ${
-            showPasswordForm ? "active" : ""
-          }`}
-        >
-          <button
-            onClick={() => setShowPasswordForm(true)}
-            className="option-button"
-          >
-            <Key size={18} />
-            <span>Change Directly</span>
-          </button>
-        </div>
-      </div>
-
       {!showPasswordForm ? (
         <div className="password-reset-section">
           <p>

@@ -22,15 +22,23 @@ import {
   Loader,
 } from "lucide-react";
 import MFAModule from "./MFAModule";
+import PasswordChange from "./PasswordChange"; // Import the dedicated PasswordChange component
 import "./AccountSettings.css";
 
-function AccountPage() {
-  const [activeTab, setActiveTab] = useState("profile");
+function AccountPage({ tab = "profile" }) {
+  const [activeTab, setActiveTab] = useState(tab);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+
+  // Set initial tab from prop
+  useEffect(() => {
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [tab]);
 
   // Clear success message after 5 seconds
   useEffect(() => {
@@ -66,7 +74,7 @@ function AccountPage() {
       <div className="account-settings-header">
         <div className="account-info">
           <div className="account-avatar">
-            <User size={28} />
+            {currentUser.name?.charAt(0) || "U"}
           </div>
           <div className="account-details">
             <h2>{currentUser.name}</h2>
@@ -158,9 +166,12 @@ function AccountPage() {
             </div>
           )}
 
-          {/* Password Tab */}
+          {/* Password Tab - Use the dedicated PasswordChange component */}
           {activeTab === "password" && (
-            <PasswordSection setSuccess={setSuccess} setError={setError} />
+            <PasswordChange
+              setSuccessMessage={setSuccess}
+              setError={setError}
+            />
           )}
 
           {/* Sessions Tab */}
@@ -333,164 +344,6 @@ function ProfileSection({ setSuccess, setError }) {
       </form>
     </div>
   );
-}
-
-// Password Change Section
-function PasswordSection({ setSuccess, setError }) {
-  const { currentUser } = useAuth();
-  const [formData, setFormData] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  });
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [redirectTimer, setRedirectTimer] = useState(null);
-
-  const [passwordChecks, setPasswordChecks] = useState({
-    length: false,
-    uppercase: false,
-    lowercase: false,
-    number: false,
-    special: false,
-    match: false,
-  });
-
-  // Clear redirect timer when component unmounts
-  useEffect(() => {
-    return () => {
-      if (redirectTimer) clearTimeout(redirectTimer);
-    };
-  }, [redirectTimer]);
-
-  // Update password validation checks on password changes
-  useEffect(() => {
-    setPasswordChecks({
-      length: formData.newPassword.length >= 8,
-      uppercase: /[A-Z]/.test(formData.newPassword),
-      lowercase: /[a-z]/.test(formData.newPassword),
-      number: /[0-9]/.test(formData.newPassword),
-      special: /[^A-Za-z0-9]/.test(formData.newPassword),
-      match:
-        formData.newPassword === formData.confirmPassword &&
-        formData.newPassword !== "",
-    });
-  }, [formData.newPassword, formData.confirmPassword]);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    // Clear any previous error and success messages
-    setError("");
-    setSuccess("");
-
-    // Validate inputs
-    if (!formData.currentPassword) {
-      setError("Current password is required");
-      return;
-    }
-
-    if (!formData.newPassword) {
-      setError("New password is required");
-      return;
-    }
-
-    if (formData.newPassword !== formData.confirmPassword) {
-      setError("New passwords do not match");
-      return;
-    }
-
-    // Check if new password is same as current (bad practice)
-    if (formData.newPassword === formData.currentPassword) {
-      setError("New password must be different from current password");
-      return;
-    }
-
-    // Ensure all password requirements are met
-    const allChecksPass = Object.values(passwordChecks).every((check) => check);
-    if (!allChecksPass) {
-      setError("Please ensure all password requirements are met");
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      console.log("Starting password change process");
-
-      // Import the loginThenChangePassword function
-      const { loginThenChangePassword } = await import("../../lib/supabase");
-
-      // Call the function with correct parameters
-      const result = await loginThenChangePassword(
-        currentUser.email,
-        formData.currentPassword,
-        formData.newPassword
-      );
-
-      if (result.success) {
-        // Show success message
-        setIsSuccess(true);
-        setSuccess(
-          "Password changed successfully. You will be redirected to login with your new password momentarily."
-        );
-
-        // Clear form data for security
-        setFormData({
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: "",
-        });
-
-        // Wait 3 seconds then redirect to login page
-        const timer = setTimeout(() => {
-          // Force a complete logout
-          try {
-            // 1. Sign out from Supabase
-            const { supabase } = import("../../lib/supabase");
-            supabase.auth.signOut();
-
-            // 2. Clear all auth tokens and session data
-            localStorage.removeItem("authToken");
-            localStorage.removeItem("refreshToken");
-            localStorage.removeItem("currentUser");
-            localStorage.removeItem("isAuthenticated");
-            sessionStorage.clear();
-
-            // 3. Use window.location for a complete page refresh
-            window.location.href = "/login?passwordChanged=true";
-          } catch (redirectError) {
-            console.error("Error during redirect:", redirectError);
-            // Fallback direct navigation as last resort
-            window.location.replace("/login?passwordChanged=true");
-          }
-        }, 3000);
-
-        // Store timer reference for cleanup
-        setRedirectTimer(timer);
-      } else {
-        setError(
-          result.message ||
-            "Failed to change password. Please verify your current password is correct."
-        );
-      }
-    } catch (error) {
-      console.error("Password change error:", error);
-      setError(error.message || "Failed to change password. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
 }
 
 // Active Sessions Section
