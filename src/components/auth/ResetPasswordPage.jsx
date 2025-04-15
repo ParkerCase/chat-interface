@@ -94,6 +94,7 @@ function ResetPasswordPage() {
         // Get all possible reset parameters from URL
         const params = new URLSearchParams(location.search);
         const token = params.get("token") || "";
+        const code = params.get("code") || ""; // Add code parameter
         const type = params.get("type") || "";
         const accessToken = params.get("access_token") || "";
         const refreshToken = params.get("refresh_token") || "";
@@ -102,6 +103,7 @@ function ResetPasswordPage() {
         // Debug info for troubleshooting
         const debugInfo = {
           hasToken: !!token,
+          hasCode: !!code, // Track code parameter
           hasType: !!type,
           hasAccessToken: !!accessToken,
           hasRefreshToken: !!refreshToken,
@@ -113,10 +115,30 @@ function ResetPasswordPage() {
 
         // Check if we have any reset token indicators
         const hasAnyToken =
-          token || type === "recovery" || hash || (accessToken && refreshToken);
+          token ||
+          code ||
+          type === "recovery" ||
+          hash ||
+          (accessToken && refreshToken);
 
         if (hasAnyToken) {
           console.log("Reset token indicators found, enabling reset form");
+
+          // If we have a code, try to exchange it for a session
+          if (code) {
+            try {
+              console.log("Attempting to exchange code for session");
+              const { data, error } =
+                await supabase.auth.exchangeCodeForSession(code);
+              if (error) {
+                console.warn("Code exchange warning:", error);
+              }
+            } catch (exchangeError) {
+              console.warn("Code exchange error:", exchangeError);
+              // Continue anyway - we may still be able to reset password
+            }
+          }
+
           setHasToken(true);
           setRecoveryFlow(true);
         } else {
@@ -148,6 +170,7 @@ function ResetPasswordPage() {
   }, [password, confirmPassword]);
 
   // Handle form submission
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -162,6 +185,27 @@ function ResetPasswordPage() {
     try {
       setIsLoading(true);
       console.log("Submitting password change...");
+
+      // Get code parameter from URL if it exists
+      const params = new URLSearchParams(location.search);
+      const code = params.get("code");
+
+      // If we have a code, make sure we have a session
+      if (code) {
+        try {
+          console.log("Ensuring session from code parameter");
+          const { data, error } = await supabase.auth.exchangeCodeForSession(
+            code
+          );
+          if (error) {
+            console.warn("Session exchange warning:", error);
+            // Continue anyway, the session might be set already
+          }
+        } catch (exchangeError) {
+          console.warn("Code exchange error:", exchangeError);
+          // Continue anyway as we may still be able to reset password
+        }
+      }
 
       // Update password via Supabase
       const { data, error: updateError } = await supabase.auth.updateUser({

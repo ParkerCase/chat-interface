@@ -52,6 +52,7 @@ function DirectResetPassword() {
         // Get URL parameters
         const queryParams = new URLSearchParams(location.search);
         const token = queryParams.get("token");
+        const code = queryParams.get("code"); // Add recognition of code parameter
         const type = queryParams.get("type");
         const accessToken = queryParams.get("access_token");
         const refreshToken = queryParams.get("refresh_token");
@@ -60,6 +61,7 @@ function DirectResetPassword() {
         // Track parameter info for debugging
         const info = {
           hasToken: !!token,
+          hasCode: !!code, // Track if we have a code parameter
           hasType: !!type,
           hasAccessToken: !!accessToken,
           hasRefreshToken: !!refreshToken,
@@ -84,19 +86,44 @@ function DirectResetPassword() {
           }, 1000);
           return;
         }
-        // Check for explicit token
-        else if (token) {
-          console.log("URL contains explicit token parameter");
+        // Check for explicit token or code
+        else if (token || code) {
+          console.log("URL contains explicit token or code parameter");
 
           // This is probably a recovery token
           try {
-            // Verify token is valid
-            await supabase.auth.verifyOtp({
-              token_hash: token,
-              type: type || "recovery",
-            });
+            // If we have a code parameter, use exchangeCodeForSession
+            if (code) {
+              console.log("Using code parameter for password reset");
+              try {
+                const { data, error } =
+                  await supabase.auth.exchangeCodeForSession(code);
+                if (error) {
+                  console.warn("Code exchange warning:", error);
+                  // Continue anyway - session might be set already
+                } else {
+                  console.log("Code exchange successful");
+                }
+              } catch (exchangeError) {
+                console.warn("Code exchange error:", exchangeError);
+                // Continue anyway - might work with current session
+              }
 
-            console.log("Token verification successful");
+              console.log("Code processed, showing password form");
+              setIsTokenProcessing(false);
+              return;
+            }
+
+            // If we have a token, verify it
+            if (token) {
+              // Verify token is valid
+              await supabase.auth.verifyOtp({
+                token_hash: token,
+                type: type || "recovery",
+              });
+
+              console.log("Token verification successful");
+            }
             setIsTokenProcessing(false);
           } catch (verifyError) {
             console.error("Token verification error:", verifyError);
@@ -179,6 +206,27 @@ function DirectResetPassword() {
     try {
       setIsLoading(true);
       console.log("Updating password...");
+
+      // Get code parameter from URL if it exists
+      const params = new URLSearchParams(location.search);
+      const code = params.get("code");
+
+      if (code) {
+        console.log("Ensuring session from code parameter");
+        try {
+          // Exchange the code for a session if we haven't already
+          const { data: sessionData, error: sessionError } =
+            await supabase.auth.exchangeCodeForSession(code);
+
+          if (sessionError) {
+            console.error("Session exchange error:", sessionError);
+            // Continue anyway, the session might have been set already
+          }
+        } catch (exchangeError) {
+          console.warn("Code exchange warning:", exchangeError);
+          // Continue anyway, as the session might already be set
+        }
+      }
 
       // Update password via Supabase
       const { data, error: updateError } = await supabase.auth.updateUser({
@@ -442,14 +490,7 @@ function DirectResetPassword() {
           </div>
 
           {/* Submit Button */}
-          <button
-            type="submit"
-            className="login-button"
-            disabled={
-              isLoading ||
-              !Object.values(passwordChecks).every((check) => check)
-            }
-          >
+          <button type="submit" className="login-button" disabled={isLoading}>
             {isLoading ? (
               <>
                 <Loader2 className="spinner" size={16} />

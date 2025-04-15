@@ -61,6 +61,7 @@ function App() {
       const isResetPath = url.includes("/reset-password");
       const hasResetParams =
         url.includes("?token=") ||
+        url.includes("?code=") || // Add code parameter detection
         url.includes("type=recovery") ||
         url.includes("access_token=") ||
         (window.location.hash &&
@@ -344,10 +345,11 @@ function App() {
     return <DirectResetPassword />;
   }
 
-  // Check for reset in URL
+  // Check for reset in URL - UPDATED to include code parameter
   if (
     isResetUrl &&
     (url.includes("?token=") ||
+      url.includes("?code=") || // Add code parameter detection
       url.includes("type=recovery") ||
       url.includes("access_token=") ||
       window.location.hash)

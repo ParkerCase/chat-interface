@@ -50,6 +50,7 @@ function AuthNavigationGuard({ children }) {
         const params = new URLSearchParams(location.search);
         const hasResetParams =
           params.has("token") ||
+          params.has("code") || // Add code parameter detection
           params.has("type") ||
           params.has("access_token") ||
           window.location.hash;
