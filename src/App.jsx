@@ -1,4 +1,4 @@
-// src/App.jsx
+// src/App.jsx (Fixed)
 import React, { useState, useEffect } from "react";
 import {
   BrowserRouter as Router,
@@ -52,6 +52,8 @@ const ENV = {
 function App() {
   // Check if we're in an out-of-memory situation (common error)
   const [outOfMemory, setOutOfMemory] = useState(false);
+  // Track if we're in password reset mode
+  const [isInResetMode, setIsInResetMode] = useState(false);
 
   // Immediately check URL for password reset tokens
   useEffect(() => {
@@ -73,6 +75,7 @@ function App() {
         // Flag for the reset flow
         localStorage.setItem("password_reset_in_progress", "true");
         sessionStorage.setItem("password_reset_in_progress", "true");
+        setIsInResetMode(true);
 
         // Prevent auth redirects during reset flow
         localStorage.setItem("bypass_auth_redirects", "true");
@@ -331,34 +334,6 @@ function App() {
         </div>
       </div>
     );
-  }
-
-  // CRITICAL: Check if we're in password reset mode - if so, render DirectResetPassword directly
-  const url = window.location.href;
-  const isResetUrl = url.includes("/reset-password");
-  const inResetMode =
-    localStorage.getItem("password_reset_in_progress") === "true";
-
-  // Emergency bypass for password reset
-  if (isResetUrl && inResetMode) {
-    console.log("🔑 RENDERING DIRECT RESET PASSWORD COMPONENT");
-    return <DirectResetPassword />;
-  }
-
-  // Check for reset in URL - UPDATED to include code parameter
-  if (
-    isResetUrl &&
-    (url.includes("?token=") ||
-      url.includes("?code=") || // Add code parameter detection
-      url.includes("type=recovery") ||
-      url.includes("access_token=") ||
-      window.location.hash)
-  ) {
-    console.log(
-      "🔑 RESET PARAMETERS DETECTED IN URL - DIRECT COMPONENT RENDER"
-    );
-    localStorage.setItem("password_reset_in_progress", "true");
-    return <DirectResetPassword />;
   }
 
   return (
