@@ -3,8 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
-import { authRecovery } from "../../utils/authRecovery";
-import AuthLoading from "./AuthLoading";
+import { Loader2 } from "lucide-react";
 
 /**
  * Navigation guard component that handles authentication redirects
@@ -53,14 +52,8 @@ function AuthNavigationGuard({ children }) {
           navigate("/login?passwordChanged=true", { replace: true });
         } catch (err) {
           console.error("Error handling password change redirect:", err);
-          // Use recovery as fallback
-          const result = await authRecovery.forceCleanLogout();
-          if (result.success) {
-            navigate("/login?passwordChanged=true", { replace: true });
-          } else {
-            // Last resort - just reload the page
-            window.location.href = "/login?passwordChanged=true";
-          }
+          // Last resort - just reload the page
+          window.location.href = "/login?passwordChanged=true";
         } finally {
           setIsRecovering(false);
         }
@@ -72,7 +65,7 @@ function AuthNavigationGuard({ children }) {
       if (isAuthRoute) {
         // If already authenticated, redirect to dashboard
         if (currentUser && !loading) {
-          navigate("/", { replace: true });
+          navigate("/admin", { replace: true });
         }
         return;
       }
@@ -139,13 +132,43 @@ function AuthNavigationGuard({ children }) {
 
           if (data?.session) {
             setRecoveryMessage("Recovering authentication state...");
-            const recoveryResult = await authRecovery.runRecovery(false);
 
-            if (recoveryResult.success) {
-              console.log("Auth recovery successful:", recoveryResult);
-              // Reload the page to reinitialize auth context
-              window.location.reload();
-              return;
+            try {
+              // Try to get user data
+              const { data: userData } = await supabase.auth.getUser();
+
+              if (userData?.user) {
+                // Get profile data
+                const { data: profileData } = await supabase
+                  .from("profiles")
+                  .select("*")
+                  .eq("id", userData.user.id)
+                  .single();
+
+                // Create user object
+                const user = {
+                  id: userData.user.id,
+                  email: userData.user.email,
+                  name: profileData?.full_name || userData.user.email,
+                  roles: profileData?.roles || ["user"],
+                  tier: "enterprise",
+                };
+
+                // Update localStorage
+                localStorage.setItem("authToken", data.session.access_token);
+                localStorage.setItem(
+                  "refreshToken",
+                  data.session.refresh_token
+                );
+                localStorage.setItem("currentUser", JSON.stringify(user));
+                localStorage.setItem("isAuthenticated", "true");
+
+                // Reload the page to reinitialize auth context
+                window.location.reload();
+                return;
+              }
+            } catch (recoveryError) {
+              console.error("Auth recovery error:", recoveryError);
             }
           }
 
@@ -181,11 +204,10 @@ function AuthNavigationGuard({ children }) {
   // Show recovery screen when fixing auth issues
   if (isRecovering) {
     return (
-      <AuthLoading
-        message={recoveryMessage}
-        timeout={15000}
-        timeoutMessage="This is taking longer than expected. You will be redirected momentarily."
-      />
+      <div className="auth-recovery-container">
+        <Loader2 className="spinner" size={36} />
+        <p>{recoveryMessage}</p>
+      </div>
     );
   }
 

@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import SecurityCenter from "../security/SecurityCenter";
-import AuthDebugHelper from "../../utils/AuthDebugHelper";
 import { useNavigate } from "react-router-dom";
 import {
   User,
@@ -753,7 +752,6 @@ function SessionsSection({ setSuccess, setError }) {
           </div>
         </div>
       )}
-      {process.env.NODE_ENV !== "production" && <AuthDebugHelper />}
     </div>
   );
 }

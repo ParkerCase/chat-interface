@@ -2,324 +2,350 @@
 import { supabase } from "../lib/supabase";
 
 /**
- * Authentication error recovery system
- * Detects and fixes common authentication errors
+ * Auth recovery utility for handling authentication edge cases,
+ * recovering from auth errors, and providing emergency fixes
  */
 export const authRecovery = {
   /**
-   * Detect and fix common auth state problems
-   * @param {boolean} forceSignOut - Whether to force sign out on critical issues
-   * @returns {Promise<Object>} Recovery result
+   * Run a full recovery sequence to fix auth state
+   * @param {boolean} forceLogout Whether to force logout at the end
+   * @returns {Promise<{success: boolean, message: string}>}
    */
-  runRecovery: async (forceSignOut = false) => {
-    console.log("Running auth recovery system...");
-    const issues = [];
-    const fixes = [];
-    let criticalIssueDetected = false;
+  runRecovery: async (forceLogout = false) => {
+    console.log("Starting auth recovery sequence");
 
     try {
-      // STEP 1: Check for session/token mismatches
-      const { data: sessionData, error: sessionError } =
-        await supabase.auth.getSession();
+      // 1. Check for active session
+      const { data: sessionData } = await supabase.auth.getSession();
 
-      // Parse stored auth state
-      const storedToken = localStorage.getItem("authToken");
-      const storedRefreshToken = localStorage.getItem("refreshToken");
-      let storedUser = null;
+      if (!sessionData?.session) {
+        console.log("No active session found during recovery");
 
-      try {
-        const userJson = localStorage.getItem("currentUser");
-        if (userJson) {
-          storedUser = JSON.parse(userJson);
-        }
-      } catch (err) {
-        issues.push("Corrupted user data in localStorage");
-        localStorage.removeItem("currentUser");
-        fixes.push("Removed corrupted user data");
-      }
+        // 1a. If no session, try to recover from localStorage
+        const storedUser = localStorage.getItem("currentUser");
+        if (storedUser) {
+          console.log(
+            "Found stored user but no session, clearing localStorage"
+          );
 
-      const hasValidSession = !sessionError && sessionData?.session;
-      const hasStoredAuth = !!storedToken && !!storedUser;
-
-      // CASE 1: We have session but no stored auth
-      if (hasValidSession && !hasStoredAuth) {
-        issues.push("Valid session exists but local auth state is missing");
-
-        // Store session data
-        localStorage.setItem("authToken", sessionData.session.access_token);
-        localStorage.setItem("refreshToken", sessionData.session.refresh_token);
-        localStorage.setItem("isAuthenticated", "true");
-
-        // Try to get and store user data
-        try {
-          const { data: userData, error: userError } =
-            await supabase.auth.getUser();
-
-          if (!userError && userData?.user) {
-            // Get profile data
-            const { data: profileData } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", userData.user.id)
-              .single();
-
-            // Create basic user object
-            const userObject = {
-              id: userData.user.id,
-              email: userData.user.email,
-              name: profileData?.full_name || userData.user.email,
-              roles: profileData?.roles || ["user"],
-              tier: "enterprise",
-              features: {
-                chatbot: true,
-                basic_search: true,
-                file_upload: true,
-                image_analysis: true,
-                advanced_search: true,
-                image_search: true,
-                custom_branding: true,
-                multi_user: true,
-                data_export: true,
-                analytics_basic: true,
-                custom_workflows: true,
-                advanced_analytics: true,
-                multi_department: true,
-                automated_alerts: true,
-                custom_integrations: true,
-                advanced_security: true,
-                sso: true,
-                advanced_roles: true,
-              },
-            };
-
-            localStorage.setItem("currentUser", JSON.stringify(userObject));
-            fixes.push("Restored user data from session");
-          } else {
-            issues.push(
-              `Could not restore user data: ${
-                userError?.message || "No user in session"
-              }`
-            );
-            criticalIssueDetected = true;
-          }
-        } catch (userError) {
-          issues.push(`Error restoring user data: ${userError.message}`);
-          criticalIssueDetected = true;
-        }
-      }
-
-      // CASE 2: We have stored auth but no valid session
-      if (!hasValidSession && hasStoredAuth) {
-        issues.push("Stored auth exists but no valid session");
-
-        // Try to refresh the token
-        try {
-          const { data: refreshData, error: refreshError } =
-            await supabase.auth.refreshSession();
-
-          if (!refreshError && refreshData?.session) {
-            // Update tokens
-            localStorage.setItem("authToken", refreshData.session.access_token);
-            localStorage.setItem(
-              "refreshToken",
-              refreshData.session.refresh_token
-            );
-            fixes.push("Refreshed expired session");
-          } else {
-            issues.push(
-              `Failed to refresh session: ${
-                refreshError?.message || "Unknown error"
-              }`
-            );
-            criticalIssueDetected = true;
-          }
-        } catch (refreshError) {
-          issues.push(`Error refreshing session: ${refreshError.message}`);
-          criticalIssueDetected = true;
-        }
-      }
-
-      // STEP 2: Check for token/user mismatches
-      if (hasValidSession && hasStoredAuth) {
-        // Validate user ID matches session
-        const sessionUserId = sessionData.session.user.id;
-        const storedUserId = storedUser?.id;
-
-        if (sessionUserId !== storedUserId) {
-          issues.push("User ID mismatch between session and stored user");
-          criticalIssueDetected = true;
-
-          // Try to fix by updating stored user
-          try {
-            const { data: userData, error: userError } =
-              await supabase.auth.getUser();
-
-            if (!userError && userData?.user) {
-              // Update stored user with correct ID
-              storedUser.id = userData.user.id;
-              localStorage.setItem("currentUser", JSON.stringify(storedUser));
-              fixes.push("Updated stored user with correct ID");
-            } else {
-              issues.push(
-                `Could not get correct user data: ${userError?.message}`
-              );
-            }
-          } catch (userError) {
-            issues.push(`Error getting user data: ${userError.message}`);
-          }
-        }
-      }
-
-      // STEP 3: Check for other inconsistencies
-      const isAuthenticated =
-        localStorage.getItem("isAuthenticated") === "true";
-      if (hasStoredAuth && !isAuthenticated) {
-        issues.push("Auth tokens exist but isAuthenticated flag is missing");
-        localStorage.setItem("isAuthenticated", "true");
-        fixes.push("Set isAuthenticated flag");
-      }
-
-      const authStage = localStorage.getItem("authStage");
-      if (hasStoredAuth && !authStage) {
-        issues.push("Auth tokens exist but authStage is missing");
-        localStorage.setItem("authStage", "post-mfa"); // Assume post-MFA for existing sessions
-        fixes.push("Set authStage to post-mfa");
-      }
-
-      // STEP 4: Check for password change flags
-      const passwordChanged =
-        localStorage.getItem("passwordChanged") === "true";
-      const forceLogout = localStorage.getItem("forceLogout") === "true";
-
-      if (passwordChanged || forceLogout) {
-        issues.push("Incomplete password change or force logout detected");
-        criticalIssueDetected = true;
-      }
-
-      // STEP 5: Handle critical issues if requested
-      if (criticalIssueDetected && forceSignOut) {
-        issues.push("Critical issues detected, forcing sign out");
-
-        // Force a clean sign out
-        try {
-          await supabase.auth.signOut();
-
-          // Clear all auth-related data
+          // Clear auth data since it's invalid
           localStorage.removeItem("authToken");
           localStorage.removeItem("refreshToken");
           localStorage.removeItem("currentUser");
           localStorage.removeItem("isAuthenticated");
           localStorage.removeItem("authStage");
-          localStorage.removeItem("mfa_verified");
-          localStorage.removeItem("forceLogout");
+          sessionStorage.removeItem("mfa_verified");
+          sessionStorage.removeItem("mfaSuccess");
 
-          // Keep passwordChanged flag if it exists
-          if (passwordChanged) {
-            fixes.push("Preserved password change flags for login flow");
-          } else {
-            localStorage.removeItem("passwordChanged");
-            localStorage.removeItem("passwordChangedEmail");
-            localStorage.removeItem("passwordChangedAt");
-          }
-
-          sessionStorage.clear();
-          fixes.push("Forced complete sign out to clean auth state");
-
-          // Return early with redirect recommendation
           return {
-            success: true,
-            requiresRedirect: true,
-            redirectTo: "/login",
-            issues,
-            fixes,
-            timestamp: new Date().toISOString(),
+            success: false,
+            message: "No valid session found, cleared invalid local data",
           };
-        } catch (signOutError) {
-          issues.push(`Error during forced sign out: ${signOutError.message}`);
+        }
+
+        return {
+          success: false,
+          message: "No active session found",
+        };
+      }
+
+      // 2. Found active session, get user data
+      const { data: userData, error: userError } =
+        await supabase.auth.getUser();
+
+      if (userError || !userData?.user) {
+        console.log("Session exists but failed to get user data:", userError);
+
+        if (forceLogout) {
+          await supabase.auth.signOut();
+          return {
+            success: false,
+            message: "Session corrupted, forced logout",
+          };
+        }
+
+        return {
+          success: false,
+          message: "Session exists but user data unavailable",
+        };
+      }
+
+      // 3. Get profile data from database
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userData.user.id)
+        .single();
+
+      // 4. Reconstruct user data and store in localStorage
+      const user = {
+        id: userData.user.id,
+        email: userData.user.email,
+        name:
+          profileData?.full_name ||
+          userData.user.user_metadata?.full_name ||
+          userData.user.email,
+        roles: profileData?.roles || ["user"],
+        tier: "enterprise",
+        mfaMethods: profileData?.mfa_methods || [],
+      };
+
+      // 5. Update localStorage with fresh data
+      localStorage.setItem("authToken", sessionData.session.access_token);
+      localStorage.setItem("refreshToken", sessionData.session.refresh_token);
+      localStorage.setItem("currentUser", JSON.stringify(user));
+      localStorage.setItem("isAuthenticated", "true");
+
+      // 6. Check/fix MFA state
+      const authStage = localStorage.getItem("authStage");
+      const mfaVerified =
+        sessionStorage.getItem("mfa_verified") === "true" ||
+        localStorage.getItem("mfa_verified") === "true";
+
+      if (mfaVerified) {
+        localStorage.setItem("authStage", "post-mfa");
+      } else if (!authStage) {
+        localStorage.setItem("authStage", "pre-mfa");
+      }
+
+      // 7. Forced logout if requested
+      if (forceLogout) {
+        await supabase.auth.signOut();
+
+        return {
+          success: true,
+          message: "Recovery complete followed by requested logout",
+        };
+      }
+
+      return {
+        success: true,
+        message: "Auth state successfully recovered",
+      };
+    } catch (error) {
+      console.error("Auth recovery error:", error);
+
+      if (forceLogout) {
+        try {
+          await supabase.auth.signOut();
+        } catch (e) {
+          console.warn("Failed to sign out during recovery:", e);
         }
       }
 
-      // Return recovery result
-      return {
-        success: fixes.length > 0,
-        criticalIssueDetected,
-        requiresRedirect: false,
-        hasValidSession,
-        hasStoredAuth,
-        issues,
-        fixes,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      console.error("Auth recovery system error:", error);
       return {
         success: false,
-        error: error.message,
-        timestamp: new Date().toISOString(),
+        message: `Recovery failed: ${error.message}`,
       };
     }
   },
 
   /**
-   * Force a complete logout and clean auth state
-   * @returns {Promise<Object>} Result of the operation
+   * Force clean logout and clear all auth state
+   * @returns {Promise<{success: boolean, message: string}>}
    */
   forceCleanLogout: async () => {
+    console.log("Forcing clean logout");
+
     try {
-      console.log("Forcing clean logout...");
+      // 1. Sign out from Supabase
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        console.warn("Error during signOut:", signOutError);
+        // Continue anyway
+      }
 
-      // Keep email for login form if available
-      const userEmail =
-        localStorage.getItem("userEmail") ||
-        JSON.parse(localStorage.getItem("currentUser") || "{}")?.email;
-
-      // First sign out from Supabase
-      await supabase.auth.signOut({ scope: "global" });
-
-      // Clear all auth-related localStorage
+      // 2. Clear all localStorage items related to auth
       const authKeys = [
         "authToken",
         "refreshToken",
+        "sessionId",
         "currentUser",
         "isAuthenticated",
         "mfa_verified",
         "authStage",
-        "passwordChanged",
-        "passwordChangedAt",
-        "forceLogout",
-        "mfaRedirectPending",
-        "mfaRedirectTarget",
-        "mfaSuccess",
-        "mfaVerifiedAt",
       ];
 
-      authKeys.forEach((key) => localStorage.removeItem(key));
+      authKeys.forEach((key) => {
+        try {
+          localStorage.removeItem(key);
+        } catch (e) {
+          console.warn(`Failed to remove ${key} from localStorage:`, e);
+        }
+      });
 
-      // Clear any auth-related sessionStorage
-      sessionStorage.clear();
+      // 3. Clear all sessionStorage items related to auth
+      authKeys.forEach((key) => {
+        try {
+          sessionStorage.removeItem(key);
+        } catch (e) {
+          console.warn(`Failed to remove ${key} from sessionStorage:`, e);
+        }
+      });
 
-      // Store email for login if available
-      if (userEmail) {
-        localStorage.setItem("userEmail", userEmail);
+      // 4. Clear any Supabase cookies
+      document.cookie.split(";").forEach(function (c) {
+        if (c.trim().startsWith("sb-")) {
+          document.cookie = c
+            .replace(/^ +/, "")
+            .replace(
+              /=.*/,
+              "=;expires=" + new Date().toUTCString() + ";path=/"
+            );
+        }
+      });
+
+      return {
+        success: true,
+        message: "Clean logout completed",
+      };
+    } catch (error) {
+      console.error("Clean logout error:", error);
+
+      // Try minimal cleanup as fallback
+      try {
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("currentUser");
+        localStorage.removeItem("isAuthenticated");
+      } catch (e) {
+        console.error("Minimal cleanup failed:", e);
+      }
+
+      return {
+        success: false,
+        message: `Clean logout failed: ${error.message}`,
+      };
+    }
+  },
+
+  /**
+   * Fix inconsistent MFA state
+   * @returns {Promise<{success: boolean, message: string}>}
+   */
+  fixMfaState: async () => {
+    console.log("Fixing MFA state inconsistencies");
+
+    try {
+      // Get all potential MFA flags
+      const sessionMfaVerified =
+        sessionStorage.getItem("mfa_verified") === "true";
+      const localMfaVerified = localStorage.getItem("mfa_verified") === "true";
+      const mfaSuccess = sessionStorage.getItem("mfaSuccess") === "true";
+      const authStage = localStorage.getItem("authStage");
+
+      // Determine the correct MFA state
+      const isMfaVerified =
+        sessionMfaVerified ||
+        localMfaVerified ||
+        mfaSuccess ||
+        authStage === "post-mfa";
+
+      // Set all flags to be consistent
+      if (isMfaVerified) {
+        sessionStorage.setItem("mfa_verified", "true");
+        localStorage.setItem("mfa_verified", "true");
+        sessionStorage.setItem("mfaSuccess", "true");
+        localStorage.setItem("authStage", "post-mfa");
+      } else {
+        sessionStorage.removeItem("mfa_verified");
+        localStorage.removeItem("mfa_verified");
+        sessionStorage.removeItem("mfaSuccess");
+        localStorage.setItem("authStage", "pre-mfa");
       }
 
       return {
         success: true,
-        message: "Auth state completely cleared",
+        message: isMfaVerified
+          ? "MFA state fixed as verified"
+          : "MFA state fixed as unverified",
       };
     } catch (error) {
-      console.error("Force logout error:", error);
+      console.error("Fix MFA state error:", error);
       return {
         success: false,
-        error: error.message,
+        message: `Failed to fix MFA state: ${error.message}`,
       };
     }
   },
-};
 
-// Export a function to run auth recovery on demand
-export const fixAuthState = async (forceSignOut = false) => {
-  return await authRecovery.runRecovery(forceSignOut);
+  /**
+   * Check if there are any auth inconsistencies
+   * @returns {Promise<{hasInconsistencies: boolean, issues: string[]}>}
+   */
+  checkAuthConsistency: async () => {
+    console.log("Checking authentication consistency");
+
+    const issues = [];
+
+    try {
+      // 1. Check if localStorage has auth token but no user
+      const hasToken = !!localStorage.getItem("authToken");
+      const hasUser = !!localStorage.getItem("currentUser");
+
+      if (hasToken && !hasUser) {
+        issues.push("Auth token exists but no user data found");
+      }
+
+      if (!hasToken && hasUser) {
+        issues.push("User data exists but no auth token found");
+      }
+
+      // 2. Check if Supabase has active session
+      const { data } = await supabase.auth.getSession();
+      const hasSession = !!data?.session;
+
+      if (hasToken && !hasSession) {
+        issues.push(
+          "Auth token in localStorage but no active Supabase session"
+        );
+      }
+
+      if (!hasToken && hasSession) {
+        issues.push(
+          "Active Supabase session but no auth token in localStorage"
+        );
+      }
+
+      // 3. Check MFA state consistency
+      const sessionMfaVerified =
+        sessionStorage.getItem("mfa_verified") === "true";
+      const localMfaVerified = localStorage.getItem("mfa_verified") === "true";
+      const mfaSuccess = sessionStorage.getItem("mfaSuccess") === "true";
+      const authStage = localStorage.getItem("authStage");
+
+      if (
+        (sessionMfaVerified || localMfaVerified || mfaSuccess) &&
+        authStage !== "post-mfa"
+      ) {
+        issues.push(
+          "MFA flags indicate verification but authStage is not post-mfa"
+        );
+      }
+
+      if (
+        !(sessionMfaVerified || localMfaVerified || mfaSuccess) &&
+        authStage === "post-mfa"
+      ) {
+        issues.push(
+          "AuthStage is post-mfa but MFA verification flags are not set"
+        );
+      }
+
+      return {
+        hasInconsistencies: issues.length > 0,
+        issues,
+      };
+    } catch (error) {
+      console.error("Auth consistency check error:", error);
+      issues.push(`Error checking auth consistency: ${error.message}`);
+
+      return {
+        hasInconsistencies: true,
+        issues,
+      };
+    }
+  },
 };
 
 export default authRecovery;

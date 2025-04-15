@@ -13,8 +13,14 @@ function ProtectedRoute({
   requireFeatures = [],
   fallback = null,
 }) {
-  const { currentUser, loading, hasRole, hasFeatureAccess, isInitialized } =
-    useAuth();
+  const {
+    currentUser,
+    loading,
+    hasRole,
+    hasFeatureAccess,
+    isInitialized,
+    mfaState,
+  } = useAuth();
   const location = useLocation();
 
   // Show loading during initialization
@@ -33,6 +39,17 @@ function ProtectedRoute({
     return (
       <Navigate
         to={`/login?returnUrl=${encodeURIComponent(location.pathname)}`}
+        replace
+      />
+    );
+  }
+
+  // Check if MFA is required but not completed
+  if (mfaState?.required && !mfaState?.verified) {
+    // Redirect to MFA verification
+    return (
+      <Navigate
+        to={`/mfa/verify?returnUrl=${encodeURIComponent(location.pathname)}`}
         replace
       />
     );

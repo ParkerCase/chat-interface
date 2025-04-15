@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { supabase, enhancedAuth } from "../lib/supabase";
+import { supabase } from "../lib/supabase";
 import MFAVerification from "./auth/MFAVerification";
 import { Loader2, AlertCircle } from "lucide-react";
+import { debugAuth } from "../utils/authDebug";
 import "./auth.css";
 
 function MfaVerify() {
@@ -25,90 +26,83 @@ function MfaVerify() {
     const initMfaVerification = async () => {
       try {
         setIsLoading(true);
-        console.log("MFA verification initializing...");
+        debugAuth.log("MfaVerify", "MFA verification initializing...");
 
         const params = new URLSearchParams(location.search);
 
         // Get redirect URL from query params
-        const returnUrl = params.get("returnUrl") || "/";
+        const returnUrl = params.get("returnUrl") || "/admin";
         setRedirectUrl(returnUrl);
-        console.log("Return URL set to:", returnUrl);
+        debugAuth.log("MfaVerify", `Return URL set to: ${returnUrl}`);
 
         // Get factor ID and other MFA data
-        let factorIdFromParams = params.get("factorId");
-        let methodIdFromParams = params.get("methodId");
-        let typeFromParams = params.get("type") || "totp";
+        const methodIdFromParams = params.get("methodId");
+        const typeFromParams = params.get("type") || "email";
+        const emailFromParams = params.get("email");
 
-        // Check for session MFA requirements
-        try {
-          console.log("Checking Supabase session for MFA data");
-          const { data: sessionData } = await supabase.auth.getSession();
+        // Get user email from params or current user
+        const userEmail =
+          emailFromParams ||
+          currentUser?.email ||
+          localStorage.getItem("userEmail");
 
-          if (sessionData?.session) {
-            console.log("Active session found, checking MFA requirements");
-
-            // Get MFA status
-            const { data: mfaData, error: mfaError } =
-              await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-
-            if (!mfaError && mfaData) {
-              console.log("MFA data:", mfaData);
-
-              // Check if MFA is required
-              if (
-                mfaData.nextLevel &&
-                mfaData.nextLevel !== mfaData.currentLevel
-              ) {
-                console.log("MFA verification required");
-
-                // Set factor ID if available
-                if (mfaData.currentFactorId) {
-                  factorIdFromParams = mfaData.currentFactorId;
-                }
-              } else {
-                console.log("MFA not required, redirecting");
-                navigate(returnUrl);
-                return;
-              }
-            }
-          }
-        } catch (error) {
-          console.error("Error checking MFA status:", error);
+        if (!userEmail) {
+          setError("Email address is required for MFA verification");
+          setIsLoading(false);
+          return;
         }
 
-        // Prefer URL parameters over session data
-        if (factorIdFromParams) {
-          setFactorId(factorIdFromParams);
-          setType(typeFromParams);
-          console.log("Using factor ID from URL:", factorIdFromParams);
-        } else if (methodIdFromParams) {
-          setFactorId(methodIdFromParams);
-          setType(typeFromParams);
-          console.log("Using method ID from URL:", methodIdFromParams);
-        } else {
-          console.warn("No factor ID or method ID found");
-        }
+        setEmail(userEmail);
 
-        // Get email from current user or params
-        if (currentUser?.email) {
-          setEmail(currentUser.email);
-        } else {
-          const emailFromParams = params.get("email");
-          if (emailFromParams) {
-            setEmail(emailFromParams);
-          }
-        }
+        // Generate methodId from email if not provided
+        const methodId =
+          methodIdFromParams ||
+          `email-${userEmail.replace(/[^a-zA-Z0-9]/g, "")}`;
+        setFactorId(methodId);
+        setType(typeFromParams);
 
         // Create MFA data object
         const mfaDataObject = {
-          factorId: factorIdFromParams || methodIdFromParams,
-          methodId: methodIdFromParams || factorIdFromParams,
+          methodId: methodId,
           type: typeFromParams,
-          email: currentUser?.email || params.get("email"),
+          email: userEmail,
         };
 
         setMfaData(mfaDataObject);
-        console.log("MFA data prepared:", mfaDataObject);
+        debugAuth.log(
+          "MfaVerify",
+          `MFA data prepared: ${JSON.stringify(mfaDataObject)}`
+        );
+
+        // Ensure a verification code has been sent
+        if (typeFromParams === "email") {
+          try {
+            // Send a new verification code if we don't already have one in progress
+            const { error } = await supabase.auth.signInWithOtp({
+              email: userEmail,
+              options: {
+                shouldCreateUser: false,
+                emailRedirectTo: null,
+              },
+            });
+
+            if (error) {
+              debugAuth.log(
+                "MfaVerify",
+                `Error sending verification code: ${error.message}`
+              );
+              // Continue anyway - user can request a new code
+            } else {
+              debugAuth.log("MfaVerify", "Verification code sent successfully");
+            }
+          } catch (err) {
+            debugAuth.log(
+              "MfaVerify",
+              `Error sending verification code: ${err.message}`
+            );
+            // Continue anyway - user can request a new code
+          }
+        }
       } catch (err) {
         console.error("Error initializing MFA verification:", err);
         setError("Failed to initialize MFA verification");
@@ -122,43 +116,43 @@ function MfaVerify() {
 
   // Handle successful verification
   const handleSuccess = () => {
-    console.log("MFA verification successful in MfaVerify component");
+    debugAuth.log("MfaVerify", "MFA verification successful");
 
     // Set multiple flags for better detection
+    localStorage.setItem("authStage", "post-mfa");
+    localStorage.setItem("mfa_verified", "true");
     sessionStorage.setItem("mfa_verified", "true");
     sessionStorage.setItem("mfaSuccess", "true");
     sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
-    sessionStorage.setItem("mfaRedirectPending", "true");
-    sessionStorage.setItem("mfaRedirectTarget", "/admin");
     localStorage.setItem("isAuthenticated", "true");
-    
+
     // Use multiple approaches to ensure navigation works
     try {
-      console.log("Executing primary navigation to /admin");
+      debugAuth.log("MfaVerify", `Navigating to ${redirectUrl}`);
       // Force a complete page reload
-      window.location.href = "/admin";
-      
+      window.location.href = redirectUrl;
+
       // Use timeout for secondary navigation attempt
       setTimeout(() => {
-        console.log("Executing secondary navigation attempt");
-        window.location.replace("/admin");
-        
-        // Last resort - if we're still here after 1.5s, try navigate API
+        debugAuth.log("MfaVerify", "Executing secondary navigation attempt");
+        window.location.replace(redirectUrl);
+
+        // Last resort - if we're still here after 1s, try navigate API
         setTimeout(() => {
-          console.log("Executing tertiary navigation attempt");
-          navigate("/admin", { replace: true });
+          debugAuth.log("MfaVerify", "Executing tertiary navigation attempt");
+          navigate(redirectUrl, { replace: true });
         }, 1000);
       }, 500);
     } catch (e) {
-      console.error("Navigation error in MfaVerify:", e);
+      debugAuth.log("MfaVerify", `Navigation error: ${e.message}`);
       // Direct navigation as last resort
-      window.location = "/admin";
+      window.location = redirectUrl;
     }
   };
 
   // Handle cancellation
   const handleCancel = () => {
-    console.log("MFA verification cancelled");
+    debugAuth.log("MfaVerify", "MFA verification cancelled");
     navigate("/login");
   };
 
@@ -189,7 +183,7 @@ function MfaVerify() {
   }
 
   // No valid MFA data
-  if (!mfaData?.factorId && !mfaData?.methodId) {
+  if (!mfaData?.methodId) {
     return (
       <div className="mfa-container error">
         <div className="error-content">
@@ -212,7 +206,7 @@ function MfaVerify() {
         mfaData={mfaData}
         onSuccess={handleSuccess}
         onCancel={handleCancel}
-        redirectUrl="/admin"
+        redirectUrl={redirectUrl}
       />
     </div>
   );
