@@ -314,6 +314,67 @@ export const loginThenChangePassword = async (
   }
 };
 
+/**
+ * Helper function to handle Supabase password reset with code parameter
+ * @param {string} code - The password reset code from URL
+ * @param {string} newPassword - The new password to set
+ * @returns {Promise<{ success: boolean, message: string }>} - Result of password reset
+ */
+export const handlePasswordResetWithCode = async (code, newPassword) => {
+  try {
+    console.log("Starting password reset with code");
+
+    // Step 1: Exchange the code for a session
+    try {
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) {
+        console.warn("Code exchange warning:", error);
+        // Continue anyway - session might be set already
+      } else {
+        console.log("Code exchange successful, session established");
+      }
+    } catch (exchangeError) {
+      console.warn("Code exchange error:", exchangeError);
+      // Continue anyway as the session might have been set
+    }
+
+    // Step 2: Update the password using the established session
+    const { data: updateData, error: updateError } =
+      await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+    if (updateError) {
+      console.error("Password update error:", updateError);
+      return {
+        success: false,
+        message: updateError.message || "Failed to update password",
+      };
+    }
+
+    console.log("Password updated successfully");
+
+    // Step 3: Clean up - sign out for security
+    try {
+      await supabase.auth.signOut();
+    } catch (signOutError) {
+      console.warn("Sign out after password reset failed:", signOutError);
+      // Not critical, continue
+    }
+
+    return {
+      success: true,
+      message: "Password reset successful",
+    };
+  } catch (error) {
+    console.error("Password reset error:", error);
+    return {
+      success: false,
+      message: error.message || "An unexpected error occurred",
+    };
+  }
+};
+
 // Run a connection test at startup
 testSupabaseConnection()
   .then((result) => console.log("Supabase connection test result:", result))
