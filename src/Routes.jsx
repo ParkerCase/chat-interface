@@ -34,7 +34,10 @@ function AppRoutes() {
         <Route path="/login" element={<AuthPage />} />
         <Route path="/passcode" element={<AuthPage />} />
         <Route path="/forgot-password" element={<AuthPage />} />
+
+        {/* CRITICAL: Password reset route must be outside ProtectedRoute */}
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+
         <Route path="/mfa/verify" element={<MfaVerify />} />
         <Route path="/auth/callback" element={<SSOCallback />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />

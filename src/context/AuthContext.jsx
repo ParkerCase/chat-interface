@@ -886,9 +886,9 @@ export function AuthProvider({ children }) {
     try {
       console.log("Starting comprehensive logout process");
 
-      // First try to sign out from Supabase
+      // First try to sign out from Supabase with global scope to sign out from all devices
       try {
-        const { error } = await supabase.auth.signOut({ scope: "global" }); // 'global' scope signs out from all devices
+        const { error } = await supabase.auth.signOut({ scope: "global" });
         if (error) {
           console.warn("Supabase signOut error:", error);
         } else {
@@ -977,6 +977,7 @@ export function AuthProvider({ children }) {
         localStorage.removeItem("isAuthenticated");
         setCurrentUser(null);
         setSession(null);
+        window.location.href = "/login"; // Force redirect to login
       } catch (e) {
         console.error("Fallback cleanup failed:", e);
       }
@@ -1173,10 +1174,39 @@ export function AuthProvider({ children }) {
   // Get user active sessions
   const getActiveSessions = async () => {
     try {
-      const response = await apiService.sessions.getSessions();
-      return response.data?.sessions || [];
+      // Instead of using apiService, directly query Supabase
+      const { data: sessionData, error } = await supabase
+        .from("sessions") // Assuming you have a sessions table
+        .select("*")
+        .eq("user_id", currentUser.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Format sessions data
+      const formattedSessions = sessionData.map((session) => ({
+        id: session.id,
+        browser: session.browser || "Unknown",
+        device: session.device || "Unknown",
+        ipAddress: session.ip_address || "0.0.0.0",
+        lastActive: session.last_active || session.created_at,
+        isCurrent: session.is_current || false,
+        mfaVerified: session.mfa_verified || false,
+      }));
+
+      // Ensure current session is marked
+      const currentSessionId = localStorage.getItem("sessionId");
+      if (currentSessionId) {
+        formattedSessions.forEach((session) => {
+          if (session.id === currentSessionId) {
+            session.isCurrent = true;
+          }
+        });
+      }
+
+      return formattedSessions;
     } catch (error) {
-      console.error("Get sessions error:", error);
+      console.error("Error fetching sessions:", error);
       return [];
     }
   };

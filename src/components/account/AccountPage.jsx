@@ -188,7 +188,6 @@ function AccountPage({ tab = "profile" }) {
 function ProfileSection({ setSuccess, setError }) {
   const { currentUser, updateProfile } = useAuth();
   const [formData, setFormData] = useState({
-    name: "",
     firstName: "",
     lastName: "",
     email: "",
@@ -200,7 +199,6 @@ function ProfileSection({ setSuccess, setError }) {
     if (currentUser) {
       console.log("ProfileSection received updated currentUser:", currentUser);
       setFormData({
-        name: currentUser.name || "",
         firstName: currentUser.firstName || "",
         lastName: currentUser.lastName || "",
         email: currentUser.email || "",
@@ -227,11 +225,19 @@ function ProfileSection({ setSuccess, setError }) {
 
       // Only include fields that have changed
       const updates = {};
-      if (formData.name !== currentUser.name) updates.name = formData.name;
       if (formData.firstName !== currentUser.firstName)
         updates.firstName = formData.firstName;
       if (formData.lastName !== currentUser.lastName)
         updates.lastName = formData.lastName;
+
+      // Combine first and last name for display purposes
+      const fullName = `${formData.firstName} ${formData.lastName}`.trim();
+      if (
+        fullName !==
+        `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim()
+      ) {
+        updates.name = fullName;
+      }
 
       console.log("Detected changes:", updates);
 
@@ -276,19 +282,6 @@ function ProfileSection({ setSuccess, setError }) {
       <p className="tab-description">Update your personal information</p>
 
       <form onSubmit={handleProfileUpdate} className="profile-form">
-        <div className="form-group">
-          <label htmlFor="name">Full Name</label>
-          <input
-            type="text"
-            id="name"
-            name="name"
-            value={formData.name}
-            onChange={handleInputChange}
-            className="form-input"
-            required
-          />
-        </div>
-
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="firstName">First Name</label>
@@ -299,6 +292,7 @@ function ProfileSection({ setSuccess, setError }) {
               value={formData.firstName}
               onChange={handleInputChange}
               className="form-input"
+              required
             />
           </div>
 
@@ -311,6 +305,7 @@ function ProfileSection({ setSuccess, setError }) {
               value={formData.lastName}
               onChange={handleInputChange}
               className="form-input"
+              required
             />
           </div>
         </div>
