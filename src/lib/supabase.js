@@ -185,6 +185,47 @@ export const enhancedAuth = {
   },
 };
 
+export const changePasswordFlow = async (
+  email,
+  currentPassword,
+  newPassword,
+  options = { signOutAfter: true }
+) => {
+  try {
+    console.log("⏳ Logging in with current credentials...");
+    const { data: signInData, error: signInError } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password: currentPassword,
+      });
+    if (signInError || !signInData.session) {
+      throw new Error(
+        "❌ Current password incorrect or session could not be created."
+      );
+    }
+    console.log("✅ Authenticated. Updating password...");
+    const { data: updateData, error: updateError } =
+      await supabase.auth.updateUser({
+        password: newPassword,
+      });
+    if (updateError) {
+      throw new Error(`❌ Failed to update password: ${updateError.message}`);
+    }
+    console.log("✅ Password updated!");
+    if (options.signOutAfter) {
+      console.log("🔐 Signing out after password change...");
+      await supabase.auth.signOut();
+    } else {
+      console.log("🔄 Refreshing session...");
+      await supabase.auth.refreshSession();
+    }
+    return { success: true, message: "Password changed successfully!" };
+  } catch (err) {
+    console.error("❌ Password change failed:", err.message);
+    return { success: false, message: err.message || "Unknown error" };
+  }
+};
+
 // Test connection to identify issues early
 export const testSupabaseConnection = async () => {
   try {
@@ -206,6 +247,69 @@ export const testSupabaseConnection = async () => {
       success: false,
       error: error.message,
       details: error.toString(),
+    };
+  }
+};
+
+/**
+ * Complete password change flow that ensures proper authentication
+ * before changing the password
+ */
+export const loginThenChangePassword = async (
+  email,
+  currentPassword,
+  newPassword
+) => {
+  try {
+    console.log("⏳ Authenticating with current password...");
+    const { data, error: loginError } = await supabase.auth.signInWithPassword({
+      email,
+      password: currentPassword,
+    });
+
+    if (loginError) {
+      console.error("❌ Authentication failed:", loginError);
+      return {
+        success: false,
+        message: "Current password is incorrect.",
+      };
+    }
+
+    console.log("✅ Authentication successful. Setting session...");
+    await supabase.auth.setSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    });
+
+    console.log("⏳ Updating password...");
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (updateError) {
+      console.error("❌ Password update failed:", updateError);
+      return {
+        success: false,
+        message: updateError.message || "Password update failed.",
+      };
+    }
+
+    console.log("✅ Password changed successfully!");
+
+    // Set local storage flags to help the UI handle the transition
+    localStorage.setItem("passwordChanged", "true");
+    localStorage.setItem("passwordChangedAt", new Date().toISOString());
+    localStorage.setItem("passwordChangedEmail", email);
+
+    return {
+      success: true,
+      message: "Password changed successfully!",
+    };
+  } catch (err) {
+    console.error("❌ Unexpected error during password change:", err);
+    return {
+      success: false,
+      message: err.message || "An unexpected error occurred.",
     };
   }
 };
