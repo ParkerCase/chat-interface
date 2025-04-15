@@ -7,7 +7,11 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { supabase, enhancedAuth } from "../lib/supabase";
+import {
+  supabase,
+  enhancedAuth,
+  loginThenChangePassword,
+} from "../lib/supabase";
 import { debugAuth } from "../utils/authDebug";
 
 import apiService from "../services/apiService";
@@ -1394,46 +1398,85 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Improved password change function with better completion handling
-  const changePassword = async (currentPassword, newPassword) => {
+  const changePasswordFlow = async (email, currentPassword, newPassword) => {
     try {
-      console.log("⏳ Validating current password...");
+      console.log("⏳ Logging in with current credentials...");
+      const { data, error: signInError } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password: currentPassword,
+        });
 
-      // Step 1: Re-authenticate to verify the user
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: supabase.auth.getUser().email,
-        password: currentPassword,
-      });
-
-      if (signInError) {
-        console.error("❌ Incorrect current password:", signInError.message);
-        return { success: false, message: "Current password is incorrect." };
+      if (signInError || !data?.session) {
+        throw new Error("Invalid current credentials.");
       }
 
-      console.log("✅ Password validated. Proceeding to update...");
-
-      // Step 2: Update the password
+      console.log("✅ Authenticated. Updating password...");
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
       if (updateError) {
-        console.error("❌ Failed to update password:", updateError.message);
-        return { success: false, message: "Password update failed." };
+        throw new Error("❌ Failed to update password: " + updateError.message);
       }
 
-      console.log("✅ Password updated successfully!");
-
-      // Step 3: Refresh the session
-      await supabase.auth.refreshSession();
-
-      // Step 4: Optional sign out if you want user to log in again
-      // await supabase.auth.signOut();
-
-      return { success: true, message: "Password changed!" };
+      console.log("✅ Password updated. Signing out...");
+      await supabase.auth.signOut();
+      return { success: true };
     } catch (err) {
-      console.error("❌ Exception during password change:", err.message);
-      return { success: false, message: "Unexpected error occurred." };
+      console.error("❌ Password change error:", err.message);
+      return { success: false, message: err.message };
+    }
+  };
+
+  // Improved password change function with better completion handling
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      setError("");
+      setLoading(true);
+      console.log("Starting password change process");
+
+      // Use the proven password change flow
+      const result = await loginThenChangePassword(
+        currentUser.email,
+        currentPassword,
+        newPassword
+      );
+
+      if (result.success) {
+        console.log("Password changed successfully", result);
+
+        // Most flags are already set by loginThenChangePassword,
+        // but we'll set this one explicitly for our UI
+        localStorage.setItem("forceLogout", "true");
+
+        return true;
+      } else {
+        console.error("Password change failed:", result.message);
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      console.error("Password change error:", error);
+
+      // Provide user-friendly error messages
+      if (error.message) {
+        if (
+          error.message.includes("incorrect") ||
+          error.message.includes("wrong password")
+        ) {
+          setError("Your current password is incorrect");
+        } else if (error.message.includes("Password should be")) {
+          setError(error.message); // Use Supabase's password requirement messages
+        } else {
+          setError(error.message);
+        }
+      } else {
+        setError("Failed to change password. Please try again.");
+      }
+
+      return false;
+    } finally {
+      setLoading(false);
     }
   };
 

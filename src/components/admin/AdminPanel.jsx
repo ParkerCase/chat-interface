@@ -1235,17 +1235,18 @@ const AdminPanel = () => {
 
   const navigate = useNavigate();
 
+  // Updated ensureAdminUser function with fallback for AdminPanel.jsx
   const ensureAdminUser = async () => {
     try {
-      console.log("Ensuring admin user exists in database");
+      console.log("Checking for admin user in database");
 
       const { supabase } = await import("../../lib/supabase");
 
-      // First check if the admin user already exists by email
+      // Check if the admin user already exists by name
       const { data: existingAdmin, error: queryError } = await supabase
         .from("profiles")
-        .select("id, email, roles")
-        .eq("email", "itsus@tatt2away.com")
+        .select("id, roles")
+        .eq("full_name", "Tatt2Away Admin")
         .maybeSingle();
 
       if (queryError) {
@@ -1261,17 +1262,12 @@ const AdminPanel = () => {
           !existingAdmin.roles ||
           !existingAdmin.roles.includes("super_admin")
         ) {
-          const roles = Array.isArray(existingAdmin.roles)
-            ? [...existingAdmin.roles, "super_admin", "admin", "user"]
-            : ["super_admin", "admin", "user"];
-
-          // Remove duplicates
-          const uniqueRoles = [...new Set(roles)];
+          const roles = ["super_admin", "admin", "user"];
 
           // Update roles
           const { error: updateError } = await supabase
             .from("profiles")
-            .update({ roles: uniqueRoles })
+            .update({ roles })
             .eq("id", existingAdmin.id);
 
           if (updateError) {
@@ -1281,50 +1277,14 @@ const AdminPanel = () => {
           }
         }
       } else {
-        console.log(
-          "Admin user doesn't exist, creating virtual user for this session"
-        );
+        console.log("Admin user doesn't exist in the database");
 
-        // Instead of trying to create a real user (which requires admin API access),
-        // we'll create a virtual user that exists only in the frontend
-        // This approach avoids the 403 errors for non-admin users
+        // Instead of trying to create with admin API, handle the case gracefully
+        console.log("Adding virtual admin user to local state only");
 
-        // Generate a deterministic UUID for virtual admin
-        const generatePseudoUUID = (email) => {
-          // Simple hash function for email
-          let hash = 0;
-          for (let i = 0; i < email.length; i++) {
-            hash = (hash << 5) - hash + email.charCodeAt(i);
-            hash |= 0;
-          }
-
-          // Format as UUID v4
-          const hexStr = Math.abs(hash).toString(16).padStart(8, "0");
-          return `${hexStr.slice(0, 8)}-${hexStr.slice(8, 12)}-4${hexStr.slice(
-            13,
-            16
-          )}-${((parseInt(hexStr.slice(16, 17), 16) & 0x3) | 0x8).toString(
-            16
-          )}${hexStr.slice(17, 20)}-${hexStr.slice(20, 32)}`;
-        };
-
-        // Create virtual admin user for this session only
-        const virtualAdminId = generatePseudoUUID("itsus@tatt2away.com");
-        const virtualAdmin = {
-          id: virtualAdminId,
-          email: "itsus@tatt2away.com",
-          full_name: "Tatt2Away Admin",
-          roles: ["super_admin", "admin", "user"],
-          isVirtual: true, // Mark as virtual
-          tier: "enterprise",
-          created_at: new Date().toISOString(),
-        };
-
-        // Add to user list (in your component state, not in Supabase)
-        console.log("Created virtual admin user for frontend use");
-
-        // Return the virtual admin for use in the component
-        return virtualAdmin;
+        // The admin user will be created virtually in the recentUsers state
+        // in the loadAdminData function with a fallback UUID
+        // No need to attempt API calls that will fail with 403
       }
     } catch (error) {
       console.error("Error in ensureAdminUser:", error);
