@@ -89,9 +89,19 @@ function ResetPasswordPage() {
       // Mark success
       setIsSuccess(true);
 
+      // Store information for login page to detect password change
+      localStorage.setItem("passwordChanged", "true");
+      localStorage.setItem("passwordChangedAt", new Date().toISOString());
+
+      // Try to get user email from session
+      const { data } = await supabase.auth.getUser();
+      if (data?.user?.email) {
+        localStorage.setItem("passwordChangedEmail", data.user.email);
+      }
+
       // Auto-redirect after 3 seconds
       setTimeout(() => {
-        navigate("/");
+        navigate("/login?passwordChanged=true");
       }, 3000);
     } catch (error) {
       console.error("Password reset error:", error);
@@ -110,9 +120,12 @@ function ResetPasswordPage() {
             <CheckCircle size={48} className="success-icon" />
             <h2>Password Reset Successful!</h2>
             <p>Your password has been changed successfully.</p>
-            <p>You will be redirected to the homepage shortly...</p>
-            <button onClick={() => navigate("/")} className="primary-button">
-              Go to Homepage
+            <p>You will be redirected to the login page shortly...</p>
+            <button
+              onClick={() => navigate("/login")}
+              className="primary-button"
+            >
+              Go to Login
             </button>
           </div>
         </div>

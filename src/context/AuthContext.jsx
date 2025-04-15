@@ -1007,7 +1007,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Comprehensive logout function that ensures complete cleanup
   const logout = async () => {
     try {
       console.log("Starting comprehensive logout process");

@@ -1,9 +1,10 @@
-// src/components/auth/SSOCallback.jsx
+// src/components/auth/SSOCallback.jsx - FIXED
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
 import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { debugAuth } from "../../utils/authDebug";
 
 /**
  * Handles OAuth callback redirects from SSO providers
@@ -22,12 +23,14 @@ function SSOCallback() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        debugAuth.log("SSOCallback", "Processing SSO callback");
+
         // Get URL parameters
         const params = new URLSearchParams(location.search);
         const code = params.get("code");
         const error = params.get("error");
         const errorDescription = params.get("error_description");
-        const returnUrl = params.get("returnUrl") || "/";
+        const returnUrl = params.get("returnUrl") || "/admin";
 
         // Handle errors from OAuth provider
         if (error) {
@@ -51,10 +54,10 @@ function SSOCallback() {
           try {
             setStatus("processing");
             setMessage("Finalizing authentication...");
-            console.log("Processing SSO hash redirect");
+            debugAuth.log("SSOCallback", "Processing SSO hash redirect");
 
             // Ensure Supabase has time to process the hash
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise((resolve) => setTimeout(resolve, 500));
 
             // Supabase will handle the hash params automatically
             const { data, error } = await supabase.auth.getSession();
@@ -69,154 +72,215 @@ function SSOCallback() {
               // Success! Show success and redirect
               setStatus("success");
               setMessage("Authentication successful!");
-              console.log("SSO authentication successful");
+              debugAuth.log("SSOCallback", "SSO authentication successful");
 
               // Add short delay for better UX
               setTimeout(async () => {
                 try {
                   // Determine if the user is an admin for redirect
-                  const { data: userData, error: userError } = await supabase.auth.getUser();
-                  
+                  const { data: userData, error: userError } =
+                    await supabase.auth.getUser();
+
                   if (userError) {
                     console.error("Error getting user data:", userError);
                     throw userError;
                   }
-                  
+
                   if (!userData?.user) {
                     console.error("User data not available after SSO auth");
                     throw new Error("User data not available");
                   }
 
-                  console.log("User data retrieved:", userData.user.email);
+                  debugAuth.log(
+                    "SSOCallback",
+                    `User data retrieved: ${userData.user.email}`
+                  );
 
                   // Check if this is a test user
                   if (userData.user.email === "itsus@tatt2away.com") {
-                    console.log("Test user detected, bypassing profile lookup");
+                    debugAuth.log(
+                      "SSOCallback",
+                      "Test user detected, bypassing profile lookup"
+                    );
                     // Special handling for test user - assume admin and bypass MFA
-                    localStorage.setItem("currentUser", JSON.stringify({
-                      id: userData.user.id,
-                      email: userData.user.email,
-                      name: "Tatt2Away Test Admin",
-                      roles: ["super_admin", "admin", "user"],
-                      tier: "enterprise"
-                    }));
-                    
+                    localStorage.setItem(
+                      "currentUser",
+                      JSON.stringify({
+                        id: userData.user.id,
+                        email: userData.user.email,
+                        name: "Tatt2Away Test Admin",
+                        roles: ["super_admin", "admin", "user"],
+                        tier: "enterprise",
+                      })
+                    );
+
+                    // Set authentication flags
+                    localStorage.setItem("authStage", "post-mfa");
+                    localStorage.setItem("mfa_verified", "true");
+                    sessionStorage.setItem("mfa_verified", "true");
+                    sessionStorage.setItem("mfaSuccess", "true");
+
                     // Navigate directly to admin panel
                     window.location.href = "/admin";
                     return;
                   }
 
                   // Get user profile from Supabase
-                  const { data: profileData, error: profileError } = await supabase
-                    .from("profiles")
-                    .select("roles")
-                    .eq("id", userData.user.id)
-                    .single();
+                  const { data: profileData, error: profileError } =
+                    await supabase
+                      .from("profiles")
+                      .select("*")
+                      .eq("id", userData.user.id)
+                      .single();
 
                   if (profileError) {
-                    console.warn("Error fetching profile:", profileError);
+                    debugAuth.log(
+                      "SSOCallback",
+                      `Error fetching profile: ${profileError.message}`
+                    );
                     // Create a basic profile if not found
                     try {
                       // First check if the profile already exists
-                      const { data: existingProfile, error: checkProfileError } = await supabase
+                      const {
+                        data: existingProfile,
+                        error: checkProfileError,
+                      } = await supabase
                         .from("profiles")
                         .select("id")
                         .eq("id", userData.user.id)
                         .single();
-                        
+
                       if (existingProfile) {
                         // Update existing profile
-                        await supabase.from("profiles").update({
-                          full_name: userData.user.user_metadata?.full_name || userData.user.email,
-                          updated_at: new Date().toISOString()
-                        }).eq("id", userData.user.id);
+                        await supabase
+                          .from("profiles")
+                          .update({
+                            full_name:
+                              userData.user.user_metadata?.full_name ||
+                              userData.user.email,
+                            updated_at: new Date().toISOString(),
+                          })
+                          .eq("id", userData.user.id);
                       } else {
                         // Create new profile
                         await supabase.from("profiles").insert({
                           id: userData.user.id,
-                          full_name: userData.user.user_metadata?.full_name || userData.user.email,
+                          full_name:
+                            userData.user.user_metadata?.full_name ||
+                            userData.user.email,
                           roles: ["user"],
-                          created_at: new Date().toISOString()
+                          created_at: new Date().toISOString(),
                         });
                       }
-                      console.log("Created new profile for user");
+                      debugAuth.log(
+                        "SSOCallback",
+                        "Created/updated user profile"
+                      );
                     } catch (insertError) {
-                      console.error("Failed to create profile:", insertError);
+                      debugAuth.log(
+                        "SSOCallback",
+                        `Failed to create profile: ${insertError.message}`
+                      );
                     }
                   }
 
                   const roles = profileData?.roles || ["user"];
-                  const isAdmin = roles.includes("admin") || roles.includes("super_admin");
-                  console.log("User roles:", roles, "Is admin:", isAdmin);
+                  const isAdmin =
+                    roles.includes("admin") || roles.includes("super_admin");
+                  debugAuth.log(
+                    "SSOCallback",
+                    `User roles: ${roles.join(", ")}, Is admin: ${isAdmin}`
+                  );
 
-                  // Check if MFA is required
+                  // Store user data in localStorage
+                  localStorage.setItem(
+                    "currentUser",
+                    JSON.stringify({
+                      id: userData.user.id,
+                      email: userData.user.email,
+                      name:
+                        profileData?.full_name ||
+                        userData.user.user_metadata?.full_name ||
+                        userData.user.email,
+                      roles: roles,
+                      tier: "enterprise",
+                    })
+                  );
+
+                  localStorage.setItem("authToken", data.session.access_token);
+                  localStorage.setItem(
+                    "refreshToken",
+                    data.session.refresh_token
+                  );
+                  localStorage.setItem("isAuthenticated", "true");
+                  localStorage.setItem("authStage", "pre-mfa"); // Mark as needing MFA
+
+                  // Always redirect to MFA verification after SSO
+                  debugAuth.log(
+                    "SSOCallback",
+                    "Redirecting to MFA verification after SSO login"
+                  );
+
+                  // First send the MFA code to user's email
                   try {
-                    const { data: mfaData, error: mfaError } = 
-                      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-                    
-                    if (mfaError) {
-                      console.error("Error checking MFA status:", mfaError);
-                      // Continue without MFA
-                      window.location.href = isAdmin ? "/admin" : returnUrl;
-                      return;
-                    }
-                    
-                    const mfaRequired =
-                      mfaData &&
-                      mfaData.currentLevel !== mfaData.nextLevel &&
-                      mfaData.nextLevel === "aal2";
-                    
-                    console.log("MFA required:", mfaRequired, "MFA data:", mfaData);
+                    // Create default email MFA method for this user if needed
+                    const emailMfaMethod = {
+                      id: `email-${userData.user.email.replace(
+                        /[^a-zA-Z0-9]/g,
+                        ""
+                      )}`,
+                      type: "email",
+                      createdAt: new Date().toISOString(),
+                      email: userData.user.email,
+                    };
 
-                    // Always redirect to MFA verification after SSO
-                    console.log("Redirecting to MFA verification after SSO login");
-                    
-                    // First ensure the user has an email MFA method in their profile
-                    try {
-                      // Create default email MFA method for this user if needed
-                      const emailMfaMethod = {
-                        id: `email-${userData.user.email.replace(/[^a-zA-Z0-9]/g, "")}`,
-                        type: "email",
-                        createdAt: new Date().toISOString(),
-                        email: userData.user.email
-                      };
-                      
-                      // Check if the profile already has MFA methods
-                      if (!profileData?.mfa_methods || profileData.mfa_methods.length === 0) {
-                        console.log("Adding email MFA method to user profile");
-                        
-                        // Update the profile with the new MFA method
-                        await supabase
-                          .from("profiles")
-                          .update({ mfa_methods: [emailMfaMethod] })
-                          .eq("id", userData.user.id);
-                      }
-                      
-                      // Send an email verification code
-                      await supabase.auth.signInWithOtp({
-                        email: userData.user.email,
-                        options: {
-                          shouldCreateUser: false,
-                          emailRedirectTo: null,
-                        },
-                      });
-                      
-                      console.log("Email verification code sent for MFA");
-                    } catch (mfaSetupError) {
-                      console.error("Error setting up email MFA:", mfaSetupError);
-                      // Continue to MFA verification anyway
+                    // Check if the profile already has MFA methods
+                    if (
+                      !profileData?.mfa_methods ||
+                      profileData.mfa_methods.length === 0
+                    ) {
+                      debugAuth.log(
+                        "SSOCallback",
+                        "Adding email MFA method to user profile"
+                      );
+
+                      // Update the profile with the new MFA method
+                      await supabase
+                        .from("profiles")
+                        .update({ mfa_methods: [emailMfaMethod] })
+                        .eq("id", userData.user.id);
                     }
-                    
-                    // Redirect to MFA verification
-                    window.location.href = `/mfa/verify?returnUrl=${encodeURIComponent(returnUrl)}&email=${encodeURIComponent(userData.user.email)}`;
-                    
-                  } catch (mfaCheckError) {
-                    console.error("MFA status check failed:", mfaCheckError);
-                    // Default redirect on error
-                    window.location.href = isAdmin ? "/admin" : returnUrl;
+
+                    // Send an email verification code
+                    await supabase.auth.signInWithOtp({
+                      email: userData.user.email,
+                      options: {
+                        shouldCreateUser: false,
+                        emailRedirectTo: null,
+                      },
+                    });
+
+                    debugAuth.log(
+                      "SSOCallback",
+                      "Email verification code sent for MFA"
+                    );
+                  } catch (mfaSetupError) {
+                    debugAuth.log(
+                      "SSOCallback",
+                      `Error setting up email MFA: ${mfaSetupError.message}`
+                    );
+                    // Continue to MFA verification anyway
                   }
+
+                  // Redirect to MFA verification with return URL
+                  window.location.href = `/mfa/verify?returnUrl=${encodeURIComponent(
+                    returnUrl
+                  )}&email=${encodeURIComponent(userData.user.email)}`;
                 } catch (redirectError) {
-                  console.error("Error during SSO redirect:", redirectError);
+                  debugAuth.log(
+                    "SSOCallback",
+                    `Error during SSO redirect: ${redirectError.message}`
+                  );
                   // Force redirect to login on error
                   window.location.href = "/login?error=redirect_failed";
                 }
@@ -224,10 +288,13 @@ function SSOCallback() {
 
               return;
             } else {
-              console.warn("No session found after SSO auth");
+              debugAuth.log("SSOCallback", "No session found after SSO auth");
             }
           } catch (hashError) {
-            console.error("Error processing hash params:", hashError);
+            debugAuth.log(
+              "SSOCallback",
+              `Error processing hash params: ${hashError.message}`
+            );
             setError("Error processing authentication. " + hashError.message);
             // Continue with code exchange as fallback
           }
@@ -255,14 +322,10 @@ function SSOCallback() {
                 user?.roles?.includes("admin") ||
                 user?.roles?.includes("super_admin");
 
-              // Check if MFA is required for this user
-              if (user?.mfaMethods && user.mfaMethods.length > 0) {
-                navigate(
-                  `/mfa/verify?returnUrl=${encodeURIComponent(returnUrl)}`
-                );
-              } else {
-                navigate(isAdmin ? "/admin" : returnUrl);
-              }
+              // Always redirect to MFA verification
+              navigate(
+                `/mfa/verify?returnUrl=${encodeURIComponent(returnUrl)}`
+              );
             }, 1000);
           } else {
             setStatus("error");
@@ -292,7 +355,7 @@ function SSOCallback() {
           }, 3000);
         }
       } catch (err) {
-        console.error("SSO callback error:", err);
+        debugAuth.log("SSOCallback", `Unexpected error: ${err.message}`);
 
         setStatus("error");
         setMessage("Authentication error");

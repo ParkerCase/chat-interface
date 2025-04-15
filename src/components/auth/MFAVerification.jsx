@@ -50,11 +50,12 @@ function MFAVerification({
     if (codeInputRef.current) {
       codeInputRef.current.focus();
     }
-    
+
     // REMOVED automatic code sending to prevent duplicate emails
     // We rely on the code already sent during login in AuthContext.jsx
-    console.log("MFA verification component mounted - using code already sent during login");
-    
+    console.log(
+      "MFA verification component mounted - using code already sent during login"
+    );
   }, [mfaData, currentUser]);
 
   // Start countdown for resend code
