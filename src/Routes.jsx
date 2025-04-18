@@ -34,7 +34,7 @@ function AppRoutes() {
         <Route path="/login" element={<AuthPage />} />
         <Route path="/passcode" element={<AuthPage />} />
         <Route path="/forgot-password" element={<AuthPage />} />
-
+        <Route path="/email-diagnostic" element={<EmailDiagnostics />} />
         {/* CRITICAL: Password reset route must be outside ProtectedRoute */}
         <Route path="/reset-password" element={<ResetPasswordPage />} />
 

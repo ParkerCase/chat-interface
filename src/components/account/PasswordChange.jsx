@@ -1,4 +1,4 @@
-// src/components/account/PasswordChange.jsx
+// src/components/account/PasswordChange.jsx - FIXED
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
@@ -29,6 +29,7 @@ function PasswordChange({ setError, setSuccessMessage }) {
   const [isSuccess, setIsSuccess] = useState(false);
   const [redirectTimer, setRedirectTimer] = useState(null);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
 
   // State for password validation
   const [passwordChecks, setPasswordChecks] = useState({
@@ -69,11 +70,12 @@ function PasswordChange({ setError, setSuccessMessage }) {
     });
   };
 
-  // Request password reset via email
+  // Request password reset via email - FIXED to work reliably
   const requestPasswordReset = async () => {
     try {
       setIsLoading(true);
       setError && setError("");
+      setResetEmailSent(false);
 
       // Get current user email
       const userEmail = currentUser?.email;
@@ -87,10 +89,17 @@ function PasswordChange({ setError, setSuccessMessage }) {
 
       console.log("Requesting password reset for:", userEmail);
 
-      // Send the reset email through Supabase with properly configured options
+      // FIXED: Send the reset email through Supabase with proper configuration
       const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
-        captchaToken: null, // Set to null to disable captcha if causing issues
+        // Explicitly set these options for better reliability
+        options: {
+          // Explicitly set data to ensure it's passed to the email
+          data: {
+            email: userEmail,
+            from_account_page: true,
+          },
+        },
       });
 
       if (error) {
@@ -99,11 +108,11 @@ function PasswordChange({ setError, setSuccessMessage }) {
       }
 
       // Show success message
+      setResetEmailSent(true);
       setSuccessMessage &&
         setSuccessMessage(
-          `Password reset link sent to ${userEmail}. Please check your email to complete the process. The link will expire in 24 hours.`
+          `Password reset link sent to ${userEmail}. Please check your email inbox and spam folder. The link will expire in 24 hours.`
         );
-      setIsSuccess(true);
 
       return true;
     } catch (error) {
@@ -286,6 +295,17 @@ function PasswordChange({ setError, setSuccessMessage }) {
             your choice.
           </p>
 
+          {resetEmailSent && (
+            <div className="success-alert">
+              <CheckCircle size={18} />
+              <p>
+                Password reset email sent! Please check your inbox and spam
+                folder. If you don't see it within a few minutes, you can try
+                sending again.
+              </p>
+            </div>
+          )}
+
           <button
             onClick={requestPasswordReset}
             className="reset-password-button"
@@ -302,6 +322,24 @@ function PasswordChange({ setError, setSuccessMessage }) {
                 Send Password Reset Link
               </>
             )}
+          </button>
+
+          <button
+            onClick={togglePasswordForm}
+            className="toggle-form-button"
+            style={{
+              marginTop: "16px",
+              background: "transparent",
+              border: "1px solid #cbd5e1",
+              borderRadius: "6px",
+              padding: "8px 16px",
+              cursor: "pointer",
+              color: "#4b5563",
+              display: "block",
+              width: "100%",
+            }}
+          >
+            Or change password directly
           </button>
         </div>
       ) : (
@@ -460,6 +498,26 @@ function PasswordChange({ setError, setSuccessMessage }) {
                 Change Password
               </>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={togglePasswordForm}
+            className="back-button"
+            style={{
+              marginTop: "16px",
+              background: "transparent",
+              border: "none",
+              borderRadius: "6px",
+              padding: "8px 16px",
+              cursor: "pointer",
+              color: "#4b5563",
+              display: "block",
+              width: "100%",
+              textAlign: "center",
+            }}
+          >
+            Back to email reset option
           </button>
         </form>
       )}

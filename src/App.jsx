@@ -29,6 +29,7 @@ import AuthNavigationGuard from "./components/auth/AuthNavigationGuard";
 import AuthLoading from "./components/auth/AuthLoading";
 // Import our direct reset password component
 import DirectResetPassword from "./components/auth/DirectResetPassword";
+import UnauthorizedPage from "./components/UnauthorizedPage";
 
 // Professional Tier Features
 import APIKeyManagement from "./components/APIKeyManagement";
@@ -347,6 +348,8 @@ function App() {
                   <Routes>
                     {/* Public routes */}
                     <Route path="/login" element={<AuthPage />} />
+                    <Route path="/passcode" element={<AuthPage />} />
+
                     <Route path="/forgot-password" element={<AuthPage />} />
                     {/* CRITICAL CHANGE: Use dedicated component for reset password */}
                     <Route
@@ -355,6 +358,10 @@ function App() {
                     />
                     <Route path="/mfa/verify" element={<MfaVerify />} />
                     <Route path="/auth/callback" element={<SSOCallback />} />
+                    <Route
+                      path="/unauthorized"
+                      element={<UnauthorizedPage />}
+                    />
 
                     {/* Protected routes that require authentication */}
                     <Route element={<ProtectedRoute />}>
