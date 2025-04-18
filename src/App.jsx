@@ -1,4 +1,4 @@
-// src/App.jsx (Fixed)
+// src/App.jsx
 import React, { useState, useEffect } from "react";
 import {
   BrowserRouter as Router,
@@ -6,9 +6,10 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import { FeatureFlagProvider } from "./utils/featureFlags";
+import { SupabaseAuthProvider } from "./context/SupabaseAuthProvider";
+import { AuthCompatibilityProvider } from "./context/AuthCompatibilityProvider";
 import MainApp from "./components/MainApp";
 import Register from "./components/admin/Register";
 import MfaVerify from "./components/MfaVerify";
@@ -27,8 +28,7 @@ import AuthDebugger from "./components/AuthDebugger";
 import { debugAuth } from "./utils/authDebug";
 import AuthNavigationGuard from "./components/auth/AuthNavigationGuard";
 import AuthLoading from "./components/auth/AuthLoading";
-// Import our direct reset password component
-import DirectResetPassword from "./components/auth/DirectResetPassword";
+import ResetPasswordPage from "./components/auth/ResetPasswordPage";
 import UnauthorizedPage from "./components/UnauthorizedPage";
 
 // Professional Tier Features
@@ -40,7 +40,6 @@ import AnalyticsDashboard from "./components/enterprise/AnalyticsDashboard";
 import IntegrationSettings from "./components/enterprise/IntegrationSettings";
 import AlertsManagement from "./components/enterprise/AlertsManagement";
 import { setupAuthRedirects } from "./utils/authRedirect";
-import { authRecovery } from "./utils/authRecovery";
 
 import "./App.css";
 
@@ -64,14 +63,14 @@ function App() {
       const isResetPath = url.includes("/reset-password");
       const hasResetParams =
         url.includes("?token=") ||
-        url.includes("?code=") || // Add code parameter detection
+        url.includes("?code=") ||
         url.includes("type=recovery") ||
         url.includes("access_token=") ||
         (window.location.hash &&
           window.location.hash.includes("type=recovery"));
 
       if (isResetPath && hasResetParams) {
-        console.log("🔑 PASSWORD RESET DETECTED - Setting Reset Mode");
+        debugAuth.log("App", "Password reset detected - setting reset mode");
 
         // Flag for the reset flow
         localStorage.setItem("password_reset_in_progress", "true");
@@ -95,7 +94,7 @@ function App() {
   useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === "passwordChanged" && e.newValue === "true") {
-        console.log("Password change detected from another tab");
+        debugAuth.log("App", "Password change detected from another tab");
         // Force page reload to update auth state
         window.location.reload();
       }
@@ -105,135 +104,18 @@ function App() {
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
-  // Consolidated MFA handling
-  useEffect(() => {
-    // Skip MFA handling if in password reset mode
-    if (localStorage.getItem("password_reset_in_progress") === "true") {
-      console.log("Skipping MFA handling due to password reset in progress");
-      return;
-    }
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("App.jsx detected auth event:", event);
-
-      if (event === "SIGNED_IN") {
-        // Check if we're on MFA verification page
-        const isOnMfaPage =
-          window.location.pathname.includes("/mfa") ||
-          window.location.pathname.includes("/verify");
-
-        if (isOnMfaPage) {
-          console.log(
-            "SIGNED_IN detected on MFA page - forcing redirect to admin"
-          );
-          // Set all success flags
-          sessionStorage.setItem("mfa_verified", "true");
-          sessionStorage.setItem("mfaSuccess", "true");
-          sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
-
-          // Force redirect after a small delay to allow other handlers to run
-          setTimeout(() => {
-            window.location.href = "/admin";
-          }, 500);
-        }
-      } else if (event === "MFA_CHALLENGE_VERIFIED") {
-        console.log("MFA_CHALLENGE_VERIFIED event detected in App.jsx");
-        sessionStorage.setItem("mfa_verified", "true");
-        sessionStorage.setItem("mfaSuccess", "true");
-        sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
-        // Force redirect to admin
-        window.location.href = "/admin";
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  // Consolidated pending redirects handling
-  useEffect(() => {
-    // Skip redirect handling if in password reset mode
-    if (localStorage.getItem("password_reset_in_progress") === "true") {
-      console.log(
-        "Skipping redirect handling due to password reset in progress"
-      );
-      return;
-    }
-
-    // Check if there's a pending redirect from MFA or any other flags
-    const checkAndHandleRedirects = () => {
-      // Check mfa flags and handle redirects
-      const mfaVerified = sessionStorage.getItem("mfa_verified") === "true";
-      const mfaSuccess = sessionStorage.getItem("mfaSuccess") === "true";
-      const pendingRedirect =
-        sessionStorage.getItem("mfaRedirectPending") === "true";
-      const redirectTarget = sessionStorage.getItem("mfaRedirectTarget");
-      const mfaVerifiedAt = sessionStorage.getItem("mfaVerifiedAt");
-      const currentPath = window.location.pathname;
-      const isOnMfaPage =
-        currentPath.includes("/mfa") || currentPath.includes("/verify");
-
-      // Clear MFA verification flags to avoid redirect loops
-      if ((mfaVerified || mfaSuccess) && isOnMfaPage) {
-        console.log("MFA verification success detected on MFA page");
-        sessionStorage.removeItem("mfa_verified");
-        sessionStorage.removeItem("mfaSuccess");
-
-        // Redirect to admin page
-        window.location.href = "/admin";
-        return;
-      }
-
-      // Handle explicit redirect requests
-      if (pendingRedirect && redirectTarget) {
-        console.log("Executing pending MFA redirect to:", redirectTarget);
-        sessionStorage.removeItem("mfaRedirectPending");
-        sessionStorage.removeItem("mfaRedirectTarget");
-        window.location.href = redirectTarget;
-        return;
-      }
-
-      // Handle recent verifications
-      if (mfaVerifiedAt) {
-        const verifiedTime = parseInt(mfaVerifiedAt, 10);
-        const now = Date.now();
-        const timeSinceVerification = now - verifiedTime;
-
-        if (timeSinceVerification < 10000) {
-          // within 10 seconds
-          console.log("Recent MFA verification detected");
-          sessionStorage.removeItem("mfaVerifiedAt");
-
-          if (isOnMfaPage) {
-            console.log("Redirecting from MFA page to admin");
-            window.location.href = "/admin";
-          }
-        }
-      }
-    };
-
-    // Run check on mount and on focus
-    checkAndHandleRedirects();
-    window.addEventListener("focus", checkAndHandleRedirects);
-
-    return () => {
-      window.removeEventListener("focus", checkAndHandleRedirects);
-    };
-  }, []);
-
+  // Setup auth redirects
   useEffect(() => {
     // Skip auth redirects if in password reset mode
     if (localStorage.getItem("password_reset_in_progress") === "true") {
-      console.log(
+      debugAuth.log(
+        "App",
         "Skipping auth redirects setup due to password reset in progress"
       );
       return;
     }
 
-    // Setup auth redirects
+    // Setup auth redirects using the existing utility
     const subscription = setupAuthRedirects();
 
     // Cleanup on unmount
@@ -280,7 +162,7 @@ function App() {
   // Handle unhandled promise rejections
   useEffect(() => {
     const handleUnhandledRejection = (event) => {
-      debugAuth.log("Global", "Unhandled Promise Rejection", event.reason);
+      debugAuth.log("App", "Unhandled Promise Rejection", event.reason);
 
       // If this is during MFA or password change, try to recover
       if (
@@ -288,7 +170,7 @@ function App() {
         window.location.pathname.includes("/security")
       ) {
         debugAuth.log(
-          "Global",
+          "App",
           "Critical auth operation detected, attempting recovery"
         );
         // Try to redirect to a safe state
@@ -339,90 +221,98 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <NotificationProvider>
-          <FeatureFlagProvider>
-            <Router>
-              <AuthNavigationGuard>
-                <div className="app-container">
-                  <Routes>
-                    {/* Public routes */}
-                    <Route path="/login" element={<AuthPage />} />
-                    <Route path="/passcode" element={<AuthPage />} />
+      {/* Use the new SupabaseAuthProvider with compatibility layer */}
+      <SupabaseAuthProvider>
+        <AuthCompatibilityProvider>
+          <NotificationProvider>
+            <FeatureFlagProvider>
+              <Router>
+                <AuthNavigationGuard>
+                  <div className="app-container">
+                    <Routes>
+                      {/* Public routes */}
+                      <Route path="/login" element={<AuthPage />} />
+                      <Route path="/passcode" element={<AuthPage />} />
+                      <Route path="/forgot-password" element={<AuthPage />} />
+                      <Route
+                        path="/reset-password"
+                        element={<ResetPasswordPage />}
+                      />
+                      <Route path="/mfa/verify" element={<MfaVerify />} />
+                      <Route path="/auth/callback" element={<SSOCallback />} />
+                      <Route
+                        path="/unauthorized"
+                        element={<UnauthorizedPage />}
+                      />
 
-                    <Route path="/forgot-password" element={<AuthPage />} />
-                    {/* CRITICAL CHANGE: Use dedicated component for reset password */}
-                    <Route
-                      path="/reset-password"
-                      element={<DirectResetPassword />}
-                    />
-                    <Route path="/mfa/verify" element={<MfaVerify />} />
-                    <Route path="/auth/callback" element={<SSOCallback />} />
-                    <Route
-                      path="/unauthorized"
-                      element={<UnauthorizedPage />}
-                    />
-
-                    {/* Protected routes that require authentication */}
-                    <Route element={<ProtectedRoute />}>
-                      <Route
-                        path="/"
-                        element={<Navigate to="/admin" replace />}
-                      />
-                      <Route
-                        path="/profile"
-                        element={<AccountPage tab="profile" />}
-                      />
-                      <Route
-                        path="/security"
-                        element={<AccountPage tab="security" />}
-                      />
-                      <Route
-                        path="/sessions"
-                        element={<AccountPage tab="sessions" />}
-                      />
-                      <Route
-                        path="/analytics"
-                        element={<AnalyticsDashboard />}
-                      />
-                      <Route
-                        path="/workflows"
-                        element={<WorkflowManagement />}
-                      />
-                      <Route
-                        path="/integrations"
-                        element={<IntegrationSettings />}
-                      />
-                      <Route path="/alerts" element={<AlertsManagement />} />
-
-                      {/* Admin-only routes for user management */}
-                      <Route element={<AdminRoute />}>
-                        <Route path="/admin" element={<AdminPanel />} />
-                        <Route path="/admin/register" element={<Register />} />
+                      {/* Protected routes that require authentication */}
+                      <Route element={<ProtectedRoute />}>
                         <Route
-                          path="/admin/users"
-                          element={<AdminPanel tab="users" />}
+                          path="/"
+                          element={<Navigate to="/admin" replace />}
                         />
+                        <Route
+                          path="/profile"
+                          element={<AccountPage tab="profile" />}
+                        />
+                        <Route
+                          path="/security"
+                          element={<AccountPage tab="security" />}
+                        />
+                        <Route
+                          path="/sessions"
+                          element={<AccountPage tab="sessions" />}
+                        />
+                        <Route
+                          path="/analytics"
+                          element={<AnalyticsDashboard />}
+                        />
+                        <Route
+                          path="/workflows"
+                          element={<WorkflowManagement />}
+                        />
+                        <Route
+                          path="/integrations"
+                          element={<IntegrationSettings />}
+                        />
+                        <Route path="/alerts" element={<AlertsManagement />} />
+                        <Route
+                          path="/api-keys"
+                          element={<APIKeyManagement />}
+                        />
+
+                        {/* Admin-only routes for user management */}
+                        <Route element={<AdminRoute />}>
+                          <Route path="/admin" element={<AdminPanel />} />
+                          <Route
+                            path="/admin/register"
+                            element={<Register />}
+                          />
+                          <Route
+                            path="/admin/users"
+                            element={<AdminPanel tab="users" />}
+                          />
+                        </Route>
+
+                        {/* Admin-only routes for file permissions */}
+                        <Route element={<FilePermissionsRoute />}>
+                          <Route
+                            path="/admin/permissions"
+                            element={<FilePermissionsManager />}
+                          />
+                        </Route>
                       </Route>
 
-                      {/* Admin-only routes for file permissions */}
-                      <Route element={<FilePermissionsRoute />}>
-                        <Route
-                          path="/admin/permissions"
-                          element={<FilePermissionsManager />}
-                        />
-                      </Route>
-                    </Route>
-
-                    {/* Fallback route */}
-                    <Route path="*" element={<Navigate to="/admin" />} />
-                  </Routes>
-                </div>
-              </AuthNavigationGuard>
-            </Router>
-          </FeatureFlagProvider>
-        </NotificationProvider>
-      </AuthProvider>
+                      {/* Fallback route */}
+                      <Route path="*" element={<Navigate to="/admin" />} />
+                    </Routes>
+                  </div>
+                </AuthNavigationGuard>
+              </Router>
+            </FeatureFlagProvider>
+          </NotificationProvider>
+        </AuthCompatibilityProvider>
+      </SupabaseAuthProvider>
     </ErrorBoundary>
   );
 }

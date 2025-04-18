@@ -1,4 +1,491 @@
 /* Add/update these styles in src/components/auth.css */
+/* src/components/auth.css - Additional styles for Supabase Auth UI */
+
+/* Main auth layout */
+.auth-layout {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 1rem;
+  background-color: #f3f4f6;
+}
+
+.auth-container {
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  max-width: 440px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-branding {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.auth-logo {
+  height: 60px;
+  margin-bottom: 1rem;
+}
+
+.auth-content {
+  flex: 1;
+}
+
+.auth-footer {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+/* Supabase Auth UI customization */
+.auth-form-container form {
+  width: 100%;
+}
+
+.auth-form-container label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: #374151;
+}
+
+.auth-form-container input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+
+.auth-form-container input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+
+.auth-form-container button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 0.95rem;
+  cursor: pointer;
+  margin-top: 1rem;
+}
+
+.auth-form-container button:hover {
+  background-color: #4338ca;
+}
+
+.auth-form-container button:disabled {
+  background-color: #8b5cf6;
+  cursor: not-allowed;
+}
+
+.auth-form-container .sbui-btn-social {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 0.95rem;
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+  transition: all 0.2s;
+}
+
+.auth-form-container .sbui-btn-social:hover {
+  background-color: #f9fafb;
+}
+
+.auth-wrapper {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 400px;
+}
+
+/* MFA specific styles */
+.mfa-loading,
+.mfa-error,
+.mfa-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+.mfa-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.mfa-icon {
+  margin-bottom: 0.75rem;
+  color: #4f46e5;
+}
+
+.mfa-header h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #111827;
+}
+
+.mfa-header p {
+  color: #6b7280;
+  margin-bottom: 1rem;
+}
+
+.error-icon {
+  color: #ef4444;
+  margin-bottom: 1rem;
+}
+
+.success-icon {
+  color: #10b981;
+  margin-bottom: 1rem;
+}
+
+.mfa-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.resend-code {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  color: #4f46e5;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.5rem;
+}
+
+.resend-code:hover {
+  text-decoration: underline;
+}
+
+.cancel-button {
+  background: none;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  color: #4b5563;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.cancel-button:hover {
+  background-color: #f9fafb;
+}
+
+/* Password reset specific styles */
+.reset-password-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 1rem;
+  background-color: #f3f4f6;
+}
+
+.reset-password-card {
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  max-width: 440px;
+  width: 100%;
+}
+
+.card-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.card-header h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.5rem;
+  color: #111827;
+}
+
+.card-header p {
+  color: #6b7280;
+  margin: 0;
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+.spinner {
+  animation: spin 1.5s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.token-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.error-icon-container {
+  margin-bottom: 1rem;
+}
+
+.debug-info {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background-color: #f3f4f6;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  overflow-wrap: break-word;
+  color: #6b7280;
+}
+
+.primary-button {
+  padding: 0.75rem 1rem;
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+  margin-top: 1rem;
+}
+
+.primary-button:hover {
+  background-color: #4338ca;
+}
+
+.text-link {
+  background: none;
+  border: none;
+  color: #4f46e5;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
+
+.reset-footer {
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
+/* Success message styling */
+.success-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.success-icon-container {
+  margin-bottom: 1rem;
+}
+
+.success-message h3,
+.success-message h4 {
+  color: #111827;
+  margin-bottom: 0.75rem;
+}
+
+.success-message p {
+  color: #4b5563;
+  margin-bottom: 0.5rem;
+}
+
+.redirect-message {
+  font-style: italic;
+  color: #6b7280;
+  margin: 1rem 0;
+}
+
+.loading-indicator {
+  margin-top: 1rem;
+}
+
+/* Account page password change */
+.password-change-container {
+  margin-bottom: 2rem;
+}
+
+.password-change-container h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #111827;
+}
+
+.tab-description {
+  color: #6b7280;
+  margin-bottom: 1.5rem;
+}
+
+.password-reset-section {
+  background-color: #f9fafb;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.reset-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background-color: #e0f2fe;
+  padding: 1rem;
+  border-radius: 6px;
+  margin: 1rem 0;
+  color: #0c4a6e;
+}
+
+.reset-password-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  width: 100%;
+  transition: background-color 0.2s;
+}
+
+.reset-password-button:hover {
+  background-color: #4338ca;
+}
+
+.reset-password-button:disabled {
+  background-color: #8b5cf6;
+  cursor: not-allowed;
+}
+
+.toggle-form-button {
+  transition: background-color 0.2s;
+}
+
+.toggle-form-button:hover {
+  background-color: #f3f4f6 !important;
+}
+
+.password-form-container {
+  margin: 1.5rem 0;
+}
+
+.password-security-tips {
+  background-color: #f9fafb;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.password-security-tips h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #111827;
+}
+
+.password-security-tips ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.password-security-tips li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  color: #4b5563;
+}
+
+.spinner-sm {
+  animation: spin 1.5s linear infinite;
+  width: 16px;
+  height: 16px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background-color: #fff;
+  transition: border-color 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
 
 /* Login container */
 .login-container {
@@ -582,6 +1069,13 @@
     padding: 1.5rem;
     border-radius: 0;
     box-shadow: none;
+    max-width: 100%;
+  }
+
+  /* Media queries for responsiveness */
+  .auth-container,
+  .reset-password-card {
+    padding: 1.5rem;
     max-width: 100%;
   }
 }
