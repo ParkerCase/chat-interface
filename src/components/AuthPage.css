@@ -1,0 +1,50 @@
+.auth-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: #f4f4f4;
+}
+
+.auth-card {
+  background-color: #ffffff;
+  padding: 48px 40px;
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.auth-logo {
+  width: 120px;
+  margin-bottom: 24px;
+}
+
+/* Reorder Supabase Auth UI elements */
+[data-view="sign_in"] > div {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Move SSO buttons lower */
+[data-view="sign_in"] .supabase-auth-ui_ui-social-buttons-container {
+  order: 2;
+  margin-top: 1rem;
+}
+
+/* Move email/password fields up */
+[data-view="sign_in"] form {
+  order: 1;
+}
+
+/* Optional – Smaller logo if you want even more compact look */
+.auth-logo.small {
+  width: 90px;
+  margin-bottom: 24px;
+}
+
+/* Override default layout of SSO buttons if needed (optional) */
+.auth-card .supabase-auth-ui_ui-button.social-button {
+  margin-top: 12px;
+}
