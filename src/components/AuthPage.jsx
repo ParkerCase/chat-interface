@@ -672,6 +672,7 @@ function PasscodeForm() {
 }
 
 // Forgot Password Form Component
+// Extract from src/components/AuthPage.jsx - Fixed ForgotPasswordForm component
 function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -698,11 +699,19 @@ function ForgotPasswordForm() {
     try {
       setIsLoading(true);
 
-      // Request password reset via Supabase
+      // FIXED: Request password reset via Supabase with proper configuration
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email,
         {
           redirectTo: `${window.location.origin}/reset-password`,
+          // Explicitly set these options for better reliability
+          options: {
+            // Set extra data to ensure it's passed to the email
+            data: {
+              email: email,
+              from_login_page: true,
+            },
+          },
         }
       );
 
@@ -710,9 +719,22 @@ function ForgotPasswordForm() {
 
       // Show success state
       setIsSuccess(true);
+
+      // Store the email for logging back in
+      localStorage.setItem("passwordResetRequestedEmail", email);
     } catch (error) {
       console.error("Password reset request error:", error);
-      setError(error.message || "Failed to request password reset");
+
+      // Handle specific error cases
+      if (error.message?.includes("rate limit")) {
+        setError("Too many requests. Please try again in a few minutes.");
+      } else if (error.message?.includes("Invalid login credentials")) {
+        // Still show success for security (don't reveal if email exists)
+        console.log("Email not found, but showing success for security");
+        setIsSuccess(true);
+      } else {
+        setError(error.message || "Failed to request password reset");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -730,8 +752,7 @@ function ForgotPasswordForm() {
             <h2>Check Your Email</h2>
             <p>
               If an account exists for {email}, we've sent instructions to reset
-              your password. Please check your email inbox and follow the
-              instructions provided.
+              your password. Please check your email inbox and spam folder.
             </p>
             <p className="email-note">
               If you don't receive an email within a few minutes, check your

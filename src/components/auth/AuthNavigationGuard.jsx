@@ -37,7 +37,9 @@ function AuthNavigationGuard({ children }) {
     const handleNavigation = async () => {
       // CRITICAL: Check if we're in password reset flow - if so, bypass all redirects
       const inPasswordResetFlow =
-        localStorage.getItem("password_reset_in_progress") === "true";
+        localStorage.getItem("password_reset_in_progress") === "true" ||
+        sessionStorage.getItem("password_reset_in_progress") === "true";
+
       if (isPasswordResetRoute && inPasswordResetFlow) {
         console.log(
           "User is in password reset flow, bypassing all navigation guards"
@@ -61,6 +63,7 @@ function AuthNavigationGuard({ children }) {
           );
           // Set the flag to prevent future redirects during this flow
           localStorage.setItem("password_reset_in_progress", "true");
+          sessionStorage.setItem("password_reset_in_progress", "true");
           return;
         }
       }
