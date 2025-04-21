@@ -5,6 +5,10 @@ import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
 import { debugAuth } from "../../utils/authDebug";
 import { handleOAuthCallback } from "../../utils/ssoDebugger";
+import {
+  checkLinkingStatus,
+  clearLinkingState,
+} from "../../utils/identityLinking";
 
 import {
   Shield,
@@ -37,6 +41,28 @@ function SSOCallback() {
 
   useEffect(() => {
     const handleCallback = async () => {
+      // Check if this was a linking flow
+      const { isLinking, provider: linkingProvider } =
+        checkLinkingStatus?.() || {};
+
+      if (isLinking) {
+        debugAuth.log("SSOCallback", "Detected account linking flow");
+
+        if (location.search.includes("code") || window.location.hash) {
+          setStatus("success");
+          setMessage("Account linked successfully!");
+
+          // Clear linking state
+          clearLinkingState?.();
+
+          setTimeout(() => {
+            navigate("/login?linked=true");
+          }, 2000);
+
+          return;
+        }
+      }
+
       try {
         // Get provider from session if available
         const providerFromSession =
@@ -411,7 +437,35 @@ function SSOCallback() {
             }
           } catch (handlerError) {
             console.error("OAuth handler error:", handlerError);
+            if (
+              handlerError &&
+              (handlerError.message?.includes("User already exists") ||
+                handlerError.message?.includes("already registered"))
+            ) {
+              const emailMatch = handlerError.message.match(
+                /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/
+              );
+              const emailFromError = emailMatch ? emailMatch[0] : "";
 
+              debugAuth.log(
+                "SSOCallback",
+                `User already exists for email: ${emailFromError}`
+              );
+
+              // Redirect to the account linking page
+              setStatus("redirecting");
+              setMessage("Redirecting to account linking...");
+
+              setTimeout(() => {
+                navigate(
+                  `/link-account?email=${encodeURIComponent(
+                    emailFromError
+                  )}&provider=${providerFromSession}`
+                );
+              }, 1500);
+
+              return;
+            }
             // Fall back to direct Supabase exchange as last resort
             try {
               const { data, error } =
@@ -477,6 +531,17 @@ function SSOCallback() {
 
     handleCallback();
   }, [location, navigate]);
+
+  const checkLinkingStatus = () => {
+    const isLinking = sessionStorage.getItem("linkingFlow") === "true";
+    const provider = sessionStorage.getItem("linkingProvider") || "google";
+    return { isLinking, provider };
+  };
+
+  const clearLinkingState = () => {
+    sessionStorage.removeItem("linkingFlow");
+    sessionStorage.removeItem("linkingProvider");
+  };
 
   // Display provider-specific branding
   const getProviderName = () => {

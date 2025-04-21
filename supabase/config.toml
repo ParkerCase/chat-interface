@@ -1,11 +1,17 @@
-
 [functions.update-analytics-stats]
 enabled = true
 verify_jwt = true
 import_map = "./functions/update-analytics-stats/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/update-analytics-stats/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/update-analytics-stats/*.html" ]
+
+[functions.identity-linking]
+enabled = true
+verify_jwt = true
+import_map = "./functions/identity-linking/deno.json"
+entrypoint = "./functions/identity-linking/index.ts"
+
+[functions.update-storage-permissions]
+enabled = true
+verify_jwt = true
+import_map = "./functions/update-storage-permissions/deno.json"
+entrypoint = "./functions/update-storage-permissions/index.ts"

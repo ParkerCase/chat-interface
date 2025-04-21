@@ -1,43 +1,109 @@
 // src/utils/ssoDebugger.js
 import { supabase } from "../lib/supabase";
 import { debugAuth } from "./authDebug";
+import { handleAutoLinking, checkAndCompleteAutoLinking } from "./autoLinking";
 
-// Add to src/utils/ssoDebugger.js
-export async function signInWithApple() {
+/**
+ * Enhanced SSO login with automatic identity linking
+ * @param {string} provider - Provider name (google, apple)
+ * @returns {Promise<Object>} Result of the sign-in attempt
+ */
+async function signInWithSSOProvider(provider) {
   try {
-    debugAuth.log("AppleSSO", "Starting Apple sign-in flow");
+    debugAuth.log("SSO", `Starting ${provider} sign-in flow`);
 
     // First check current session
     const { data: sessionData } = await supabase.auth.getSession();
     if (sessionData?.session) {
-      debugAuth.log("AppleSSO", "User already has an active session");
+      debugAuth.log("SSO", "User already has an active session");
       return { success: true, action: "existing_session" };
     }
 
-    // Begin OAuth flow with Apple
+    // Check if we were in the middle of auto-linking
+    const autoLinkingStatus = await checkAndCompleteAutoLinking();
+    if (autoLinkingStatus.isLinking) {
+      debugAuth.log("SSO", "Auto-linking in progress");
+
+      if (autoLinkingStatus.isComplete) {
+        debugAuth.log("SSO", "Auto-linking appears to be complete");
+        return { success: true, action: "linking_complete" };
+      } else {
+        debugAuth.log("SSO", "Auto-linking incomplete, continuing flow");
+      }
+    }
+
+    // Begin OAuth flow with the provider
     const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "apple",
+      provider,
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
-        // Important settings for Apple auth
         queryParams: {
-          response_mode: "fragment",
-          scope: "email name",
+          // These options help fix the "User not found" issue
+          access_type: "offline",
+          prompt: "consent",
         },
+        scopes: "email profile",
         shouldCreateUser: true, // Enable user creation
       },
     });
 
     if (error) {
-      debugAuth.log("AppleSSO", `OAuth error: ${error.message}`, error);
+      // Check if this is a "user already exists" error
+      if (
+        error.message?.includes("User already exists") ||
+        error.message?.includes("already registered") ||
+        error.message?.includes("email already in use")
+      ) {
+        // Extract email from error if possible
+        const emailMatch = error.message.match(
+          /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/
+        );
+        const email = emailMatch ? emailMatch[0] : "";
+
+        if (email) {
+          debugAuth.log(
+            "SSO",
+            `Existing user detected with email ${email}, starting auto-linking`
+          );
+
+          // Attempt auto-linking
+          const linkingResult = await handleAutoLinking(email, provider);
+
+          if (linkingResult.success) {
+            debugAuth.log(
+              "SSO",
+              `Auto-linking initiated: ${linkingResult.action}`
+            );
+
+            if (linkingResult.action === "otp_sent") {
+              // Let the user know they need to check their email
+              return {
+                success: true,
+                needsEmailCheck: true,
+                message: "Please check your email to complete sign-in",
+                email: email,
+              };
+            }
+
+            return {
+              success: true,
+              autoLinking: true,
+              action: linkingResult.action,
+              message: "Account linking in progress",
+            };
+          }
+        }
+      }
+
+      debugAuth.log("SSO", `OAuth error: ${error.message}`, error);
       return { success: false, error: error.message };
     }
 
     if (data?.url) {
-      debugAuth.log("AppleSSO", "Redirecting to Apple OAuth URL");
+      debugAuth.log("SSO", "Redirecting to OAuth provider URL");
       // Set a flag to identify this as an SSO attempt
       sessionStorage.setItem("ssoAttempt", "true");
-      sessionStorage.setItem("ssoProvider", "apple");
+      sessionStorage.setItem("ssoProvider", provider);
 
       // Redirect to provider's OAuth page
       window.location.href = data.url;
@@ -47,78 +113,38 @@ export async function signInWithApple() {
     return { success: false, error: "No redirect URL received" };
   } catch (error) {
     debugAuth.log(
-      "AppleSSO",
-      `Exception during Apple sign-in: ${error.message}`
+      "SSO",
+      `Exception during ${provider} sign-in: ${error.message}`
     );
     return { success: false, error: error.message };
   }
 }
 
 /**
- * Enhanced SSO login function with detailed logging and error handling
- * Use this instead of direct Supabase signInWithOAuth for better diagnostics
+ * Google login with automatic identity linking
  */
 export async function signInWithGoogle() {
-  try {
-    debugAuth.log("GoogleSSO", "Starting Google sign-in flow");
-
-    // First check current session
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (sessionData?.session) {
-      debugAuth.log("GoogleSSO", "User already has an active session");
-      return { success: true, action: "existing_session" };
-    }
-
-    // Begin OAuth flow with Google
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        // IMPORTANT: These options help fix the "User not found" issue
-        queryParams: {
-          // Use 'true' to create new users if not found
-          access_type: "offline",
-          prompt: "consent",
-        },
-        // Enable auto confirmation and custom data
-        scopes: "email profile",
-        shouldCreateUser: true, // Explicitly enable user creation
-      },
-    });
-
-    if (error) {
-      debugAuth.log("GoogleSSO", `OAuth error: ${error.message}`, error);
-      return { success: false, error: error.message };
-    }
-
-    if (data?.url) {
-      debugAuth.log("GoogleSSO", "Redirecting to OAuth provider URL");
-      // Set a flag to identify this as an SSO attempt
-      sessionStorage.setItem("ssoAttempt", "true");
-      sessionStorage.setItem("ssoProvider", "google");
-
-      // Redirect to provider's OAuth page
-      window.location.href = data.url;
-      return { success: true, action: "redirecting" };
-    }
-
-    return { success: false, error: "No redirect URL received" };
-  } catch (error) {
-    debugAuth.log(
-      "GoogleSSO",
-      `Exception during Google sign-in: ${error.message}`
-    );
-    return { success: false, error: error.message };
-  }
+  return await signInWithSSOProvider("google");
 }
 
 /**
- * Handle the OAuth callback with enhanced error handling
- * This can be used in your SSOCallback component
+ * Apple login with automatic identity linking
+ */
+export async function signInWithApple() {
+  return await signInWithSSOProvider("apple");
+}
+
+/**
+ * Handle the OAuth callback with enhanced auto-linking support
+ * @param {string} code - OAuth code from callback
+ * @returns {Promise<Object>} Result object
  */
 export async function handleOAuthCallback(code) {
   try {
     debugAuth.log("SSO", "Processing OAuth callback with code");
+
+    // Check if this is part of auto-linking process
+    const autoLinkingStatus = await checkAndCompleteAutoLinking();
 
     // Get SSO provider (fallback to "google" for backward compatibility)
     const provider = sessionStorage.getItem("ssoProvider") || "google";
@@ -130,98 +156,36 @@ export async function handleOAuthCallback(code) {
     if (error) {
       debugAuth.log("SSO", `Code exchange error: ${error.message}`, error);
 
-      // Enhanced error handling based on error codes
-      if (error.message.includes("User not found")) {
-        // Extract email from error if possible
-        const emailMatch = error.message.match(
-          /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/
+      // If we hit "User not found" in auto-linking flow
+      if (
+        autoLinkingStatus.isLinking &&
+        error.message.includes("User not found")
+      ) {
+        // This should be rare - we should have handled the linking before getting here
+        debugAuth.log(
+          "SSO",
+          "User not found error during auto-linking, attempting recovery"
         );
-        const email = emailMatch ? emailMatch[0] : "unknown";
 
-        debugAuth.log("SSO", `User not found for email: ${email}`);
-
-        // Special case for super admin
-        if (email === "itsus@tatt2away.com") {
-          debugAuth.log(
-            "SSO",
-            "Super admin detected, attempting special handling"
+        // Retry auto-linking with stored email
+        if (autoLinkingStatus.email) {
+          const linkingResult = await handleAutoLinking(
+            autoLinkingStatus.email,
+            autoLinkingStatus.provider
           );
 
-          // Trigger OTP authentication as fallback
-          try {
-            const { error: otpError } = await supabase.auth.signInWithOtp({
-              email,
-              options: {
-                shouldCreateUser: false,
-              },
-            });
-
-            if (!otpError) {
-              return {
-                success: false,
-                linkingFlow: true,
-                message:
-                  "Please check your email for a verification code to complete the admin login.",
-                email,
-                isAdmin: true,
-              };
-            }
-          } catch (adminErr) {
-            debugAuth.log(
-              "SSO",
-              `Admin authentication error: ${adminErr.message}`
-            );
+          if (linkingResult.success) {
+            return {
+              success: true,
+              autoLinking: true,
+              action: linkingResult.action,
+              message: "Account linking in progress, please wait",
+            };
           }
         }
-
-        // For all other user-not-found cases, check if the email exists in profiles
-        const { data: userData, error: userError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("email", email)
-          .maybeSingle();
-
-        if (!userError && userData) {
-          debugAuth.log(
-            "SSO",
-            "Found matching user in profiles table, initiating linking flow",
-            userData
-          );
-
-          // Initiate email verification to link accounts
-          try {
-            const { error: otpError } = await supabase.auth.signInWithOtp({
-              email,
-              options: {
-                shouldCreateUser: false,
-              },
-            });
-
-            if (!otpError) {
-              // Email sent successfully
-              return {
-                success: false,
-                linkingFlow: true,
-                message:
-                  "We found your email in our system but need to link your accounts. Please check your email for a verification code.",
-                email,
-              };
-            }
-          } catch (linkErr) {
-            debugAuth.log("SSO", `Linking flow error: ${linkErr.message}`);
-          }
-        }
-
-        // User doesn't exist at all - account needs to be created
-        return {
-          success: false,
-          error:
-            "Account not found. Please register first or contact your administrator.",
-          type: "user_not_found",
-          email: email,
-        };
       }
 
+      // Generic error for other scenarios
       return { success: false, error: error.message };
     }
 
@@ -264,94 +228,9 @@ export async function handleOAuthCallback(code) {
   }
 }
 
-async function ensureSuperAdminRole(user) {
-  try {
-    if (user.email !== "itsus@tatt2away.com") return;
-
-    debugAuth.log(
-      "GoogleSSO",
-      "Ensuring super admin role for user",
-      user.email
-    );
-
-    // Check if profile exists
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("id, roles")
-      .eq("id", user.id)
-      .single();
-
-    if (profileError && !profileError.message.includes("No rows found")) {
-      debugAuth.log(
-        "GoogleSSO",
-        `Error checking profile: ${profileError.message}`
-      );
-      throw profileError;
-    }
-
-    // If profile exists, update roles
-    if (profile) {
-      // Check if already has super_admin role
-      if (profile.roles && profile.roles.includes("super_admin")) {
-        debugAuth.log("GoogleSSO", "User already has super_admin role");
-        return;
-      }
-
-      // Update to add admin roles
-      await supabase
-        .from("profiles")
-        .update({
-          roles: ["super_admin", "admin", "user"],
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id);
-
-      debugAuth.log("GoogleSSO", "Updated user roles to super_admin");
-    } else {
-      // Create new profile with admin roles
-      await supabase.from("profiles").insert({
-        id: user.id,
-        email: user.email,
-        full_name: "Tatt2Away Admin",
-        roles: ["super_admin", "admin", "user"],
-        tier: "enterprise",
-        created_at: new Date().toISOString(),
-        auth_provider: "google",
-      });
-
-      debugAuth.log("GoogleSSO", "Created super_admin profile");
-    }
-
-    // Set localStorage and sessionStorage flags
-    localStorage.setItem(
-      "currentUser",
-      JSON.stringify({
-        id: user.id,
-        email: user.email,
-        name: "Tatt2Away Admin",
-        roles: ["super_admin", "admin", "user"],
-        tier: "enterprise",
-      })
-    );
-
-    // Set MFA flags to bypass MFA for admin
-    localStorage.setItem("authStage", "post-mfa");
-    localStorage.setItem("mfa_verified", "true");
-    sessionStorage.setItem("mfa_verified", "true");
-    sessionStorage.setItem("mfaSuccess", "true");
-  } catch (error) {
-    debugAuth.log(
-      "GoogleSSO",
-      `Error ensuring super admin role: ${error.message}`
-    );
-    throw error;
-  }
-}
-
 /**
  * Ensure the user has a profile record in the profiles table
  */
-// Complete ensureUserProfile function for both regular users and admin
 async function ensureUserProfile(user) {
   if (!user || !user.id || !user.email) return;
 
