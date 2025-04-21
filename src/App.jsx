@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -18,25 +18,26 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import AuthPage from "./components/AuthPage";
 import AdminPanel from "./components/admin/AdminPanel";
-import FilePermissionsManager from "./components/admin/FilePermissionsManager";
+import EnhancedUserManagement from "./components/admin/EnhancedUserManagement";
+import EnhancedSystemSettings from "./components/admin/EnhancedSystemSettings";
 import FeatureProtectedRoute from "./components/FeatureProtectedRoute";
 import { supabase } from "./lib/supabase";
 import SSOCallback from "./components/auth/SSOCallback";
 import AccountPage from "./components/account/AccountPage";
-import FilePermissionsRoute from "./components/FilePermissionsRoute";
 import AuthDebugger from "./components/AuthDebugger";
 import { debugAuth } from "./utils/authDebug";
 import AuthNavigationGuard from "./components/auth/AuthNavigationGuard";
 import AuthLoading from "./components/auth/AuthLoading";
 import ResetPasswordPage from "./components/auth/ResetPasswordPage";
 import UnauthorizedPage from "./components/UnauthorizedPage";
+import EnhancedAnalyticsDashboard from "./components/analytics/EnhancedAnalyticsDashboard";
+import StorageManagement from "./components/storage/StorageManagement";
 
 // Professional Tier Features
 import APIKeyManagement from "./components/APIKeyManagement";
 
 // Enterprise Features
 import WorkflowManagement from "./components/enterprise/WorkflowManagement";
-import AnalyticsDashboard from "./components/enterprise/AnalyticsDashboard";
 import IntegrationSettings from "./components/enterprise/IntegrationSettings";
 import AlertsManagement from "./components/enterprise/AlertsManagement";
 import { setupAuthRedirects } from "./utils/authRedirect";
@@ -265,7 +266,7 @@ function App() {
                         />
                         <Route
                           path="/analytics"
-                          element={<AnalyticsDashboard />}
+                          element={<EnhancedAnalyticsDashboard />}
                         />
                         <Route
                           path="/workflows"
@@ -290,15 +291,15 @@ function App() {
                           />
                           <Route
                             path="/admin/users"
-                            element={<AdminPanel tab="users" />}
+                            element={<EnhancedUserManagement />}
                           />
-                        </Route>
-
-                        {/* Admin-only routes for file permissions */}
-                        <Route element={<FilePermissionsRoute />}>
                           <Route
-                            path="/admin/permissions"
-                            element={<FilePermissionsManager />}
+                            path="/admin/settings"
+                            element={<EnhancedSystemSettings />}
+                          />
+                          <Route
+                            path="/admin/storage"
+                            element={<StorageManagement />}
                           />
                         </Route>
                       </Route>

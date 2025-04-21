@@ -471,7 +471,7 @@ const StorageManagement = () => {
 
   // Handle item click
   const handleItemClick = (event, item) => {
-    // If Shift/Ctrl key is pressed, handle selection
+    // Existing code
     if (event.shiftKey || event.ctrlKey || event.metaKey) {
       handleSelectItem(item);
       return;
@@ -481,7 +481,16 @@ const StorageManagement = () => {
     if (item.isFolder) {
       navigateToFolder(item);
     } else {
-      // If it's a file, show details
+      // ADD THIS: Track content view
+      SupabaseAnalytics.trackEvent("content_view", {
+        content_id: item.fullPath,
+        content_name: item.name,
+        content_type: item.name.split(".").pop() || "unknown",
+        bucket: currentBucket,
+        path: currentPath,
+      });
+
+      // Existing code to show details
       setSelectedItemDetails(item);
       setShowItemDetailsModal(true);
     }
@@ -517,6 +526,15 @@ const StorageManagement = () => {
   // Function to download a single file
   const downloadFile = async (item) => {
     try {
+      // ADD THIS: Track download event
+      SupabaseAnalytics.trackEvent("file_download", {
+        content_id: item.fullPath,
+        content_name: item.name,
+        content_type: item.name.split(".").pop() || "unknown",
+        size: item.metadata?.size || 0,
+        bucket: currentBucket,
+        path: currentPath,
+      });
       // Use the public URL for download
       if (item.publicUrl) {
         // Create an invisible anchor and trigger download
@@ -690,21 +708,69 @@ const StorageManagement = () => {
 
   // Handle permission change
   const handlePermissionChange = async () => {
+    if (!selectedItemForPermissions) return;
+
     try {
       setIsLoading(true);
 
-      // In a real app, you'd update permissions in your database
-      // Supabase storage permissions are configured at the bucket level
-      // For finer-grained permissions, you'd need a custom solution
+      // Determine access level
+      const accessLevel = permissions.isPublic ? "public" : "private";
 
-      // Here we'll just show a success message
+      // Get policy information based on item path
+      const { bucket, path } = parseItemPath(
+        selectedItemForPermissions.fullPath
+      );
+
+      // Call the server-side function to update permissions
+      // This uses a Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke(
+        "update-storage-permissions",
+        {
+          body: {
+            bucket,
+            path,
+            accessLevel,
+            specificUsers: permissions.specificUsers.map((u) => u.email),
+            specificGroups: permissions.specificGroups.map((g) => g.name),
+          },
+        }
+      );
+
+      if (error) throw error;
+
+      // Update storageItems with new permission data
+      setStorageItems((prevItems) =>
+        prevItems.map((item) => {
+          if (item.fullPath === selectedItemForPermissions.fullPath) {
+            return {
+              ...item,
+              isPublic: permissions.isPublic,
+              // Add other permission data as needed
+            };
+          }
+          return item;
+        })
+      );
+
+      // Update state and show success message
       setSuccess(`Permissions updated for ${selectedItemForPermissions.name}`);
       setShowPermissionsModal(false);
+      setSelectedItemForPermissions(null);
     } catch (err) {
+      console.error("Error updating permissions:", err);
       setError(`Failed to update permissions: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Add helper function to parse item path
+  const parseItemPath = (fullPath) => {
+    const [bucket, ...pathParts] = fullPath.split("/");
+    return {
+      bucket,
+      path: pathParts.join("/"),
+    };
   };
 
   // Handle file upload complete

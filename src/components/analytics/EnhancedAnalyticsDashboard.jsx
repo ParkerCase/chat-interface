@@ -151,60 +151,51 @@ const EnhancedAnalyticsDashboard = () => {
     });
   };
 
-  // Connect to realtime updates
   useEffect(() => {
-    let subscription;
-
-    const setupRealtimeUpdates = async () => {
-      try {
-        // Subscribe to analytics_stats table changes
-        subscription = supabase
-          .channel("analytics-updates")
-          .on(
-            "postgres_changes",
-            {
-              event: "UPDATE",
-              schema: "public",
-              table: "analytics_stats",
-            },
-            (payload) => {
-              if (payload.new) {
-                setRealtimeData((prevData) => ({
-                  ...prevData,
-                  ...payload.new,
-                }));
-              }
-            }
-          )
-          .subscribe();
-
-        // Also fetch the initial realtime data
-        const { data, error } = await supabase
-          .from("analytics_stats")
-          .select("*")
-          .limit(1)
-          .single();
-
-        if (data && !error) {
-          setRealtimeData({
-            activeUsers: data.active_users || 0,
-            queries: data.queries_last_hour || 0,
-            errorRate: data.error_rate || 0,
-            avgResponseTime: data.avg_response_time || 0,
-          });
+    // Set up realtime subscription for analytics stats
+    const statsChannel = supabase
+      .channel("analytics-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "analytics_stats",
+        },
+        (payload) => {
+          if (payload.new) {
+            setRealtimeData({
+              activeUsers: payload.new.active_users || 0,
+              queries: payload.new.queries_last_hour || 0,
+              errorRate: payload.new.error_rate || 0,
+              avgResponseTime: payload.new.avg_response_time || 0,
+            });
+          }
         }
+      )
+      .subscribe();
+
+    // Set up a periodic refresh as backup
+    const interval = setInterval(async () => {
+      try {
+        const realtimeData = await SupabaseAnalytics.getRealtimeStats();
+        setRealtimeData(realtimeData);
       } catch (err) {
-        console.error("Error setting up realtime updates:", err);
+        console.warn("Error fetching realtime stats:", err);
       }
-    };
+    }, 30000); // 30 seconds
 
-    setupRealtimeUpdates();
+    // Initial fetch of realtime data
+    SupabaseAnalytics.getRealtimeStats()
+      .then(setRealtimeData)
+      .catch((err) =>
+        console.warn("Error fetching initial realtime stats:", err)
+      );
 
-    // Clean up subscription on unmount
     return () => {
-      if (subscription) {
-        supabase.removeChannel(subscription);
-      }
+      // Clean up subscriptions and intervals
+      supabase.removeChannel(statsChannel);
+      clearInterval(interval);
     };
   }, []);
 
@@ -224,23 +215,47 @@ const EnhancedAnalyticsDashboard = () => {
       // We'll fetch different data based on the active tab
       switch (activeTab) {
         case "overview":
-          await fetchOverviewData();
+          const overviewData = await SupabaseAnalytics.getDashboardData(
+            timeframe,
+            dateRange
+          );
+          setDashboardData(overviewData);
           break;
         case "users":
-          await fetchUserMetrics();
+          const userMetricsData = await SupabaseAnalytics.getUserMetrics(
+            timeframe,
+            dateRange
+          );
+          setUserMetrics(userMetricsData);
           break;
         case "content":
-          await fetchContentMetrics();
+          const contentMetricsData = await SupabaseAnalytics.getContentMetrics(
+            timeframe,
+            dateRange
+          );
+          setContentMetrics(contentMetricsData);
           break;
         case "search":
-          await fetchSearchMetrics();
+          const searchMetricsData = await SupabaseAnalytics.getSearchMetrics(
+            timeframe,
+            dateRange
+          );
+          setSearchMetrics(searchMetricsData);
           break;
         case "system":
-          await fetchSystemMetrics();
+          const systemMetricsData = await SupabaseAnalytics.getSystemMetrics(
+            timeframe,
+            dateRange
+          );
+          setSystemMetrics(systemMetricsData);
           break;
         default:
-          await fetchOverviewData();
+          await SupabaseAnalytics.getDashboardData(timeframe, dateRange);
       }
+
+      // Get realtime data
+      const realtimeData = await SupabaseAnalytics.getRealtimeStats();
+      setRealtimeData(realtimeData);
     } catch (err) {
       console.error("Error loading analytics:", err);
       setError(`Failed to load analytics data: ${err.message}`);
