@@ -1,10 +1,22 @@
-// src/components/auth/SSOCallback.jsx - FIXED
+// src/components/auth/SSOCallback.jsx - FIXED with null safety
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
-import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import { debugAuth } from "../../utils/authDebug";
+
+import {
+  Shield,
+  AlertCircle,
+  Loader2,
+  CheckCircle,
+  ArrowRight,
+  RefreshCw,
+  Lock,
+  X,
+  Clock,
+} from "lucide-react";
+import "./SSOCallback.css"; // Ensure CSS file exists
 
 /**
  * Handles OAuth callback redirects from SSO providers
@@ -16,7 +28,10 @@ function SSOCallback() {
   const [error, setError] = useState("");
   const [redirectDelay, setRedirectDelay] = useState(0);
 
-  const { processTokenExchange } = useAuth();
+  // Add null safety for auth context
+  const auth = useAuth() || {};
+  const { processTokenExchange } = auth;
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -305,29 +320,54 @@ function SSOCallback() {
           setStatus("processing");
           setMessage("Processing authentication code...");
 
-          // Try to exchange the code for tokens
-          const success = await processTokenExchange(code);
+          // Try direct process with Supabase instead of using processTokenExchange
+          try {
+            const { data, error } = await supabase.auth.exchangeCodeForSession(
+              code
+            );
 
-          if (success) {
+            if (error) {
+              throw error;
+            }
+
             setStatus("success");
             setMessage("Authentication successful!");
 
             // Add short delay for better UX
-            setTimeout(async () => {
-              // Get current user from localStorage as a fallback
-              const user = JSON.parse(
-                localStorage.getItem("currentUser") || "{}"
-              );
-              const isAdmin =
-                user?.roles?.includes("admin") ||
-                user?.roles?.includes("super_admin");
-
-              // Always redirect to MFA verification
-              navigate(
-                `/mfa/verify?returnUrl=${encodeURIComponent(returnUrl)}`
-              );
+            setTimeout(() => {
+              // Navigate to admin panel
+              navigate("/admin");
             }, 1000);
-          } else {
+
+            return;
+          } catch (exchangeError) {
+            console.error("Code exchange error:", exchangeError);
+            setError(
+              "Error exchanging authentication code: " + exchangeError.message
+            );
+
+            // If processTokenExchange is available from auth context, try that as fallback
+            if (processTokenExchange) {
+              try {
+                const success = await processTokenExchange(code);
+
+                if (success) {
+                  setStatus("success");
+                  setMessage("Authentication successful!");
+
+                  // Add short delay for better UX
+                  setTimeout(() => {
+                    navigate("/admin");
+                  }, 1000);
+
+                  return;
+                }
+              } catch (fallbackError) {
+                console.error("Fallback token exchange failed:", fallbackError);
+              }
+            }
+
+            // If we get here, all attempts failed
             setStatus("error");
             setMessage("Authentication failed");
             setError(

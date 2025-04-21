@@ -8,7 +8,7 @@ import { supabase } from "../lib/supabase";
 const FeatureFlagContext = createContext({
   features: {},
   isFeatureEnabled: () => false,
-  organizationTier: "enterprise",
+  organizationTier: "enterprise", // Default to enterprise
 });
 
 // Get default features for a subscription tier
@@ -57,16 +57,23 @@ function getDefaultFeatures(tier) {
 }
 
 export function FeatureFlagProvider({ children }) {
-  const { currentUser } = useAuth();
-  const [features, setFeatures] = useState({});
-  const [organizationTier, setOrganizationTier] = useState("basic");
+  // Add null safety with optional chaining and default empty object
+  const auth = useAuth() || {};
+  const { currentUser, loading } = auth;
+
+  const [features, setFeatures] = useState(getDefaultFeatures("enterprise")); // Default to enterprise
+  const [organizationTier, setOrganizationTier] = useState("enterprise"); // Default to enterprise
 
   // Load organization tier when user changes
   useEffect(() => {
     const loadOrganizationTier = async () => {
+      // If auth is still loading, wait
+      if (loading) return;
+
+      // If no user, default to enterprise as per requirements
       if (!currentUser) {
-        setOrganizationTier("basic");
-        setFeatures(getDefaultFeatures("basic"));
+        setOrganizationTier("enterprise");
+        setFeatures(getDefaultFeatures("enterprise"));
         return;
       }
 
@@ -80,41 +87,37 @@ export function FeatureFlagProvider({ children }) {
             .single();
 
           if (!error && data) {
-            setOrganizationTier(data.tier || "basic");
-            setFeatures(
-              data.features || getDefaultFeatures(data.tier || "basic")
-            );
+            // For now, always set to enterprise per requirements
+            const tier = "enterprise"; // Override data.tier
+            setOrganizationTier(tier);
+            setFeatures(data.features || getDefaultFeatures(tier));
             return;
           }
         }
 
-        // Fallback to user's tier if no org found
-        setOrganizationTier(currentUser.tier || "basic");
-        setFeatures(getDefaultFeatures(currentUser.tier || "basic"));
+        // Fallback to user's tier or enterprise if no org found
+        const tier = "enterprise"; // Override currentUser.tier
+        setOrganizationTier(tier);
+        setFeatures(getDefaultFeatures(tier));
       } catch (err) {
         console.error("Error loading organization tier:", err);
-        setOrganizationTier("basic");
-        setFeatures(getDefaultFeatures("basic"));
+        // Default to enterprise on error
+        setOrganizationTier("enterprise");
+        setFeatures(getDefaultFeatures("enterprise"));
       }
     };
 
     loadOrganizationTier();
-  }, [currentUser]);
+  }, [currentUser, loading]);
 
   // Check if a feature is enabled for the organization
   const isFeatureEnabled = (featureName) => {
     if (!featureName) return false;
 
-    // If logged out, only show basic features
-    if (!currentUser) {
-      const basicFeatures = getDefaultFeatures("basic");
-      return !!basicFeatures[featureName];
-    }
-
-    // Admins have access to all features
+    // Always enable features for admins
     if (
-      currentUser.roles?.includes("admin") ||
-      currentUser.roles?.includes("super_admin")
+      currentUser?.roles?.includes("admin") ||
+      currentUser?.roles?.includes("super_admin")
     ) {
       return true;
     }

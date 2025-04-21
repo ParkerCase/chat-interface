@@ -224,10 +224,10 @@ function App() {
       {/* Use the new SupabaseAuthProvider with compatibility layer */}
       <SupabaseAuthProvider>
         <AuthCompatibilityProvider>
-          <NotificationProvider>
-            <FeatureFlagProvider>
-              <Router>
-                <AuthNavigationGuard>
+          <Router>
+            <AuthNavigationGuard>
+              <NotificationProvider>
+                <FeatureFlagProvider>
                   <div className="app-container">
                     <Routes>
                       {/* Public routes */}
@@ -307,10 +307,10 @@ function App() {
                       <Route path="*" element={<Navigate to="/admin" />} />
                     </Routes>
                   </div>
-                </AuthNavigationGuard>
-              </Router>
-            </FeatureFlagProvider>
-          </NotificationProvider>
+                </FeatureFlagProvider>
+              </NotificationProvider>
+            </AuthNavigationGuard>
+          </Router>
         </AuthCompatibilityProvider>
       </SupabaseAuthProvider>
     </ErrorBoundary>
