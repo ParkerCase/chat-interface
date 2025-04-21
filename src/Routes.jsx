@@ -1,28 +1,29 @@
-// src/Routes.jsx
+// src/Routes.jsx (update relevant sections)
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
+
+// Import existing components
 import MainApp from "./components/MainApp";
 import AdminPanel from "./components/admin/AdminPanel";
-import Register from "./components/admin/Register";
-import AccountPage from "./components/account/AccountPage";
-import FilePermissionsManager from "./components/admin/FilePermissionsManager";
 import AuthPage from "./components/AuthPage";
 import SSOCallback from "./components/auth/SSOCallback";
 import MfaVerify from "./components/MfaVerify";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
-import FilePermissionsRoute from "./components/FilePermissionsRoute";
 import UnauthorizedPage from "./components/UnauthorizedPage";
 import AuthNavigationGuard from "./components/auth/AuthNavigationGuard";
 import ResetPasswordPage from "./components/auth/ResetPasswordPage";
+import AccountPage from "./components/account/AccountPage";
 
-// Professional Tier Features
-import APIKeyManagement from "./components/APIKeyManagement";
+// Import enhanced components
+import EnhancedUserManagement from "./components/admin/EnhancedUserManagement";
+import EnhancedAnalyticsDashboard from "./components/analytics/EnhancedAnalyticsDashboard";
+import StorageManagement from "./components/storage/StorageManagement";
+import EnhancedSystemSettings from "./components/admin/EnhancedSystemSettings";
 
 // Enterprise Features
 import WorkflowManagement from "./components/enterprise/WorkflowManagement";
-import AnalyticsDashboard from "./components/enterprise/AnalyticsDashboard";
 import IntegrationSettings from "./components/enterprise/IntegrationSettings";
 import AlertsManagement from "./components/enterprise/AlertsManagement";
 
@@ -34,10 +35,7 @@ function AppRoutes() {
         <Route path="/login" element={<AuthPage />} />
         <Route path="/passcode" element={<AuthPage />} />
         <Route path="/forgot-password" element={<AuthPage />} />
-        <Route path="/email-diagnostic" element={<EmailDiagnostics />} />
-        {/* CRITICAL: Password reset route must be outside ProtectedRoute */}
         <Route path="/reset-password" element={<ResetPasswordPage />} />
-
         <Route path="/mfa/verify" element={<MfaVerify />} />
         <Route path="/auth/callback" element={<SSOCallback />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
@@ -48,24 +46,28 @@ function AppRoutes() {
           <Route path="/profile" element={<AccountPage tab="profile" />} />
           <Route path="/security" element={<AccountPage tab="security" />} />
           <Route path="/sessions" element={<AccountPage tab="sessions" />} />
-          <Route path="/analytics" element={<AnalyticsDashboard />} />
+
+          {/* Enhanced Analytics Dashboard */}
+          <Route path="/analytics" element={<EnhancedAnalyticsDashboard />} />
+
           <Route path="/workflows" element={<WorkflowManagement />} />
           <Route path="/integrations" element={<IntegrationSettings />} />
           <Route path="/alerts" element={<AlertsManagement />} />
-          <Route path="/api-keys" element={<APIKeyManagement />} />
 
-          {/* Admin-only routes for user management */}
+          {/* Admin-only routes */}
           <Route element={<AdminRoute />}>
             <Route path="/admin" element={<AdminPanel />} />
-            <Route path="/admin/register" element={<Register />} />
-            <Route path="/admin/users" element={<AdminPanel tab="users" />} />
-          </Route>
 
-          {/* Admin-only routes for file permissions */}
-          <Route element={<FilePermissionsRoute />}>
+            {/* Enhanced User Management */}
+            <Route path="/admin/users" element={<EnhancedUserManagement />} />
+
+            {/* Enhanced Storage Management (replaces file permissions) */}
+            <Route path="/admin/storage" element={<StorageManagement />} />
+
+            {/* Enhanced System Settings */}
             <Route
-              path="/admin/permissions"
-              element={<FilePermissionsManager />}
+              path="/admin/settings"
+              element={<EnhancedSystemSettings />}
             />
           </Route>
         </Route>
