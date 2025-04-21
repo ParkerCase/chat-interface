@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useFeatureFlags } from "../../utils/featureFlags";
 import { supabase } from "../../lib/supabase";
+import { SupabaseAnalytics } from "../../utils/SupabaseAnalyticsIntegration";
 import analyticsUtils from "../../utils/analyticsUtils";
 import {
   BarChart as BarChartIcon,
@@ -202,11 +203,11 @@ const EnhancedAnalyticsDashboard = () => {
   // Main function to fetch all dashboard data
   const fetchDashboardData = async () => {
     try {
-      setLoading(true);
+      setLoading(true); // Use setLoading instead of setIsLoading
       setError(null);
 
-      // Track analytics view
-      analyticsUtils.trackPageView("analytics_dashboard", {
+      // Track analytics view event
+      SupabaseAnalytics.trackEvent("dashboard_view", {
         timeframe,
         activeTab,
         preset: selectedPreset,
@@ -250,18 +251,66 @@ const EnhancedAnalyticsDashboard = () => {
           setSystemMetrics(systemMetricsData);
           break;
         default:
-          await SupabaseAnalytics.getDashboardData(timeframe, dateRange);
+          // Default to overview
+          const defaultData = await SupabaseAnalytics.getDashboardData(
+            timeframe,
+            dateRange
+          );
+          setDashboardData(defaultData);
       }
 
-      // Get realtime data
+      // Get realtime data regardless of the tab
       const realtimeData = await SupabaseAnalytics.getRealtimeStats();
       setRealtimeData(realtimeData);
     } catch (err) {
       console.error("Error loading analytics:", err);
       setError(`Failed to load analytics data: ${err.message}`);
     } finally {
-      setLoading(false);
+      setLoading(false); // Use setLoading instead of setIsLoading
     }
+  };
+
+  const generateTimeSeriesData = (tf, range) => {
+    const data = [];
+    const startDate = new Date(range.start);
+    const endDate = new Date(range.end);
+
+    let currentDate = new Date(startDate);
+
+    // Generate time series data
+    while (currentDate <= endDate) {
+      const userValue = Math.floor(Math.random() * 100) + 50;
+      const searchValue = Math.floor(Math.random() * 200) + 100;
+      const documentValue = Math.floor(Math.random() * 50) + 20;
+
+      data.push({
+        date: new Date(currentDate).toISOString().split("T")[0],
+        users: userValue,
+        searches: searchValue,
+        documents: documentValue,
+      });
+
+      // Increment by appropriate amount based on timeframe
+      switch (tf) {
+        case "day":
+          currentDate.setHours(currentDate.getHours() + 1);
+          break;
+        case "week":
+        case "month":
+          currentDate.setDate(currentDate.getDate() + 1);
+          break;
+        case "quarter":
+          currentDate.setDate(currentDate.getDate() + 7);
+          break;
+        case "year":
+          currentDate.setDate(currentDate.getDate() + 14);
+          break;
+        default:
+          currentDate.setDate(currentDate.getDate() + 1);
+      }
+    }
+
+    return data;
   };
 
   // Fetch overview dashboard data
@@ -346,476 +395,6 @@ const EnhancedAnalyticsDashboard = () => {
       setDashboardData(overview);
     } catch (error) {
       console.error("Error fetching overview data:", error);
-      throw error;
-    }
-  };
-
-  // Generate time series data based on timeframe
-  const generateTimeSeriesData = (tf, range) => {
-    const data = [];
-    const startDate = new Date(range.start);
-    const endDate = new Date(range.end);
-
-    let currentDate = new Date(startDate);
-
-    // Generate random time series data
-    while (currentDate <= endDate) {
-      const userValue = Math.floor(Math.random() * 100) + 50;
-      const searchValue = Math.floor(Math.random() * 200) + 100;
-      const documentValue = Math.floor(Math.random() * 50) + 20;
-
-      data.push({
-        date: new Date(currentDate).toISOString().split("T")[0],
-        users: userValue,
-        searches: searchValue,
-        documents: documentValue,
-      });
-
-      // Increment by appropriate amount based on timeframe
-      switch (tf) {
-        case "day":
-          currentDate.setHours(currentDate.getHours() + 1);
-          break;
-        case "week":
-        case "month":
-          currentDate.setDate(currentDate.getDate() + 1);
-          break;
-        case "quarter":
-          currentDate.setDate(currentDate.getDate() + 7);
-          break;
-        case "year":
-          currentDate.setDate(currentDate.getDate() + 14);
-          break;
-        default:
-          currentDate.setDate(currentDate.getDate() + 1);
-      }
-    }
-
-    return data;
-  };
-
-  // Fetch user metrics
-  const fetchUserMetrics = async () => {
-    try {
-      // Ideally you would fetch real data from your Supabase tables
-      // For demo, we'll create sample data
-
-      // Get user data from profiles table
-      const { data: userData, error: userError } = await supabase
-        .from("profiles")
-        .select("id, created_at, last_login, roles");
-
-      if (userError) throw userError;
-
-      // Calculate metrics from the user data
-      const totalUsers = userData.length;
-      const activeUsers = userData.filter(
-        (user) =>
-          user.last_login &&
-          new Date(user.last_login) >= new Date(dateRange.start)
-      ).length;
-
-      const newUsers = userData.filter(
-        (user) => new Date(user.created_at) >= new Date(dateRange.start)
-      ).length;
-
-      // Calculate role distribution
-      const roleDistribution = userData.reduce((acc, user) => {
-        const role =
-          user.roles && user.roles.length > 0
-            ? user.roles.includes("admin")
-              ? "Admin"
-              : "User"
-            : "User";
-
-        acc[role] = (acc[role] || 0) + 1;
-        return acc;
-      }, {});
-
-      // Generate engagement metrics
-      const engagementData = generateUserEngagementData(timeframe, dateRange);
-
-      // Generate retention data
-      const retentionData = [
-        { month: "Jan", retention: 92 },
-        { month: "Feb", retention: 88 },
-        { month: "Mar", retention: 84 },
-        { month: "Apr", retention: 91 },
-        { month: "May", retention: 87 },
-        { month: "Jun", retention: 85 },
-      ];
-
-      // Generate sample user funnels
-      const userFunnel = [
-        { name: "Visitors", value: totalUsers * 3 },
-        { name: "Registered", value: totalUsers },
-        { name: "Active", value: activeUsers },
-        { name: "Engaged", value: Math.round(activeUsers * 0.7) },
-        { name: "Power Users", value: Math.round(activeUsers * 0.2) },
-      ];
-
-      // Set the user metrics
-      setUserMetrics({
-        summary: {
-          totalUsers,
-          activeUsers,
-          newUsers,
-          churnRate: 5.2,
-          averageSessionsPerUser: 4.8,
-          averageSessionDuration: 9.3,
-        },
-        roleDistribution,
-        engagementData,
-        retentionData,
-        userFunnel,
-        userGrowth: generateTimeSeriesData(timeframe, dateRange).map(
-          (item) => ({
-            date: item.date,
-            users: item.users,
-            newUsers: Math.floor(item.users * 0.1),
-            activeUsers: Math.floor(item.users * 0.6),
-          })
-        ),
-        engagementByFeature: [
-          { feature: "Document Search", count: 432 },
-          { feature: "Image Search", count: 318 },
-          { feature: "Chatbot", count: 275 },
-          { feature: "File Upload", count: 189 },
-          { feature: "Content Export", count: 126 },
-        ],
-        userReferrals: [
-          { source: "Direct", count: 150 },
-          { source: "Email Invite", count: 87 },
-          { source: "Shared Link", count: 63 },
-          { source: "Organization", count: 45 },
-          { source: "Other", count: 21 },
-        ],
-      });
-    } catch (error) {
-      console.error("Error fetching user metrics:", error);
-      throw error;
-    }
-  };
-
-  // Generate user engagement data
-  const generateUserEngagementData = (tf, range) => {
-    const data = [];
-    const startDate = new Date(range.start);
-    const endDate = new Date(range.end);
-
-    let currentDate = new Date(startDate);
-
-    // Generate sample engagement data
-    while (currentDate <= endDate) {
-      const activeCount = Math.floor(Math.random() * 30) + 20;
-
-      // Add different engagement types
-      data.push({
-        date: new Date(currentDate).toISOString().split("T")[0],
-        Search: Math.floor(activeCount * (0.5 + Math.random() * 0.5)),
-        Chat: Math.floor(activeCount * (0.3 + Math.random() * 0.4)),
-        Upload: Math.floor(activeCount * (0.1 + Math.random() * 0.3)),
-        Download: Math.floor(activeCount * (0.2 + Math.random() * 0.3)),
-      });
-
-      // Increment by appropriate amount based on timeframe
-      switch (tf) {
-        case "day":
-          currentDate.setHours(currentDate.getHours() + 1);
-          break;
-        case "week":
-        case "month":
-          currentDate.setDate(currentDate.getDate() + 1);
-          break;
-        case "quarter":
-          currentDate.setDate(currentDate.getDate() + 7);
-          break;
-        case "year":
-          currentDate.setDate(currentDate.getDate() + 14);
-          break;
-        default:
-          currentDate.setDate(currentDate.getDate() + 1);
-      }
-    }
-
-    return data;
-  };
-
-  // Fetch content metrics
-  const fetchContentMetrics = async () => {
-    try {
-      // Ideally you would fetch real content metrics from Supabase
-      // For demo purposes, we'll generate sample data
-
-      // Generate content metrics
-      setContentMetrics({
-        summary: {
-          totalDocuments: 1248,
-          totalImages: 723,
-          totalFolders: 87,
-          totalStorage: 12.7, // GB
-          avgFileSize: 10.2, // MB
-          documentsAddedInPeriod: 48,
-        },
-        contentDistribution: [
-          { type: "PDF", count: 523 },
-          { type: "Image", count: 723 },
-          { type: "Spreadsheet", count: 104 },
-          { type: "Text", count: 321 },
-          { type: "Presentation", count: 89 },
-          { type: "Other", count: 211 },
-        ],
-        storageGrowth: generateTimeSeriesData(timeframe, dateRange).map(
-          (item) => ({
-            date: item.date,
-            storageUsed: (5 + item.documents * 0.01).toFixed(2), // GB
-            documentsCount: 1200 + Math.floor(item.documents * 0.5),
-          })
-        ),
-        popularContent: [
-          {
-            name: "Treatment Guide",
-            views: 312,
-            downloads: 89,
-            type: "document",
-          },
-          {
-            name: "Aftercare Instructions",
-            views: 245,
-            downloads: 156,
-            type: "document",
-          },
-          {
-            name: "Before/After Gallery",
-            views: 198,
-            downloads: 32,
-            type: "gallery",
-          },
-          {
-            name: "Pricing Information",
-            views: 176,
-            downloads: 43,
-            type: "document",
-          },
-          { name: "FAQ Document", views: 145, downloads: 67, type: "document" },
-          {
-            name: "Physician Training",
-            views: 134,
-            downloads: 52,
-            type: "document",
-          },
-          {
-            name: "Technician Manual",
-            views: 121,
-            downloads: 78,
-            type: "document",
-          },
-          {
-            name: "Client Testimonials",
-            views: 118,
-            downloads: 12,
-            type: "document",
-          },
-          {
-            name: "Regulatory Compliance",
-            views: 98,
-            downloads: 45,
-            type: "document",
-          },
-          {
-            name: "Equipment Specs",
-            views: 87,
-            downloads: 34,
-            type: "document",
-          },
-        ],
-        contentEngagement: [
-          { date: "2023-01", views: 1245, downloads: 432, shares: 87 },
-          { date: "2023-02", views: 1345, downloads: 487, shares: 95 },
-          { date: "2023-03", views: 1542, downloads: 521, shares: 112 },
-          { date: "2023-04", views: 1678, downloads: 543, shares: 124 },
-          { date: "2023-05", views: 1876, downloads: 612, shares: 145 },
-          { date: "2023-06", views: 2012, downloads: 687, shares: 167 },
-        ],
-        folderAccess: [
-          { name: "Treatment Protocols", accessCount: 432, userCount: 23 },
-          { name: "Marketing Materials", accessCount: 389, userCount: 18 },
-          { name: "Client Resources", accessCount: 367, userCount: 27 },
-          { name: "Training Materials", accessCount: 312, userCount: 15 },
-          { name: "Administrative", accessCount: 245, userCount: 8 },
-        ],
-      });
-    } catch (error) {
-      console.error("Error fetching content metrics:", error);
-      throw error;
-    }
-  };
-
-  // Fetch search metrics
-  const fetchSearchMetrics = async () => {
-    try {
-      // Ideally you would fetch real search metrics from Supabase
-      // For demo purposes, we'll generate sample data
-
-      // Generate search metrics
-      setSearchMetrics({
-        summary: {
-          totalSearches: 12487,
-          uniqueSearches: 3254,
-          avgSearchesPerUser: 8.7,
-          zeroResultRate: 4.2, // percentage
-          searchesInPeriod: 1874,
-          avgResultsPerSearch: 12.3,
-        },
-        searchVolume: generateTimeSeriesData(timeframe, dateRange).map(
-          (item) => ({
-            date: item.date,
-            searches: item.searches,
-            uniqueUsers: Math.floor(item.searches * 0.3),
-          })
-        ),
-        topSearchTerms: [
-          { term: "tattoo removal process", count: 145 },
-          { term: "pricing", count: 98 },
-          { term: "before and after", count: 76 },
-          { term: "procedure details", count: 62 },
-          { term: "safety information", count: 49 },
-          { term: "aftercare", count: 42 },
-          { term: "certification", count: 38 },
-          { term: "equipment", count: 36 },
-          { term: "training", count: 31 },
-          { term: "side effects", count: 27 },
-        ],
-        searchCategories: [
-          { category: "Technical Info", percentage: 32 },
-          { category: "Client Resources", percentage: 28 },
-          { category: "Administrative", percentage: 15 },
-          { category: "Training", percentage: 14 },
-          { category: "Marketing", percentage: 11 },
-        ],
-        searchPerformance: [
-          { metric: "Avg. Response Time", value: "0.34s" },
-          { metric: "Successful Searches", value: "95.8%" },
-          { metric: "Failed Searches", value: "4.2%" },
-          { metric: "Search Refinements", value: "23.5%" },
-          { metric: "Click-through Rate", value: "68.3%" },
-        ],
-        searchByType: [
-          { type: "Keyword", count: 7854 },
-          { type: "Semantic", count: 3265 },
-          { type: "Image", count: 987 },
-          { type: "Voice", count: 381 },
-        ],
-        zeroResultSearches: [
-          { term: "competitor products", count: 23 },
-          { term: "international shipping", count: 18 },
-          { term: "discount codes", count: 15 },
-          { term: "franchise opportunities", count: 12 },
-          { term: "mobile app", count: 9 },
-        ],
-      });
-    } catch (error) {
-      console.error("Error fetching search metrics:", error);
-      throw error;
-    }
-  };
-
-  // Fetch system metrics
-  const fetchSystemMetrics = async () => {
-    try {
-      // Ideally you would fetch real system metrics from Supabase
-      // For demo purposes, we'll generate sample data
-
-      // Generate system metrics
-      setSystemMetrics({
-        summary: {
-          apiCalls: 36724,
-          errorRate: 0.8, // percentage
-          avgResponseTime: 0.34, // seconds
-          p95ResponseTime: 0.87, // seconds
-          uptime: 99.98, // percentage
-          availabilityLastWeek: "167.2 / 168 hours",
-        },
-        performance: generateTimeSeriesData(timeframe, dateRange).map(
-          (item) => ({
-            date: item.date,
-            responseTime: (0.2 + Math.random() * 0.3).toFixed(2),
-            errorRate: (Math.random() * 1.5).toFixed(2),
-            requests: Math.floor(item.searches * 2.5),
-          })
-        ),
-        resourceUsage: generateTimeSeriesData(timeframe, dateRange).map(
-          (item) => ({
-            date: item.date,
-            cpu: Math.floor(30 + Math.random() * 40),
-            memory: Math.floor(45 + Math.random() * 35),
-            storage: Math.floor(50 + Math.random() * 20),
-          })
-        ),
-        errorsByType: [
-          { type: "API Timeout", count: 87 },
-          { type: "Authentication", count: 64 },
-          { type: "Database Connection", count: 42 },
-          { type: "File Processing", count: 38 },
-          { type: "AI Model", count: 25 },
-        ],
-        endpointPerformance: [
-          {
-            endpoint: "/api/search",
-            calls: 12457,
-            avgTime: 0.21,
-            errorRate: 0.4,
-          },
-          {
-            endpoint: "/api/documents",
-            calls: 8392,
-            avgTime: 0.43,
-            errorRate: 0.9,
-          },
-          { endpoint: "/api/auth", calls: 5647, avgTime: 0.18, errorRate: 1.2 },
-          { endpoint: "/api/chat", calls: 4832, avgTime: 0.67, errorRate: 0.7 },
-          {
-            endpoint: "/api/upload",
-            calls: 3241,
-            avgTime: 1.24,
-            errorRate: 1.8,
-          },
-        ],
-        alertsAndIncidents: [
-          {
-            date: "2023-06-15",
-            title: "API Latency Spike",
-            status: "Resolved",
-            duration: "24 minutes",
-          },
-          {
-            date: "2023-06-02",
-            title: "Database Connection Issues",
-            status: "Resolved",
-            duration: "47 minutes",
-          },
-          {
-            date: "2023-05-18",
-            title: "Storage Quota Warning",
-            status: "Resolved",
-            duration: "Ongoing",
-          },
-          {
-            date: "2023-05-07",
-            title: "Authentication Service Degradation",
-            status: "Resolved",
-            duration: "32 minutes",
-          },
-          {
-            date: "2023-04-29",
-            title: "Scheduled Maintenance",
-            status: "Completed",
-            duration: "120 minutes",
-          },
-        ],
-      });
-    } catch (error) {
-      console.error("Error fetching system metrics:", error);
       throw error;
     }
   };
