@@ -233,6 +233,7 @@ function App() {
                     <Routes>
                       {/* Public routes */}
                       <Route path="/login" element={<AuthPage />} />
+
                       <Route path="/passcode" element={<AuthPage />} />
                       <Route path="/forgot-password" element={<AuthPage />} />
                       <Route
