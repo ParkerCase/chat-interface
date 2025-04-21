@@ -105,6 +105,24 @@ const FileUploadDropzone = ({
     [maxSize, maxFiles]
   );
 
+  // Find this function:
+  const handleUploadComplete = async (files) => {
+    // ADD THIS TRACKING CODE BEFORE THE EXISTING CODE:
+    files.forEach((file) => {
+      SupabaseAnalytics.trackEvent("file_upload", {
+        filename: file.name,
+        filetype: file.name.split(".").pop() || "unknown",
+        filesize: file.size,
+        bucket: currentBucket,
+        folder: currentPath || "root",
+      });
+    });
+
+    // Your existing code:
+    setSuccess(`Uploaded ${files.length} file(s)`);
+    await fetchStorageItems();
+  };
+
   // Configure dropzone
   const {
     getRootProps,
