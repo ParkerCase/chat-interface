@@ -2,6 +2,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { supabase } from "../../lib/supabase";
+import { SupabaseAnalytics } from "../../utils/SupabaseAnalyticsIntegration";
 import {
   Upload,
   File,
@@ -105,24 +106,6 @@ const FileUploadDropzone = ({
     [maxSize, maxFiles]
   );
 
-  // Find this function:
-  const handleUploadComplete = async (files) => {
-    // ADD THIS TRACKING CODE BEFORE THE EXISTING CODE:
-    files.forEach((file) => {
-      SupabaseAnalytics.trackEvent("file_upload", {
-        filename: file.name,
-        filetype: file.name.split(".").pop() || "unknown",
-        filesize: file.size,
-        bucket: currentBucket,
-        folder: currentPath || "root",
-      });
-    });
-
-    // Your existing code:
-    setSuccess(`Uploaded ${files.length} file(s)`);
-    await fetchStorageItems();
-  };
-
   // Configure dropzone
   const {
     getRootProps,
@@ -162,10 +145,14 @@ const FileUploadDropzone = ({
     setOverallStatus("uploading");
     setErrorMessage("");
     let hasErrors = false;
+    const successfulFiles = [];
 
     for (let i = 0; i < files.length; i++) {
       // Skip files that have already been uploaded successfully
-      if (uploadStatus[i] === "success") continue;
+      if (uploadStatus[i] === "success") {
+        successfulFiles.push(files[i]);
+        continue;
+      }
 
       const file = files[i];
 
@@ -197,6 +184,16 @@ const FileUploadDropzone = ({
           onUploadError(error, file);
         } else {
           setUploadStatus((prev) => ({ ...prev, [i]: "success" }));
+          successfulFiles.push(file);
+
+          // Track successful upload event
+          SupabaseAnalytics.trackEvent("file_upload", {
+            filename: file.name,
+            filetype: file.name.split(".").pop() || "unknown",
+            filesize: file.size,
+            bucket: bucket,
+            folder: folder || "root",
+          });
 
           // Get public URL for the file if needed
           const {
@@ -225,9 +222,9 @@ const FileUploadDropzone = ({
     // Update overall status after all uploads are complete
     setOverallStatus(hasErrors ? "error" : "complete");
 
-    // Call the completion callback with the final files array
-    if (!hasErrors) {
-      onUploadComplete(files);
+    // Call the completion callback with the successfully uploaded files
+    if (successfulFiles.length > 0) {
+      onUploadComplete(successfulFiles);
     }
   };
 

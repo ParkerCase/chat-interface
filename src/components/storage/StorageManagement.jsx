@@ -1,5 +1,6 @@
 // src/components/storage/StorageManagement.jsx
 import React, { useState, useEffect, useCallback } from "react";
+import { SupabaseAnalytics } from "../../utils/SupabaseAnalyticsIntegration";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
@@ -342,25 +343,74 @@ const StorageManagement = () => {
   };
 
   // Function to fetch storage usage statistics
+  // Function to fetch real storage usage statistics
   const fetchStorageUsage = async () => {
     try {
-      // This is just a placeholder. In a real app, you'd query your
-      // backend for storage usage information tied to your account.
-      // Supabase doesn't have a direct API for this, so we'd track it ourselves.
+      // Get storage stats from the storage_stats table
+      const { data: storageStats, error } = await supabase
+        .from("storage_stats")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1);
 
-      // Simulate getting usage data
-      const totalSize = 10 * 1024 * 1024 * 1024; // 10GB
-      const usedSize = Math.floor(Math.random() * 7 * 1024 * 1024 * 1024); // 0-7GB
-      const percentUsed = (usedSize / totalSize) * 100;
+      if (error) {
+        console.error("Error fetching storage stats:", error);
+        return; // Don't disrupt UI with an error here
+      }
 
-      setStorageUsage({
-        totalSize,
-        usedSize,
-        percentUsed: parseFloat(percentUsed.toFixed(1)),
-      });
+      if (storageStats && storageStats.length > 0) {
+        const stats = storageStats[0];
+
+        // Convert bytes to appropriate units for display
+        const totalSize = stats.total_storage_bytes || 0;
+        const usedSize = stats.used_storage_bytes || 0;
+        const percentUsed = totalSize > 0 ? (usedSize / totalSize) * 100 : 0;
+
+        setStorageUsage({
+          totalSize,
+          usedSize,
+          percentUsed: parseFloat(percentUsed.toFixed(1)),
+        });
+
+        // Track storage usage view
+        SupabaseAnalytics.trackEvent("storage_usage_view", {
+          bucket: currentBucket,
+          percentUsed: percentUsed.toFixed(1),
+          totalSize: totalSize,
+          usedSize: usedSize,
+        });
+      } else {
+        // If no stats found, make an API call to calculate current usage
+        const { data, error: rpcError } = await supabase.rpc(
+          "calculate_storage_usage",
+          { bucket_name: currentBucket }
+        );
+
+        if (rpcError) {
+          console.error("Error calculating storage usage:", rpcError);
+          return;
+        }
+
+        if (data) {
+          const totalSize = data.total_storage_bytes || 10 * 1024 * 1024 * 1024; // Default 10GB if not set
+          const usedSize = data.used_storage_bytes || 0;
+          const percentUsed = totalSize > 0 ? (usedSize / totalSize) * 100 : 0;
+
+          setStorageUsage({
+            totalSize,
+            usedSize,
+            percentUsed: parseFloat(percentUsed.toFixed(1)),
+          });
+        }
+      }
     } catch (err) {
       console.error("Error fetching storage usage:", err);
-      // Don't set an error state here to avoid disrupting the main UI
+      // Set a reasonable default so the UI doesn't break
+      setStorageUsage({
+        totalSize: 10 * 1024 * 1024 * 1024, // 10GB
+        usedSize: 0,
+        percentUsed: 0,
+      });
     }
   };
 
