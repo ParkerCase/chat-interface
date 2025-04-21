@@ -4,13 +4,17 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
 import { Loader2 } from "lucide-react";
+import { debugAuth } from "../../utils/authDebug";
 
 /**
  * Navigation guard component that handles authentication redirects
  * and fixes auth state issues
  */
 function AuthNavigationGuard({ children }) {
-  const { currentUser, isInitialized, loading, logout } = useAuth();
+  // Add null safety to auth context access
+  const auth = useAuth() || {};
+  const { currentUser, isInitialized, loading, logout } = auth;
+
   const navigate = useNavigate();
   const location = useLocation();
   const [isRecovering, setIsRecovering] = useState(false);
@@ -31,8 +35,8 @@ function AuthNavigationGuard({ children }) {
 
   // Handle authentication state and redirects
   useEffect(() => {
-    // Skip if auth is still initializing
-    if (!isInitialized) return;
+    // Skip if auth is still initializing or loading
+    if (!isInitialized || loading) return;
 
     const handleNavigation = async () => {
       // CRITICAL: Check if we're in password reset flow - if so, bypass all redirects
@@ -80,7 +84,9 @@ function AuthNavigationGuard({ children }) {
 
         try {
           // Force a clean logout
-          await logout();
+          if (logout) {
+            await logout();
+          }
           // Keep the passwordChanged flag
           localStorage.setItem("passwordChanged", "true");
           // Navigate to login
@@ -156,6 +162,16 @@ function AuthNavigationGuard({ children }) {
       <div className="auth-recovery-container">
         <Loader2 className="spinner" size={36} />
         <p>{recoveryMessage}</p>
+      </div>
+    );
+  }
+
+  // Show loading state when auth is initializing
+  if (loading && !isInitialized) {
+    return (
+      <div className="auth-loading-container">
+        <Loader2 className="spinner" size={36} />
+        <p>Loading authentication state...</p>
       </div>
     );
   }
