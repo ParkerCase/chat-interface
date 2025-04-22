@@ -5,15 +5,12 @@ import { supabase } from "../../lib/supabase";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import {
-  Eye,
-  EyeOff,
   CheckCircle,
   Lock,
   AlertCircle,
-  Loader2,
+  Loader,
   ArrowLeft,
 } from "lucide-react";
-import { debugAuth } from "../../utils/authDebug";
 import "../auth.css";
 
 function ResetPasswordPage() {
@@ -21,8 +18,6 @@ function ResetPasswordPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [hasToken, setHasToken] = useState(false);
-  const [recoveryFlow, setRecoveryFlow] = useState(false);
-  const [tokenInfo, setTokenInfo] = useState({});
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -32,37 +27,19 @@ function ResetPasswordPage() {
     const processRecoveryParams = async () => {
       try {
         setIsLoading(true);
-        debugAuth.log("ResetPassword", "Analyzing reset password parameters");
+        console.log("Analyzing reset password parameters");
 
-        // Set a flag to prevent navigation interruptions
+        // Set a flag to prevent auth redirects during reset
         localStorage.setItem("password_reset_in_progress", "true");
         sessionStorage.setItem("password_reset_in_progress", "true");
 
-        // Collect all potential token identifiers
+        // Check for reset parameters
         const hash = window.location.hash;
         const params = new URLSearchParams(location.search);
         const code = params.get("code");
         const token = params.get("token");
         const type = params.get("type");
         const accessToken = params.get("access_token");
-
-        // Log for debugging
-        const info = {
-          hasHash: !!hash,
-          hashContainsRecovery: hash && hash.includes("recovery"),
-          hasCode: !!code,
-          hasToken: !!token,
-          hasType: !!type,
-          hasAccessToken: !!accessToken,
-          path: location.pathname,
-          search: location.search,
-        };
-
-        setTokenInfo(info);
-        debugAuth.log(
-          "ResetPassword",
-          `Reset parameters detected: ${JSON.stringify(info)}`
-        );
 
         // Determine if we have any token parameters
         const hasAnyToken =
@@ -73,49 +50,25 @@ function ResetPasswordPage() {
           accessToken;
 
         if (hasAnyToken) {
-          debugAuth.log(
-            "ResetPassword",
-            "Valid reset token parameters detected"
-          );
+          console.log("Valid reset token parameters detected");
           setHasToken(true);
-          setRecoveryFlow(true);
 
-          // If we have a code, try to exchange it for a session
+          // If we have a code, try to exchange it
           if (code) {
             try {
-              debugAuth.log(
-                "ResetPassword",
-                "Attempting to exchange code for session"
-              );
-              const { error } = await supabase.auth.exchangeCodeForSession(
-                code
-              );
-              if (error) {
-                debugAuth.log(
-                  "ResetPassword",
-                  `Code exchange error: ${error.message}`
-                );
-              }
+              console.log("Exchanging code for session");
+              await supabase.auth.exchangeCodeForSession(code);
             } catch (err) {
               console.error("Code exchange error:", err);
-              // We'll continue without throwing here
             }
           }
 
-          // Let Supabase process the hash if present
+          // Let Supabase process hash parameters if present
           if (hash) {
-            try {
-              // Wait a short time for Supabase to process the hash
-              await new Promise((resolve) => setTimeout(resolve, 1000));
-            } catch (err) {
-              console.error("Hash processing error:", err);
-            }
+            await new Promise((resolve) => setTimeout(resolve, 1000));
           }
         } else {
-          debugAuth.log(
-            "ResetPassword",
-            "No valid reset token parameters found"
-          );
+          console.log("No valid reset token parameters found");
           setHasToken(false);
           setError(
             "No valid password reset token found. Please request a new password reset link."
@@ -123,7 +76,7 @@ function ResetPasswordPage() {
         }
       } catch (err) {
         console.error("Error processing reset parameters:", err);
-        setError(`Error processing reset link: ${err.message}`);
+        setError("Error processing reset link: " + err.message);
       } finally {
         setIsLoading(false);
       }
@@ -144,7 +97,7 @@ function ResetPasswordPage() {
 
     setSuccess(true);
 
-    // Redirect to login after short delay
+    // Redirect to login after delay
     setTimeout(() => {
       navigate("/login?passwordChanged=true", { replace: true });
     }, 3000);
@@ -156,7 +109,7 @@ function ResetPasswordPage() {
       <div className="reset-password-container">
         <div className="reset-password-card">
           <div className="loading-state">
-            <Loader2 className="spinner" size={36} />
+            <Loader className="spinner" size={36} />
             <p>Validating your password reset link...</p>
           </div>
         </div>
@@ -194,7 +147,7 @@ function ResetPasswordPage() {
   }
 
   // Show error if token is invalid
-  if (!hasToken && !recoveryFlow) {
+  if (!hasToken) {
     return (
       <div className="reset-password-container">
         <div className="reset-password-card">
@@ -207,9 +160,6 @@ function ResetPasswordPage() {
               The password reset link you clicked is invalid or has expired.
               Please request a new password reset link.
             </p>
-            <div className="debug-info">
-              <p>Debugging Info: {JSON.stringify(tokenInfo)}</p>
-            </div>
             <button
               onClick={() => navigate("/forgot-password")}
               className="primary-button"
@@ -276,12 +226,9 @@ function ResetPasswordPage() {
         </div>
 
         <div className="reset-footer">
-          <button
-            onClick={() => navigate("/forgot-password")}
-            className="text-link"
-          >
+          <button onClick={() => navigate("/login")} className="text-link">
             <ArrowLeft size={16} style={{ marginRight: "4px" }} />
-            Request a new password reset link
+            Back to Login
           </button>
         </div>
       </div>

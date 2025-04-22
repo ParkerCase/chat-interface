@@ -1,192 +1,148 @@
 // src/components/MfaVerify.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
-import { Auth } from "@supabase/auth-ui-react";
-import { ThemeSupa } from "@supabase/auth-ui-shared";
-import { Loader2, AlertCircle, Shield, Mail, CheckCircle } from "lucide-react";
-import { debugAuth } from "../utils/authDebug";
+import {
+  Shield,
+  AlertCircle,
+  Loader,
+  CheckCircle,
+  RefreshCw,
+  Clock,
+} from "lucide-react";
 import "./auth.css";
 
 function MfaVerify() {
-  const [isLoading, setIsLoading] = useState(true);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [countdown, setCountdown] = useState(30);
+  const [canResend, setCanResend] = useState(false);
   const [email, setEmail] = useState("");
-  const [returnUrl, setReturnUrl] = useState("/admin");
-  const [verificationSent, setVerificationSent] = useState(false);
-  const [verificationSuccess, setVerificationSuccess] = useState(false);
-  const [showManualVerification, setShowManualVerification] = useState(false);
-  const [factorId, setFactorId] = useState(null);
 
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { currentUser } = useAuth();
+  const { currentUser, verifyMfa } = useAuth();
+  const inputRef = useRef(null);
+  const timerRef = useRef(null);
 
-  // Extract parameters and initialize component
+  // Initialize component
   useEffect(() => {
-    const initMfaVerification = async () => {
-      try {
-        setIsLoading(true);
-        debugAuth.log("MfaVerify", "Initializing MFA verification...");
+    const initVerification = async () => {
+      // Get return URL from query params
+      const returnUrl = searchParams.get("returnUrl") || "/admin";
 
-        // Get return URL
-        const redirectUrl = searchParams.get("returnUrl") || "/admin";
-        setReturnUrl(redirectUrl);
-        debugAuth.log("MfaVerify", `Return URL: ${redirectUrl}`);
+      // Get email from query params or current user
+      const emailParam = searchParams.get("email");
+      const userEmail = emailParam || currentUser?.email;
 
-        // Get email parameter or from current user
-        const emailParam = searchParams.get("email");
-        const userEmail =
-          emailParam || currentUser?.email || localStorage.getItem("userEmail");
-
-        if (!userEmail) {
-          setError("Email address is required for MFA verification");
-          setIsLoading(false);
-          return;
-        }
-
+      if (userEmail) {
         setEmail(userEmail);
+      }
 
-        // Check if we need to send a verification code
-        // Only send if we haven't sent a code recently (within 2 minutes)
-        const lastCodeSent = parseInt(
-          sessionStorage.getItem("lastMfaCodeSent") || "0"
-        );
-        const now = Date.now();
-        const needToSendCode = !lastCodeSent || now - lastCodeSent > 120000; // 2 minutes
+      // Check if MFA is already verified
+      const mfaVerified =
+        localStorage.getItem("mfa_verified") === "true" ||
+        sessionStorage.getItem("mfa_verified") === "true";
 
-        if (needToSendCode) {
-          // Set this first to prevent race conditions
-          sessionStorage.setItem("lastMfaCodeSent", now.toString());
-          debugAuth.log("MfaVerify", "Sending verification code email");
+      if (mfaVerified) {
+        console.log("MFA already verified, redirecting");
+        navigate(returnUrl);
+        return;
+      }
 
-          try {
-            // Send email verification code
-            const { error } = await supabase.auth.signInWithOtp({
-              email: userEmail,
-              options: {
-                shouldCreateUser: false,
-                emailRedirectTo: null,
-              },
-            });
-
-            if (error) {
-              debugAuth.log(
-                "MfaVerify",
-                `Error sending verification: ${error.message}`
-              );
-              setError(`Error sending verification: ${error.message}`);
-            } else {
-              debugAuth.log("MfaVerify", "Verification code sent successfully");
-              setVerificationSent(true);
-            }
-          } catch (err) {
-            debugAuth.log(
-              "MfaVerify",
-              `Error sending verification: ${err.message}`
-            );
-            setError(`Error sending verification: ${err.message}`);
-          }
-        } else {
-          debugAuth.log(
-            "MfaVerify",
-            "Recent code already sent, not sending another"
-          );
-          setVerificationSent(true);
-        }
-
-        // Special case for test admin user - auto verify
-        if (userEmail === "itsus@tatt2away.com") {
-          debugAuth.log(
-            "MfaVerify",
-            "Test admin user detected, will auto-verify"
-          );
-          // Show UI briefly for better UX
-          setTimeout(() => {
-            handleSuccessfulVerification();
-          }, 1500);
-        }
-      } catch (err) {
-        console.error("Error initializing MFA verification:", err);
-        setError("Failed to initialize MFA verification");
-      } finally {
-        setIsLoading(false);
+      // Focus the input field
+      if (inputRef.current) {
+        inputRef.current.focus();
       }
     };
 
-    // Listen for auth state changes during verification
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      debugAuth.log("MfaVerify", `Auth state change: ${event}`);
+    initVerification();
+  }, [currentUser, navigate, searchParams]);
 
-      if (event === "MFA_CHALLENGE_VERIFIED") {
-        debugAuth.log("MfaVerify", "MFA_CHALLENGE_VERIFIED event detected");
-        handleSuccessfulVerification();
-      }
-    });
+  // Countdown for resend button
+  useEffect(() => {
+    if (countdown > 0) {
+      timerRef.current = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+      return () => clearTimeout(timerRef.current);
+    } else {
+      setCanResend(true);
+    }
+  }, [countdown]);
 
-    initMfaVerification();
+  // Handle verification code submission
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
 
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [searchParams, currentUser, navigate]);
+    // Validate code
+    if (!verificationCode || verificationCode.length !== 6) {
+      setError("Please enter a valid 6-digit code");
+      return;
+    }
 
-  // Handle successful verification
-  const handleSuccessfulVerification = () => {
-    debugAuth.log("MfaVerify", "MFA verification successful");
+    setIsLoading(true);
+    setError("");
 
-    // Set multiple flags for better detection
-    localStorage.setItem("authStage", "post-mfa");
-    localStorage.setItem("mfa_verified", "true");
-    sessionStorage.setItem("mfa_verified", "true");
-    sessionStorage.setItem("mfaSuccess", "true");
-    sessionStorage.setItem("mfaVerifiedAt", Date.now().toString());
-    localStorage.setItem("isAuthenticated", "true");
+    try {
+      // Special case for admin user
+      if (email === "itsus@tatt2away.com") {
+        // Set MFA as verified
+        localStorage.setItem("mfa_verified", "true");
+        sessionStorage.setItem("mfa_verified", "true");
+        localStorage.setItem("authStage", "post-mfa");
 
-    // Update UI
-    setVerificationSuccess(true);
+        setIsSuccess(true);
 
-    // Use multiple approaches to ensure navigation works
-    sessionStorage.setItem("mfaRedirectPending", "true");
-    sessionStorage.setItem("mfaRedirectTarget", returnUrl);
-
-    // Redirect after a short delay
-    setTimeout(() => {
-      try {
-        debugAuth.log("MfaVerify", `Navigating to ${returnUrl}`);
-
-        // Force a complete page reload
-        window.location.href = returnUrl;
-
-        // Fallback navigation method
+        // Redirect after a delay
         setTimeout(() => {
-          window.location.replace(returnUrl);
-        }, 500);
-      } catch (e) {
-        debugAuth.log("MfaVerify", `Navigation error: ${e.message}`);
-        // Last resort
-        window.location = returnUrl;
+          const returnUrl = searchParams.get("returnUrl") || "/admin";
+          navigate(returnUrl);
+        }, 1500);
+
+        return;
       }
-    }, 1500);
+
+      // Verify MFA code using Auth context
+      const success = await verifyMfa("email", verificationCode);
+
+      if (success) {
+        setIsSuccess(true);
+
+        // Redirect after a delay
+        setTimeout(() => {
+          const returnUrl = searchParams.get("returnUrl") || "/admin";
+          navigate(returnUrl);
+        }, 1500);
+      } else {
+        setError("Invalid verification code. Please try again.");
+      }
+    } catch (err) {
+      console.error("MFA verification error:", err);
+      setError(err.message || "Verification failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Send verification code manually
-  const resendVerificationCode = async () => {
+  // Resend verification code
+  const handleResendCode = async () => {
     try {
       setIsLoading(true);
       setError("");
 
-      debugAuth.log("MfaVerify", `Sending verification code to ${email}`);
+      // Do nothing for admin user
+      if (email === "itsus@tatt2away.com") {
+        setCanResend(false);
+        setCountdown(30);
+        return;
+      }
 
-      // Set timestamp to prevent duplicates
-      const now = Date.now();
-      sessionStorage.setItem("lastMfaCodeSent", now.toString());
-
-      // Send email verification code
+      // Send new verification code
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
@@ -195,59 +151,30 @@ function MfaVerify() {
         },
       });
 
-      if (error) {
-        throw error;
+      if (error) throw error;
+
+      // Reset countdown
+      setCanResend(false);
+      setCountdown(30);
+
+      // Clear input field
+      setVerificationCode("");
+      if (inputRef.current) {
+        inputRef.current.focus();
       }
 
-      debugAuth.log("MfaVerify", "Verification code sent successfully");
-      setVerificationSent(true);
+      // Set timestamp to prevent duplicate sends
+      sessionStorage.setItem("lastMfaCodeSent", Date.now().toString());
     } catch (err) {
-      console.error("Error sending verification code:", err);
-      setError(`Failed to send verification code: ${err.message}`);
+      console.error("Error resending code:", err);
+      setError(err.message || "Failed to send verification code.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Toggle between Supabase UI and manual verification
-  const toggleVerificationMethod = () => {
-    setShowManualVerification(!showManualVerification);
-  };
-
-  // Show loading state
-  if (isLoading) {
-    return (
-      <div className="auth-layout">
-        <div className="auth-container">
-          <div className="auth-content mfa-loading">
-            <Loader2 className="spinner" size={36} />
-            <p>Preparing MFA verification...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error state
-  if (error && !verificationSent) {
-    return (
-      <div className="auth-layout">
-        <div className="auth-container">
-          <div className="auth-content mfa-error">
-            <AlertCircle size={36} className="error-icon" />
-            <h2>Verification Error</h2>
-            <p>{error}</p>
-            <button onClick={() => navigate("/login")} className="back-button">
-              Back to Login
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show success screen if verification was successful
-  if (verificationSuccess) {
+  // Show success state
+  if (isSuccess) {
     return (
       <div className="auth-layout">
         <div className="auth-container">
@@ -259,7 +186,7 @@ function MfaVerify() {
             <p>You have successfully verified your identity.</p>
             <p className="redirect-message">Redirecting to your account...</p>
             <div className="loading-indicator">
-              <Loader2 className="spinner" size={24} />
+              <Loader className="spinner" size={24} />
             </div>
           </div>
         </div>
@@ -267,16 +194,11 @@ function MfaVerify() {
     );
   }
 
-  // Show verification UI
   return (
     <div className="auth-layout">
       <div className="auth-container">
         <div className="auth-branding">
-          <img
-            src="/Tatt2Away-Color-Black-Logo-300.png"
-            alt="Tatt2Away Logo"
-            className="auth-logo"
-          />
+          <img src="/logo.png" alt="Tatt2Away Logo" className="auth-logo" />
         </div>
 
         <div className="auth-content">
@@ -293,61 +215,69 @@ function MfaVerify() {
             </div>
           )}
 
-          {/* Show Supabase Auth UI in OTP verification mode */}
-          <div className="auth-wrapper">
-            <Auth
-              supabaseClient={supabase}
-              appearance={{
-                theme: ThemeSupa,
-                variables: {
-                  default: {
-                    colors: {
-                      brand: "#4f46e5",
-                      brandAccent: "#4338ca",
-                    },
-                  },
-                },
-                className: {
-                  container: "auth-form-container",
-                  button: "auth-button",
-                  label: "auth-label",
-                  input: "auth-input",
-                  message: "auth-message",
-                },
-              }}
-              view="verify_otp"
-              theme="light"
-              otpType="email"
-              onSuccess={handleSuccessfulVerification}
-            />
-          </div>
+          <form onSubmit={handleSubmit} className="mfa-form">
+            <div className="form-group">
+              <label htmlFor="verification-code">Verification Code</label>
+              <input
+                type="text"
+                id="verification-code"
+                ref={inputRef}
+                value={verificationCode}
+                onChange={(e) =>
+                  setVerificationCode(e.target.value.replace(/[^0-9]/g, ""))
+                }
+                placeholder="000000"
+                className="verification-code-input"
+                maxLength={6}
+                required
+                disabled={isLoading}
+                inputMode="numeric"
+                pattern="[0-9]*"
+              />
+              <div className="code-hint">
+                <Clock size={16} />
+                <p>Verification codes expire after 10 minutes</p>
+              </div>
+            </div>
 
-          <div className="mfa-actions">
-            <button
-              onClick={resendVerificationCode}
-              className="resend-code"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="spinner" size={16} />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  <Mail size={16} />
-                  Resend verification code
-                </>
-              )}
-            </button>
+            <div className="mfa-actions">
+              <button
+                type="button"
+                className="resend-code-button"
+                onClick={handleResendCode}
+                disabled={!canResend || isLoading}
+              >
+                {!canResend ? (
+                  <>
+                    <span>Resend code</span>
+                    <span className="countdown">({countdown}s)</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={16} />
+                    <span>Resend code</span>
+                  </>
+                )}
+              </button>
 
-            <button
-              onClick={() => navigate("/login")}
-              className="cancel-button"
-            >
-              Cancel and return to login
-            </button>
-          </div>
+              <button
+                type="submit"
+                className="verify-button"
+                disabled={verificationCode.length !== 6 || isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader className="spinner" size={16} />
+                    <span>Verifying...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Verify</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
 
         <div className="auth-footer">

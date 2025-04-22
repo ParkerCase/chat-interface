@@ -1,29 +1,25 @@
 // src/components/account/AccountPage.jsx
 import React, { useState, useEffect } from "react";
-import { useAuth } from "../../context/AuthContext";
-import SecurityCenter from "../security/SecurityCenter";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import {
   User,
   Shield,
   Key,
   LogOut,
-  Lock,
   Eye,
   EyeOff,
-  Settings,
   Save,
   AlertCircle,
   CheckCircle,
-  X,
   Globe,
   Clock,
-  Trash2,
+  Trash,
   Loader,
+  RefreshCw,
 } from "lucide-react";
-import MFAModule from "./MFAModule";
-import PasswordChange from "./PasswordChange"; // Import the dedicated PasswordChange component
 import "./AccountSettings.css";
+import { supabase } from "../../lib/supabase";
 
 function AccountPage({ tab = "profile" }) {
   const [activeTab, setActiveTab] = useState(tab);
@@ -156,22 +152,43 @@ function AccountPage({ tab = "profile" }) {
             <div className="security-section">
               <h3>Two-Factor Authentication</h3>
               <p className="tab-description">
-                Add an extra layer of security to your account
+                Your account is secured with email-based two-factor
+                authentication
               </p>
 
-              <MFAModule setSuccessMessage={setSuccess} setError={setError} />
+              <div className="security-status-card">
+                <div className="security-status-icon">
+                  <Shield size={24} className="security-icon secure" />
+                </div>
+                <div className="security-status-content">
+                  <h4>Two-Factor Authentication</h4>
+                  <p className="status-text">
+                    <span className="status-badge enabled">Enabled</span>
+                    Email verification is required each time you sign in
+                  </p>
+                </div>
+              </div>
 
-              {/* Add Security Center */}
-              <SecurityCenter />
+              <div className="security-info">
+                <h4>About Two-Factor Authentication</h4>
+                <p>
+                  Two-factor authentication adds an extra layer of security to
+                  your account. When you sign in, you'll receive a verification
+                  code via email that you'll need to enter to complete the
+                  sign-in process.
+                </p>
+                <p>
+                  This helps ensure that even if someone obtains your password,
+                  they won't be able to access your account without access to
+                  your email.
+                </p>
+              </div>
             </div>
           )}
 
-          {/* Password Tab - Use the dedicated PasswordChange component */}
+          {/* Password Tab */}
           {activeTab === "password" && (
-            <PasswordChange
-              setSuccessMessage={setSuccess}
-              setError={setError}
-            />
+            <PasswordSection setSuccess={setSuccess} setError={setError} />
           )}
 
           {/* Sessions Tab */}
@@ -197,14 +214,13 @@ function ProfileSection({ setSuccess, setError }) {
   // Initialize form data when user data is available
   useEffect(() => {
     if (currentUser) {
-      console.log("ProfileSection received updated currentUser:", currentUser);
       setFormData({
         firstName: currentUser.firstName || "",
         lastName: currentUser.lastName || "",
         email: currentUser.email || "",
       });
     }
-  }, [currentUser]); // This will re-run whenever currentUser changes
+  }, [currentUser]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -220,8 +236,6 @@ function ProfileSection({ setSuccess, setError }) {
 
     try {
       setIsLoading(true);
-      console.log("Starting profile update with current form data:", formData);
-      console.log("Current user data:", currentUser);
 
       // Only include fields that have changed
       const updates = {};
@@ -239,29 +253,12 @@ function ProfileSection({ setSuccess, setError }) {
         updates.name = fullName;
       }
 
-      console.log("Detected changes:", updates);
-
       // Only call API if there are changes
       if (Object.keys(updates).length > 0) {
-        console.log("Calling updateProfile with changes:", updates);
         const success = await updateProfile(updates);
 
         if (success) {
-          // Force refresh current user data to ensure UI is in sync
-          console.log("Profile update reported success");
           setSuccess("Profile updated successfully");
-
-          // Manually update the form with the latest changes to ensure UI reflects changes
-          setFormData((prevData) => ({
-            ...prevData,
-            ...updates,
-          }));
-
-          // Force page refresh to ensure all components reflect the updated name
-          // This is important for the header/navbar that displays the user name
-          setTimeout(() => {
-            window.location.reload();
-          }, 1500);
         } else {
           setError("Profile update failed. Please try again.");
         }
@@ -341,6 +338,110 @@ function ProfileSection({ setSuccess, setError }) {
   );
 }
 
+// Password Change Section
+function PasswordSection({ setSuccess, setError }) {
+  const [isRequestSent, setIsRequestSent] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { currentUser } = useAuth();
+
+  const requestPasswordReset = async () => {
+    if (!currentUser?.email) {
+      setError("Email address not found. Please try again later.");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError("");
+
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        currentUser.email,
+        {
+          redirectTo: `${window.location.origin}/reset-password`,
+        }
+      );
+
+      if (error) throw error;
+
+      setIsRequestSent(true);
+      setSuccess(
+        `Password reset link sent to ${currentUser.email}. Please check your email.`
+      );
+    } catch (error) {
+      console.error("Password reset request error:", error);
+      setError("Failed to send password reset email. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="password-settings">
+      <h3>Change Your Password</h3>
+      <p className="tab-description">
+        Update your password to maintain account security
+      </p>
+
+      <div className="password-reset-section">
+        <p>
+          To reset your password, we'll send a password reset link to your
+          email:
+          <strong> {currentUser?.email}</strong>
+        </p>
+
+        <p className="reset-info">
+          Once you receive the email, click the link to set a new password of
+          your choice.
+        </p>
+
+        <button
+          onClick={requestPasswordReset}
+          className="reset-password-button"
+          disabled={isLoading || isRequestSent}
+        >
+          {isLoading ? (
+            <>
+              <Loader className="spinner-sm" />
+              Sending Reset Link...
+            </>
+          ) : isRequestSent ? (
+            <>
+              <CheckCircle size={18} />
+              Reset Link Sent
+            </>
+          ) : (
+            "Send Password Reset Link"
+          )}
+        </button>
+      </div>
+
+      <div className="password-security-tips">
+        <h4>Password Security Tips</h4>
+        <ul>
+          <li>
+            <Key size={16} />
+            <span>
+              Use at least 8 characters with uppercase, lowercase, numbers, and
+              special characters
+            </span>
+          </li>
+          <li>
+            <Key size={16} />
+            <span>Don't reuse passwords across multiple sites</span>
+          </li>
+          <li>
+            <Key size={16} />
+            <span>
+              Consider using a password manager to generate and store strong
+              passwords
+            </span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 // Active Sessions Section
 function SessionsSection({ setSuccess, setError }) {
   const { getActiveSessions, terminateSession, terminateAllSessions } =
@@ -349,8 +450,6 @@ function SessionsSection({ setSuccess, setError }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isTerminating, setIsTerminating] = useState(null);
   const [isTerminatingAll, setIsTerminatingAll] = useState(false);
-  const [showConfirmTerminate, setShowConfirmTerminate] = useState(false);
-  const [sessionToTerminate, setSessionToTerminate] = useState(null);
 
   // Load sessions on mount
   useEffect(() => {
@@ -388,12 +487,16 @@ function SessionsSection({ setSuccess, setError }) {
       console.error("Session termination error:", error);
     } finally {
       setIsTerminating(false);
-      setShowConfirmTerminate(false);
-      setSessionToTerminate(null);
     }
   };
 
   const handleTerminateAllSessions = async () => {
+    if (
+      !window.confirm("Are you sure you want to terminate all other sessions?")
+    ) {
+      return;
+    }
+
     try {
       setIsTerminatingAll(true);
 
@@ -449,7 +552,7 @@ function SessionsSection({ setSuccess, setError }) {
           onClick={fetchSessions}
           disabled={isLoading}
         >
-          <Loader className={isLoading ? "spinning" : ""} size={16} />
+          <RefreshCw className={isLoading ? "spinning" : ""} size={16} />
           <span>{isLoading ? "Loading..." : "Refresh"}</span>
         </button>
 
@@ -466,7 +569,7 @@ function SessionsSection({ setSuccess, setError }) {
               </>
             ) : (
               <>
-                <Trash2 size={16} />
+                <Trash size={16} />
                 Terminate All Other Sessions
               </>
             )}
@@ -529,10 +632,7 @@ function SessionsSection({ setSuccess, setError }) {
 
               {!session.isCurrent && (
                 <button
-                  onClick={() => {
-                    setSessionToTerminate(session.id);
-                    setShowConfirmTerminate(true);
-                  }}
+                  onClick={() => handleTerminateSession(session.id)}
                   className="terminate-session"
                   disabled={isTerminating === session.id}
                   title="Terminate Session"
@@ -540,7 +640,7 @@ function SessionsSection({ setSuccess, setError }) {
                   {isTerminating === session.id ? (
                     <Loader className="spinner-sm" />
                   ) : (
-                    <Trash2 size={16} />
+                    <Trash size={16} />
                   )}
                 </button>
               )}
@@ -566,40 +666,6 @@ function SessionsSection({ setSuccess, setError }) {
           </li>
         </ul>
       </div>
-
-      {/* Confirmation Dialog */}
-      {showConfirmTerminate && (
-        <div className="confirmation-dialog-overlay">
-          <div className="confirmation-dialog">
-            <h3>Terminate Session</h3>
-            <p>Are you sure you want to terminate this session?</p>
-            <p>This will log the device out immediately.</p>
-
-            <div className="confirmation-actions">
-              <button
-                onClick={() => {
-                  setShowConfirmTerminate(false);
-                  setSessionToTerminate(null);
-                }}
-                className="cancel-button"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleTerminateSession(sessionToTerminate)}
-                className="confirm-button"
-                disabled={isTerminating}
-              >
-                {isTerminating ? (
-                  <Loader className="spinner-sm" />
-                ) : (
-                  "Terminate"
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

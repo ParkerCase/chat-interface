@@ -1,104 +1,53 @@
 // src/components/auth/SSOCallback.jsx
 import React, { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
-import { debugAuth } from "../../utils/authDebug";
-import { handleOAuthCallback } from "../../utils/ssoDebugger";
-import {
-  checkLinkingStatus,
-  clearLinkingState,
-} from "../../utils/identityLinking";
-import { getLinkingState } from "../../utils/enhancedIdentityLinking";
-
-import {
-  Shield,
-  AlertCircle,
-  Loader2,
-  CheckCircle,
-  ArrowRight,
-  LogIn,
-} from "lucide-react";
-import "./SSOCallback.css";
+import { Loader, AlertCircle, CheckCircle, LogIn } from "lucide-react";
+import "../auth.css";
 
 /**
  * Handles OAuth callback redirects from SSO providers (Google, Apple)
- * Processes the authentication and redirects to the appropriate page
  */
 function SSOCallback() {
   const [status, setStatus] = useState("processing");
   const [message, setMessage] = useState("Processing authentication...");
   const [error, setError] = useState("");
   const [redirectDelay, setRedirectDelay] = useState(0);
-  const [provider, setProvider] = useState(""); // Track which provider is being used
 
-  const auth = useAuth() || {};
   const navigate = useNavigate();
-  const location = useLocation();
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        debugAuth.log("SSOCallback", "Processing OAuth callback");
-        console.log("OAuth callback URL:", window.location.href);
-        console.log(
-          "Query parameters:",
-          new URLSearchParams(location.search).toString()
-        );
+        console.log("Processing OAuth callback");
+
         // Get URL parameters
-        const params = new URLSearchParams(location.search);
-        const code = params.get("code");
-        const error = params.get("error");
-        const errorDescription = params.get("error_description");
-        const returnUrl = params.get("returnUrl") || "/admin";
-        const isLinking = params.get("linking") === "true";
+        const hashParams = window.location.hash;
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get("code");
+        const errorParam = urlParams.get("error");
+        const errorDescription = urlParams.get("error_description");
+        const returnUrl = urlParams.get("returnUrl") || "/admin";
 
-        // Get provider from session or default to Google
-        const providerFromSession =
-          sessionStorage.getItem("ssoProvider") || "google";
-        setProvider(providerFromSession);
-
-        // Check if this is a linking flow using the enhanced utils
-        const linkingStatus = getLinkingState();
-        const isInLinkingFlow = isLinking || linkingStatus.isLinking;
-
-        // If this is an invitation flow, detect and handle it
-        const isInvitation =
-          params.get("invitation_token") ||
-          params.get("type") === "invite" ||
-          window.location.hash.includes("type=invite");
-
-        if (isInvitation) {
-          debugAuth.log(
-            "SSOCallback",
-            "Detected invitation flow, redirecting to invitation handler"
+        // Process Supabase hash parameters if present
+        if (hashParams) {
+          console.log(
+            "Hash parameters detected, waiting for Supabase processing"
           );
-          localStorage.setItem("invitation_flow", "true");
 
-          // Extract and store token
-          const inviteToken =
-            params.get("invitation_token") || params.get("token");
-          if (inviteToken) {
-            sessionStorage.setItem("invitation_token", inviteToken);
-          }
-
-          // Redirect to invitation handler
-          setTimeout(() => {
-            navigate("/invitation" + location.search);
-          }, 500);
-          return;
+          // Wait a short time for Supabase to process the hash
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
 
         // Handle errors from OAuth provider
-        if (error) {
+        if (errorParam) {
           setStatus("error");
-          setMessage(`${providerFromSession} authentication failed: ${error}`);
+          setMessage(`Authentication failed: ${errorParam}`);
           setError(
             errorDescription || "There was an error during authentication"
           );
           setRedirectDelay(5000);
 
-          // Schedule redirect
           setTimeout(() => {
             navigate("/login");
           }, 5000);
@@ -106,249 +55,209 @@ function SSOCallback() {
           return;
         }
 
-        // Special handling for linking flow
-        if (isInLinkingFlow) {
-          debugAuth.log("SSOCallback", "Detected identity linking flow");
+        // Check if a session was created during processing
+        const { data: sessionData } = await supabase.auth.getSession();
 
-          // Process the linking flow
-          if (code) {
-            // Exchange code for session in a linking context
-            const { data, error } = await supabase.auth.exchangeCodeForSession(
-              code
-            );
-            console.log(
-              "Auth exchange response:",
-              JSON.stringify(data, null, 2)
-            );
+        if (sessionData?.session) {
+          console.log("Session detected after OAuth sign-in");
 
-            if (error) {
-              debugAuth.log(
-                "SSOCallback",
-                `Error in linking flow: ${error.message}`
-              );
-              setStatus("error");
-              setMessage("Account linking failed");
-              setError(error.message);
-              setRedirectDelay(3000);
+          // Success!
+          setStatus("success");
+          setMessage("Authentication successful!");
 
-              setTimeout(() => navigate("/login"), 3000);
-              return;
-            }
+          // Get user data
+          const { data: userData } = await supabase.auth.getUser();
 
-            if (data?.session) {
-              debugAuth.log("SSOCallback", "Session created in linking flow");
+          // Special case for admin
+          if (userData?.user?.email === "itsus@tatt2away.com") {
+            console.log("Admin user detected, setting MFA as verified");
 
-              // Success - clear linking state and show success
-              clearLinkingState();
-              setStatus("success");
-              setMessage("Account linked successfully!");
+            // Set admin as MFA verified
+            localStorage.setItem("mfa_verified", "true");
+            sessionStorage.setItem("mfa_verified", "true");
+            localStorage.setItem("authStage", "post-mfa");
+            localStorage.setItem("isAuthenticated", "true");
 
-              setTimeout(() => {
-                navigate("/login?linked=true");
-              }, 2000);
-
-              return;
-            }
-          }
-
-          // No code parameter but in linking flow - something went wrong
-          if (!code && !window.location.hash) {
-            setStatus("error");
-            setMessage("Account linking failed");
-            setError("Missing authentication parameters");
-            setRedirectDelay(3000);
-
-            setTimeout(() => navigate("/login"), 3000);
-            return;
-          }
-        }
-
-        // Handle hash params (used by some Supabase flows)
-        if (window.location.hash) {
-          debugAuth.log("SSOCallback", "Processing hash parameters");
-
-          // Give Supabase time to process the hash
-          await new Promise((resolve) => setTimeout(resolve, 500));
-
-          // Check if session was created
-          const { data: sessionData } = await supabase.auth.getSession();
-
-          if (sessionData?.session) {
-            debugAuth.log(
-              "SSOCallback",
-              "Session created from hash parameters"
-            );
-
-            // Success! Show success and redirect
-            setStatus("success");
-            setMessage("Authentication successful!");
-
-            // Give a moment to process the success state
-            setTimeout(async () => {
-              try {
-                // Get the user data
-                const { data: userData } = await supabase.auth.getUser();
-
-                if (userData?.user) {
-                  debugAuth.log(
-                    "SSOCallback",
-                    `User authenticated: ${userData.user.email}`
-                  );
-
-                  // Handle the admin user special case
-                  if (userData.user.email === "itsus@tatt2away.com") {
-                    debugAuth.log("SSOCallback", "Admin user detected");
-
-                    // Set admin flags
-                    localStorage.setItem("mfa_verified", "true");
-                    sessionStorage.setItem("mfa_verified", "true");
-                    localStorage.setItem("authStage", "post-mfa");
-
-                    // Redirect to admin
-                    window.location.href = "/admin";
-                    return;
-                  }
-
-                  // For regular users, redirect to MFA verification
-                  debugAuth.log(
-                    "SSOCallback",
-                    "Redirecting to MFA verification"
-                  );
-
-                  // Send verification email
-                  try {
-                    await supabase.auth.signInWithOtp({
-                      email: userData.user.email,
-                      options: {
-                        shouldCreateUser: false,
-                        emailRedirectTo: null,
-                      },
-                    });
-
-                    sessionStorage.setItem(
-                      "lastMfaCodeSent",
-                      Date.now().toString()
-                    );
-                  } catch (mfaError) {
-                    debugAuth.log(
-                      "SSOCallback",
-                      `Error sending MFA code: ${mfaError.message}`
-                    );
-                  }
-
-                  // Redirect to MFA verification
-                  window.location.href = `/mfa/verify?returnUrl=${encodeURIComponent(
-                    returnUrl
-                  )}&email=${encodeURIComponent(userData.user.email)}`;
-                }
-              } catch (err) {
-                debugAuth.log(
-                  "SSOCallback",
-                  `Error after authentication: ${err.message}`
-                );
-                window.location.href = "/login";
-              }
+            // Redirect to admin after a short delay (IMPORTANT FIX)
+            setTimeout(() => {
+              console.log("Redirecting admin to /admin");
+              window.location.href = "/admin"; // Use window.location for full page reload
             }, 1000);
 
             return;
           }
 
-          // No session created with hash params
-          setStatus("error");
-          setMessage("Authentication failed");
-          setError("Could not create session from authentication parameters");
-          setRedirectDelay(3000);
+          // For regular users, get or create profile and redirect to MFA verification
+          try {
+            // Check if profile exists
+            const { data: profileData, error: profileError } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", userData.user.id)
+              .single();
 
-          setTimeout(() => navigate("/login"), 3000);
+            // If no profile exists, create one
+            if (
+              profileError &&
+              profileError.message.includes("No rows found")
+            ) {
+              console.log("Creating new profile for user");
+
+              const { error: insertError } = await supabase
+                .from("profiles")
+                .insert({
+                  id: userData.user.id,
+                  email: userData.user.email,
+                  full_name:
+                    userData.user.user_metadata?.full_name ||
+                    userData.user.email,
+                  roles: ["user"],
+                  created_at: new Date().toISOString(),
+                });
+
+              if (insertError) {
+                console.warn("Error creating profile:", insertError);
+              }
+            }
+
+            // Set auth state
+            localStorage.setItem("authStage", "pre-mfa");
+            localStorage.setItem("isAuthenticated", "true");
+
+            // Send verification email for MFA
+            if (userData?.user?.email) {
+              try {
+                await supabase.auth.signInWithOtp({
+                  email: userData.user.email,
+                  options: {
+                    shouldCreateUser: false,
+                    emailRedirectTo: null,
+                  },
+                });
+
+                sessionStorage.setItem(
+                  "lastMfaCodeSent",
+                  Date.now().toString()
+                );
+              } catch (e) {
+                console.warn("Error sending MFA code:", e);
+              }
+            }
+
+            // Redirect to MFA verification (IMPORTANT FIX)
+            console.log("Redirecting to MFA verification");
+            setTimeout(() => {
+              window.location.href = `/mfa/verify?returnUrl=${encodeURIComponent(
+                returnUrl
+              )}`;
+            }, 1000);
+          } catch (error) {
+            console.error("Error processing user data:", error);
+            setStatus("error");
+            setMessage("Authentication error");
+            setError("Error processing user data. Please try again.");
+            setRedirectDelay(3000);
+
+            setTimeout(() => {
+              navigate("/login");
+            }, 3000);
+          }
+
           return;
         }
 
-        // Process authorization code
+        // Handle the authorization code if present
         if (code) {
-          debugAuth.log("SSOCallback", "Processing authorization code");
+          console.log("Authorization code detected, exchanging for session");
 
-          // Use our improved handler for the callback
-          const result = await handleOAuthCallback(code);
+          // Exchange code for session
+          const { data, error } = await supabase.auth.exchangeCodeForSession(
+            code
+          );
 
-          if (result.success) {
+          if (error) {
+            console.error("Code exchange error:", error);
+            throw error;
+          }
+
+          if (data?.session) {
+            console.log("Session created successfully");
+
+            // Success - show success message and set up MFA verification
             setStatus("success");
             setMessage("Authentication successful!");
 
-            // For admin users
-            if (result.user?.email === "itsus@tatt2away.com") {
-              debugAuth.log(
-                "SSOCallback",
-                "Admin authenticated, redirecting to admin panel"
-              );
+            // Get user information
+            const { data: userData } = await supabase.auth.getUser();
 
+            // Same logic as above - for admin users
+            if (userData?.user?.email === "itsus@tatt2away.com") {
+              console.log("Admin user detected, setting MFA as verified");
+
+              // Set admin as MFA verified
+              localStorage.setItem("mfa_verified", "true");
+              sessionStorage.setItem("mfa_verified", "true");
+              localStorage.setItem("authStage", "post-mfa");
+              localStorage.setItem("isAuthenticated", "true");
+
+              // Redirect to admin (IMPORTANT FIX)
               setTimeout(() => {
+                console.log("Redirecting admin to /admin");
                 window.location.href = "/admin";
               }, 1000);
 
               return;
             }
 
-            // For regular users, handle MFA verification
-            debugAuth.log("SSOCallback", "Redirecting to MFA verification");
+            // For regular users, redirect to MFA verification
+            console.log("Regular user, proceeding to MFA verification");
 
-            // Redirect to MFA verification after a brief delay
+            // Set auth stage to pre-MFA
+            localStorage.setItem("authStage", "pre-mfa");
+            localStorage.setItem("isAuthenticated", "true");
+
+            // Send verification email
+            if (userData?.user?.email) {
+              try {
+                await supabase.auth.signInWithOtp({
+                  email: userData.user.email,
+                  options: {
+                    shouldCreateUser: false,
+                    emailRedirectTo: null,
+                  },
+                });
+
+                sessionStorage.setItem(
+                  "lastMfaCodeSent",
+                  Date.now().toString()
+                );
+              } catch (e) {
+                console.warn("Error sending MFA code:", e);
+              }
+            }
+
+            // Redirect to MFA verification (IMPORTANT FIX)
             setTimeout(() => {
               window.location.href = `/mfa/verify?returnUrl=${encodeURIComponent(
                 returnUrl
-              )}&email=${encodeURIComponent(result.user?.email || "")}`;
+              )}`;
             }, 1000);
-
-            return;
-          } else {
-            // Authentication failed
-            setStatus("error");
-            setMessage(
-              result.linkingFlow
-                ? "Account Linking Required"
-                : "Authentication failed"
-            );
-            setError(result.error || "Failed to process authentication");
-
-            // Special case for linking requirement
-            if (result.linkingFlow) {
-              setError("Please check your email to complete account linking");
-              setRedirectDelay(5000);
-
-              setTimeout(() => {
-                navigate(
-                  `/login?link=true&email=${encodeURIComponent(
-                    result.email || ""
-                  )}`
-                );
-              }, 5000);
-
-              return;
-            }
-
-            // Regular error
-            setRedirectDelay(3000);
-
-            setTimeout(() => {
-              navigate("/login");
-            }, 3000);
 
             return;
           }
         }
 
-        // No code or hash parameters - invalid callback
+        // No session created - show error
         setStatus("error");
-        setMessage("Invalid authentication callback");
-        setError(
-          "Missing authentication parameters. Please try logging in again."
-        );
+        setMessage("Authentication failed");
+        setError("Could not create a session. Please try logging in again.");
         setRedirectDelay(3000);
 
         setTimeout(() => {
           navigate("/login");
         }, 3000);
       } catch (err) {
-        debugAuth.log("SSOCallback", `Unexpected error: ${err.message}`);
+        console.error("Error handling callback:", err);
 
         setStatus("error");
         setMessage("Authentication error");
@@ -364,23 +273,16 @@ function SSOCallback() {
     };
 
     handleCallback();
-  }, [location, navigate]);
-
-  // Get provider-specific name
-  const getProviderName = () => {
-    return provider === "apple" ? "Apple" : "Google";
-  };
+  }, [navigate]);
 
   // Render different UI based on status
   return (
     <div className="sso-callback-container">
       {status === "processing" && (
         <div className="callback-processing">
-          <Loader2 className="spinner" size={48} />
+          <Loader className="spinner" size={48} />
           <h2>{message}</h2>
-          <p>
-            Please wait while we complete your {getProviderName()} sign-in...
-          </p>
+          <p>Please wait while we complete your sign-in...</p>
         </div>
       )}
 
