@@ -15,12 +15,12 @@ import {
   AlertCircle,
   Shield,
   Mail,
-  Google,
-  Apple,
   CheckCircle,
   ArrowRight,
   ArrowLeft,
 } from "lucide-react";
+// Import our custom brand icons instead
+import { GoogleIcon, AppleIcon } from "../icons/BrandIcons";
 import "./AccountLinking.css";
 
 /**
@@ -243,7 +243,7 @@ function AccountLinking() {
                 onClick={() => setProvider("google")}
                 disabled={isLoading}
               >
-                <Google size={18} />
+                <GoogleIcon size={18} />
                 <span>Google</span>
               </button>
 
@@ -255,7 +255,7 @@ function AccountLinking() {
                 onClick={() => setProvider("apple")}
                 disabled={isLoading}
               >
-                <Apple size={18} />
+                <AppleIcon size={18} />
                 <span>Apple</span>
               </button>
             </div>
@@ -372,9 +372,9 @@ function AccountLinking() {
       <div className="account-linking-container">
         <div className="linking-header">
           {provider === "google" ? (
-            <Google size={32} className="linking-icon" />
+            <GoogleIcon size={32} className="linking-icon" />
           ) : (
-            <Apple size={32} className="linking-icon" />
+            <AppleIcon size={32} className="linking-icon" />
           )}
           <h2>Link with {provider === "google" ? "Google" : "Apple"}</h2>
           <p>
@@ -429,9 +429,9 @@ function AccountLinking() {
               ) : (
                 <>
                   {provider === "google" ? (
-                    <Google size={18} />
+                    <GoogleIcon size={18} />
                   ) : (
-                    <Apple size={18} />
+                    <AppleIcon size={18} />
                   )}
                   <span>
                     Continue with {provider === "google" ? "Google" : "Apple"}

@@ -6,6 +6,12 @@ import { supabase } from "../lib/supabase";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { AlertCircle, Info, CheckCircle } from "lucide-react";
 import { debugAuth } from "../utils/authDebug";
+import {
+  loginWithGoogle,
+  loginWithApple,
+} from "../utils/enhancedIdentityLinking";
+// Import our custom brand icons instead
+import { GoogleIcon, AppleIcon } from "../components/icons/BrandIcons";
 import "./auth.css";
 
 const AuthPage = () => {
@@ -184,7 +190,7 @@ const AuthPage = () => {
                 message: "auth-message",
               },
             }}
-            providers={["google"]}
+            providers={[]}
             redirectTo={`${window.location.origin}/auth/callback`}
             theme="light"
             view="sign_in"
@@ -195,6 +201,53 @@ const AuthPage = () => {
               returnTo: returnUrl,
             }}
           />
+          <div className="social-login-section">
+            <div className="social-login-divider">
+              <span>OR</span>
+            </div>
+            <button
+              className="social-login-button google-button"
+              onClick={async () => {
+                setError("");
+                try {
+                  const result = await loginWithGoogle();
+                  if (result.error) {
+                    setError(result.error);
+                  }
+                  // If redirecting, we don't need to do anything else
+                } catch (err) {
+                  setError(err.message || "Error signing in with Google");
+                }
+              }}
+            >
+              <GoogleIcon size={18} />
+              <span>Continue with Google</span>
+            </button>
+
+            {/* Apple Sign In */}
+            <button
+              className="social-login-button apple-button"
+              onClick={async () => {
+                setError("");
+                try {
+                  const result = await loginWithApple();
+                  if (result.error) {
+                    setError(result.error);
+                  }
+                  // If redirecting, we don't need to do anything else
+                } catch (err) {
+                  setError(err.message || "Error signing in with Apple");
+                }
+              }}
+            >
+              <AppleIcon size={18} />
+              <span>Continue with Apple</span>
+            </button>
+
+            <p className="social-login-hint">
+              Sign in with your existing social account or use email + password
+            </p>
+          </div>
         </div>
 
         <div className="test-credentials-info">
