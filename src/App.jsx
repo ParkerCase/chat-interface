@@ -1,5 +1,5 @@
-// src/App.jsx
-import React, { useState, useEffect, useCallback } from "react";
+// src/App.jsx (Updated)
+import React, { useState, useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -8,8 +8,13 @@ import {
 } from "react-router-dom";
 import { NotificationProvider } from "./context/NotificationContext";
 import { FeatureFlagProvider } from "./utils/featureFlags";
+
+// Make sure to get the original AuthProvider, not the compatibility one
+import { AuthProvider } from "./context/AuthContext";
 import { SupabaseAuthProvider } from "./context/SupabaseAuthProvider";
 import { AuthCompatibilityProvider } from "./context/AuthCompatibilityProvider";
+
+// Import components
 import Register from "./components/admin/Register";
 import MfaVerify from "./components/MfaVerify";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -164,38 +169,6 @@ function App() {
     };
   }, []);
 
-  // Handle unhandled promise rejections
-  useEffect(() => {
-    const handleUnhandledRejection = (event) => {
-      debugAuth.log("App", "Unhandled Promise Rejection", event.reason);
-
-      // If this is during MFA or password change, try to recover
-      if (
-        window.location.pathname.includes("/mfa") ||
-        window.location.pathname.includes("/security")
-      ) {
-        debugAuth.log(
-          "App",
-          "Critical auth operation detected, attempting recovery"
-        );
-        // Try to redirect to a safe state
-        if (sessionStorage.getItem("mfaStarted") === "true") {
-          sessionStorage.removeItem("mfaStarted");
-          window.location.replace("/admin");
-        }
-      }
-    };
-
-    window.addEventListener("unhandledrejection", handleUnhandledRejection);
-
-    return () => {
-      window.removeEventListener(
-        "unhandledrejection",
-        handleUnhandledRejection
-      );
-    };
-  }, []);
-
   // If we detected an out of memory condition, show a helpful message
   if (outOfMemory) {
     return (
@@ -226,9 +199,10 @@ function App() {
 
   return (
     <ErrorBoundary>
-      {/* Use the new SupabaseAuthProvider with compatibility layer */}
-      <SupabaseAuthProvider>
-        <AuthCompatibilityProvider>
+      {/* IMPORTANT: Use the original AuthProvider first, not wrapped in SupabaseAuthProvider */}
+      <AuthProvider>
+        {/* Then wrap with compatibility layers if needed */}
+        <SupabaseAuthProvider>
           <Router>
             <AuthNavigationGuard>
               <NotificationProvider>
@@ -330,12 +304,15 @@ function App() {
                       <Route path="*" element={<Navigate to="/admin" />} />
                     </Routes>
                   </div>
+
+                  {/* Add the AuthDebugger component to help debug auth issues */}
+                  <AuthDebugger />
                 </FeatureFlagProvider>
               </NotificationProvider>
             </AuthNavigationGuard>
           </Router>
-        </AuthCompatibilityProvider>
-      </SupabaseAuthProvider>
+        </SupabaseAuthProvider>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

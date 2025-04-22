@@ -1,12 +1,26 @@
 // src/components/AdminRoute.jsx
-import React, { useEffect } from "react";
+import React, { useEffect, useContext } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 import { Loader2 } from "lucide-react";
+import AuthContext from "../context/AuthContext";
 
 const AdminRoute = () => {
-  const { currentUser, loading, hasRole, isInitialized } = useAuth();
+  // Use the auth context directly - ALWAYS at the top level
+  const auth = useContext(AuthContext) || {};
+
+  // Safely extract values with fallbacks
+  const currentUser = auth?.currentUser || null;
+  const loading = auth?.loading || false;
+  const isInitialized = auth?.isInitialized || false;
+
+  // Get the location for redirects
   const location = useLocation();
+
+  // Direct role checking function for safety
+  const hasAdminRole = (user) => {
+    if (!user || !user.roles) return false;
+    return user.roles.includes("admin") || user.roles.includes("super_admin");
+  };
 
   // Improved logging for debugging
   useEffect(() => {
@@ -14,9 +28,7 @@ const AdminRoute = () => {
       console.log("AdminRoute: Checking access for", {
         email: currentUser.email,
         roles: currentUser.roles,
-        isAdmin:
-          currentUser.roles?.includes("admin") ||
-          currentUser.roles?.includes("super_admin"),
+        isAdmin: hasAdminRole(currentUser),
       });
     }
   }, [currentUser]);
@@ -48,10 +60,11 @@ const AdminRoute = () => {
     return <Outlet />;
   }
 
-  // Consistent role checking
+  // Check if user has admin role either via auth context or directly
   const userIsAdmin =
-    currentUser.roles?.includes("admin") ||
-    currentUser.roles?.includes("super_admin");
+    (typeof auth.hasRole === "function" &&
+      (auth.hasRole("admin") || auth.hasRole("super_admin"))) ||
+    hasAdminRole(currentUser);
 
   console.log("AdminRoute: Admin check result =", userIsAdmin);
 
