@@ -11,8 +11,6 @@ import { FeatureFlagProvider } from "./utils/featureFlags";
 
 // Make sure to get the original AuthProvider, not the compatibility one
 import { AuthProvider } from "./context/AuthContext";
-import { SupabaseAuthProvider } from "./context/SupabaseAuthProvider";
-import { AuthCompatibilityProvider } from "./context/AuthCompatibilityProvider";
 
 // Import components
 import Register from "./components/admin/Register";
@@ -30,10 +28,6 @@ import SSOCallback from "./components/auth/SSOCallback";
 import AccountPage from "./components/account/AccountPage";
 import AuthDebugger from "./components/AuthDebugger";
 import { debugAuth } from "./utils/authDebug";
-import AuthNavigationGuard from "./components/auth/AuthNavigationGuard";
-import EnhancedAuthCallback from "./components/auth/EnhancedAuthCallback";
-import DirectResetPassword from "./components/auth/DirectResetPassword";
-import DirectInvitationHandler from "./components/auth/DirectInvitationHandler";
 
 import EnhancedPasswordReset from "./components/auth/EnhancedPasswordReset";
 import InvitationHandler from "./components/auth/InvitationHandler";
@@ -202,116 +196,87 @@ function App() {
       {/* IMPORTANT: Use the original AuthProvider first, not wrapped in SupabaseAuthProvider */}
       <AuthProvider>
         {/* Then wrap with compatibility layers if needed */}
-        <SupabaseAuthProvider>
-          <Router>
-            <AuthNavigationGuard>
-              <NotificationProvider>
-                <FeatureFlagProvider>
-                  <div className="app-container">
-                    <Routes>
-                      {/* Public routes */}
-                      <Route path="/login" element={<AuthPage />} />
-                      <Route path="/passcode" element={<AuthPage />} />
+        <Router>
+          <NotificationProvider>
+            <FeatureFlagProvider>
+              <div className="app-container">
+                <Routes>
+                  {/* Public routes */}
+                  <Route path="/login" element={<AuthPage />} />
+                  <Route path="/passcode" element={<AuthPage />} />
+                  <Route
+                    path="/forgot-password"
+                    element={<EnhancedPasswordReset />}
+                  />
+
+                  <Route path="/link-account" element={<AccountLinking />} />
+
+                  {/* Auth callback route - simplified version */}
+                  <Route path="/auth/callback" element={<SSOCallback />} />
+
+                  {/* MFA verification route */}
+                  <Route path="/mfa/verify" element={<MfaVerify />} />
+                  <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
+                  {/* Protected routes that require authentication */}
+                  <Route element={<ProtectedRoute />}>
+                    <Route
+                      path="/"
+                      element={<Navigate to="/admin" replace />}
+                    />
+                    <Route
+                      path="/profile"
+                      element={<AccountPage tab="profile" />}
+                    />
+                    <Route
+                      path="/security"
+                      element={<AccountPage tab="security" />}
+                    />
+                    <Route
+                      path="/sessions"
+                      element={<AccountPage tab="sessions" />}
+                    />
+                    <Route
+                      path="/analytics"
+                      element={<EnhancedAnalyticsDashboard />}
+                    />
+                    <Route path="/workflows" element={<WorkflowManagement />} />
+                    <Route
+                      path="/integrations"
+                      element={<IntegrationSettings />}
+                    />
+                    <Route path="/alerts" element={<AlertsManagement />} />
+                    <Route path="/api-keys" element={<APIKeyManagement />} />
+
+                    {/* Admin-only routes */}
+                    <Route element={<AdminRoute />}>
+                      <Route path="/admin" element={<AdminPanel />} />
+                      <Route path="/admin/register" element={<Register />} />
                       <Route
-                        path="/forgot-password"
-                        element={<EnhancedPasswordReset />}
+                        path="/admin/users"
+                        element={<EnhancedUserManagement />}
                       />
                       <Route
-                        path="/reset-password"
-                        element={<DirectResetPassword />}
+                        path="/admin/settings"
+                        element={<EnhancedSystemSettings />}
                       />
                       <Route
-                        path="/invitation"
-                        element={<DirectInvitationHandler />}
+                        path="/admin/storage"
+                        element={<StorageManagement />}
                       />
-                      <Route
-                        path="/link-account"
-                        element={<AccountLinking />}
-                      />
+                    </Route>
+                  </Route>
 
-                      {/* Auth callback route - simplified version */}
-                      <Route
-                        path="/auth/callback"
-                        element={<EnhancedAuthCallback />}
-                      />
+                  {/* Fallback route */}
+                  <Route path="*" element={<Navigate to="/admin" />} />
+                </Routes>
+              </div>
 
-                      {/* MFA verification route */}
-                      <Route path="/mfa/verify" element={<MfaVerify />} />
-                      <Route
-                        path="/unauthorized"
-                        element={<UnauthorizedPage />}
-                      />
-
-                      {/* Protected routes that require authentication */}
-                      <Route element={<ProtectedRoute />}>
-                        <Route
-                          path="/"
-                          element={<Navigate to="/admin" replace />}
-                        />
-                        <Route
-                          path="/profile"
-                          element={<AccountPage tab="profile" />}
-                        />
-                        <Route
-                          path="/security"
-                          element={<AccountPage tab="security" />}
-                        />
-                        <Route
-                          path="/sessions"
-                          element={<AccountPage tab="sessions" />}
-                        />
-                        <Route
-                          path="/analytics"
-                          element={<EnhancedAnalyticsDashboard />}
-                        />
-                        <Route
-                          path="/workflows"
-                          element={<WorkflowManagement />}
-                        />
-                        <Route
-                          path="/integrations"
-                          element={<IntegrationSettings />}
-                        />
-                        <Route path="/alerts" element={<AlertsManagement />} />
-                        <Route
-                          path="/api-keys"
-                          element={<APIKeyManagement />}
-                        />
-
-                        {/* Admin-only routes */}
-                        <Route element={<AdminRoute />}>
-                          <Route path="/admin" element={<AdminPanel />} />
-                          <Route
-                            path="/admin/register"
-                            element={<Register />}
-                          />
-                          <Route
-                            path="/admin/users"
-                            element={<EnhancedUserManagement />}
-                          />
-                          <Route
-                            path="/admin/settings"
-                            element={<EnhancedSystemSettings />}
-                          />
-                          <Route
-                            path="/admin/storage"
-                            element={<StorageManagement />}
-                          />
-                        </Route>
-                      </Route>
-
-                      {/* Fallback route */}
-                      <Route path="*" element={<Navigate to="/admin" />} />
-                    </Routes>
-                  </div>
-
-                  {/* Add the AuthDebugger component to help debug auth issues */}
-                  <AuthDebugger />
-                </FeatureFlagProvider>
-              </NotificationProvider>
-            </AuthNavigationGuard>
-          </Router>
-        </SupabaseAuthProvider>
+              {/* Add the AuthDebugger component to help debug auth issues */}
+              <AuthDebugger />
+            </FeatureFlagProvider>
+          </NotificationProvider>
+        </Router>
       </AuthProvider>
     </ErrorBoundary>
   );
