@@ -10,7 +10,6 @@ import { NotificationProvider } from "./context/NotificationContext";
 import { FeatureFlagProvider } from "./utils/featureFlags";
 import { SupabaseAuthProvider } from "./context/SupabaseAuthProvider";
 import { AuthCompatibilityProvider } from "./context/AuthCompatibilityProvider";
-import MainApp from "./components/MainApp";
 import Register from "./components/admin/Register";
 import MfaVerify from "./components/MfaVerify";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -29,6 +28,9 @@ import { debugAuth } from "./utils/authDebug";
 import AuthNavigationGuard from "./components/auth/AuthNavigationGuard";
 import AuthLoading from "./components/auth/AuthLoading";
 import ResetPasswordPage from "./components/auth/ResetPasswordPage";
+import EnhancedPasswordReset from "./components/auth/EnhancedPasswordReset";
+import InvitationHandler from "./components/auth/InvitationHandler";
+import AccountLinking from "./components/auth/AccountLinking";
 import UnauthorizedPage from "./components/UnauthorizedPage";
 import EnhancedAnalyticsDashboard from "./components/analytics/EnhancedAnalyticsDashboard";
 import StorageManagement from "./components/storage/StorageManagement";
@@ -235,13 +237,26 @@ function App() {
                       <Route path="/login" element={<AuthPage />} />
 
                       <Route path="/passcode" element={<AuthPage />} />
-                      <Route path="/forgot-password" element={<AuthPage />} />
+                      <Route
+                        path="/forgot-password"
+                        element={<EnhancedPasswordReset />}
+                      />
                       <Route
                         path="/reset-password"
                         element={<ResetPasswordPage />}
                       />
+                      <Route
+                        path="/invitation"
+                        element={<InvitationHandler />}
+                      />
+
                       <Route path="/mfa/verify" element={<MfaVerify />} />
                       <Route path="/auth/callback" element={<SSOCallback />} />
+                      <Route
+                        path="/link-account"
+                        element={<AccountLinking />}
+                      />
+
                       <Route
                         path="/unauthorized"
                         element={<UnauthorizedPage />}

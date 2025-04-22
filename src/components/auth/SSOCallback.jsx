@@ -9,6 +9,7 @@ import {
   checkLinkingStatus,
   clearLinkingState,
 } from "../../utils/identityLinking";
+import { getLinkingState } from "../../utils/enhancedIdentityLinking";
 
 import {
   Shield,
@@ -57,9 +58,36 @@ function SSOCallback() {
           sessionStorage.getItem("ssoProvider") || "google";
         setProvider(providerFromSession);
 
-        // Check if this is a linking flow
-        const linkingStatus = checkLinkingStatus();
+        // Check if this is a linking flow using the enhanced utils
+        const linkingStatus = getLinkingState();
         const isInLinkingFlow = isLinking || linkingStatus.isLinking;
+
+        // If this is an invitation flow, detect and handle it
+        const isInvitation =
+          params.get("invitation_token") ||
+          params.get("type") === "invite" ||
+          window.location.hash.includes("type=invite");
+
+        if (isInvitation) {
+          debugAuth.log(
+            "SSOCallback",
+            "Detected invitation flow, redirecting to invitation handler"
+          );
+          localStorage.setItem("invitation_flow", "true");
+
+          // Extract and store token
+          const inviteToken =
+            params.get("invitation_token") || params.get("token");
+          if (inviteToken) {
+            sessionStorage.setItem("invitation_token", inviteToken);
+          }
+
+          // Redirect to invitation handler
+          setTimeout(() => {
+            navigate("/invitation" + location.search);
+          }, 500);
+          return;
+        }
 
         // Handle errors from OAuth provider
         if (error) {

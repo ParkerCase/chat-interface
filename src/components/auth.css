@@ -95,6 +95,224 @@
   background-color: #8b5cf6;
   cursor: not-allowed;
 }
+/* Social Login Styles for AuthPage */
+.social-login-section {
+  margin-top: 16px;
+  width: 100%;
+}
+
+.social-login-divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+  color: #6b7280;
+}
+
+.social-login-divider::before,
+.social-login-divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.social-login-divider span {
+  padding: 0 10px;
+  font-size: 14px;
+  text-transform: uppercase;
+}
+
+.social-login-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  gap: 8px;
+}
+
+.google-button {
+  background-color: white;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.google-button:hover {
+  background-color: #f8f8f8;
+}
+
+.apple-button {
+  background-color: black;
+  color: white;
+  border: 1px solid #000;
+}
+
+.apple-button:hover {
+  background-color: #333;
+}
+
+.social-login-hint {
+  text-align: center;
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 16px;
+}
+
+/* Invitation Handler Styles */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.loading-state .spinner {
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+  color: #4f46e5;
+}
+
+.password-requirements {
+  margin: 12px 0;
+  padding: 12px;
+  background-color: #f9fafb;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.password-requirements .requirements-title {
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.password-requirements ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.password-requirements li {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+
+.password-requirements li.passed {
+  color: #10b981;
+}
+
+.password-requirements li:not(.passed) {
+  color: #6b7280;
+}
+
+.password-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.toggle-password {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.redirect-message {
+  margin-top: 16px;
+  font-style: italic;
+  color: #6b7280;
+}
+
+/* Password Reset Styles */
+.info-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  background-color: #f0f9ff;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.info-box p {
+  margin: 0;
+  color: #0369a1;
+}
+
+.email-highlight {
+  font-weight: 600;
+  font-size: 16px;
+  padding: 8px 12px;
+  background-color: #f9fafb;
+  border-radius: 6px;
+  text-align: center;
+  margin: 12px 0;
+}
+
+.instructions {
+  margin: 16px 0;
+}
+
+.note {
+  font-style: italic;
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 8px;
+}
+
+.back-to-login {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 16px;
+  padding: 8px 16px;
+  background-color: #f3f4f6;
+  border: none;
+  border-radius: 6px;
+  color: #4f46e5;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.debug-section {
+  margin-top: 20px;
+  padding: 12px;
+  background-color: #f9fafb;
+  border-radius: 6px;
+  font-size: 12px;
+  overflow: auto;
+  max-height: 200px;
+}
+
+.debug-section h4 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.debug-section pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: monospace;
+}
 
 .auth-form-container .sbui-btn-social {
   display: flex;

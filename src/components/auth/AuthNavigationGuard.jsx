@@ -44,9 +44,24 @@ function AuthNavigationGuard({ children }) {
         localStorage.getItem("password_reset_in_progress") === "true" ||
         sessionStorage.getItem("password_reset_in_progress") === "true";
 
-      if (isPasswordResetRoute && inPasswordResetFlow) {
+      const inInvitationFlow =
+        localStorage.getItem("invitation_flow") === "true" ||
+        sessionStorage.getItem("invitation_flow") === "true";
+
+      const isInvitationRoute =
+        location.pathname === "/invitation" ||
+        (location.pathname === "/auth/callback" &&
+          (location.search.includes("invitation_token") ||
+            location.search.includes("type=invite") ||
+            location.hash.includes("type=invite")));
+
+      if (
+        (isPasswordResetRoute && inPasswordResetFlow) ||
+        isInvitationRoute ||
+        inInvitationFlow
+      ) {
         console.log(
-          "User is in password reset flow, bypassing all navigation guards"
+          "User is in password reset or invitation flow, bypassing all navigation guards"
         );
         return;
       }
