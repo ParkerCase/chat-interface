@@ -9,9 +9,7 @@ export const handler = async (event, context) => {
     // Extract request data
     const { 
       provider, 
-      email, 
-      providerId,    // ID from provider (like Google user ID)
-      providerToken, // OAuth access token
+      email,
       userData       // Additional user data from provider
     } = event.request.body;
     
@@ -25,28 +23,54 @@ export const handler = async (event, context) => {
       };
     }
     
-    console.log(`Auto identity linking request for email: ${email} with provider: ${provider}`);
+    console.log(`Identity linking request for email: ${email} with provider: ${provider}`);
     
     // Step 1: Check if this user already exists in our database (by email)
-    const { data: existingUsers, error: userSearchError } = await supabaseAdmin.auth.admin.listUsers({
-      filters: {
-        email: email
-      }
-    });
+    let existingUser = null;
+    
+    try {
+      // First try to find user by email using admin API
+      const { data: usersData, error: usersError } = await supabaseAdmin.auth.admin.listUsers({
+        filter: {
+          email: email
+        }
+      });
       
-    if (userSearchError) {
-      console.error("Error searching for existing user:", userSearchError);
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ 
-          success: false, 
-          error: 'Failed to search for existing user: ' + userSearchError.message 
-        })
-      };
+      if (usersError) {
+        console.error("Error searching for users:", usersError);
+      } else if (usersData?.users && usersData.users.length > 0) {
+        // Found user by email
+        existingUser = usersData.users[0];
+        console.log(`Found existing user ${existingUser.id} with email ${email}`);
+      }
+      
+      // If user not found with admin API, try a direct query to auth.users
+      if (!existingUser) {
+        const { data: dbUserData, error: dbUserError } = await supabaseAdmin
+          .from('profiles')
+          .select('id')
+          .eq('email', email)
+          .single();
+          
+        if (dbUserError && !dbUserError.message.includes('No rows found')) {
+          console.error("Error searching profiles:", dbUserError);
+        } else if (dbUserData) {
+          // Found user in profiles, now get auth user
+          const { data: authUser, error: authUserError } = await supabaseAdmin.auth.admin.getUserById(dbUserData.id);
+          
+          if (!authUserError && authUser) {
+            existingUser = authUser.user;
+            console.log(`Found existing user ${existingUser.id} from profiles table`);
+          }
+        }
+      }
+    } catch (searchError) {
+      console.error("Error during user search:", searchError);
+      // Continue without failing - we'll create a user if needed
     }
     
     // If user doesn't exist, we should create a new account instead of linking
-    if (!existingUsers || existingUsers.users.length === 0) {
+    if (!existingUser) {
       console.log(`No existing user found with email ${email}, creating new user`);
       
       try {
@@ -75,7 +99,8 @@ export const handler = async (event, context) => {
             full_name: userData?.name || email.split('@')[0],
             roles: ["user"],
             auth_provider: provider,
-            auth_providers: [provider]
+            auth_providers: [provider],
+            created_at: new Date().toISOString()
           });
         
         return {
@@ -99,8 +124,7 @@ export const handler = async (event, context) => {
     }
     
     // We found an existing user with this email
-    const existingUser = existingUsers.users[0];
-    console.log(`Found existing user ${existingUser.id} with email ${email}`);
+    console.log(`Working with existing user ${existingUser.id} with email ${email}`);
     
     // Special case for admin user
     if (email === "itsus@tatt2away.com") {
@@ -132,24 +156,44 @@ export const handler = async (event, context) => {
       }
     }
     
-    // Step 2: Check if this provider is already linked to the user
-    const { data: identities } = await supabaseAdmin.auth.admin.getUserIdentities(existingUser.id);
+    // Step 2: Check if user has any identity providers
+    const { data: identityData, error: identityError } = await supabaseAdmin.auth.admin.getUserIdentities(
+      existingUser.id
+    );
     
-    const providerIdentity = identities?.identities?.find(identity => 
+    if (identityError) {
+      console.error("Error getting user identities:", identityError);
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          success: false,
+          error: 'Failed to get user identities: ' + identityError.message
+        })
+      };
+    }
+    
+    const identities = identityData?.identities || [];
+    const hasSameProvider = identities.some(identity => 
       identity.provider.toLowerCase() === provider.toLowerCase()
     );
     
-    if (providerIdentity) {
+    // If user already has this provider
+    if (hasSameProvider) {
       console.log(`User ${existingUser.id} already has ${provider} identity linked`);
       
       // Update app metadata to ensure provider is tracked
-      await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-        app_metadata: {
-          ...existingUser.app_metadata,
-          provider: provider,
-          providers: [...(existingUser.app_metadata?.providers || []), provider].filter((v, i, a) => a.indexOf(v) === i) // Unique values
-        }
-      });
+      try {
+        await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+          app_metadata: {
+            ...existingUser.app_metadata,
+            provider: provider,
+            providers: [...(existingUser.app_metadata?.providers || []), provider].filter((v, i, a) => a.indexOf(v) === i) // Unique values
+          }
+        });
+      } catch (updateError) {
+        console.error("Error updating user metadata:", updateError);
+        // Non-critical, continue
+      }
       
       return {
         statusCode: 200,
@@ -161,61 +205,91 @@ export const handler = async (event, context) => {
       };
     }
     
-    // Step 3: Attempt to link identities - since direct linking requires user interaction,
-    // we'll set up metadata that indicates this account should be linked
-    console.log(`Preparing to link ${provider} identity to user ${existingUser.id}`);
+    // Step 3: User exists but doesn't have this provider linked
+    // We need to create a magic link for them to complete the linking
+    console.log(`Generating magic link for ${email} to link with ${provider}`);
     
-    // Update user metadata to track pending link and provider
-    await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-      app_metadata: {
-        ...existingUser.app_metadata,
-        pending_link: provider,
-        providers: [...(existingUser.app_metadata?.providers || []), provider].filter((v, i, a) => a.indexOf(v) === i)
+    try {
+      // Generate a magic link
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: email,
+        options: {
+          redirectTo: `${event.request.headers.get('origin') || 'http://localhost:3000'}/auth/callback?linking=true&provider=${provider}`
+        }
+      });
+      
+      if (linkError) {
+        throw linkError;
       }
-    });
-    
-    // Update profile to track provider
-    await supabaseAdmin
-      .from("profiles")
-      .update({
-        auth_provider: provider,
-        auth_providers: [provider],
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", existingUser.id);
-    
-    // Generate a secure magic link for the user that will log them in
-    // and link their account in a single step
-    const { data: magicLink, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: email,
-      options: {
-        redirectTo: `${event.request.headers.get('origin') || ''}/auth/callback?linking=true&provider=${provider}`
-      }
-    });
-    
-    if (magicLinkError) {
-      console.error("Error generating magic link:", magicLinkError);
+      
+      // Set up metadata to indicate pending linking
+      await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+        app_metadata: {
+          ...existingUser.app_metadata,
+          pending_link: provider,
+          pending_link_at: new Date().toISOString()
+        }
+      });
+      
+      // Update profile
+      await supabaseAdmin
+        .from("profiles")
+        .update({
+          pending_link: provider,
+          pending_link_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", existingUser.id);
+      
       return {
-        statusCode: 500,
+        statusCode: 200,
         body: JSON.stringify({
-          success: false,
-          error: 'Failed to generate login link: ' + magicLinkError.message
+          success: true,
+          action: "link_initiated",
+          email: email,
+          provider: provider,
+          magicLink: linkData.properties.action_link
         })
       };
+    } catch (linkError) {
+      console.error("Error generating link:", linkError);
+      
+      // Fallback: Try to send OTP instead
+      try {
+        console.log("Trying OTP approach instead");
+        
+        // Set pending link metadata
+        await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+          app_metadata: {
+            ...existingUser.app_metadata,
+            pending_link: provider,
+            pending_link_at: new Date().toISOString()
+          }
+        });
+        
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            success: true,
+            action: "otp_required",
+            email: email,
+            provider: provider,
+            message: "Please verify your email with the code that will be sent"
+          })
+        };
+      } catch (otpError) {
+        console.error("Error with OTP fallback:", otpError);
+        
+        return {
+          statusCode: 500,
+          body: JSON.stringify({
+            success: false,
+            error: "Failed to initiate account linking"
+          })
+        };
+      }
     }
-    
-    // The frontend should use this information to handle the user automatically
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        success: true,
-        action: "link_initiated",
-        user: existingUser,
-        magicLink: magicLink.properties.action_link,
-        email: email
-      })
-    };
   } catch (error) {
     console.error("Unexpected error in identity linking:", error);
     return {

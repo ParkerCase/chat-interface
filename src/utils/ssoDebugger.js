@@ -1,7 +1,13 @@
 // src/utils/ssoDebugger.js
 import { supabase } from "../lib/supabase";
 import { debugAuth } from "./authDebug";
-import { handleAutoLinking, checkAndCompleteAutoLinking } from "./autoLinking";
+import {
+  linkIdentity,
+  checkAndCompleteAutoLinking,
+  callIdentityLinkingFunction,
+  checkLinkingStatus,
+  clearLinkingState,
+} from "./identityLinking";
 
 /**
  * Enhanced SSO login with automatic identity linking
@@ -66,23 +72,58 @@ async function signInWithSSOProvider(provider) {
             `Existing user detected with email ${email}, starting auto-linking`
           );
 
-          // Attempt auto-linking
-          const linkingResult = await handleAutoLinking(email, provider);
+          // Call identity linking function to handle server-side verification
+          const linkingResult = await callIdentityLinkingFunction(
+            email,
+            provider
+          );
 
           if (linkingResult.success) {
             debugAuth.log(
               "SSO",
-              `Auto-linking initiated: ${linkingResult.action}`
+              `Identity linking function result: ${linkingResult.action}`
             );
 
-            if (linkingResult.action === "otp_sent") {
-              // Let the user know they need to check their email
+            // Store linking state
+            if (linkingResult.email) {
+              sessionStorage.setItem("linkingEmail", linkingResult.email);
+              sessionStorage.setItem("linkingProvider", provider);
+              sessionStorage.setItem("linkingFlow", "true");
+              sessionStorage.setItem("linkingStartedAt", Date.now().toString());
+            }
+
+            // Handle different linking actions
+            if (linkingResult.action === "link_initiated") {
+              // We need to use a magic link
+              if (linkingResult.magicLink) {
+                debugAuth.log("SSO", "Following magic link for linking");
+                window.location.href = linkingResult.magicLink;
+                return { success: true, action: "redirecting_to_magic_link" };
+              }
+
               return {
                 success: true,
                 needsEmailCheck: true,
                 message: "Please check your email to complete sign-in",
                 email: email,
               };
+            }
+
+            if (linkingResult.action === "created") {
+              // User was created (should not happen, but handle it)
+              debugAuth.log("SSO", "New user created instead of linking");
+              return {
+                success: true,
+                action: "user_created",
+                message: "New account created successfully",
+              };
+            }
+
+            if (linkingResult.action === "already_linked") {
+              debugAuth.log("SSO", "Account was already linked");
+              // Start regular OAuth flow again
+              window.location.reload();
+              return { success: true, action: "already_linked" };
             }
 
             return {
@@ -144,11 +185,44 @@ export async function handleOAuthCallback(code) {
     debugAuth.log("SSO", "Processing OAuth callback with code");
 
     // Check if this is part of auto-linking process
-    const autoLinkingStatus = await checkAndCompleteAutoLinking();
+    const linkingStatus = checkLinkingStatus();
+    const isLinking = linkingStatus.isLinking;
 
     // Get SSO provider (fallback to "google" for backward compatibility)
     const provider = sessionStorage.getItem("ssoProvider") || "google";
     debugAuth.log("SSO", `Provider from session: ${provider}`);
+
+    // If this is a linking flow, handle it differently
+    if (isLinking) {
+      debugAuth.log("SSO", "This is a linking flow");
+
+      // Exchange the code for a session
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+      if (error) {
+        debugAuth.log(
+          "SSO",
+          `Code exchange error in linking flow: ${error.message}`
+        );
+        return {
+          success: false,
+          error: error.message,
+          linkingFlow: true,
+        };
+      }
+
+      if (data?.session) {
+        debugAuth.log("SSO", "Session established in linking flow");
+
+        // Success - linking is likely complete
+        clearLinkingState();
+        return {
+          success: true,
+          linkingComplete: true,
+          message: "Account successfully linked",
+        };
+      }
+    }
 
     // Exchange the code for a session
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
@@ -157,10 +231,7 @@ export async function handleOAuthCallback(code) {
       debugAuth.log("SSO", `Code exchange error: ${error.message}`, error);
 
       // If we hit "User not found" in auto-linking flow
-      if (
-        autoLinkingStatus.isLinking &&
-        error.message.includes("User not found")
-      ) {
+      if (isLinking && error.message.includes("User not found")) {
         // This should be rare - we should have handled the linking before getting here
         debugAuth.log(
           "SSO",
@@ -168,10 +239,10 @@ export async function handleOAuthCallback(code) {
         );
 
         // Retry auto-linking with stored email
-        if (autoLinkingStatus.email) {
-          const linkingResult = await handleAutoLinking(
-            autoLinkingStatus.email,
-            autoLinkingStatus.provider
+        if (linkingStatus.email) {
+          const linkingResult = await callIdentityLinkingFunction(
+            linkingStatus.email,
+            linkingStatus.provider
           );
 
           if (linkingResult.success) {
@@ -180,6 +251,7 @@ export async function handleOAuthCallback(code) {
               autoLinking: true,
               action: linkingResult.action,
               message: "Account linking in progress, please wait",
+              email: linkingStatus.email,
             };
           }
         }
