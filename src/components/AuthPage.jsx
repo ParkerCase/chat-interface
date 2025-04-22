@@ -5,13 +5,6 @@ import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { supabase } from "../lib/supabase";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { AlertCircle, Info, CheckCircle } from "lucide-react";
-import { debugAuth } from "../utils/authDebug";
-import {
-  loginWithGoogle,
-  loginWithApple,
-} from "../utils/enhancedIdentityLinking";
-// Import our custom brand icons instead
-import { GoogleIcon, AppleIcon } from "../components/icons/BrandIcons";
 import "./auth.css";
 
 const AuthPage = () => {
@@ -43,20 +36,12 @@ const AuthPage = () => {
       setError("Your session has expired. Please sign in again.");
     }
 
-    // Check if this is a return from MFA verification
-    const mfaSuccess = sessionStorage.getItem("mfaSuccess") === "true";
-    if (mfaSuccess) {
-      debugAuth.log("AuthPage", "Detected successful MFA verification");
-
-      // Clear the flag
-      sessionStorage.removeItem("mfaSuccess");
-
-      // Redirect to the intended destination
-      const mfaRedirectTarget =
-        sessionStorage.getItem("mfaRedirectTarget") || "/admin";
-      navigate(mfaRedirectTarget, { replace: true });
+    // Check for account linking completion
+    const linked = searchParams.get("linked") === "true";
+    if (linked) {
+      setSuccessMessage("Your account has been successfully linked.");
     }
-  }, [searchParams, navigate]);
+  }, [searchParams]);
 
   // Check for existing session and redirect if needed
   useEffect(() => {
@@ -71,10 +56,7 @@ const AuthPage = () => {
         }
 
         if (data?.session) {
-          debugAuth.log(
-            "AuthPage",
-            "Session exists, checking MFA requirements"
-          );
+          console.log("Session exists, checking MFA requirements");
 
           // Check if MFA is required but not verified
           const mfaVerified =
@@ -84,8 +66,7 @@ const AuthPage = () => {
           const authStage = localStorage.getItem("authStage") || "pre-mfa";
 
           if (authStage === "pre-mfa" && !mfaVerified) {
-            debugAuth.log(
-              "AuthPage",
+            console.log(
               "MFA required but not verified, redirecting to verification"
             );
             navigate(`/mfa/verify?returnUrl=${encodeURIComponent(returnUrl)}`);
@@ -93,10 +74,7 @@ const AuthPage = () => {
           }
 
           // If MFA is verified or not required, redirect to the requested page
-          debugAuth.log(
-            "AuthPage",
-            `MFA status is OK, redirecting to ${returnUrl}`
-          );
+          console.log(`MFA status is OK, redirecting to ${returnUrl}`);
           navigate(returnUrl);
         }
       } catch (err) {
@@ -110,20 +88,15 @@ const AuthPage = () => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      debugAuth.log("AuthPage", `Auth state change: ${event}`);
+      console.log(`Auth state change: ${event}`);
 
       if (event === "SIGNED_IN" && session) {
         // Set needed flags
-        localStorage.setItem("authToken", session.access_token);
-        localStorage.setItem("refreshToken", session.refresh_token);
         localStorage.setItem("isAuthenticated", "true");
         localStorage.setItem("authStage", "pre-mfa"); // Default to requiring MFA
 
-        // Redirect to MFA verification if needed
-        debugAuth.log(
-          "AuthPage",
-          "SIGNED_IN via listener, redirecting to MFA verification"
-        );
+        // Redirect to MFA verification
+        console.log("SIGNED_IN via listener, redirecting to MFA verification");
         navigate(`/mfa/verify?returnUrl=${encodeURIComponent(returnUrl)}`);
       }
     });
@@ -139,11 +112,7 @@ const AuthPage = () => {
     <div className="auth-layout">
       <div className="auth-container">
         <div className="auth-branding">
-          <img
-            src="/Tatt2Away-Color-Black-Logo-300.png"
-            alt="Tatt2Away Logo"
-            className="auth-logo"
-          />
+          <img src="/logo.png" alt="Tatt2Away Logo" className="auth-logo" />
         </div>
 
         <div className="auth-content">
@@ -190,64 +159,15 @@ const AuthPage = () => {
                 message: "auth-message",
               },
             }}
-            providers={[]}
+            providers={["google", "apple"]}
             redirectTo={`${window.location.origin}/auth/callback`}
             theme="light"
             view="sign_in"
             showLinks={true}
-            magicLink={false}
-            onlyThirdPartyProviders={false}
             queryParams={{
               returnTo: returnUrl,
             }}
           />
-          <div className="social-login-section">
-            <div className="social-login-divider">
-              <span>OR</span>
-            </div>
-            <button
-              className="social-login-button google-button"
-              onClick={async () => {
-                setError("");
-                try {
-                  const result = await loginWithGoogle();
-                  if (result.error) {
-                    setError(result.error);
-                  }
-                  // If redirecting, we don't need to do anything else
-                } catch (err) {
-                  setError(err.message || "Error signing in with Google");
-                }
-              }}
-            >
-              <GoogleIcon size={18} />
-              <span>Continue with Google</span>
-            </button>
-
-            {/* Apple Sign In */}
-            <button
-              className="social-login-button apple-button"
-              onClick={async () => {
-                setError("");
-                try {
-                  const result = await loginWithApple();
-                  if (result.error) {
-                    setError(result.error);
-                  }
-                  // If redirecting, we don't need to do anything else
-                } catch (err) {
-                  setError(err.message || "Error signing in with Apple");
-                }
-              }}
-            >
-              <AppleIcon size={18} />
-              <span>Continue with Apple</span>
-            </button>
-
-            <p className="social-login-hint">
-              Sign in with your existing social account or use email + password
-            </p>
-          </div>
         </div>
 
         <div className="test-credentials-info">

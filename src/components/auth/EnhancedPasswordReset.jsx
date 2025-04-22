@@ -1,19 +1,14 @@
 // src/components/auth/EnhancedPasswordReset.jsx
-import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
-import { debugAuth } from "../../utils/authDebug";
 import {
-  Eye,
-  EyeOff,
-  CheckCircle,
-  X,
-  Save,
   Lock,
   AlertCircle,
-  Loader2,
+  Loader,
   ArrowLeft,
   Mail,
+  CheckCircle,
 } from "lucide-react";
 import "../auth.css";
 
@@ -25,71 +20,7 @@ function EnhancedPasswordReset() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // State for setting new password screen
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
-  const [isResetSuccess, setIsResetSuccess] = useState(false);
-
-  // Password validation state
-  const [passwordChecks, setPasswordChecks] = useState({
-    length: false,
-    uppercase: false,
-    lowercase: false,
-    number: false,
-    special: false,
-    match: false,
-  });
-
   const navigate = useNavigate();
-  const location = useLocation();
-
-  // On load, check if we're coming from a password reset email
-  useEffect(() => {
-    const checkForResetParams = async () => {
-      const hash = window.location.hash;
-      const params = new URLSearchParams(location.search);
-      const token = params.get("token");
-      const code = params.get("code");
-      const type = params.get("type");
-
-      // If we have reset parameters, redirect to reset-password page
-      if (
-        token ||
-        code ||
-        type === "recovery" ||
-        (hash && hash.includes("type=recovery"))
-      ) {
-        debugAuth.log(
-          "PasswordReset",
-          "Reset parameters detected, redirecting to reset page"
-        );
-
-        // Set flag to prevent auth redirects during reset flow
-        localStorage.setItem("password_reset_in_progress", "true");
-        sessionStorage.setItem("password_reset_in_progress", "true");
-
-        // Redirect to the dedicated reset password page
-        navigate("/reset-password", { replace: true });
-      }
-    };
-
-    checkForResetParams();
-  }, [location, navigate]);
-
-  // Update password validation checks
-  useEffect(() => {
-    setPasswordChecks({
-      length: password.length >= 8,
-      uppercase: /[A-Z]/.test(password),
-      lowercase: /[a-z]/.test(password),
-      number: /[0-9]/.test(password),
-      special: /[^A-Za-z0-9]/.test(password),
-      match: password === confirmPassword && password !== "",
-    });
-  }, [password, confirmPassword]);
 
   // Request password reset
   const handleRequestReset = async (e) => {
@@ -104,7 +35,7 @@ function EnhancedPasswordReset() {
     setError("");
 
     try {
-      debugAuth.log("PasswordReset", `Requesting password reset for ${email}`);
+      console.log(`Requesting password reset for ${email}`);
 
       // Request password reset from Supabase
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -120,18 +51,11 @@ function EnhancedPasswordReset() {
       setSuccess(
         `Password reset link sent to ${email}. Please check your inbox and spam folder.`
       );
-
-      // Log for debugging
-      debugAuth.log("PasswordReset", "Password reset email sent successfully");
     } catch (error) {
       console.error("Password reset request error:", error);
       setError(
         error.message ||
           "Failed to send password reset email. Please try again."
-      );
-      debugAuth.log(
-        "PasswordReset",
-        `Error sending reset email: ${error.message}`
       );
     } finally {
       setIsLoading(false);
@@ -207,7 +131,7 @@ function EnhancedPasswordReset() {
           <button type="submit" className="login-button" disabled={isLoading}>
             {isLoading ? (
               <>
-                <Loader2 className="spinner" size={16} />
+                <Loader className="spinner" size={16} />
                 Sending Reset Link...
               </>
             ) : (
