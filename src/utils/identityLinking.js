@@ -3,103 +3,138 @@ import { supabase } from "../lib/supabase";
 import { debugAuth } from "./authDebug";
 
 /**
- * Manually link a user's account with a social provider
+ * Stores information about a linking attempt in session storage
+ *
  * @param {string} email - User's email address
- * @param {string} provider - Provider to link (google, apple)
- * @returns {Promise<Object>} Result object
+ * @param {string} provider - OAuth provider (google, apple)
+ */
+export function storeLinkingState(email, provider) {
+  sessionStorage.setItem("linkingFlow", "true");
+  sessionStorage.setItem("linkingEmail", email);
+  sessionStorage.setItem("linkingProvider", provider);
+  sessionStorage.setItem("linkingStartedAt", Date.now().toString());
+}
+
+/**
+ * Checks if we're in the middle of a linking flow
+ *
+ * @returns {Object} Linking status
+ */
+export function checkLinkingStatus() {
+  const isLinking = sessionStorage.getItem("linkingFlow") === "true";
+  const email = sessionStorage.getItem("linkingEmail");
+  const provider = sessionStorage.getItem("linkingProvider");
+  const startedAt = sessionStorage.getItem("linkingStartedAt");
+
+  return {
+    isLinking,
+    email,
+    provider,
+    startedAt: startedAt ? parseInt(startedAt) : null,
+  };
+}
+
+/**
+ * Clears linking state
+ */
+export function clearLinkingState() {
+  sessionStorage.removeItem("linkingFlow");
+  sessionStorage.removeItem("linkingEmail");
+  sessionStorage.removeItem("linkingProvider");
+  sessionStorage.removeItem("linkingStartedAt");
+}
+
+/**
+ * Initiates the identity linking process
+ *
+ * @param {string} email - User email
+ * @param {string} provider - OAuth provider (google, apple)
+ * @returns {Promise<Object>} Result of the operation
  */
 export async function linkIdentity(email, provider) {
   try {
     debugAuth.log(
       "IdentityLinking",
-      `Attempting to link ${email} with ${provider}`
+      `Initiating linking for ${email} with ${provider}`
     );
 
-    // Start by checking if we have a session (are logged in)
+    // First check if we already have a session
     const { data: sessionData } = await supabase.auth.getSession();
-
-    if (!sessionData?.session) {
-      // Need to authenticate first - try OTP
+    if (sessionData?.session) {
       debugAuth.log(
         "IdentityLinking",
-        "No session, initiating email verification"
+        "User already has a session, checking if linking is needed"
       );
 
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: false,
-        },
-      });
-
-      if (otpError) {
-        throw new Error(
-          `Could not send verification email: ${otpError.message}`
-        );
+      // Check if the user already has this provider linked
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) {
+        throw new Error("Could not retrieve user data");
       }
 
-      // Record when we sent the code
-      sessionStorage.setItem("lastMfaCodeSent", Date.now().toString());
-      sessionStorage.setItem("linkingEmail", email);
-      sessionStorage.setItem("linkingProvider", provider);
+      // Get provider identities
+      const { data: identities } = await supabase.rpc("get_identities");
+      const hasProvider = identities?.some((i) => i.provider === provider);
 
-      return {
-        success: true,
-        step: "verify_email",
-        message:
-          "Please check your email for a verification code to continue linking your account",
-      };
-    }
-
-    // We have a session, call our edge function to prepare the linking
-    debugAuth.log("IdentityLinking", "Calling identity-linking edge function");
-
-    // Call edge function
-    const { data: fnData, error: fnError } = await supabase.functions.invoke(
-      "identity-linking",
-      {
-        body: {
-          email,
-          provider,
-          providerToken: sessionData.session.provider_token,
-          providerRefreshToken: sessionData.session.provider_refresh_token,
-        },
+      if (hasProvider) {
+        return {
+          success: true,
+          step: "complete",
+          message: `Your account is already linked with ${provider}`,
+        };
       }
-    );
 
-    if (fnError) {
-      throw new Error(`Edge function error: ${fnError.message}`);
-    }
-
-    if (!fnData.success) {
-      throw new Error(fnData.error || "Failed to prepare account linking");
-    }
-
-    // If we need to start OAuth flow
-    if (fnData.action === "start_oauth_flow") {
-      debugAuth.log(
-        "IdentityLinking",
-        "Need to start OAuth flow to complete linking"
-      );
-
-      // Start the OAuth flow
+      // If user is authenticated but doesn't have this provider, we'll send them to oauth
+      storeLinkingState(email, provider);
       return {
         success: true,
         step: "start_oauth",
-        message:
-          "Please authorize with your social account to complete linking",
-        provider,
+        message: `Please authorize with ${provider} to link your account`,
       };
     }
 
-    // Success case
+    // No existing session, we need to verify email ownership first
+
+    // 1. Check if user with this email exists
+    const { data: existingUser, error: userCheckError } = await supabase.rpc(
+      "check_email_exists",
+      { email_to_check: email }
+    );
+
+    if (userCheckError) {
+      throw userCheckError;
+    }
+
+    if (!existingUser) {
+      // No user with this email, they should just sign up normally
+      return {
+        success: false,
+        error: "No account found with this email address",
+      };
+    }
+
+    // 2. Send verification email
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+      },
+    });
+
+    if (otpError) {
+      throw otpError;
+    }
+
+    // Store the linking state
+    storeLinkingState(email, provider);
+
     return {
       success: true,
-      step: "complete",
-      message: fnData.message || `Successfully linked account with ${provider}`,
+      step: "verify_email",
+      message: `We've sent a verification code to ${email}`,
     };
   } catch (error) {
-    debugAuth.log("IdentityLinking", `Error: ${error.message}`);
+    debugAuth.log("IdentityLinking", `Linking error: ${error.message}`);
     return {
       success: false,
       error: error.message,
@@ -108,37 +143,47 @@ export async function linkIdentity(email, provider) {
 }
 
 /**
- * Complete identity linking with a verification code (for email OTP flow)
- * @param {string} email - User's email address
- * @param {string} provider - Provider to link
+ * Verify email code during account linking
+ *
+ * @param {string} email - User email
+ * @param {string} provider - OAuth provider (google, apple)
  * @param {string} code - Verification code
- * @returns {Promise<Object>} Result object
+ * @returns {Promise<Object>} Result of verification
  */
 export async function completeEmailVerification(email, provider, code) {
   try {
     debugAuth.log("IdentityLinking", `Verifying code for ${email}`);
 
-    // Verify OTP code
-    const { data, error } = await supabase.auth.verifyOtp({
+    // Verify OTP
+    const { error } = await supabase.auth.verifyOtp({
       email,
       token: code,
       type: "email",
     });
 
     if (error) {
-      // Special case for "already been verified" which is actually okay
+      // Check for "already verified" errors which are actually ok
       if (
-        error.message?.includes("already been verified") ||
-        error.message?.includes("already logged in")
+        error.message.includes("already been verified") ||
+        error.message.includes("already confirmed")
       ) {
-        debugAuth.log("IdentityLinking", "User already verified, continuing");
+        debugAuth.log("IdentityLinking", "Email already verified, continuing");
       } else {
         throw error;
       }
     }
 
-    // Now we should have a session, call the edge function
-    return await linkIdentity(email, provider);
+    debugAuth.log(
+      "IdentityLinking",
+      "Email verified successfully, proceeding to OAuth"
+    );
+
+    // Send to OAuth provider authorization
+    return {
+      success: true,
+      step: "start_oauth",
+      message: `Email verified. Please connect with ${provider} to complete linking`,
+    };
   } catch (error) {
     debugAuth.log("IdentityLinking", `Verification error: ${error.message}`);
     return {
@@ -149,27 +194,34 @@ export async function completeEmailVerification(email, provider, code) {
 }
 
 /**
- * Start OAuth flow for identity linking
- * @param {string} provider - Provider to use (google, apple)
- * @returns {Promise<Object>} Result object
+ * Start OAuth linking flow after email verification
+ *
+ * @param {string} provider - OAuth provider (google, apple)
+ * @returns {Promise<Object>} Result of the OAuth initiation
  */
 export async function startOAuthLinking(provider) {
   try {
     debugAuth.log("IdentityLinking", `Starting OAuth flow for ${provider}`);
 
-    // Set flags to identify this as an account linking flow
-    sessionStorage.setItem("accountLinking", "true");
-    sessionStorage.setItem("linkingProvider", provider);
+    // Check if we have valid linking state
+    const { isLinking, email } = checkLinkingStatus();
+    if (!isLinking || !email) {
+      throw new Error("Missing linking information");
+    }
 
-    // Get the return URL for after OAuth
-    const returnUrl = `${window.location.origin}/auth/callback?linking=true`;
+    // Store additional flag to identify this as a linking flow
+    sessionStorage.setItem("linkingOAuthStarted", "true");
 
     // Start OAuth flow
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: returnUrl,
-        // Make sure we're requesting all needed scopes
+        redirectTo: `${window.location.origin}/auth/callback?linking=true`,
+        queryParams: {
+          // These options help with the OAuth flow
+          access_type: "offline",
+          prompt: "consent",
+        },
         scopes: "email profile",
       },
     });
@@ -179,16 +231,12 @@ export async function startOAuthLinking(provider) {
     }
 
     if (data?.url) {
-      debugAuth.log(
-        "IdentityLinking",
-        `Redirecting to ${provider} for authorization`
-      );
-      // Redirect to OAuth URL
+      // Redirect to provider's OAuth page
       window.location.href = data.url;
       return { success: true, action: "redirecting" };
     }
 
-    throw new Error("No OAuth URL returned");
+    return { success: false, error: "No redirect URL received" };
   } catch (error) {
     debugAuth.log("IdentityLinking", `OAuth error: ${error.message}`);
     return {
@@ -199,26 +247,116 @@ export async function startOAuthLinking(provider) {
 }
 
 /**
- * Check if identity linking is in progress from OAuth callback
- * @returns {Object} Status object
+ * Check and complete auto-linking process if in progress
+ *
+ * @returns {Promise<Object>} Result of auto-linking check
  */
-export function checkLinkingStatus() {
-  const isLinking = sessionStorage.getItem("accountLinking") === "true";
-  const provider = sessionStorage.getItem("linkingProvider");
-  const email = sessionStorage.getItem("linkingEmail");
+export async function checkAndCompleteAutoLinking() {
+  try {
+    // Check if we're in linking flow
+    const { isLinking, email, provider } = checkLinkingStatus();
+    if (!isLinking) {
+      return { isLinking: false };
+    }
 
-  return {
-    isLinking,
-    provider,
-    email,
-  };
+    debugAuth.log(
+      "IdentityLinking",
+      "Auto-linking in progress, checking status"
+    );
+
+    // Check if we have a session which would indicate successful linking
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData?.session) {
+      debugAuth.log(
+        "IdentityLinking",
+        "Session exists, linking may be complete"
+      );
+
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user) {
+        // Check if user has the provider identity
+        const { data: identities } = await supabase.rpc("get_identities");
+        const hasProvider = identities?.some((i) => i.provider === provider);
+
+        if (hasProvider) {
+          debugAuth.log(
+            "IdentityLinking",
+            "Provider identity confirmed, linking successful"
+          );
+          clearLinkingState();
+          return {
+            isLinking: true,
+            isComplete: true,
+            email,
+            provider,
+          };
+        }
+      }
+    }
+
+    return {
+      isLinking: true,
+      isComplete: false,
+      email,
+      provider,
+    };
+  } catch (error) {
+    debugAuth.log(
+      "IdentityLinking",
+      `Auto-linking check error: ${error.message}`
+    );
+    return {
+      isLinking: true,
+      isComplete: false,
+      error: error.message,
+    };
+  }
 }
 
 /**
- * Clear linking session state
+ * Call Supabase Edge Function to link identities on the server-side
+ *
+ * @param {string} email - User email
+ * @param {string} provider - OAuth provider (google, apple)
+ * @returns {Promise<Object>} Result of server-side linking
  */
-export function clearLinkingState() {
-  sessionStorage.removeItem("accountLinking");
-  sessionStorage.removeItem("linkingProvider");
-  sessionStorage.removeItem("linkingEmail");
+export async function callIdentityLinkingFunction(email, provider) {
+  try {
+    debugAuth.log(
+      "IdentityLinking",
+      `Calling identity-linking function for ${email}`
+    );
+
+    const { data, error } = await supabase.functions.invoke(
+      "identity-linking",
+      {
+        body: {
+          email,
+          provider,
+          userData: {
+            device: navigator.userAgent,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      }
+    );
+
+    if (error) throw error;
+
+    debugAuth.log(
+      "IdentityLinking",
+      `Function result: ${data.action || "unknown"}`
+    );
+
+    return {
+      success: true,
+      ...data,
+    };
+  } catch (error) {
+    debugAuth.log("IdentityLinking", `Function error: ${error.message}`);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
 }
