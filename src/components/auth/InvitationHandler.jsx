@@ -4,33 +4,33 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { debugAuth } from "../../utils/authDebug";
 import {
-  Key,
-  AlertCircle,
-  CheckCircle,
+  User,
   Eye,
   EyeOff,
+  CheckCircle,
+  AlertCircle,
   Loader2,
-  Lock,
+  Mail,
   ArrowRight,
+  Lock,
 } from "lucide-react";
 import "../auth.css";
 
-/**
- * Handles the flow when a user clicks an invitation link from Supabase
- */
 function InvitationHandler() {
   // Form state
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [name, setName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // UI state
   const [isLoading, setIsLoading] = useState(true);
-  const [processingInvitation, setProcessingInvitation] = useState(true);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [email, setEmail] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [invitationToken, setInvitationToken] = useState(null);
 
   // Password validation
   const [passwordChecks, setPasswordChecks] = useState({
@@ -45,7 +45,103 @@ function InvitationHandler() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Validate password when it changes
+  // Check for invitation token and parse URL
+  useEffect(() => {
+    const processInvitation = async () => {
+      try {
+        debugAuth.log("InvitationHandler", "Processing invitation");
+
+        // Set flag for invitation flow
+        localStorage.setItem("invitation_flow", "true");
+        sessionStorage.setItem("invitation_flow", "true");
+
+        // Get token from URL or session storage
+        const params = new URLSearchParams(location.search);
+        const tokenFromUrl =
+          params.get("token") || params.get("invitation_token");
+        const tokenFromStorage = sessionStorage.getItem("invitation_token");
+        const token = tokenFromUrl || tokenFromStorage;
+
+        if (token) {
+          setInvitationToken(token);
+          sessionStorage.setItem("invitation_token", token);
+
+          debugAuth.log("InvitationHandler", "Found invitation token");
+        }
+
+        // Extract email from hash or params if available
+        const hash = window.location.hash;
+        let emailFromFlow = "";
+
+        if (hash) {
+          // Parse hash fragment
+          const hashParams = new URLSearchParams(hash.substring(1));
+          emailFromFlow = hashParams.get("email") || "";
+        }
+
+        // Alternatively, try to get email from query params
+        if (!emailFromFlow) {
+          emailFromFlow = params.get("email") || "";
+        }
+
+        if (emailFromFlow) {
+          setEmail(emailFromFlow);
+          debugAuth.log("InvitationHandler", `Found email: ${emailFromFlow}`);
+        }
+
+        // Try to check if we already have a session
+        const { data: sessionData } = await supabase.auth.getSession();
+
+        if (sessionData?.session) {
+          // We already have a session, try to get user data
+          const { data: userData, error: userError } =
+            await supabase.auth.getUser();
+
+          if (!userError && userData?.user?.email) {
+            setEmail(userData.user.email);
+            debugAuth.log(
+              "InvitationHandler",
+              `Using email from session: ${userData.user.email}`
+            );
+          }
+        }
+
+        // If we have hash parameters, wait for Supabase to process them
+        if (hash && hash.includes("type=invite")) {
+          debugAuth.log("InvitationHandler", "Processing hash parameters");
+
+          // Give Supabase time to process the hash
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
+          // Check if session was created
+          const { data: updatedSessionData } = await supabase.auth.getSession();
+
+          if (updatedSessionData?.session) {
+            debugAuth.log("InvitationHandler", "Session created from hash");
+
+            // Get user data
+            const { data: updatedUserData } = await supabase.auth.getUser();
+
+            if (updatedUserData?.user?.email) {
+              setEmail(updatedUserData.user.email);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error processing invitation:", err);
+        setError(
+          "Failed to process invitation. Please try again or contact support."
+        );
+        debugAuth.log("InvitationHandler", `Error: ${err.message}`);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    processInvitation();
+  }, [location]);
+
+  // Update password validation checks
   useEffect(() => {
     setPasswordChecks({
       length: password.length >= 8,
@@ -57,174 +153,158 @@ function InvitationHandler() {
     });
   }, [password, confirmPassword]);
 
-  // Process the invitation when component mounts
-  useEffect(() => {
-    const processInvitation = async () => {
-      try {
-        setProcessingInvitation(true);
-        debugAuth.log("InvitationHandler", "Processing invitation link");
-
-        // Get parameters from URL
-        const params = new URLSearchParams(location.search);
-        const inviteToken =
-          params.get("token") || params.get("invitation_token");
-        const inviteCode = params.get("code");
-        const inviteType = params.get("type");
-
-        // If hash contains token, extract it
-        let hashToken = null;
-        if (window.location.hash) {
-          const hashParams = new URLSearchParams(
-            window.location.hash.substring(1)
-          );
-          if (hashParams.get("token")) {
-            hashToken = hashParams.get("token");
-          }
-        }
-
-        // Check for any type of token
-        const token = inviteToken || inviteCode || hashToken;
-
-        if (!token) {
-          throw new Error("No invitation token found in URL");
-        }
-
-        // Get user email from token (depends on token type)
-        let userEmail = "";
-        if (inviteCode) {
-          // Try to get session from code
-          const { data, error } = await supabase.auth.exchangeCodeForSession(
-            inviteCode
-          );
-
-          if (error) {
-            debugAuth.log(
-              "InvitationHandler",
-              `Code exchange error: ${error.message}`
-            );
-            // Continue anyway, we'll try other methods
-          } else if (data?.session?.user?.email) {
-            userEmail = data.session.user.email;
-            debugAuth.log(
-              "InvitationHandler",
-              `Got email from session: ${userEmail}`
-            );
-          }
-        }
-
-        // If we couldn't get email from session, try token
-        if (!userEmail) {
-          try {
-            // This is a more direct approach to get info from the token
-            const tokenData = JSON.parse(atob(token.split(".")[1]));
-            if (tokenData.email) {
-              userEmail = tokenData.email;
-              debugAuth.log(
-                "InvitationHandler",
-                `Got email from token: ${userEmail}`
-              );
-            }
-          } catch (e) {
-            debugAuth.log(
-              "InvitationHandler",
-              `Error parsing token: ${e.message}`
-            );
-            // Unable to parse token, continue with flow
-          }
-        }
-
-        // Store email for the form
-        if (userEmail) {
-          setEmail(userEmail);
-        }
-
-        // Set flag to indicate we're handling invitation
-        localStorage.setItem("invitation_flow", "true");
-
-        debugAuth.log(
-          "InvitationHandler",
-          "Invitation processing complete, ready for password setup"
-        );
-        setProcessingInvitation(false);
-      } catch (error) {
-        debugAuth.log(
-          "InvitationHandler",
-          `Error processing invitation: ${error.message}`
-        );
-        setError(error.message || "Error processing invitation link");
-        setProcessingInvitation(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    processInvitation();
-  }, [location]);
-
-  // Handle password submission
-  const handleSubmit = async (e) => {
+  // Complete invitation
+  const handleSetupAccount = async (e) => {
     e.preventDefault();
 
-    // Validate password
+    // Validate all fields
+    if (!email) {
+      setError("Email is required");
+      return;
+    }
+
+    if (!password) {
+      setError("Password is required");
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
     }
 
-    if (!Object.values(passwordChecks).every((check) => check)) {
+    // Check if all password requirements are met
+    const allChecksPass = Object.values(passwordChecks).every((check) => check);
+    if (!allChecksPass) {
       setError("Please ensure all password requirements are met");
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
     setError("");
 
     try {
-      debugAuth.log("InvitationHandler", "Setting password for invited user");
+      debugAuth.log("InvitationHandler", "Setting up account");
 
-      // Update user password via Supabase
-      const { error } = await supabase.auth.updateUser({
-        password,
-      });
+      // Handle password setup
+      // If we have a current session, update the user
+      const { data: sessionData } = await supabase.auth.getSession();
 
-      if (error) {
-        throw error;
+      if (sessionData?.session) {
+        debugAuth.log("InvitationHandler", "Updating user with active session");
+
+        // Update user password
+        const { error: updateError } = await supabase.auth.updateUser({
+          password: password,
+          data: {
+            full_name: name,
+            name: name,
+          },
+        });
+
+        if (updateError) throw updateError;
+      } else {
+        debugAuth.log(
+          "InvitationHandler",
+          "No active session, attempting password setup"
+        );
+
+        // Try to use the invitation token if available
+        if (invitationToken) {
+          // Use the token to set up the account
+          const { error: tokenError } = await supabase.auth.verifyOtp({
+            token_hash: invitationToken,
+            type: "invite",
+          });
+
+          if (tokenError && !tokenError.message.includes("already been used")) {
+            throw tokenError;
+          }
+
+          // Update password
+          const { error: updateError } = await supabase.auth.updateUser({
+            password: password,
+            data: {
+              full_name: name,
+              name: name,
+            },
+          });
+
+          if (updateError) throw updateError;
+        } else {
+          // No token, no session - fallback to direct login with create user option
+          const { error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name: name,
+                name: name,
+              },
+            },
+          });
+
+          if (signUpError) throw signUpError;
+        }
+      }
+
+      // Create or update profile in the database
+      const { data: userData, error: userError } =
+        await supabase.auth.getUser();
+
+      if (!userError && userData?.user?.id) {
+        const userId = userData.user.id;
+
+        // Try to update profile
+        const { error: profileError } = await supabase.from("profiles").upsert(
+          {
+            id: userId,
+            email: email,
+            full_name: name || email.split("@")[0],
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        );
+
+        if (profileError) {
+          console.warn("Error updating profile:", profileError);
+        }
       }
 
       // Success!
-      setIsSuccess(true);
-      debugAuth.log("InvitationHandler", "Password set successfully");
+      setSuccess(true);
 
-      // Store in localStorage for other components to detect
-      localStorage.setItem("invitation_complete", "true");
-
-      // Clear invitation flow flag
+      // Clear invitation flow flags
       localStorage.removeItem("invitation_flow");
+      sessionStorage.removeItem("invitation_flow");
+      sessionStorage.removeItem("invitation_token");
 
-      // Redirect to login after 3 seconds
+      // Set auth flags
+      localStorage.setItem("authStage", "pre-mfa");
+
+      // Redirect after a delay
       setTimeout(() => {
-        navigate("/login?setup=complete");
-      }, 3000);
-    } catch (error) {
-      debugAuth.log(
-        "InvitationHandler",
-        `Error setting password: ${error.message}`
-      );
-      setError(error.message || "Failed to set password. Please try again.");
+        // Go to MFA setup - this ensures security
+        navigate("/mfa/verify?returnUrl=/admin");
+      }, 2000);
+    } catch (err) {
+      console.error("Account setup error:", err);
+      setError(err.message || "Failed to set up account. Please try again.");
+      debugAuth.log("InvitationHandler", `Error: ${err.message}`);
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   // Show loading state
-  if (processingInvitation) {
+  if (isLoading) {
     return (
       <div className="login-container">
         <div className="login-form">
           <div className="loading-state">
             <Loader2 className="spinner" size={36} />
             <h3>Processing Invitation</h3>
-            <p>Please wait while we set up your account...</p>
+            <p>Please wait while we process your invitation...</p>
           </div>
         </div>
       </div>
@@ -232,30 +312,37 @@ function InvitationHandler() {
   }
 
   // Show success state
-  if (isSuccess) {
+  if (success) {
     return (
       <div className="login-container">
         <div className="login-form">
           <div className="success-message">
-            <CheckCircle className="success-icon" size={48} />
+            <div className="success-icon-container">
+              <CheckCircle className="success-icon" size={48} />
+            </div>
             <h3>Account Setup Complete!</h3>
-            <p>Your password has been set successfully.</p>
-            <p>You can now log in with your email and new password.</p>
-            <p className="redirect-message">Redirecting to login page...</p>
+            <p>Your account has been successfully set up.</p>
+            <p>
+              You'll be redirected to verify your identity for enhanced
+              security.
+            </p>
+            <div className="loading-indicator">
+              <Loader2 className="spinner" size={24} />
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // Show password creation form
+  // Account setup form
   return (
     <div className="login-container">
       <div className="login-form">
         <div className="login-header">
-          <Lock className="login-icon" size={28} />
+          <User size={28} className="auth-icon" />
           <h2>Complete Your Account Setup</h2>
-          {email && <p>Please create a password for {email}</p>}
+          <p>Please create a password to activate your account.</p>
         </div>
 
         {error && (
@@ -265,7 +352,36 @@ function InvitationHandler() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="login-form-fields">
+        <form onSubmit={handleSetupAccount} className="login-form-fields">
+          {/* Email Field (usually pre-filled and disabled) */}
+          <div className="form-group">
+            <label htmlFor="email">Email Address</label>
+            <input
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Your email address"
+              className="form-input"
+              disabled={!!email || isSubmitting}
+              required
+            />
+          </div>
+
+          {/* Name Field */}
+          <div className="form-group">
+            <label htmlFor="name">Full Name</label>
+            <input
+              type="text"
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your full name"
+              className="form-input"
+              disabled={isSubmitting}
+            />
+          </div>
+
           {/* Password Field */}
           <div className="form-group">
             <label htmlFor="password">Create Password</label>
@@ -275,8 +391,9 @@ function InvitationHandler() {
                 id="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="Create a secure password"
                 className="form-input"
-                disabled={isLoading}
+                disabled={isSubmitting}
                 required
               />
               <button
@@ -297,7 +414,7 @@ function InvitationHandler() {
                   {passwordChecks.length ? (
                     <CheckCircle size={14} />
                   ) : (
-                    <AlertCircle size={14} />
+                    <span className="check-marker">✗</span>
                   )}
                   <span>At least 8 characters</span>
                 </li>
@@ -305,7 +422,7 @@ function InvitationHandler() {
                   {passwordChecks.uppercase ? (
                     <CheckCircle size={14} />
                   ) : (
-                    <AlertCircle size={14} />
+                    <span className="check-marker">✗</span>
                   )}
                   <span>At least one uppercase letter</span>
                 </li>
@@ -313,7 +430,7 @@ function InvitationHandler() {
                   {passwordChecks.lowercase ? (
                     <CheckCircle size={14} />
                   ) : (
-                    <AlertCircle size={14} />
+                    <span className="check-marker">✗</span>
                   )}
                   <span>At least one lowercase letter</span>
                 </li>
@@ -321,7 +438,7 @@ function InvitationHandler() {
                   {passwordChecks.number ? (
                     <CheckCircle size={14} />
                   ) : (
-                    <AlertCircle size={14} />
+                    <span className="check-marker">✗</span>
                   )}
                   <span>At least one number</span>
                 </li>
@@ -329,7 +446,7 @@ function InvitationHandler() {
                   {passwordChecks.special ? (
                     <CheckCircle size={14} />
                   ) : (
-                    <AlertCircle size={14} />
+                    <span className="check-marker">✗</span>
                   )}
                   <span>At least one special character</span>
                 </li>
@@ -339,19 +456,20 @@ function InvitationHandler() {
 
           {/* Confirm Password Field */}
           <div className="form-group">
-            <label htmlFor="confirm-password">Confirm Password</label>
+            <label htmlFor="confirmPassword">Confirm Password</label>
             <div className="password-input-wrapper">
               <input
                 type={showConfirmPassword ? "text" : "password"}
-                id="confirm-password"
+                id="confirmPassword"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm your password"
                 className={`form-input ${
                   confirmPassword && !passwordChecks.match
                     ? "password-mismatch"
                     : ""
                 }`}
-                disabled={isLoading}
+                disabled={isSubmitting}
                 required
               />
               <button
@@ -374,16 +492,12 @@ function InvitationHandler() {
           <button
             type="submit"
             className="login-button"
-            disabled={
-              isLoading ||
-              !passwordChecks.match ||
-              !Object.values(passwordChecks).every((check) => check)
-            }
+            disabled={isSubmitting}
           >
-            {isLoading ? (
+            {isSubmitting ? (
               <>
                 <Loader2 className="spinner" size={16} />
-                Setting Password...
+                Setting Up Account...
               </>
             ) : (
               <>
@@ -393,6 +507,14 @@ function InvitationHandler() {
             )}
           </button>
         </form>
+
+        <div className="auth-security-note">
+          <Lock size={16} />
+          <p>
+            Your password must meet all the requirements above for security
+            purposes.
+          </p>
+        </div>
       </div>
     </div>
   );
