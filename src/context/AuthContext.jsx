@@ -1,4 +1,4 @@
-// src/context/AuthContext.jsx - MFA VERIFICATION FIXES
+// src/context/AuthContext.jsx - Fixed default context value
 import React, {
   createContext,
   useState,
@@ -7,17 +7,44 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import {
-  supabase,
-  enhancedAuth,
-  loginThenChangePassword,
-} from "../lib/supabase";
+import { supabase, enhancedAuth } from "../lib/supabase";
 import { debugAuth } from "../utils/authDebug";
-
 import apiService from "../services/apiService";
 
-// Create auth context
-const AuthContext = createContext(null);
+// Create auth context WITH DEFAULT VALUES to prevent null
+const defaultContextValue = {
+  currentUser: null,
+  loading: true,
+  error: "",
+  session: null,
+  login: async () => ({ success: false, error: "Auth not initialized" }),
+  logout: async () => false,
+  setError: () => {},
+  isAdmin: false,
+  isSuperAdmin: false,
+  hasRole: () => false,
+  hasPermission: () => false,
+  hasFeatureAccess: () => false,
+  getUserTier: () => "enterprise",
+  setupMfa: async () => ({ success: false }),
+  confirmMfa: async () => false,
+  removeMfa: async () => false,
+  verifyMfa: async () => false,
+  updateProfile: async () => false,
+  getActiveSessions: async () => [],
+  terminateSession: async () => false,
+  terminateAllSessions: async () => false,
+  isInitialized: false,
+  mfaState: {
+    required: false,
+    inProgress: false,
+    verified: false,
+    data: null,
+  },
+  isMfaVerified: false,
+};
+
+const AuthContext = createContext(defaultContextValue);
 
 export function useAuth() {
   return useContext(AuthContext);

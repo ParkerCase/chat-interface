@@ -1,8 +1,9 @@
 // src/components/ProtectedRoute.jsx
 import React from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 import { Loader2 } from "lucide-react";
+import { useContext } from "react";
+import AuthContext from "../context/AuthContext";
 
 /**
  * Protected route component that requires authentication
@@ -13,15 +14,28 @@ function ProtectedRoute({
   requireFeatures = [],
   fallback = null,
 }) {
-  const {
-    currentUser,
-    loading,
-    hasRole,
-    hasFeatureAccess,
-    isInitialized,
-    mfaState,
-  } = useAuth();
+  // Get the location for redirects
   const location = useLocation();
+
+  // Use the auth context directly - ALWAYS at the top level
+  const auth = useContext(AuthContext) || {};
+
+  // Safely destructure with defaults to prevent errors
+  const currentUser = auth?.currentUser || null;
+  const loading = auth?.loading || false;
+  const isInitialized = auth?.isInitialized || false;
+  const mfaState = auth?.mfaState || { required: false, verified: false };
+
+  // Handle role and feature checking with safety
+  const hasRole = (role) => {
+    return auth?.hasRole
+      ? auth.hasRole(role)
+      : auth?.currentUser?.roles?.includes?.(role) || false;
+  };
+
+  const hasFeatureAccess = (feature) => {
+    return auth?.hasFeatureAccess ? auth.hasFeatureAccess(feature) : false;
+  };
 
   // Show loading during initialization
   if (loading || !isInitialized) {

@@ -1,8 +1,8 @@
 // src/components/AuthDebugger.jsx
-import React, { useState, useEffect } from "react";
-import { useAuth } from "../context/AuthCompatibilityProvider";
+import React, { useState, useEffect, useContext } from "react";
 import { supabase } from "../lib/supabase";
 import { debugAuth } from "../utils/authDebug";
+import AuthContext from "../context/AuthContext";
 
 /**
  * Debug component that displays authentication state
@@ -17,7 +17,10 @@ function AuthDebugger() {
   const [refreshed, setRefreshed] = useState(0);
   const [activeTab, setActiveTab] = useState("state");
 
-  const { currentUser, mfaState } = useAuth();
+  // SAFE: Direct context access with null checking
+  const auth = useContext(AuthContext) || {};
+  const currentUser = auth.currentUser || null;
+  const mfaState = auth.mfaState || { required: false, verified: false };
 
   // Only show toggle button in development mode or if debug is enabled
   const shouldRender =
