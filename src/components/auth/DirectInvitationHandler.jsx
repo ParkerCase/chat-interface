@@ -1,6 +1,6 @@
-// src/components/auth/DirectResetPassword.jsx
+// src/components/auth/DirectInvitationHandler.jsx
 import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import {
   Eye,
@@ -8,11 +8,11 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  Lock,
+  User,
 } from "lucide-react";
 import "../auth.css";
 
-function DirectResetPassword() {
+function DirectInvitationHandler() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -21,48 +21,47 @@ function DirectResetPassword() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [processingHash, setProcessingHash] = useState(true);
+  const [userEmail, setUserEmail] = useState("");
 
   const navigate = useNavigate();
-  const location = useLocation();
 
-  // Process hash parameters on load
+  // Check for existing session on load
   useEffect(() => {
-    const processHashParameters = async () => {
+    const checkSession = async () => {
       try {
-        console.log("Processing password reset parameters");
+        console.log("Checking session for invitation flow");
 
-        // Give Supabase time to process hash if it exists
-        if (window.location.hash) {
-          console.log("Hash parameters found:", window.location.hash);
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-
-        // Check if we have a valid session after processing hash
+        // Check if we have a valid session
         const { data: sessionData } = await supabase.auth.getSession();
 
         if (sessionData?.session) {
-          console.log("Valid session found, ready for password reset");
+          console.log("Valid session found for invitation");
+
+          // Get user email
+          const { data: userData } = await supabase.auth.getUser();
+          if (userData?.user?.email) {
+            setUserEmail(userData.user.email);
+            console.log("User email:", userData.user.email);
+          }
         } else {
-          console.log("No valid session for password reset");
+          console.log("No valid session for invitation");
           setError(
-            "Invalid or expired password reset link. Please request a new one."
+            "Invalid or expired invitation link. Please request a new invitation."
           );
         }
       } catch (err) {
-        console.error("Error processing password reset:", err);
-        setError("Error processing password reset link");
+        console.error("Error checking session:", err);
+        setError("Error processing invitation");
       } finally {
-        setProcessingHash(false);
         setIsLoading(false);
       }
     };
 
-    processHashParameters();
+    checkSession();
   }, []);
 
   // Handle form submission
-  const handleResetPassword = async (e) => {
+  const handleSetPassword = async (e) => {
     e.preventDefault();
 
     // Validate passwords
@@ -80,7 +79,7 @@ function DirectResetPassword() {
     setError("");
 
     try {
-      console.log("Attempting to update password");
+      console.log("Setting password for invited user");
 
       // Update the user's password
       const { error: updateError } = await supabase.auth.updateUser({
@@ -91,36 +90,30 @@ function DirectResetPassword() {
         throw updateError;
       }
 
-      console.log("Password updated successfully");
+      console.log("Password set successfully");
       setSuccess(true);
 
-      // Sign out from all devices for security
-      await supabase.auth.signOut({ scope: "global" });
-
-      // Redirect to login after a short delay
+      // Redirect to admin page after a short delay
       setTimeout(() => {
-        navigate("/login?passwordChanged=true", { replace: true });
+        navigate("/admin", { replace: true });
       }, 2000);
     } catch (err) {
-      console.error("Password reset error:", err);
-      setError(
-        err.message ||
-          "Failed to reset password. Please try again or request a new reset link."
-      );
+      console.error("Password set error:", err);
+      setError(err.message || "Failed to set password. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   // Show loading state
-  if (isLoading || processingHash) {
+  if (isLoading) {
     return (
       <div className="login-container">
         <div className="login-form">
           <div className="loading-state">
             <Loader2 className="spinner" size={36} />
-            <h3>Processing Reset Link</h3>
-            <p>Please wait while we validate your password reset link...</p>
+            <h3>Processing Invitation</h3>
+            <p>Please wait while we process your invitation...</p>
           </div>
         </div>
       </div>
@@ -136,12 +129,9 @@ function DirectResetPassword() {
             <div className="success-icon-container">
               <CheckCircle className="success-icon" size={48} />
             </div>
-            <h3>Password Reset Successful</h3>
-            <p>
-              Your password has been reset successfully. You can now log in with
-              your new password.
-            </p>
-            <p className="redirect-message">Redirecting to login page...</p>
+            <h3>Account Setup Complete!</h3>
+            <p>Your password has been set successfully.</p>
+            <p className="redirect-message">Redirecting to your account...</p>
             <div className="loading-indicator">
               <Loader2 className="spinner" size={24} />
             </div>
@@ -151,14 +141,15 @@ function DirectResetPassword() {
     );
   }
 
-  // Show password reset form
+  // Show password set form
   return (
     <div className="login-container">
       <div className="login-form">
         <div className="login-header">
-          <Lock size={28} className="auth-icon" />
-          <h2>Reset Your Password</h2>
-          <p>Please enter and confirm your new password.</p>
+          <User size={28} className="auth-icon" />
+          <h2>Complete Your Account Setup</h2>
+          <p>Please create a password for your account.</p>
+          {userEmail && <p className="email-display">Email: {userEmail}</p>}
         </div>
 
         {error && (
@@ -168,17 +159,17 @@ function DirectResetPassword() {
           </div>
         )}
 
-        <form onSubmit={handleResetPassword} className="login-form-fields">
-          {/* New Password */}
+        <form onSubmit={handleSetPassword} className="login-form-fields">
+          {/* Password */}
           <div className="form-group">
-            <label htmlFor="password">New Password</label>
+            <label htmlFor="password">Create Password</label>
             <div className="password-input-wrapper">
               <input
                 type={showPassword ? "text" : "password"}
                 id="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter new password"
+                placeholder="Create password"
                 className="form-input"
                 disabled={isSubmitting}
                 required
@@ -204,7 +195,7 @@ function DirectResetPassword() {
                 id="confirmPassword"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm new password"
+                placeholder="Confirm password"
                 className={`form-input ${
                   confirmPassword && password !== confirmPassword
                     ? "password-mismatch"
@@ -239,10 +230,10 @@ function DirectResetPassword() {
             {isSubmitting ? (
               <>
                 <Loader2 className="spinner" size={16} />
-                Resetting Password...
+                Setting Password...
               </>
             ) : (
-              "Reset Password"
+              "Set Password & Complete Setup"
             )}
           </button>
         </form>
@@ -262,4 +253,4 @@ function DirectResetPassword() {
   );
 }
 
-export default DirectResetPassword;
+export default DirectInvitationHandler;

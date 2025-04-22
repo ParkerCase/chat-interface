@@ -26,8 +26,10 @@ import AccountPage from "./components/account/AccountPage";
 import AuthDebugger from "./components/AuthDebugger";
 import { debugAuth } from "./utils/authDebug";
 import AuthNavigationGuard from "./components/auth/AuthNavigationGuard";
-import AuthLoading from "./components/auth/AuthLoading";
-import ResetPasswordPage from "./components/auth/ResetPasswordPage";
+import EnhancedAuthCallback from "./components/auth/EnhancedAuthCallback";
+import DirectResetPassword from "./components/auth/DirectResetPassword";
+import DirectInvitationHandler from "./components/auth/DirectInvitationHandler";
+
 import EnhancedPasswordReset from "./components/auth/EnhancedPasswordReset";
 import InvitationHandler from "./components/auth/InvitationHandler";
 import AccountLinking from "./components/auth/AccountLinking";
@@ -235,7 +237,6 @@ function App() {
                     <Routes>
                       {/* Public routes */}
                       <Route path="/login" element={<AuthPage />} />
-
                       <Route path="/passcode" element={<AuthPage />} />
                       <Route
                         path="/forgot-password"
@@ -243,20 +244,25 @@ function App() {
                       />
                       <Route
                         path="/reset-password"
-                        element={<ResetPasswordPage />}
+                        element={<DirectResetPassword />}
                       />
                       <Route
                         path="/invitation"
-                        element={<InvitationHandler />}
+                        element={<DirectInvitationHandler />}
                       />
-
-                      <Route path="/mfa/verify" element={<MfaVerify />} />
-                      <Route path="/auth/callback" element={<SSOCallback />} />
                       <Route
                         path="/link-account"
                         element={<AccountLinking />}
                       />
 
+                      {/* Auth callback route - simplified version */}
+                      <Route
+                        path="/auth/callback"
+                        element={<EnhancedAuthCallback />}
+                      />
+
+                      {/* MFA verification route */}
+                      <Route path="/mfa/verify" element={<MfaVerify />} />
                       <Route
                         path="/unauthorized"
                         element={<UnauthorizedPage />}
@@ -298,7 +304,7 @@ function App() {
                           element={<APIKeyManagement />}
                         />
 
-                        {/* Admin-only routes for user management */}
+                        {/* Admin-only routes */}
                         <Route element={<AdminRoute />}>
                           <Route path="/admin" element={<AdminPanel />} />
                           <Route

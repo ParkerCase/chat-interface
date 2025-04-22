@@ -4,50 +4,95 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { debugAuth } from "../../utils/authDebug";
 import {
-  Mail,
-  AlertCircle,
+  Eye,
+  EyeOff,
   CheckCircle,
+  X,
+  Save,
+  Lock,
+  AlertCircle,
   Loader2,
-  ArrowRight,
-  Info,
+  ArrowLeft,
+  Mail,
 } from "lucide-react";
 import "../auth.css";
 
-/**
- * Enhanced password reset request component with better error handling and user feedback
- */
 function EnhancedPasswordReset() {
+  // State for request password reset screen
   const [email, setEmail] = useState("");
+  const [isRequestSent, setIsRequestSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
-  const [showDebugInfo, setShowDebugInfo] = useState(false);
-  const [debugInfo, setDebugInfo] = useState({});
+  const [success, setSuccess] = useState("");
+
+  // State for setting new password screen
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [isResetSuccess, setIsResetSuccess] = useState(false);
+
+  // Password validation state
+  const [passwordChecks, setPasswordChecks] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+    special: false,
+    match: false,
+  });
 
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Check URL parameters (e.g., from failed reset attempts)
+  // On load, check if we're coming from a password reset email
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const emailParam = params.get("email");
-    const errorParam = params.get("error");
+    const checkForResetParams = async () => {
+      const hash = window.location.hash;
+      const params = new URLSearchParams(location.search);
+      const token = params.get("token");
+      const code = params.get("code");
+      const type = params.get("type");
 
-    if (emailParam) {
-      setEmail(emailParam);
-    }
+      // If we have reset parameters, redirect to reset-password page
+      if (
+        token ||
+        code ||
+        type === "recovery" ||
+        (hash && hash.includes("type=recovery"))
+      ) {
+        debugAuth.log(
+          "PasswordReset",
+          "Reset parameters detected, redirecting to reset page"
+        );
 
-    if (errorParam) {
-      setError(decodeURIComponent(errorParam));
-    }
+        // Set flag to prevent auth redirects during reset flow
+        localStorage.setItem("password_reset_in_progress", "true");
+        sessionStorage.setItem("password_reset_in_progress", "true");
 
-    // If this is development environment, allow debug features
-    if (process.env.NODE_ENV === "development") {
-      setShowDebugInfo(true);
-    }
-  }, [location]);
+        // Redirect to the dedicated reset password page
+        navigate("/reset-password", { replace: true });
+      }
+    };
 
-  const handleSubmit = async (e) => {
+    checkForResetParams();
+  }, [location, navigate]);
+
+  // Update password validation checks
+  useEffect(() => {
+    setPasswordChecks({
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /[0-9]/.test(password),
+      special: /[^A-Za-z0-9]/.test(password),
+      match: password === confirmPassword && password !== "",
+    });
+  }, [password, confirmPassword]);
+
+  // Request password reset
+  const handleRequestReset = async (e) => {
     e.preventDefault();
 
     if (!email) {
@@ -59,35 +104,9 @@ function EnhancedPasswordReset() {
     setError("");
 
     try {
-      // First, verify if the email exists in the system
-      const {
-        data: { users },
-        error: userCheckError,
-      } = await supabase.auth.admin.listUsers({
-        filter: {
-          email: email.toLowerCase().trim(),
-        },
-      });
+      debugAuth.log("PasswordReset", `Requesting password reset for ${email}`);
 
-      if (userCheckError) {
-        // Silent fail and continue with reset - don't reveal if email exists for security
-        debugAuth.log(
-          "PasswordReset",
-          `Error checking for user: ${userCheckError.message}`
-        );
-      }
-
-      // Record debug info for potential troubleshooting
-      const debugData = {
-        timestamp: new Date().toISOString(),
-        userExists: users && users.length > 0,
-        email: email,
-        origin: window.location.origin,
-      };
-      setDebugInfo(debugData);
-
-      // Send password reset email through Supabase
-      debugAuth.log("PasswordReset", `Sending password reset for ${email}`);
+      // Request password reset from Supabase
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
@@ -96,90 +115,70 @@ function EnhancedPasswordReset() {
         throw error;
       }
 
-      // Show success message
-      setIsSuccess(true);
-
-      // Log success for debugging
-      debugAuth.log(
-        "PasswordReset",
-        `Password reset email sent successfully to ${email}`
+      // Success - show success message
+      setIsRequestSent(true);
+      setSuccess(
+        `Password reset link sent to ${email}. Please check your inbox and spam folder.`
       );
+
+      // Log for debugging
+      debugAuth.log("PasswordReset", "Password reset email sent successfully");
     } catch (error) {
+      console.error("Password reset request error:", error);
+      setError(
+        error.message ||
+          "Failed to send password reset email. Please try again."
+      );
       debugAuth.log(
         "PasswordReset",
         `Error sending reset email: ${error.message}`
       );
-
-      // Provide user-friendly error message
-      if (error.message?.includes("rate limit")) {
-        setError("Too many reset attempts. Please try again later.");
-      } else if (error.message?.includes("Invalid login credentials")) {
-        // Generic message to avoid revealing if email exists
-        setError(
-          "If this email is registered, you'll receive a reset link shortly."
-        );
-        setIsSuccess(true); // Show success anyway for security
-      } else {
-        setError(`Error sending password reset email: ${error.message}`);
-      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Account creation form
-  const handleCreateAccount = () => {
-    navigate("/register");
-  };
-
-  // Return to login form
-  const handleBackToLogin = () => {
-    navigate("/login");
-  };
-
-  if (isSuccess) {
+  // Show success state if request was sent
+  if (isRequestSent) {
     return (
       <div className="login-container">
-        <div className="login-form">
+        <div className="login-form reset-password-form">
           <div className="success-message">
-            <CheckCircle className="success-icon" size={48} />
+            <div className="success-icon-container">
+              <CheckCircle className="success-icon" size={48} />
+            </div>
             <h3>Check Your Email</h3>
-            <p>We've sent a password reset link to:</p>
-            <p className="email-highlight">{email}</p>
-            <div className="instructions">
+            <p>{success}</p>
+            <div className="email-info">
+              <Mail size={24} className="email-icon" />
               <p>
-                Please check your email inbox and click the link to reset your
-                password.
-              </p>
-              <p className="note">
-                If you don't see the email, check your spam/junk folder.
+                We've sent a link to <strong>{email}</strong> with instructions
+                to reset your password.
               </p>
             </div>
-            <button onClick={handleBackToLogin} className="back-to-login">
+            <p className="email-check-note">
+              Please check your email inbox and spam folder. The link is valid
+              for 24 hours.
+            </p>
+            <button onClick={() => navigate("/login")} className="login-button">
               Return to Login
             </button>
-
-            {showDebugInfo && (
-              <div className="debug-section">
-                <h4>Debug Info</h4>
-                <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
-              </div>
-            )}
           </div>
         </div>
       </div>
     );
   }
 
+  // Request password reset form
   return (
     <div className="login-container">
-      <div className="login-form">
+      <div className="login-form reset-password-form">
         <div className="login-header">
-          <Mail size={28} className="login-icon" />
+          <Lock size={28} className="reset-icon" />
           <h2>Reset Your Password</h2>
           <p>
             Enter your email address and we'll send you a link to reset your
-            password
+            password.
           </p>
         </div>
 
@@ -190,56 +189,44 @@ function EnhancedPasswordReset() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="login-form-fields">
+        <form onSubmit={handleRequestReset} className="login-form-fields">
           <div className="form-group">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">Email Address</label>
             <input
               type="email"
               id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email address"
+              placeholder="Enter your email"
               className="form-input"
-              required
               disabled={isLoading}
+              required
             />
-          </div>
-
-          <div className="info-box">
-            <Info size={18} />
-            <p>
-              Make sure to check your spam/junk folder if you don't see the
-              reset email in your inbox.
-            </p>
           </div>
 
           <button type="submit" className="login-button" disabled={isLoading}>
             {isLoading ? (
               <>
                 <Loader2 className="spinner" size={16} />
-                Sending...
+                Sending Reset Link...
               </>
             ) : (
-              <>
-                Send Reset Link
-                <ArrowRight size={16} />
-              </>
+              "Send Reset Link"
             )}
           </button>
         </form>
 
-        <div className="login-footer">
-          <p>
-            <a href="#" onClick={handleBackToLogin}>
-              Back to Login
-            </a>
-          </p>
-          <p>
-            Don't have an account?{" "}
-            <a href="#" onClick={handleCreateAccount}>
-              Sign Up
-            </a>
-          </p>
+        <div className="quick-access-link">
+          <a
+            href="/login"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("/login");
+            }}
+          >
+            <ArrowLeft size={14} style={{ marginRight: "5px" }} />
+            Back to Login
+          </a>
         </div>
       </div>
     </div>
