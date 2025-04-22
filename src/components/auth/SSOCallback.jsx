@@ -39,7 +39,11 @@ function SSOCallback() {
     const handleCallback = async () => {
       try {
         debugAuth.log("SSOCallback", "Processing OAuth callback");
-
+        console.log("OAuth callback URL:", window.location.href);
+        console.log(
+          "Query parameters:",
+          new URLSearchParams(location.search).toString()
+        );
         // Get URL parameters
         const params = new URLSearchParams(location.search);
         const code = params.get("code");
@@ -83,6 +87,10 @@ function SSOCallback() {
             // Exchange code for session in a linking context
             const { data, error } = await supabase.auth.exchangeCodeForSession(
               code
+            );
+            console.log(
+              "Auth exchange response:",
+              JSON.stringify(data, null, 2)
             );
 
             if (error) {
