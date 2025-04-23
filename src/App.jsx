@@ -45,37 +45,115 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import "./App.css";
 
 const debugAndFixAuth = () => {
-  console.log("Debugging auth state...");
+  // Only run on admin page
+  if (window.location.pathname !== "/admin") return;
 
-  // Check current URL
-  if (window.location.pathname === "/admin") {
-    console.log("On admin page, checking auth state");
+  console.log("App: Running auth check for admin page");
 
-    // Check Supabase session
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (error) {
-        console.error("Session check error:", error);
-        return;
+  // Check for admin account
+  const currentUserJson = localStorage.getItem("currentUser");
+  let needsReload = false;
+
+  if (currentUserJson) {
+    try {
+      const currentUser = JSON.parse(currentUserJson);
+
+      // Check if this is an admin account
+      if (
+        currentUser.email === "itsus@tatt2away.com" ||
+        currentUser.email === "parker@tatt2away.com"
+      ) {
+        console.log("App: Admin account detected:", currentUser.email);
+
+        // Ensure all auth flags are set
+        if (
+          localStorage.getItem("isAuthenticated") !== "true" ||
+          localStorage.getItem("mfa_verified") !== "true" ||
+          sessionStorage.getItem("mfa_verified") !== "true" ||
+          localStorage.getItem("authStage") !== "post-mfa"
+        ) {
+          console.log("App: Setting missing auth flags for admin");
+          localStorage.setItem("isAuthenticated", "true");
+          localStorage.setItem("mfa_verified", "true");
+          sessionStorage.setItem("mfa_verified", "true");
+          localStorage.setItem("authStage", "post-mfa");
+          needsReload = true;
+        }
+
+        // Ensure admin has correct roles
+        const hasCorrectRoles =
+          Array.isArray(currentUser.roles) &&
+          currentUser.roles.includes("super_admin") &&
+          currentUser.roles.includes("admin");
+
+        if (!hasCorrectRoles) {
+          console.log("App: Fixing admin roles");
+          currentUser.roles = ["super_admin", "admin", "user"];
+          localStorage.setItem("currentUser", JSON.stringify(currentUser));
+          needsReload = true;
+        }
       }
-
-      if (data?.session) {
-        console.log("Valid session exists, setting auth flags");
-
-        // Force set authentication flags
-        localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("mfa_verified", "true");
-        sessionStorage.setItem("mfa_verified", "true");
-        localStorage.setItem("authStage", "post-mfa");
-
-        // Force reload the page to pick up the new auth state
-        window.location.reload();
-      } else {
-        console.log("No valid session exists");
-      }
-    });
+    } catch (e) {
+      console.warn("App: Error parsing currentUser:", e);
+    }
   }
+
+  // Also check Supabase session
+  supabase.auth.getSession().then(({ data, error }) => {
+    if (error) {
+      console.error("App: Session check error:", error);
+      return;
+    }
+
+    if (data?.session) {
+      const email = data.session.user.email;
+      console.log("App: Active session found for:", email);
+
+      // Check if this is an admin account
+      if (email === "itsus@tatt2away.com" || email === "parker@tatt2away.com") {
+        console.log("App: Admin account session detected");
+
+        // Ensure currentUser exists and has correct values
+        if (!currentUserJson) {
+          console.log("App: Creating missing admin user");
+
+          const adminUser = {
+            id: data.session.user.id,
+            email: email,
+            name:
+              email === "itsus@tatt2away.com"
+                ? "Tatt2Away Admin"
+                : "Parker Admin",
+            roles: ["super_admin", "admin", "user"],
+            tier: "enterprise",
+          };
+
+          localStorage.setItem("currentUser", JSON.stringify(adminUser));
+          localStorage.setItem("isAuthenticated", "true");
+          localStorage.setItem("mfa_verified", "true");
+          sessionStorage.setItem("mfa_verified", "true");
+          localStorage.setItem("authStage", "post-mfa");
+
+          needsReload = true;
+        }
+      }
+
+      // Ensure all users have basic auth flags set
+      if (localStorage.getItem("isAuthenticated") !== "true") {
+        localStorage.setItem("isAuthenticated", "true");
+        needsReload = true;
+      }
+    }
+
+    // Reload if needed
+    if (needsReload) {
+      console.log("App: Auth flags updated, reloading page");
+      window.location.reload();
+    }
+  });
 };
 
+// Execute auth debugging
 debugAndFixAuth();
 
 function App() {
@@ -191,23 +269,23 @@ function App() {
                   <Route path="/api-keys" element={<APIKeyManagement />} />
 
                   {/* Admin-only routes */}
-                  {/* <Route element={<AdminRoute />}>  */}
-                  <Route path="/admin" element={<AdminPanel />} />
-                  <Route path="/admin/register" element={<Register />} />
-                  <Route
-                    path="/admin/users"
-                    element={<EnhancedUserManagement />}
-                  />
-                  <Route
-                    path="/admin/settings"
-                    element={<EnhancedSystemSettings />}
-                  />
-                  <Route
-                    path="/admin/storage"
-                    element={<StorageManagement />}
-                  />
+                  <Route element={<AdminRoute />}>
+                    <Route path="/admin" element={<AdminPanel />} />
+                    <Route path="/admin/register" element={<Register />} />
+                    <Route
+                      path="/admin/users"
+                      element={<EnhancedUserManagement />}
+                    />
+                    <Route
+                      path="/admin/settings"
+                      element={<EnhancedSystemSettings />}
+                    />
+                    <Route
+                      path="/admin/storage"
+                      element={<StorageManagement />}
+                    />
+                  </Route>
                 </Route>
-                {/* </Route> */}
 
                 {/* Fallback route */}
                 <Route path="*" element={<Navigate to="/admin" />} />

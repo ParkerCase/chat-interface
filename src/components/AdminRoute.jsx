@@ -20,6 +20,10 @@ function AdminRoute() {
 
   // Verify authentication and admin rights
   useEffect(() => {
+    // Modify the AdminRoute.jsx component
+    // Add these debug logs to the verifyAdminRights function
+
+    // This is inside the useEffect in AdminRoute.jsx:
     const verifyAdminRights = async () => {
       try {
         console.log("AdminRoute: Verifying authentication and admin rights");
@@ -37,13 +41,39 @@ function AdminRoute() {
         if (storedUser) {
           try {
             const userData = JSON.parse(storedUser);
-            isTestAdmin = userData.email === "itsus@tatt2away.com";
+            console.log("AdminRoute: Parsed user data from localStorage", {
+              email: userData.email,
+              roles: userData.roles,
+            });
+
+            // Add parker@tatt2away.com as a special test admin as well
+            isTestAdmin =
+              userData.email === "itsus@tatt2away.com" ||
+              userData.email === "parker@tatt2away.com";
 
             if (isTestAdmin) {
-              console.log("AdminRoute: Test admin detected");
+              console.log("AdminRoute: Special admin account detected");
               setIsAuthenticated(true);
               setHasAdminRights(true);
               setIsVerifying(false);
+
+              // Ensure admin rights are properly set in localStorage
+              if (!userData.roles || !userData.roles.includes("admin")) {
+                console.log(
+                  "AdminRoute: Fixing admin roles for special admin account"
+                );
+                userData.roles = ["super_admin", "admin", "user"];
+                localStorage.setItem("currentUser", JSON.stringify(userData));
+              }
+
+              // Ensure MFA is verified for admin
+              if (!mfaVerified) {
+                console.log("AdminRoute: Setting MFA verification for admin");
+                localStorage.setItem("mfa_verified", "true");
+                sessionStorage.setItem("mfa_verified", "true");
+                localStorage.setItem("authStage", "post-mfa");
+              }
+
               return;
             }
 
@@ -59,6 +89,11 @@ function AdminRoute() {
                 setHasAdminRights(true);
                 setIsVerifying(false);
                 return;
+              } else {
+                console.log(
+                  "AdminRoute: User doesn't have admin role",
+                  userData.roles
+                );
               }
             }
           } catch (e) {
@@ -67,6 +102,7 @@ function AdminRoute() {
         }
 
         // Double-check session with Supabase
+        console.log("AdminRoute: Checking Supabase session");
         const { data, error } = await supabase.auth.getSession();
 
         if (error) {
@@ -78,10 +114,16 @@ function AdminRoute() {
         }
 
         if (data?.session) {
-          console.log("AdminRoute: Valid session found");
+          console.log(
+            "AdminRoute: Valid session found for",
+            data.session.user.email
+          );
 
           // Check if it's the test admin account
-          if (data.session.user.email === "itsus@tatt2away.com") {
+          if (
+            data.session.user.email === "itsus@tatt2away.com" ||
+            data.session.user.email === "parker@tatt2away.com"
+          ) {
             console.log("AdminRoute: Test admin account detected");
 
             // Set all required flags
@@ -90,38 +132,76 @@ function AdminRoute() {
             sessionStorage.setItem("mfa_verified", "true");
             localStorage.setItem("authStage", "post-mfa");
 
+            // Save admin user info to localStorage if missing
+            if (!storedUser) {
+              const adminUser = {
+                id: data.session.user.id,
+                email: data.session.user.email,
+                name:
+                  data.session.user.email === "itsus@tatt2away.com"
+                    ? "Tatt2Away Admin"
+                    : "Parker Admin",
+                roles: ["super_admin", "admin", "user"],
+                tier: "enterprise",
+              };
+              localStorage.setItem("currentUser", JSON.stringify(adminUser));
+              console.log("AdminRoute: Saved admin user to localStorage");
+            }
+
             setIsAuthenticated(true);
             setHasAdminRights(true);
             setIsVerifying(false);
             return;
           }
 
-          // For OAuth login, check user's roles from profiles table
+          // For other users, check their roles from profiles table
           try {
+            console.log("AdminRoute: Checking user role in profiles table");
             const { data: profileData, error: profileError } = await supabase
               .from("profiles")
               .select("roles")
               .eq("id", data.session.user.id)
               .single();
 
-            if (profileError) {
+            if (
+              profileError &&
+              !profileError.message.includes("no rows found")
+            ) {
               console.error(
                 "AdminRoute: Error fetching profile:",
                 profileError
               );
-              setIsAuthenticated(true);
-              setHasAdminRights(false);
-            } else {
-              const hasAdminRole =
-                profileData.roles?.includes("admin") ||
-                profileData.roles?.includes("super_admin");
-
-              console.log("AdminRoute: User roles:", profileData.roles);
-              console.log("AdminRoute: Has admin rights:", hasAdminRole);
-
-              setIsAuthenticated(true);
-              setHasAdminRights(hasAdminRole);
             }
+
+            const hasAdminRole =
+              profileData?.roles?.includes("admin") ||
+              profileData?.roles?.includes("super_admin");
+
+            console.log(
+              "AdminRoute: User roles from database:",
+              profileData?.roles
+            );
+            console.log("AdminRoute: Has admin rights:", hasAdminRole);
+
+            // Update localStorage with correct roles
+            if (storedUser && profileData?.roles) {
+              try {
+                const userData = JSON.parse(storedUser);
+                if (
+                  JSON.stringify(userData.roles) !==
+                  JSON.stringify(profileData.roles)
+                ) {
+                  console.log("AdminRoute: Updating roles in localStorage");
+                  userData.roles = profileData.roles;
+                  localStorage.setItem("currentUser", JSON.stringify(userData));
+                }
+              } catch (e) {
+                console.warn("Error updating user roles:", e);
+              }
+            }
+
+            setIsAuthenticated(true);
+            setHasAdminRights(hasAdminRole);
           } catch (profileError) {
             console.error("AdminRoute: Profile check error:", profileError);
             setIsAuthenticated(true);
@@ -166,7 +246,7 @@ function AdminRoute() {
   }
 
   // Check if user is authenticated
-  if (!isAuthenticated && !currentUser) {
+  if (loading || isVerifying || (!currentUser && !isAuthenticated)) {
     console.log("AdminRoute: Not authenticated, redirecting to login");
     return (
       <Navigate

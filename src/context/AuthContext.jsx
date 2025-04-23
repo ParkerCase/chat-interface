@@ -218,6 +218,13 @@ export function AuthProvider({ children }) {
   // Check if user has a specific role
   const hasRole = useCallback(
     (role) => {
+      console.log("AuthContext: Checking hasRole", {
+        role,
+        currentUser: currentUser?.email,
+        userRoles: currentUser?.roles,
+        hasRole: currentUser?.roles?.includes(role),
+      });
+
       if (!currentUser || !currentUser.roles) return false;
 
       // Super admin can act as any role
@@ -303,6 +310,7 @@ export function AuthProvider({ children }) {
     const initAuth = async () => {
       try {
         console.log("Initializing auth state");
+        console.log("AuthContext: initAuth - Starting initialization");
 
         // Clear any pending verification email from previous sessions
         const pendingEmail = localStorage.getItem("pendingVerificationEmail");
@@ -320,8 +328,10 @@ export function AuthProvider({ children }) {
         }
 
         if (sessionData?.session) {
-          console.log("Active session found:", sessionData.session.user.email);
-          setSession(sessionData.session);
+          console.log(
+            "AuthContext: Active session found for",
+            sessionData.session.user.email
+          );
 
           // Get user data
           const { data: userData, error: userError } =
@@ -367,11 +377,17 @@ export function AuthProvider({ children }) {
             };
 
             // Special case for admin user
-            if (user.email === "itsus@tatt2away.com") {
-              console.log("Admin user detected - setting admin roles");
+            if (
+              user.email === "itsus@tatt2away.com" ||
+              user.email === "parker@tatt2away.com"
+            ) {
+              console.log(
+                "AuthContext: Admin user detected - setting admin roles"
+              );
               user.roles = ["super_admin", "admin", "user"];
               localStorage.setItem("mfa_verified", "true");
               sessionStorage.setItem("mfa_verified", "true");
+              localStorage.setItem("authStage", "post-mfa");
             }
 
             // Update state
@@ -379,6 +395,16 @@ export function AuthProvider({ children }) {
             setMfaState({
               required: !mfaVerified,
               verified: mfaVerified,
+            });
+
+            // After setting currentUser and before updating localStorage
+            console.log("AuthContext: User state updated", {
+              id: user.id,
+              email: user.email,
+              roles: user.roles,
+              isAdmin:
+                user.roles.includes("admin") ||
+                user.roles.includes("super_admin"),
             });
 
             // Update localStorage
