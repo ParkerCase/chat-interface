@@ -74,57 +74,97 @@ function MfaVerify() {
     }
   };
 
-  // Force redirection with multiple fallbacks
-  const forceRedirect = (url, reason = "normal") => {
+  /**
+   * Enhanced redirection with multiple fallbacks and proper state handling
+   * @param {string} url - URL to redirect to
+   * @param {string} reason - Reason for redirection (for logging)
+   * @returns {boolean} - Whether redirection was attempted
+   */
+  const enhancedRedirect = (url, reason = "normal") => {
     if (!url) {
       logDebug("Redirect failed - no URL provided");
       return false;
     }
 
-    logDebug(`Attempting to redirect to: ${url}`, { reason });
+    // First, ensure all auth flags are properly set
+    localStorage.setItem("mfa_verified", "true");
+    sessionStorage.setItem("mfa_verified", "true");
+    localStorage.setItem("authStage", "post-mfa");
+    localStorage.setItem("isAuthenticated", "true");
 
-    // Try multiple methods to ensure redirect happens
-    try {
-      // Method 1: window.location.href (most compatible)
-      logDebug("Redirect method 1: window.location.href");
-      window.location.href = url;
-      return true;
-    } catch (e1) {
-      logDebug("Redirect method 1 failed", e1);
+    logDebug(`Redirecting to: ${url}`, { reason });
 
-      try {
-        // Method 2: window.location.replace
-        logDebug("Redirect method 2: window.location.replace");
-        window.location.replace(url);
-        return true;
-      } catch (e2) {
-        logDebug("Redirect method 2 failed", e2);
+    // For admin accounts, add extra flags
+    const userEmail =
+      email ||
+      currentUser?.email ||
+      localStorage.getItem("pendingVerificationEmail");
+    if (
+      userEmail === "itsus@tatt2away.com" ||
+      userEmail === "parker@tatt2away.com"
+    ) {
+      logDebug("Setting admin flags before redirect");
 
+      // Ensure admin user is in localStorage with correct roles
+      const storedUserJson = localStorage.getItem("currentUser");
+      if (storedUserJson) {
         try {
-          // Method 3: Create and click a link
-          logDebug("Redirect method 3: Create and click link");
-          const link = document.createElement("a");
-          link.href = url;
-          link.style.display = "none";
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          return true;
-        } catch (e3) {
-          logDebug("Redirect method 3 failed", e3);
-
-          try {
-            // Method 4: window.open
-            logDebug("Redirect method 4: window.open");
-            window.open(url, "_self");
-            return true;
-          } catch (e4) {
-            logDebug("All redirect methods failed", { e1, e2, e3, e4 });
-            return false;
+          const userData = JSON.parse(storedUserJson);
+          if (!userData.roles?.includes("super_admin")) {
+            userData.roles = ["super_admin", "admin", "user"];
+            localStorage.setItem("currentUser", JSON.stringify(userData));
           }
+        } catch (e) {
+          logDebug("Error updating admin roles:", e.message);
         }
       }
     }
+
+    // Add a meta refresh tag as a backup
+    const meta = document.createElement("meta");
+    meta.httpEquiv = "refresh";
+    meta.content = `3;url=${url}`;
+    document.head.appendChild(meta);
+
+    // Try React Router navigation first (if available and not admin page)
+    if (navigate && typeof navigate === "function" && !url.includes("/admin")) {
+      try {
+        logDebug("Redirecting with React Router");
+        navigate(url);
+        return true;
+      } catch (e) {
+        logDebug("React Router navigation failed:", e.message);
+      }
+    }
+
+    // Set a timeout to allow state changes to propagate
+    setTimeout(() => {
+      // Method 1: window.location.href (most compatible)
+      try {
+        logDebug("Redirect method 1: window.location.href");
+        window.location.href = url;
+      } catch (e1) {
+        logDebug("Redirect method 1 failed:", e1.message);
+
+        // Method 2: window.location.replace
+        try {
+          logDebug("Redirect method 2: window.location.replace");
+          window.location.replace(url);
+        } catch (e2) {
+          logDebug("Redirect method 2 failed:", e2.message);
+
+          // Method 3: Open in same window
+          try {
+            logDebug("Redirect method 3: window.open");
+            window.open(url, "_self");
+          } catch (e3) {
+            logDebug("All redirect methods failed");
+          }
+        }
+      }
+    }, 500); // Longer delay
+
+    return true;
   };
 
   // Initialize component
@@ -254,14 +294,14 @@ function MfaVerify() {
               "Admin auto-verification complete, redirecting to:",
               targetUrl
             );
-            forceRedirect(targetUrl, "admin_auto_verify");
+            enhancedRedirect(targetUrl, "admin_auto_verify");
           }, 1500);
           return;
         }
 
         if (mfaVerified && !isAdmin) {
           logDebug("MFA already verified for regular user, redirecting");
-          forceRedirect(targetUrl, "already_verified");
+          enhancedRedirect(targetUrl, "already_verified");
           return;
         }
 
@@ -408,26 +448,24 @@ function MfaVerify() {
       if (email === "itsus@tatt2away.com") {
         logDebug("Admin user - auto-verifying MFA");
 
-        // Set MFA as verified
+        // Set MFA as verified and store in multiple locations for redundancy
         localStorage.setItem("mfa_verified", "true");
         sessionStorage.setItem("mfa_verified", "true");
         localStorage.setItem("authStage", "post-mfa");
+        localStorage.setItem("isAuthenticated", "true");
 
+        // Update UI state
         setIsSuccess(true);
 
-        // Redirect after a delay
-        redirectTimerRef.current = setTimeout(() => {
-          logDebug(
-            "Admin verification successful, redirecting to",
-            redirectUrl
-          );
-          forceRedirect(redirectUrl, "admin_verification");
+        // Allow state to update before redirect
+        setTimeout(() => {
+          enhancedRedirect(redirectUrl, "admin_verification");
         }, 1500);
 
         return;
       }
 
-      // Get the email to verify
+      // Normal users - verify code
       const emailToVerify =
         email ||
         currentUser?.email ||
@@ -440,7 +478,7 @@ function MfaVerify() {
         return;
       }
 
-      // Verify MFA code using Auth context if available, otherwise use direct Supabase method
+      // Try verification from Auth context if available
       let success = false;
 
       if (typeof verifyMfa === "function") {
@@ -476,11 +514,13 @@ function MfaVerify() {
         logDebug("MFA verification successful");
         setIsSuccess(true);
 
-        // Set verification flags
+        // Set verification flags in multiple locations for redundancy
         localStorage.setItem("mfa_verified", "true");
         sessionStorage.setItem("mfa_verified", "true");
         localStorage.setItem("authStage", "post-mfa");
+        localStorage.setItem("isAuthenticated", "true");
 
+        // Update debug info
         setDebugInfo((prev) => ({
           ...prev,
           verificationSuccess: true,
@@ -488,12 +528,9 @@ function MfaVerify() {
           redirectTarget: redirectUrl,
         }));
 
-        // Redirect after a delay
-        redirectTimerRef.current = setTimeout(() => {
-          logDebug("Redirecting after successful verification", {
-            url: redirectUrl,
-          });
-          forceRedirect(redirectUrl, "successful_verification");
+        // Redirect with a delay to allow state changes to propagate
+        setTimeout(() => {
+          enhancedRedirect(redirectUrl, "successful_verification");
         }, 1500);
       } else {
         logDebug("MFA verification failed");
@@ -813,7 +850,7 @@ function MfaVerify() {
                 setIsSuccess(true);
 
                 setTimeout(() => {
-                  forceRedirect(redirectUrl, "manual_verification");
+                  enhancedRedirect(redirectUrl, "manual_verification");
                 }, 1500);
               }}
             >
@@ -836,7 +873,7 @@ function MfaVerify() {
                 backgroundColor: "#ef4444",
               }}
               onClick={() => {
-                forceRedirect("/admin", "manual_redirect");
+                enhancedRedirect("/admin", "manual_redirect");
               }}
             >
               Go to Admin

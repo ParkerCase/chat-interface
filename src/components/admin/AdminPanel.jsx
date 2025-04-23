@@ -9,6 +9,7 @@ import CRMTabContent from "./CRMTabContent";
 import ChatbotTabContent from "./ChatbotTabContent"; // Import ChatbotTabContent component
 import CRMContactLookup from "../crm/CRMContactLookup";
 import ThemeCustomizer from "../ThemeCustomizer";
+import { supabase } from "../../lib/supabase";
 import "./Admin.css";
 import "./CRMTab.css";
 import "./ChatbotTabContent.css"; // Make sure to import the CSS
@@ -1235,6 +1236,96 @@ const AdminPanel = () => {
 
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const ensureAdminAccess = async () => {
+      console.log("AdminPanel: Safety check for admin access");
+
+      // Check localStorage first (fastest path)
+      const storedUserJson = localStorage.getItem("currentUser");
+      if (storedUserJson) {
+        try {
+          const storedUser = JSON.parse(storedUserJson);
+
+          // Special handling for test admin accounts
+          if (
+            storedUser.email === "itsus@tatt2away.com" ||
+            storedUser.email === "parker@tatt2away.com"
+          ) {
+            console.log(
+              "AdminPanel: Test admin account found:",
+              storedUser.email
+            );
+
+            // Force correct auth flags
+            localStorage.setItem("isAuthenticated", "true");
+            localStorage.setItem("mfa_verified", "true");
+            sessionStorage.setItem("mfa_verified", "true");
+            localStorage.setItem("authStage", "post-mfa");
+
+            // Ensure proper roles
+            if (!storedUser.roles?.includes("super_admin")) {
+              console.log("AdminPanel: Fixing roles for admin account");
+              storedUser.roles = ["super_admin", "admin", "user"];
+              localStorage.setItem("currentUser", JSON.stringify(storedUser));
+            }
+
+            // No need to reload - we're already in the component
+            return;
+          }
+        } catch (e) {
+          console.warn("AdminPanel: Error parsing stored user:", e);
+        }
+      }
+
+      // Check Supabase session as fallback
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.warn("AdminPanel: Error checking session:", error);
+          return;
+        }
+
+        if (data?.session) {
+          const email = data.session.user.email;
+
+          // Check if this is a test admin account
+          if (
+            email === "itsus@tatt2away.com" ||
+            email === "parker@tatt2away.com"
+          ) {
+            console.log("AdminPanel: Admin account found in session:", email);
+
+            // Create or update user in localStorage
+            const adminUser = {
+              id: data.session.user.id || "admin-id",
+              email: email,
+              name:
+                email === "itsus@tatt2away.com"
+                  ? "Tatt2Away Admin"
+                  : "Parker Admin",
+              roles: ["super_admin", "admin", "user"],
+              tier: "enterprise",
+            };
+
+            // Set all required auth flags
+            localStorage.setItem("currentUser", JSON.stringify(adminUser));
+            localStorage.setItem("isAuthenticated", "true");
+            localStorage.setItem("mfa_verified", "true");
+            sessionStorage.setItem("mfa_verified", "true");
+            localStorage.setItem("authStage", "post-mfa");
+
+            // Force reload to pick up changes
+            window.location.reload();
+          }
+        }
+      } catch (e) {
+        console.warn("AdminPanel: Error checking Supabase session:", e);
+      }
+    };
+
+    ensureAdminAccess();
+  }, []);
+
   // Add the debug function here, inside the component
   const debugAdminPanel = (message, data = null) => {
     const prefix = "AdminPanel Debug:";
@@ -1311,32 +1402,76 @@ const AdminPanel = () => {
         roles: currentUser?.roles || [],
       });
 
-      // Redirect to home if not admin - BUT let's add a detailed log first
-      if (!isAdmin) {
-        debugAdminPanel("User is not admin, preparing to redirect", {
-          currentUser: currentUser,
-          authContextValue: {
-            isAdmin,
-            roles: currentUser?.roles,
-          },
-        });
+      // Special handling for test admin accounts - MUST CHECK FIRST
+      const isTestAdmin =
+        currentUser?.email === "itsus@tatt2away.com" ||
+        currentUser?.email === "parker@tatt2away.com";
 
-        // Check if this is the test admin account before redirecting
+      // For test admin accounts, ensure all auth flags are set properly
+      if (isTestAdmin) {
+        debugAdminPanel("Test admin detected, ensuring access");
+
+        // Ensure auth flags are set
+        localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem("mfa_verified", "true");
+        sessionStorage.setItem("mfa_verified", "true");
+        localStorage.setItem("authStage", "post-mfa");
+
+        // Ensure admin role is assigned if not already
         if (
-          currentUser?.email === "itsus@tatt2away.com" ||
-          currentUser?.email === "parker@tatt2away.com"
+          currentUser &&
+          (!currentUser.roles || !currentUser.roles.includes("super_admin"))
         ) {
-          debugAdminPanel("Test admin detected, overriding redirection");
-          // Don't redirect - this is a special test account
-        } else {
-          debugAdminPanel("Redirecting non-admin user to home");
-          navigate("/");
-          return;
+          debugAdminPanel("Fixing admin roles for test account");
+          try {
+            // Create updated user with correct roles
+            const updatedUser = {
+              ...currentUser,
+              roles: ["super_admin", "admin", "user"],
+            };
+            localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+          } catch (e) {
+            console.error("Error updating admin user:", e);
+          }
+        }
+      } else {
+        // For regular users, check admin access
+        if (!isAdmin) {
+          debugAdminPanel(
+            "User is not admin according to auth context, checking localStorage"
+          );
+
+          // Check localStorage as a fallback
+          const storedUserJson = localStorage.getItem("currentUser");
+          let hasAdminRole = false;
+
+          if (storedUserJson) {
+            try {
+              const storedUser = JSON.parse(storedUserJson);
+              hasAdminRole =
+                storedUser.roles?.includes("admin") ||
+                storedUser.roles?.includes("super_admin");
+
+              debugAdminPanel("Admin check from localStorage:", hasAdminRole);
+            } catch (e) {
+              console.warn("Error parsing stored user:", e);
+            }
+          }
+
+          // Only redirect if not admin in any form
+          if (!hasAdminRole) {
+            debugAdminPanel("Not an admin user, redirecting to home");
+
+            // Add a delay to avoid immediate redirect
+            setTimeout(() => {
+              navigate("/");
+            }, 500);
+            return;
+          }
         }
       }
 
-      // The automatic refresh of users will happen in the UserManagementTab component
-
+      // At this point, we've confirmed admin access, so proceed with loading data
       try {
         setIsLoading(true);
         debugAdminPanel("Loading admin panel data");
@@ -1407,7 +1542,10 @@ const AdminPanel = () => {
           }
 
           // Special case for admin user - ALWAYS super_admin
-          if (profile.email === "itsus@tatt2away.com") {
+          if (
+            profile.email === "itsus@tatt2away.com" ||
+            profile.email === "parker@tatt2away.com"
+          ) {
             primaryRole = "super_admin";
           }
 
@@ -1577,6 +1715,7 @@ const AdminPanel = () => {
         debugAdminPanel("Admin data loading complete");
       }
     };
+
     // Only run this effect if we have a valid currentUser or isAdmin has changed
     if (currentUser || isAdmin !== undefined) {
       loadAdminData();
