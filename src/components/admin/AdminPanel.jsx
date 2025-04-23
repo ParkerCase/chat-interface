@@ -1235,6 +1235,16 @@ const AdminPanel = () => {
 
   const navigate = useNavigate();
 
+  // Add the debug function here, inside the component
+  const debugAdminPanel = (message, data = null) => {
+    const prefix = "AdminPanel Debug:";
+    if (data) {
+      console.log(`${prefix} ${message}`, data);
+    } else {
+      console.log(`${prefix} ${message}`);
+    }
+  };
+
   // Updated ensureAdminUser function with fallback for AdminPanel.jsx
   const ensureAdminUser = async () => {
     try {
@@ -1294,20 +1304,48 @@ const AdminPanel = () => {
   // Load admin data
   useEffect(() => {
     const loadAdminData = async () => {
-      // Redirect to home if not admin
+      // Add debug logging
+      debugAdminPanel("Component mounting", {
+        isAdmin,
+        currentUser: currentUser?.email,
+        roles: currentUser?.roles || [],
+      });
+
+      // Redirect to home if not admin - BUT let's add a detailed log first
       if (!isAdmin) {
-        navigate("/");
-        return;
+        debugAdminPanel("User is not admin, preparing to redirect", {
+          currentUser: currentUser,
+          authContextValue: {
+            isAdmin,
+            roles: currentUser?.roles,
+          },
+        });
+
+        // Check if this is the test admin account before redirecting
+        if (
+          currentUser?.email === "itsus@tatt2away.com" ||
+          currentUser?.email === "parker@tatt2away.com"
+        ) {
+          debugAdminPanel("Test admin detected, overriding redirection");
+          // Don't redirect - this is a special test account
+        } else {
+          debugAdminPanel("Redirecting non-admin user to home");
+          navigate("/");
+          return;
+        }
       }
 
       // The automatic refresh of users will happen in the UserManagementTab component
 
       try {
         setIsLoading(true);
+        debugAdminPanel("Loading admin panel data");
+
         console.log("Loading admin panel data");
 
         // Set current user profile
         setUserProfile(currentUser);
+        debugAdminPanel("User profile set", currentUser);
 
         // Ensure admin user exists in database
         try {
@@ -1536,10 +1574,17 @@ const AdminPanel = () => {
         }
       } finally {
         setIsLoading(false);
+        debugAdminPanel("Admin data loading complete");
       }
     };
-
-    loadAdminData();
+    // Only run this effect if we have a valid currentUser or isAdmin has changed
+    if (currentUser || isAdmin !== undefined) {
+      loadAdminData();
+    } else {
+      debugAdminPanel(
+        "Skipping loadAdminData - no currentUser or isAdmin is undefined"
+      );
+    }
   }, [isAdmin, navigate, currentUser]);
 
   // Format date
