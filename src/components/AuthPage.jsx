@@ -4,7 +4,7 @@ import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { supabase } from "../lib/supabase";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
-import { AlertCircle, Info, CheckCircle } from "lucide-react";
+import { AlertCircle, Info, CheckCircle, Loader } from "lucide-react";
 import "./auth.css";
 
 const AuthPage = () => {
@@ -18,9 +18,12 @@ const AuthPage = () => {
 
   // Extract query parameters
   useEffect(() => {
+    console.log("Auth page initialized");
+
     // Get return URL if present
     const redirectPath = searchParams.get("returnUrl") || "/admin";
     setReturnUrl(redirectPath);
+    console.log("Return URL:", redirectPath);
 
     // Check for password changed notification
     const passwordChanged = searchParams.get("passwordChanged") === "true";
@@ -48,15 +51,21 @@ const AuthPage = () => {
     const checkSessionAndRedirect = async () => {
       try {
         setIsLoading(true);
+        console.log("Checking for existing session");
+
         const { data, error } = await supabase.auth.getSession();
 
         if (error) {
           console.error("Session check error:", error);
+          setIsLoading(false);
           return;
         }
 
         if (data?.session) {
-          console.log("Session exists, checking MFA requirements");
+          console.log(
+            "Session exists, checking MFA requirements for",
+            data.session.user.email
+          );
 
           // Check if MFA is required but not verified
           const mfaVerified =
@@ -65,21 +74,39 @@ const AuthPage = () => {
 
           const authStage = localStorage.getItem("authStage") || "pre-mfa";
 
+          // For test admin, allow bypassing MFA
+          const isTestAdmin = data.session.user.email === "itsus@tatt2away.com";
+          if (isTestAdmin) {
+            console.log("Test admin detected - bypassing MFA");
+            localStorage.setItem("mfa_verified", "true");
+            sessionStorage.setItem("mfa_verified", "true");
+            localStorage.setItem("authStage", "post-mfa");
+            localStorage.setItem("isAuthenticated", "true");
+
+            console.log(`Redirecting admin to ${returnUrl}`);
+            window.location.href = returnUrl;
+            return;
+          }
+
           if (authStage === "pre-mfa" && !mfaVerified) {
             console.log(
               "MFA required but not verified, redirecting to verification"
             );
-            navigate(`/mfa/verify?returnUrl=${encodeURIComponent(returnUrl)}`);
+            window.location.href = `/mfa/verify?returnUrl=${encodeURIComponent(
+              returnUrl
+            )}&email=${encodeURIComponent(data.session.user.email)}`;
             return;
           }
 
           // If MFA is verified or not required, redirect to the requested page
           console.log(`MFA status is OK, redirecting to ${returnUrl}`);
-          navigate(returnUrl);
+          window.location.href = returnUrl;
+          return;
         }
+
+        setIsLoading(false);
       } catch (err) {
         console.error("Session check error:", err);
-      } finally {
         setIsLoading(false);
       }
     };
@@ -88,16 +115,34 @@ const AuthPage = () => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log(`Auth state change: ${event}`);
+      console.log(`Auth state change in AuthPage: ${event}`);
 
       if (event === "SIGNED_IN" && session) {
+        console.log("SIGNED_IN event in AuthPage, user:", session.user.email);
+
         // Set needed flags
         localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("authStage", "pre-mfa"); // Default to requiring MFA
+
+        // Special case for test admin user
+        if (session.user.email === "itsus@tatt2away.com") {
+          console.log("Test admin signed in - setting MFA as verified");
+          localStorage.setItem("mfa_verified", "true");
+          sessionStorage.setItem("mfa_verified", "true");
+          localStorage.setItem("authStage", "post-mfa");
+
+          console.log("Redirecting admin to admin panel");
+          window.location.href = "/admin";
+          return;
+        } else {
+          // For regular users, set pre-MFA stage
+          localStorage.setItem("authStage", "pre-mfa");
+        }
 
         // Redirect to MFA verification
         console.log("SIGNED_IN via listener, redirecting to MFA verification");
-        navigate(`/mfa/verify?returnUrl=${encodeURIComponent(returnUrl)}`);
+        window.location.href = `/mfa/verify?returnUrl=${encodeURIComponent(
+          returnUrl
+        )}&email=${encodeURIComponent(session.user.email)}`;
       }
     });
 
@@ -107,6 +152,22 @@ const AuthPage = () => {
       subscription.unsubscribe();
     };
   }, [navigate, returnUrl]);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="auth-layout">
+        <div className="auth-container">
+          <div className="auth-content">
+            <div className="auth-loading">
+              <Loader className="spinner" size={36} />
+              <p>Checking authentication status...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-layout">
@@ -167,6 +228,8 @@ const AuthPage = () => {
             queryParams={{
               returnTo: returnUrl,
             }}
+            onlyThirdPartyProviders={false}
+            magicLink={false}
           />
         </div>
 
