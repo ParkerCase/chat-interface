@@ -1,4 +1,4 @@
-// src/App.jsx (Simplified)
+// src/App.jsx
 import React, { useState, useEffect } from "react";
 import {
   BrowserRouter as Router,
@@ -7,8 +7,7 @@ import {
   Navigate,
 } from "react-router-dom";
 
-// Context providers
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
 
 // Auth components
@@ -18,7 +17,6 @@ import SSOCallback from "./components/auth/SSOCallback";
 import EnhancedPasswordReset from "./components/auth/EnhancedPasswordReset";
 import ResetPasswordPage from "./components/auth/ResetPasswordPage";
 import AccountPage from "./components/account/AccountPage";
-import { supabase } from "./lib/supabase";
 
 // Route protection
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -42,37 +40,35 @@ import APIKeyManagement from "./components/APIKeyManagement";
 // Error handling
 import ErrorBoundary from "./components/ErrorBoundary";
 
+import { supabase } from "./lib/supabase";
 import "./App.css";
 
-const debugAndFixAuth = () => {
-  // Only run on admin page
-  if (window.location.pathname !== "/admin") return;
+// Enhanced auth state verification and repair
+const ensureAuthState = () => {
+  console.log("Running enhanced auth state verification");
 
-  console.log("App: Running auth check for admin page");
-
-  // Check for admin account
-  const currentUserJson = localStorage.getItem("currentUser");
+  const isAdminPage = window.location.pathname.startsWith("/admin");
   let needsReload = false;
+  const currentUserJson = localStorage.getItem("currentUser");
 
   if (currentUserJson) {
     try {
       const currentUser = JSON.parse(currentUserJson);
+      console.log("Found user in localStorage:", currentUser.email);
 
-      // Check if this is an admin account
       if (
         currentUser.email === "itsus@tatt2away.com" ||
         currentUser.email === "parker@tatt2away.com"
       ) {
-        console.log("App: Admin account detected:", currentUser.email);
+        console.log("Admin account detected:", currentUser.email);
 
-        // Ensure all auth flags are set
         if (
           localStorage.getItem("isAuthenticated") !== "true" ||
           localStorage.getItem("mfa_verified") !== "true" ||
           sessionStorage.getItem("mfa_verified") !== "true" ||
           localStorage.getItem("authStage") !== "post-mfa"
         ) {
-          console.log("App: Setting missing auth flags for admin");
+          console.log("Setting required auth flags for admin account");
           localStorage.setItem("isAuthenticated", "true");
           localStorage.setItem("mfa_verified", "true");
           sessionStorage.setItem("mfa_verified", "true");
@@ -80,101 +76,100 @@ const debugAndFixAuth = () => {
           needsReload = true;
         }
 
-        // Ensure admin has correct roles
         const hasCorrectRoles =
           Array.isArray(currentUser.roles) &&
           currentUser.roles.includes("super_admin") &&
-          currentUser.roles.includes("admin");
+          currentUser.roles.includes("admin") &&
+          currentUser.roles.includes("user");
 
         if (!hasCorrectRoles) {
-          console.log("App: Fixing admin roles");
+          console.log("Fixing admin roles");
           currentUser.roles = ["super_admin", "admin", "user"];
           localStorage.setItem("currentUser", JSON.stringify(currentUser));
           needsReload = true;
         }
       }
     } catch (e) {
-      console.warn("App: Error parsing currentUser:", e);
+      console.warn("Error parsing currentUser:", e);
     }
   }
 
-  // Also check Supabase session
-  supabase.auth.getSession().then(({ data, error }) => {
-    if (error) {
-      console.error("App: Session check error:", error);
-      return;
-    }
+  const checkSupabaseSession = async () => {
+    try {
+      const { data, error } = await supabase.auth.getSession();
 
-    if (data?.session) {
-      const email = data.session.user.email;
-      console.log("App: Active session found for:", email);
+      if (error) {
+        console.error("Session check error:", error);
+        return;
+      }
 
-      // Check if this is an admin account
-      if (email === "itsus@tatt2away.com" || email === "parker@tatt2away.com") {
-        console.log("App: Admin account session detected");
+      if (data?.session) {
+        const email = data.session.user.email;
+        console.log("Active session found for:", email);
 
-        // Ensure currentUser exists and has correct values
-        if (!currentUserJson) {
-          console.log("App: Creating missing admin user");
+        if (
+          email === "itsus@tatt2away.com" ||
+          email === "parker@tatt2away.com"
+        ) {
+          console.log("Admin account session detected");
 
-          const adminUser = {
-            id: data.session.user.id,
-            email: email,
-            name:
-              email === "itsus@tatt2away.com"
-                ? "Tatt2Away Admin"
-                : "Parker Admin",
-            roles: ["super_admin", "admin", "user"],
-            tier: "enterprise",
-          };
+          if (!currentUserJson) {
+            console.log("Creating admin user in localStorage");
 
-          localStorage.setItem("currentUser", JSON.stringify(adminUser));
+            const adminUser = {
+              id: data.session.user.id,
+              email: email,
+              name:
+                email === "itsus@tatt2away.com"
+                  ? "Tatt2Away Admin"
+                  : "Parker Admin",
+              roles: ["super_admin", "admin", "user"],
+              tier: "enterprise",
+            };
+
+            localStorage.setItem("currentUser", JSON.stringify(adminUser));
+            localStorage.setItem("isAuthenticated", "true");
+            localStorage.setItem("mfa_verified", "true");
+            sessionStorage.setItem("mfa_verified", "true");
+            localStorage.setItem("authStage", "post-mfa");
+
+            needsReload = true;
+          }
+        }
+
+        if (localStorage.getItem("isAuthenticated") !== "true") {
           localStorage.setItem("isAuthenticated", "true");
-          localStorage.setItem("mfa_verified", "true");
-          sessionStorage.setItem("mfa_verified", "true");
-          localStorage.setItem("authStage", "post-mfa");
-
-          needsReload = true;
+          needsReload = isAdminPage;
         }
       }
 
-      // Ensure all users have basic auth flags set
-      if (localStorage.getItem("isAuthenticated") !== "true") {
-        localStorage.setItem("isAuthenticated", "true");
-        needsReload = true;
+      if (needsReload && isAdminPage) {
+        console.log("Auth state fixed, reloading page");
+        setTimeout(() => window.location.reload(), 100);
       }
+    } catch (err) {
+      console.error("Error checking Supabase session:", err);
     }
+  };
 
-    // Reload if needed
-    if (needsReload) {
-      console.log("App: Auth flags updated, reloading page");
-      window.location.reload();
-    }
-  });
+  checkSupabaseSession();
 };
 
-// Execute auth debugging
-debugAndFixAuth();
+if (typeof window !== "undefined") {
+  ensureAuthState();
+}
 
-function App() {
-  // Check if we're in an out-of-memory situation
+function AppContent() {
+  const { isInitialized, loading } = useAuth();
   const [outOfMemory, setOutOfMemory] = useState(false);
 
-  // Handle out of memory errors
   useEffect(() => {
     const handleOutOfMemory = () => {
       console.error("Out of memory error detected");
       setOutOfMemory(true);
-
-      // Attempt cleanup
       try {
-        // Clear any large objects from local storage
         localStorage.removeItem("imageCache");
-
-        // Force garbage collection if possible
-        if (window.gc) {
-          window.gc();
-        }
+        if (window.gc) window.gc();
       } catch (e) {
         console.error("Cleanup failed:", e);
       }
@@ -195,104 +190,89 @@ function App() {
     };
   }, []);
 
-  // If we detected an out of memory condition, show a helpful message
   if (outOfMemory) {
     return (
       <div className="memory-error-container">
         <div className="memory-error-message">
           <h2>Out of Memory Error</h2>
-          <p>
-            The application has encountered a memory limitation. This might be
-            due to:
-          </p>
-          <ul>
-            <li>Processing very large files</li>
-            <li>Having too many browser tabs open</li>
-            <li>Running other memory-intensive applications</li>
-          </ul>
-          <p>Please try:</p>
-          <ul>
-            <li>Refreshing the page</li>
-            <li>Closing other browser tabs</li>
-            <li>Using smaller files</li>
-            <li>Restarting your browser</li>
-          </ul>
+          <p>The application has encountered a memory limitation.</p>
           <button onClick={() => window.location.reload()}>Refresh Page</button>
         </div>
       </div>
     );
   }
 
+  if (!isInitialized || loading) {
+    return (
+      <div className="auth-loading-screen">
+        <p>Initializing authentication...</p>
+      </div>
+    );
+  }
+
+  return (
+    <Router>
+      <NotificationProvider>
+        <div className="app-container">
+          <Routes>
+            <Route path="/login" element={<AuthPage />} />
+            <Route
+              path="/forgot-password"
+              element={<EnhancedPasswordReset />}
+            />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/auth/callback" element={<SSOCallback />} />
+            <Route path="/mfa/verify" element={<MfaVerify />} />
+            <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<Navigate to="/admin" replace />} />
+              <Route path="/profile" element={<AccountPage tab="profile" />} />
+              <Route
+                path="/security"
+                element={<AccountPage tab="security" />}
+              />
+              <Route
+                path="/sessions"
+                element={<AccountPage tab="sessions" />}
+              />
+              <Route
+                path="/analytics"
+                element={<EnhancedAnalyticsDashboard />}
+              />
+              <Route path="/workflows" element={<WorkflowManagement />} />
+              <Route path="/integrations" element={<IntegrationSettings />} />
+              <Route path="/alerts" element={<AlertsManagement />} />
+              <Route path="/api-keys" element={<APIKeyManagement />} />
+
+              <Route element={<AdminRoute />}>
+                <Route path="/admin" element={<AdminPanel />} />
+                <Route path="/admin/register" element={<Register />} />
+                <Route
+                  path="/admin/users"
+                  element={<EnhancedUserManagement />}
+                />
+                <Route
+                  path="/admin/settings"
+                  element={<EnhancedSystemSettings />}
+                />
+                <Route path="/admin/storage" element={<StorageManagement />} />
+              </Route>
+            </Route>
+
+            <Route path="*" element={<Navigate to="/admin" />} />
+          </Routes>
+        </div>
+      </NotificationProvider>
+    </Router>
+  );
+}
+
+function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <Router>
-          <NotificationProvider>
-            <div className="app-container">
-              <Routes>
-                {/* Public routes */}
-                <Route path="/login" element={<AuthPage />} />
-                <Route
-                  path="/forgot-password"
-                  element={<EnhancedPasswordReset />}
-                />
-                <Route path="/reset-password" element={<ResetPasswordPage />} />
-                <Route path="/auth/callback" element={<SSOCallback />} />
-                <Route path="/mfa/verify" element={<MfaVerify />} />
-                <Route path="/unauthorized" element={<UnauthorizedPage />} />
-
-                {/* Protected routes that require authentication */}
-                <Route element={<ProtectedRoute />}>
-                  <Route path="/" element={<Navigate to="/admin" replace />} />
-                  <Route
-                    path="/profile"
-                    element={<AccountPage tab="profile" />}
-                  />
-                  <Route
-                    path="/security"
-                    element={<AccountPage tab="security" />}
-                  />
-                  <Route
-                    path="/sessions"
-                    element={<AccountPage tab="sessions" />}
-                  />
-                  <Route
-                    path="/analytics"
-                    element={<EnhancedAnalyticsDashboard />}
-                  />
-                  <Route path="/workflows" element={<WorkflowManagement />} />
-                  <Route
-                    path="/integrations"
-                    element={<IntegrationSettings />}
-                  />
-                  <Route path="/alerts" element={<AlertsManagement />} />
-                  <Route path="/api-keys" element={<APIKeyManagement />} />
-
-                  {/* Admin-only routes */}
-                  <Route element={<AdminRoute />}>
-                    <Route path="/admin" element={<AdminPanel />} />
-                    <Route path="/admin/register" element={<Register />} />
-                    <Route
-                      path="/admin/users"
-                      element={<EnhancedUserManagement />}
-                    />
-                    <Route
-                      path="/admin/settings"
-                      element={<EnhancedSystemSettings />}
-                    />
-                    <Route
-                      path="/admin/storage"
-                      element={<StorageManagement />}
-                    />
-                  </Route>
-                </Route>
-
-                {/* Fallback route */}
-                <Route path="*" element={<Navigate to="/admin" />} />
-              </Routes>
-            </div>
-          </NotificationProvider>
-        </Router>
+        <AppContent />
       </AuthProvider>
     </ErrorBoundary>
   );
