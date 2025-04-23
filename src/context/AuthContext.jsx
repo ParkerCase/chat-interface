@@ -328,14 +328,33 @@ export function AuthProvider({ children }) {
           const { data: userData } = await supabase.auth.getUser();
           if (!userData?.user) throw new Error("No user returned");
 
-          const { data: profileData, error: profileError } = await supabase
+          let { data: profileData, error: profileError } = await supabase
             .from("profiles")
             .select("*")
             .eq("id", userData.user.id)
             .single();
 
-          if (profileError && !profileError.message.includes("No rows found")) {
-            throw profileError;
+          if (profileError && profileError.message.includes("No rows found")) {
+            await supabase.from("profiles").insert({
+              id: userData.user.id,
+              email: userData.user.email,
+              full_name: userData.user.email,
+              roles: ["admin"],
+              created_at: new Date().toISOString(),
+            });
+
+            // ✅ Re-fetch the profile so profileData is no longer undefined
+            const { data: freshProfile } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", userData.user.id)
+              .single();
+
+            profileData = freshProfile;
+          }
+
+          if (!profileData) {
+            throw new Error("🚨 profileData is still undefined after fetch.");
           }
 
           const mfaVerified =
@@ -353,6 +372,9 @@ export function AuthProvider({ children }) {
             tier: profileData?.tier || "enterprise",
             mfaVerified,
           };
+
+          console.log("✅ Fully constructed user object:", user);
+          localStorage.setItem("currentUser", JSON.stringify(user));
 
           if (
             user.email === "itsus@tatt2away.com" ||
@@ -408,25 +430,38 @@ export function AuthProvider({ children }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session) {
         try {
+          // Step 1: Get the user from Supabase
           const { data: userData } = await supabase.auth.getUser();
           if (!userData?.user) throw new Error("No user returned");
 
-          const { data: profileData, error: profileError } = await supabase
+          // Step 2: Get or create the user's profile
+          let { data: profileData, error: profileError } = await supabase
             .from("profiles")
             .select("*")
             .eq("id", userData.user.id)
             .single();
 
           if (profileError && profileError.message.includes("No rows found")) {
+            // Profile doesn't exist — create it
             await supabase.from("profiles").insert({
               id: userData.user.id,
               email: userData.user.email,
               full_name: userData.user.email,
-              roles: ["admin"],
+              roles: ["admin"], // Default to admin
               created_at: new Date().toISOString(),
             });
+
+            // ✅ Fetch the newly created profile
+            const { data: freshProfile } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", userData.user.id)
+              .single();
+
+            profileData = freshProfile;
           }
 
+          // Step 3: Build the user object
           const roles = profileData?.roles || ["admin"];
           const user = {
             id: userData.user.id,
@@ -438,6 +473,7 @@ export function AuthProvider({ children }) {
             tier: profileData?.tier || "enterprise",
           };
 
+          // Step 4: Set MFA flags
           if (
             userData.user.app_metadata?.provider &&
             userData.user.app_metadata.provider !== "email"
@@ -451,16 +487,19 @@ export function AuthProvider({ children }) {
             setMfaState({ required: true, verified: false });
           }
 
+          // Step 5: Save user in context and localStorage
+          console.log("🧠 Saving user to localStorage:", user);
           setCurrentUser(user);
           setSession(session);
           localStorage.setItem("currentUser", JSON.stringify(user));
           localStorage.setItem("isAuthenticated", "true");
 
+          // Step 6: Reload to trigger AdminRoute rerender
           if (roles.includes("admin") || roles.includes("super_admin")) {
             window.location.reload();
           }
         } catch (err) {
-          console.error("Error during SIGNED_IN handling:", err);
+          console.error("❌ Error during SIGNED_IN handling:", err);
         }
       } else if (event === "SIGNED_OUT") {
         setCurrentUser(null);
