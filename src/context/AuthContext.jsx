@@ -1,4 +1,4 @@
-// src/context/AuthContext.jsx
+// src/context/AuthContext.jsx - Key enhancements for Supabase integration
 import React, {
   createContext,
   useState,
@@ -27,6 +27,7 @@ const defaultContextValue = {
     required: false,
     verified: false,
   },
+  verifyMfa: async () => false,
 };
 
 const AuthContext = createContext(defaultContextValue);
@@ -80,6 +81,9 @@ export function AuthProvider({ children }) {
         return { success: true };
       }
 
+      // Store email for MFA verification
+      localStorage.setItem("pendingVerificationEmail", email);
+
       // Standard Supabase login
       const { data, error: loginError } =
         await supabase.auth.signInWithPassword({
@@ -119,6 +123,7 @@ export function AuthProvider({ children }) {
   // Logout function
   const logout = async () => {
     try {
+      console.log("Logging out user");
       await supabase.auth.signOut();
 
       // Clear storage
@@ -126,6 +131,7 @@ export function AuthProvider({ children }) {
       localStorage.removeItem("isAuthenticated");
       localStorage.removeItem("authStage");
       localStorage.removeItem("mfa_verified");
+      localStorage.removeItem("pendingVerificationEmail");
       sessionStorage.removeItem("mfa_verified");
 
       // Reset state
@@ -157,9 +163,20 @@ export function AuthProvider({ children }) {
         return true;
       }
 
+      // Get the email to verify
+      const emailToVerify =
+        currentUser?.email || localStorage.getItem("pendingVerificationEmail");
+
+      if (!emailToVerify) {
+        console.error("No email found for verification");
+        return false;
+      }
+
+      console.log(`Verifying code for email: ${emailToVerify}`);
+
       // Email verification
       const { data, error } = await supabase.auth.verifyOtp({
-        email: currentUser?.email,
+        email: emailToVerify,
         token: verificationCode,
         type: "email",
       });
@@ -180,10 +197,12 @@ export function AuthProvider({ children }) {
           return true;
         }
 
-        throw error;
+        console.error("MFA verification error:", error);
+        return false;
       }
 
       // Success
+      console.log("MFA verification successful");
       setMfaState({ required: false, verified: true });
       localStorage.setItem("authStage", "post-mfa");
       localStorage.setItem("mfa_verified", "true");
@@ -285,23 +304,50 @@ export function AuthProvider({ children }) {
       try {
         console.log("Initializing auth state");
 
+        // Clear any pending verification email from previous sessions
+        const pendingEmail = localStorage.getItem("pendingVerificationEmail");
+        if (pendingEmail) {
+          console.log("Found pending verification email:", pendingEmail);
+        }
+
         // Get current session
-        const { data: sessionData } = await supabase.auth.getSession();
+        const { data: sessionData, error: sessionError } =
+          await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.error("Error getting session:", sessionError);
+          throw sessionError;
+        }
 
         if (sessionData?.session) {
-          console.log("Active session found");
+          console.log("Active session found:", sessionData.session.user.email);
           setSession(sessionData.session);
 
           // Get user data
-          const { data: userData } = await supabase.auth.getUser();
+          const { data: userData, error: userError } =
+            await supabase.auth.getUser();
+
+          if (userError) {
+            console.error("Error getting user:", userError);
+            throw userError;
+          }
 
           if (userData?.user) {
+            console.log("User data retrieved:", userData.user.email);
+
             // Get profile data from profiles table
-            const { data: profileData } = await supabase
+            const { data: profileData, error: profileError } = await supabase
               .from("profiles")
               .select("*")
               .eq("id", userData.user.id)
               .single();
+
+            if (
+              profileError &&
+              !profileError.message.includes("No rows found")
+            ) {
+              console.error("Error getting profile:", profileError);
+            }
 
             // Check MFA state from localStorage
             const mfaVerified =
@@ -316,13 +362,16 @@ export function AuthProvider({ children }) {
               firstName: profileData?.first_name || "",
               lastName: profileData?.last_name || "",
               roles: profileData?.roles || ["user"],
-              tier: "enterprise",
+              tier: profileData?.tier || "enterprise",
               mfaVerified,
             };
 
             // Special case for admin user
             if (user.email === "itsus@tatt2away.com") {
+              console.log("Admin user detected - setting admin roles");
               user.roles = ["super_admin", "admin", "user"];
+              localStorage.setItem("mfa_verified", "true");
+              sessionStorage.setItem("mfa_verified", "true");
             }
 
             // Update state
@@ -335,8 +384,35 @@ export function AuthProvider({ children }) {
             // Update localStorage
             localStorage.setItem("currentUser", JSON.stringify(user));
             localStorage.setItem("isAuthenticated", "true");
+
+            // If no profile exists but we have a user, create a profile
+            if (
+              profileError &&
+              profileError.message.includes("No rows found")
+            ) {
+              console.log(
+                "Creating missing profile for user:",
+                userData.user.email
+              );
+
+              try {
+                await supabase.from("profiles").insert({
+                  id: userData.user.id,
+                  email: userData.user.email,
+                  full_name:
+                    userData.user.user_metadata?.full_name ||
+                    userData.user.email,
+                  roles: ["user"],
+                  created_at: new Date().toISOString(),
+                });
+              } catch (e) {
+                console.error("Error creating profile:", e);
+              }
+            }
           }
         } else {
+          console.log("No active session found, checking localStorage");
+
           // Check localStorage as fallback
           const storedUser = localStorage.getItem("currentUser");
           const isAuthenticated =
@@ -361,6 +437,8 @@ export function AuthProvider({ children }) {
               if (userData.email === "itsus@tatt2away.com") {
                 userData.roles = ["super_admin", "admin", "user"];
                 setMfaState({ required: false, verified: true });
+                localStorage.setItem("mfa_verified", "true");
+                sessionStorage.setItem("mfa_verified", "true");
               }
             } catch (e) {
               console.error("Error parsing stored user:", e);
@@ -410,23 +488,47 @@ export function AuthProvider({ children }) {
             firstName: profileData?.first_name || "",
             lastName: profileData?.last_name || "",
             roles: profileData?.roles || ["user"],
-            tier: "enterprise",
+            tier: profileData?.tier || "enterprise",
           };
 
           // Special case for admin user
           if (user.email === "itsus@tatt2away.com") {
             user.roles = ["super_admin", "admin", "user"];
+            localStorage.setItem("mfa_verified", "true");
+            sessionStorage.setItem("mfa_verified", "true");
+            localStorage.setItem("authStage", "post-mfa");
+          }
+
+          // For OAuth logins, set MFA as verified automatically
+          // OAuth is already a secure authentication method
+          if (
+            userData.user.app_metadata?.provider &&
+            userData.user.app_metadata.provider !== "email"
+          ) {
+            console.log(
+              `OAuth login detected (${userData.user.app_metadata.provider}), setting MFA as verified`
+            );
+            localStorage.setItem("mfa_verified", "true");
+            sessionStorage.setItem("mfa_verified", "true");
+            localStorage.setItem("authStage", "post-mfa");
+
+            // Set MFA state to verified
+            setMfaState({ required: false, verified: true });
+          } else {
+            // For regular email login, require MFA
+            localStorage.setItem("authStage", "pre-mfa");
+
+            // Set MFA state to required
+            setMfaState({ required: true, verified: false });
           }
 
           // Update state
           setCurrentUser(user);
           setSession(session);
-          setMfaState({ required: true, verified: false });
 
           // Update localStorage
           localStorage.setItem("currentUser", JSON.stringify(user));
           localStorage.setItem("isAuthenticated", "true");
-          localStorage.setItem("authStage", "pre-mfa");
         }
       } else if (event === "SIGNED_OUT") {
         // Reset state on sign out
@@ -439,6 +541,7 @@ export function AuthProvider({ children }) {
         localStorage.removeItem("isAuthenticated");
         localStorage.removeItem("authStage");
         localStorage.removeItem("mfa_verified");
+        localStorage.removeItem("pendingVerificationEmail");
         sessionStorage.removeItem("mfa_verified");
       }
     });

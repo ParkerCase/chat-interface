@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
-import { debugAuth } from "../../utils/authDebug";
 import { useAuth } from "../../context/AuthContext";
 import {
   User,
@@ -134,8 +133,6 @@ const EnhancedUserManagement = () => {
     try {
       setLoading(true);
       setError(null);
-
-      debugAuth.log("UserManagement", "Fetching users from Supabase");
 
       // Get user auth data first
       const { data: authData, error: authError } =

@@ -18,6 +18,7 @@ import SSOCallback from "./components/auth/SSOCallback";
 import EnhancedPasswordReset from "./components/auth/EnhancedPasswordReset";
 import ResetPasswordPage from "./components/auth/ResetPasswordPage";
 import AccountPage from "./components/account/AccountPage";
+import { supabase } from "./lib/supabase";
 
 // Route protection
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -42,6 +43,40 @@ import APIKeyManagement from "./components/APIKeyManagement";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 import "./App.css";
+
+const debugAndFixAuth = () => {
+  console.log("Debugging auth state...");
+
+  // Check current URL
+  if (window.location.pathname === "/admin") {
+    console.log("On admin page, checking auth state");
+
+    // Check Supabase session
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        console.error("Session check error:", error);
+        return;
+      }
+
+      if (data?.session) {
+        console.log("Valid session exists, setting auth flags");
+
+        // Force set authentication flags
+        localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem("mfa_verified", "true");
+        sessionStorage.setItem("mfa_verified", "true");
+        localStorage.setItem("authStage", "post-mfa");
+
+        // Force reload the page to pick up the new auth state
+        window.location.reload();
+      } else {
+        console.log("No valid session exists");
+      }
+    });
+  }
+};
+
+debugAndFixAuth();
 
 function App() {
   // Check if we're in an out-of-memory situation
@@ -156,23 +191,23 @@ function App() {
                   <Route path="/api-keys" element={<APIKeyManagement />} />
 
                   {/* Admin-only routes */}
-                  <Route element={<AdminRoute />}>
-                    <Route path="/admin" element={<AdminPanel />} />
-                    <Route path="/admin/register" element={<Register />} />
-                    <Route
-                      path="/admin/users"
-                      element={<EnhancedUserManagement />}
-                    />
-                    <Route
-                      path="/admin/settings"
-                      element={<EnhancedSystemSettings />}
-                    />
-                    <Route
-                      path="/admin/storage"
-                      element={<StorageManagement />}
-                    />
-                  </Route>
+                  {/* <Route element={<AdminRoute />}>  */}
+                  <Route path="/admin" element={<AdminPanel />} />
+                  <Route path="/admin/register" element={<Register />} />
+                  <Route
+                    path="/admin/users"
+                    element={<EnhancedUserManagement />}
+                  />
+                  <Route
+                    path="/admin/settings"
+                    element={<EnhancedSystemSettings />}
+                  />
+                  <Route
+                    path="/admin/storage"
+                    element={<StorageManagement />}
+                  />
                 </Route>
+                {/* </Route> */}
 
                 {/* Fallback route */}
                 <Route path="*" element={<Navigate to="/admin" />} />

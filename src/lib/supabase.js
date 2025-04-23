@@ -31,13 +31,39 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       path: "/",
       sameSite: "Lax",
     },
+    // Configure OAuth providers
+    oauth: {
+      redirectTo: `${window.location.origin}/auth/callback`,
+      provider_redirect_url: `${window.location.origin}/auth/callback`,
+      // Handle provider errors
+      providerRedirectErrorParams: {
+        error: "error",
+        error_description: "error_description",
+      },
+    },
   },
   global: {
     headers: {
       "X-Client-Info": "Tatt2Away Admin Panel",
     },
   },
+  // Enable realtime subscriptions for session monitoring
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
 });
+
+// Set up auth state change listener for debugging
+if (process.env.NODE_ENV === "development") {
+  supabase.auth.onAuthStateChange((event, session) => {
+    console.log(
+      `[Supabase Debug] Auth state changed: ${event}`,
+      session ? `User: ${session.user.email}` : "No session"
+    );
+  });
+}
 
 // Test connection on startup (dev only)
 if (process.env.NODE_ENV === "development") {
@@ -54,13 +80,19 @@ if (process.env.NODE_ENV === "development") {
 // Helper to verify MFA code
 export const verifyMfaCode = async (email, code) => {
   try {
+    console.log(`Verifying MFA code for ${email}`);
+
     // Special case for test admin account
     if (email === "itsus@tatt2away.com") {
-      return { success: true };
+      console.log("Test admin account - auto-verifying");
+      return {
+        success: true,
+        data: { user: { email: "itsus@tatt2away.com" } },
+      };
     }
 
     // Try verifying as OTP
-    const { error } = await supabase.auth.verifyOtp({
+    const { data, error } = await supabase.auth.verifyOtp({
       email,
       token: code,
       type: "email",
@@ -72,15 +104,85 @@ export const verifyMfaCode = async (email, code) => {
         error.message?.includes("already confirmed") ||
         error.message?.includes("already logged in")
       ) {
-        return { success: true };
+        console.log("User already verified, treating as success");
+        return {
+          success: true,
+          data: {
+            user: { email },
+          },
+        };
       }
 
+      console.error("MFA verification error:", error);
       return { success: false, error };
     }
 
-    return { success: true };
+    console.log("MFA verification successful");
+    return {
+      success: true,
+      data,
+    };
   } catch (error) {
     console.error("MFA verification error:", error);
+    return { success: false, error };
+  }
+};
+
+// Helper to check if a user has admin rights
+export const checkAdminRights = async (userId) => {
+  try {
+    if (!userId) return false;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("roles")
+      .eq("id", userId)
+      .single();
+
+    if (error) {
+      console.error("Error checking admin rights:", error);
+      return false;
+    }
+
+    return (
+      data?.roles?.includes("admin") ||
+      data?.roles?.includes("super_admin") ||
+      false
+    );
+  } catch (error) {
+    console.error("Error checking admin rights:", error);
+    return false;
+  }
+};
+
+// Helper to create or update a user profile
+export const upsertUserProfile = async (userId, userData) => {
+  try {
+    if (!userId) return { success: false, error: "No user ID provided" };
+
+    const { data, error } = await supabase.from("profiles").upsert(
+      {
+        id: userId,
+        email: userData.email,
+        full_name: userData.fullName || userData.email,
+        roles: userData.roles || ["user"],
+        updated_at: new Date().toISOString(),
+        ...userData,
+      },
+      {
+        onConflict: "id",
+        returning: "minimal",
+      }
+    );
+
+    if (error) {
+      console.error("Error upserting profile:", error);
+      return { success: false, error };
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error("Error upserting profile:", error);
     return { success: false, error };
   }
 };
@@ -90,4 +192,4 @@ if (process.env.NODE_ENV === "development") {
   window.supabase = supabase;
 }
 
-export { supabase };
+export { supabase, SUPABASE_URL, SUPABASE_ANON_KEY };
