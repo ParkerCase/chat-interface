@@ -103,30 +103,18 @@ if (typeof window !== "undefined") {
 
 // NOW, MODIFIED ensureAuthState FUNCTION WITH ADDITIONAL SAFEGUARDS:
 
-const ensureAuthState = () => {
-  // Skip completely if breaking a reload loop
-  if (sessionStorage.getItem("breakReloadLoop") === "true") {
-    console.log(
-      "✅ Skipping auth state verification due to reload loop protection"
-    );
-    return;
-  }
+// This replaces the ensureAuthState function in your App.jsx
 
+const ensureAuthState = () => {
   console.log("Running enhanced auth state verification");
 
   // CRITICAL: Prevent multiple refreshes in a short time period
   const lastRefreshTime = sessionStorage.getItem("lastAuthRefreshTime");
   const currentTime = Date.now();
 
-  // Skip if we refreshed within the last 10 seconds
-  if (lastRefreshTime && currentTime - parseInt(lastRefreshTime) < 10000) {
+  // Skip if we refreshed within the last 30 seconds (increased from 10)
+  if (lastRefreshTime && currentTime - parseInt(lastRefreshTime) < 30000) {
     console.log("Skipping auth state verification (ran recently)");
-    return;
-  }
-
-  // Also skip if we're already in a refresh cycle
-  if (sessionStorage.getItem("authRefreshInProgress") === "true") {
-    console.log("Auth refresh already in progress, skipping");
     return;
   }
 
@@ -134,10 +122,9 @@ const ensureAuthState = () => {
   sessionStorage.setItem("lastAuthRefreshTime", currentTime.toString());
 
   const isAdminPage = window.location.pathname.startsWith("/admin");
-  let needsReload = false;
   const currentUserJson = localStorage.getItem("currentUser");
 
-  // Step 1: Test for admin accounts in localStorage
+  // Step 1: Test for admin accounts in localStorage without needing to reload
   if (currentUserJson) {
     try {
       const currentUser = JSON.parse(currentUserJson);
@@ -161,7 +148,6 @@ const ensureAuthState = () => {
           localStorage.setItem("mfa_verified", "true");
           sessionStorage.setItem("mfa_verified", "true");
           localStorage.setItem("authStage", "post-mfa");
-          // Don't set needsReload here - just fix the flags
         }
 
         const hasCorrectRoles =
@@ -174,26 +160,22 @@ const ensureAuthState = () => {
           console.log("Fixing admin roles");
           currentUser.roles = ["super_admin", "admin", "user"];
           localStorage.setItem("currentUser", JSON.stringify(currentUser));
-          // No reload needed after fixing roles
         }
       }
     } catch (e) {
       console.warn("Error parsing currentUser:", e);
       // Clear corrupted data
       localStorage.removeItem("currentUser");
-      // Here we actually need to reload
-      needsReload = true;
     }
   }
 
-  // Step 2: Check Supabase session
+  // Step 2: Check Supabase session - without triggering reloads
   const checkSupabaseSession = async () => {
     try {
       const { data, error } = await supabase.auth.getSession();
 
       if (error) {
         console.error("Session check error:", error);
-        sessionStorage.removeItem("authRefreshInProgress");
         return;
       }
 
@@ -228,8 +210,6 @@ const ensureAuthState = () => {
             localStorage.setItem("mfa_verified", "true");
             sessionStorage.setItem("mfa_verified", "true");
             localStorage.setItem("authStage", "post-mfa");
-
-            // We'll let the app naturally re-render instead of forcing a reload
           }
         } else {
           // For regular users, make sure isAuthenticated is set
@@ -263,52 +243,13 @@ const ensureAuthState = () => {
           localStorage.removeItem("mfa_verified");
           sessionStorage.removeItem("mfa_verified");
           localStorage.removeItem("authStage");
-          needsReload = isAdminPage;
+
+          // Instead of reload, notify auth context to update
+          window.dispatchEvent(new Event("storage"));
         }
-      }
-
-      // Carefully handle reload if necessary, without actually modifying
-      // window.location.reload
-      if (needsReload && isAdminPage) {
-        // Get current reload count
-        const refreshCount = parseInt(
-          localStorage.getItem("authRefreshCount") || "0"
-        );
-
-        // Safety check - don't reload more than 3 times
-        if (refreshCount > 3) {
-          console.warn("Too many auth refreshes detected, breaking the loop");
-          sessionStorage.setItem("breakReloadLoop", "true");
-          sessionStorage.removeItem("authRefreshInProgress");
-          localStorage.removeItem("authRefreshCount");
-          return;
-        }
-
-        // Set in-progress flag and increment counter
-        console.log(`Auth state needs reload (attempt ${refreshCount + 1})`);
-        sessionStorage.setItem("authRefreshInProgress", "true");
-        localStorage.setItem("authRefreshCount", (refreshCount + 1).toString());
-
-        // Use setTimeout to trigger the reload using history API
-        setTimeout(() => {
-          if (sessionStorage.getItem("breakReloadLoop") !== "true") {
-            sessionStorage.removeItem("authRefreshInProgress");
-            // Use history API instead of location.reload()
-            window.history.go(0);
-          } else {
-            console.log("Reload cancelled due to reload loop protection");
-            sessionStorage.removeItem("authRefreshInProgress");
-          }
-        }, 1000);
-      } else {
-        // Reset refresh count if no refresh needed
-        localStorage.removeItem("authRefreshCount");
-        sessionStorage.removeItem("authRefreshInProgress");
       }
     } catch (err) {
       console.error("Error checking Supabase session:", err);
-      // Clear the in-progress flag on error
-      sessionStorage.removeItem("authRefreshInProgress");
     }
   };
 
@@ -321,67 +262,69 @@ if (typeof window !== "undefined") {
 }
 
 function AppContent() {
-  const { isInitialized, loading } = useAuth();
+  const { isInitialized, loading, currentUser } = useAuth();
   const [outOfMemory, setOutOfMemory] = useState(false);
 
   useEffect(() => {
-    // Skip verification entirely if we're in a reload loop
-    if (sessionStorage.getItem("breakReloadLoop") === "true") {
-      console.log("Skipping auth verification due to reload loop protection");
-
-      // Create a way out of the loop protection after 15 seconds
-      const resetTimer = setTimeout(() => {
-        console.log("Removing reload loop protection");
-        sessionStorage.removeItem("breakReloadLoop");
-      }, 15000);
-
-      return () => clearTimeout(resetTimer);
-    }
-
-    // Run auth verification after a short delay
-    const verifyTimer = setTimeout(() => {
-      ensureAuthState();
-    }, 500);
-
-    // Handle out of memory errors as before
-    const handleOutOfMemory = () => {
-      console.error("Out of memory error detected");
-      setOutOfMemory(true);
-      try {
-        localStorage.removeItem("imageCache");
-        if (window.gc) window.gc();
-      } catch (e) {
-        console.error("Cleanup failed:", e);
-      }
-    };
-
-    window.addEventListener("error", (e) => {
+    // Handle out of memory errors
+    const handleOutOfMemory = (e) => {
       if (
-        e.message.includes("allocation failed") ||
-        e.message.includes("out of memory") ||
-        e.message.includes("memory limit")
+        e.message?.includes("allocation failed") ||
+        e.message?.includes("out of memory") ||
+        e.message?.includes("memory limit")
       ) {
-        handleOutOfMemory();
+        console.error("Out of memory error detected");
+        setOutOfMemory(true);
+        try {
+          localStorage.removeItem("imageCache");
+          if (window.gc) window.gc();
+        } catch (e) {
+          console.error("Cleanup failed:", e);
+        }
       }
-    });
-
-    return () => {
-      clearTimeout(verifyTimer);
-      window.removeEventListener("error", handleOutOfMemory);
     };
-  }, []);
 
-  // Custom event for auth verification completion
-  useEffect(() => {
+    window.addEventListener("error", handleOutOfMemory);
+
+    // Run auth verification once after initialization
     if (isInitialized && !loading) {
-      // Dispatch a custom event that other components can listen for
+      ensureAuthState();
+
+      // Dispatch custom event that other components can listen for
       window.dispatchEvent(
         new CustomEvent("authInitialized", {
-          detail: { success: true, timestamp: Date.now() },
+          detail: {
+            success: true,
+            timestamp: Date.now(),
+            userId: currentUser?.id,
+          },
         })
       );
     }
-  }, [isInitialized, loading]);
+
+    return () => {
+      window.removeEventListener("error", handleOutOfMemory);
+    };
+  }, [isInitialized, loading, currentUser]);
+
+  // Handle storage events to detect auth changes from other tabs
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      // Only process auth-related storage changes
+      if (
+        e.key === "currentUser" ||
+        e.key === "isAuthenticated" ||
+        e.key === "authToken" ||
+        e.key === "mfa_verified"
+      ) {
+        console.log("Auth storage changed, updating app state");
+        // No need to force reload - React will handle this
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
 
   if (outOfMemory) {
     return (
@@ -398,6 +341,7 @@ function AppContent() {
   if (!isInitialized || loading) {
     return (
       <div className="auth-loading-screen">
+        <div className="loading-spinner"></div>
         <p>Initializing authentication...</p>
       </div>
     );
@@ -408,6 +352,7 @@ function AppContent() {
       <NotificationProvider>
         <div className="app-container">
           <Routes>
+            {/* Your routes here */}
             <Route path="/login" element={<AuthPage />} />
             <Route
               path="/forgot-password"

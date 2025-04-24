@@ -584,8 +584,10 @@ export function AuthProvider({ children }) {
       try {
         logAuth("Initializing auth state");
 
-        // First check localStorage for user data
+        // First check localStorage for user data to prevent unnecessary network requests
         const storedUser = localStorage.getItem("currentUser");
+        const isAuthenticated =
+          localStorage.getItem("isAuthenticated") === "true";
 
         // Special handling for admin test accounts
         if (storedUser) {
@@ -619,22 +621,14 @@ export function AuthProvider({ children }) {
               isAdminRef.current = true;
               isSuperAdminRef.current = true;
 
-              // Try to ensure admin exists in database (non-blocking)
-              ensureAdminUserExists(parsedUser.email, parsedUser.id).catch(
-                (err) =>
-                  logAuth(
-                    "Non-critical error ensuring admin exists:",
-                    err.message
-                  )
-              );
-
+              // Don't make unnecessary Supabase calls for admin users
               setIsInitialized(true);
               setLoading(false);
               return; // Exit early as we've handled the admin user
             }
 
             // For regular users from localStorage
-            if (localStorage.getItem("isAuthenticated") === "true") {
+            if (isAuthenticated) {
               logAuth("Using authenticated user from localStorage");
 
               const mfaVerified =
@@ -651,20 +645,29 @@ export function AuthProvider({ children }) {
                 false;
               isSuperAdminRef.current =
                 parsedUser.roles?.includes("super_admin") || false;
+
+              // For authenticated users from localStorage, finish initialization
+              // then check with Supabase in the background
+              setIsInitialized(true);
+              setLoading(false);
             }
           } catch (e) {
             logAuth("Error parsing stored user:", e.message);
           }
         }
 
-        // Next check Supabase session
+        // Next check Supabase session (even if we already set from localStorage)
+        // This ensures our local state stays in sync with server
         const { data: sessionData, error: sessionError } =
           await supabase.auth.getSession();
 
         if (sessionError) {
           logAuth("Error getting session:", sessionError.message);
-          setIsInitialized(true);
-          setLoading(false);
+          // If we haven't initialized yet, do so now even with error
+          if (!isInitialized) {
+            setIsInitialized(true);
+            setLoading(false);
+          }
           return;
         }
 
@@ -681,8 +684,11 @@ export function AuthProvider({ children }) {
               "Error getting user from session:",
               userError?.message || "No user returned"
             );
-            setIsInitialized(true);
-            setLoading(false);
+            // If we haven't initialized yet, do so now
+            if (!isInitialized) {
+              setIsInitialized(true);
+              setLoading(false);
+            }
             return;
           }
 
@@ -724,11 +730,6 @@ export function AuthProvider({ children }) {
             // Set admin refs
             isAdminRef.current = true;
             isSuperAdminRef.current = true;
-
-            // Ensure admin exists in database (non-blocking)
-            ensureAdminUserExists(userEmail, userData.user.id).catch((err) =>
-              logAuth("Non-critical error ensuring admin exists:", err.message)
-            );
           } else {
             // Regular user - get profile data
             logAuth("Getting profile data for user:", userEmail);
@@ -778,12 +779,13 @@ export function AuthProvider({ children }) {
             }
           }
         } else {
-          logAuth("No valid session found");
+          logAuth("No active session found");
           setCurrentUser(null);
         }
       } catch (err) {
         logAuth("Auth initialization error:", err.message);
       } finally {
+        // Always ensure we set these flags to avoid UI hanging
         setIsInitialized(true);
         setLoading(false);
       }
@@ -793,6 +795,16 @@ export function AuthProvider({ children }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Store the event to prevent duplicate processing
+      const lastAuthEvent = sessionStorage.getItem("lastAuthEvent");
+      const eventKey = `${event}-${session?.user?.id || "none"}-${Date.now()}`;
+
+      if (lastAuthEvent === eventKey) {
+        logAuth(`Skipping duplicate auth event: ${event}`);
+        return;
+      }
+
+      sessionStorage.setItem("lastAuthEvent", eventKey);
       logAuth(`Auth state changed: ${event}`, { userId: session?.user?.id });
 
       // Handle sign in event
@@ -836,16 +848,6 @@ export function AuthProvider({ children }) {
           // Set admin refs
           isAdminRef.current = true;
           isSuperAdminRef.current = true;
-
-          // Ensure admin exists in database (non-blocking)
-          ensureAdminUserExists(userEmail, session.user.id).catch((err) =>
-            logAuth("Non-critical error ensuring admin exists:", err.message)
-          );
-
-          // Force redirect to admin panel
-          setTimeout(() => {
-            window.location.href = "/admin";
-          }, 500);
         } else {
           try {
             // Get or create profile
@@ -900,11 +902,7 @@ export function AuthProvider({ children }) {
 
             if (requiresMfa) {
               localStorage.setItem("authStage", "pre-mfa");
-
-              // Redirect to MFA verification
-              window.location.href = `/mfa/verify?returnUrl=${encodeURIComponent(
-                window.location.pathname
-              )}&email=${encodeURIComponent(userEmail)}`;
+              // Don't redirect here, let React Router handle it naturally
             }
           } catch (err) {
             logAuth("Error handling SIGNED_IN event:", err.message);
@@ -936,11 +934,28 @@ export function AuthProvider({ children }) {
     // Run initialization
     initAuth();
 
+    // Add listener for storage events to synchronize auth state across tabs
+    const handleStorageChange = (e) => {
+      if (
+        e.key === "currentUser" ||
+        e.key === "isAuthenticated" ||
+        e.key === "authToken" ||
+        e.key === "mfa_verified"
+      ) {
+        // Re-initialize auth if auth data changes in another tab
+        logAuth("Auth storage changed in another tab, re-initializing");
+        initAuth();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+
     // Clean up on unmount
     return () => {
       if (authListenerRef.current) {
         authListenerRef.current.unsubscribe();
       }
+      window.removeEventListener("storage", handleStorageChange);
     };
   }, []);
 

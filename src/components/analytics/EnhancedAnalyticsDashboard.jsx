@@ -107,6 +107,46 @@ const EnhancedAnalyticsDashboard = () => {
     []
   );
 
+  // Safe chart renderer function to prevent Recharts errors
+  const SafeChart = ({
+    data,
+    children,
+    type = "line",
+    height = 300,
+    className = "",
+  }) => {
+    // Only render chart if data exists and is an array with items
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return (
+        <div className={`chart-placeholder ${className}`} style={{ height }}>
+          <p>No data available for chart</p>
+        </div>
+      );
+    }
+
+    // Choose chart type
+    const ChartComponent = (() => {
+      switch (type) {
+        case "bar":
+          return BarChart;
+        case "pie":
+          return PieChart;
+        case "area":
+          return RechartsAreaChart;
+        case "line":
+        default:
+          return LineChart;
+      }
+    })();
+
+    // Render the chart
+    return (
+      <ResponsiveContainer width="100%" height={height} className={className}>
+        <ChartComponent data={data}>{children}</ChartComponent>
+      </ResponsiveContainer>
+    );
+  };
+
   // Initialize dashboard based on date range
   useEffect(() => {
     calculateDateRange(timeframe);
@@ -717,68 +757,71 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card large">
             <h3 className="chart-title">Activity Over Time</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={dashboardData.timeSeriesData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                    tickFormatter={(date) => {
-                      const d = new Date(date);
-                      return d.toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      });
-                    }}
-                  />
-                  <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
-                  <Tooltip
-                    formatter={(value) => [`${formatNumber(value)}`, null]}
-                    labelFormatter={(date) =>
-                      new Date(date).toLocaleDateString(undefined, {
-                        weekday: "short",
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })
-                    }
-                    contentStyle={{
-                      backgroundColor: "white",
-                      border: "1px solid #e2e8f0",
-                      borderRadius: "0.375rem",
-                      padding: "0.5rem",
-                    }}
-                  />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="users"
-                    name="Users"
-                    stroke={COLORS[0]}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 6 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="searches"
-                    name="Searches"
-                    stroke={COLORS[1]}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 6 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="documents"
-                    name="Documents"
-                    stroke={COLORS[2]}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 6 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={dashboardData.timeSeriesData}
+                type="line"
+                height={300}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  tickFormatter={(date) => {
+                    const d = new Date(date);
+                    return d.toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    });
+                  }}
+                />
+                <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
+                <Tooltip
+                  formatter={(value) => [`${formatNumber(value)}`, null]}
+                  labelFormatter={(date) =>
+                    new Date(date).toLocaleDateString(undefined, {
+                      weekday: "short",
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })
+                  }
+                  contentStyle={{
+                    backgroundColor: "white",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "0.375rem",
+                    padding: "0.5rem",
+                  }}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="users"
+                  name="Users"
+                  stroke={COLORS[0]}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 6 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="searches"
+                  name="Searches"
+                  stroke={COLORS[1]}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 6 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="documents"
+                  name="Documents"
+                  stroke={COLORS[2]}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 6 }}
+                />
+              </SafeChart>
             </div>
           </div>
 
