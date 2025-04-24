@@ -43,9 +43,95 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { supabase } from "./lib/supabase";
 import "./App.css";
 
-// Enhanced auth state verification and repair
+// Add at the beginning of your App.jsx file, before calling ensureAuthState:
+if (typeof window !== "undefined") {
+  // Anti reload-loop protection
+  const lastReload = sessionStorage.getItem("lastReloadTime");
+  const now = Date.now();
+
+  if (lastReload && now - parseInt(lastReload) < 3000) {
+    console.warn("Reload loop detected - breaking the cycle");
+    // Set a flag to prevent further auto-reloads
+    sessionStorage.setItem("breakReloadLoop", "true");
+    // Clear any flags that might be causing reloads
+    sessionStorage.removeItem("authRefreshInProgress");
+    localStorage.removeItem("authRefreshCount");
+  } else {
+    sessionStorage.setItem("lastReloadTime", now.toString());
+  }
+
+  if (sessionStorage.getItem("breakReloadLoop") === "true") {
+    // Allow the app to function normally but log potential reload triggers
+    console.log("Reload loop protection active - monitoring navigation events");
+
+    // Create a safe navigation object we can use throughout the app
+    window.safeNavigation = {
+      // Safe version of reload that uses history API instead
+      reload: function () {
+        console.warn("Reload attempted during reload-loop protection");
+        console.trace("Reload call stack:");
+        // Don't actually reload
+        return false;
+      },
+
+      // Log navigation attempts without blocking them
+      navigateTo: function (url) {
+        if (typeof url === "string" && url.includes("/admin")) {
+          console.warn(`Admin navigation attempted: ${url}`);
+          console.trace("Navigation call stack:");
+        }
+        return true; // Allow normal navigation
+      },
+    };
+
+    // Add a way to safely monitor navigation events
+    window.addEventListener("beforeunload", function (e) {
+      if (sessionStorage.getItem("breakReloadLoop") === "true") {
+        console.log("Navigation/reload attempted during protection");
+        // We don't prevent navigation, just log it
+      }
+    });
+
+    // Apply protection for 15 seconds, then restore normal behavior
+    setTimeout(() => {
+      console.log("Reload protection removed - normal navigation restored");
+      sessionStorage.removeItem("breakReloadLoop");
+      delete window.safeNavigation;
+    }, 15000);
+  }
+}
+
+// NOW, MODIFIED ensureAuthState FUNCTION WITH ADDITIONAL SAFEGUARDS:
+
 const ensureAuthState = () => {
+  // Skip completely if breaking a reload loop
+  if (sessionStorage.getItem("breakReloadLoop") === "true") {
+    console.log(
+      "✅ Skipping auth state verification due to reload loop protection"
+    );
+    return;
+  }
+
   console.log("Running enhanced auth state verification");
+
+  // CRITICAL: Prevent multiple refreshes in a short time period
+  const lastRefreshTime = sessionStorage.getItem("lastAuthRefreshTime");
+  const currentTime = Date.now();
+
+  // Skip if we refreshed within the last 10 seconds
+  if (lastRefreshTime && currentTime - parseInt(lastRefreshTime) < 10000) {
+    console.log("Skipping auth state verification (ran recently)");
+    return;
+  }
+
+  // Also skip if we're already in a refresh cycle
+  if (sessionStorage.getItem("authRefreshInProgress") === "true") {
+    console.log("Auth refresh already in progress, skipping");
+    return;
+  }
+
+  // Track this verification attempt
+  sessionStorage.setItem("lastAuthRefreshTime", currentTime.toString());
 
   const isAdminPage = window.location.pathname.startsWith("/admin");
   let needsReload = false;
@@ -75,7 +161,7 @@ const ensureAuthState = () => {
           localStorage.setItem("mfa_verified", "true");
           sessionStorage.setItem("mfa_verified", "true");
           localStorage.setItem("authStage", "post-mfa");
-          needsReload = true;
+          // Don't set needsReload here - just fix the flags
         }
 
         const hasCorrectRoles =
@@ -88,13 +174,14 @@ const ensureAuthState = () => {
           console.log("Fixing admin roles");
           currentUser.roles = ["super_admin", "admin", "user"];
           localStorage.setItem("currentUser", JSON.stringify(currentUser));
-          needsReload = true;
+          // No reload needed after fixing roles
         }
       }
     } catch (e) {
       console.warn("Error parsing currentUser:", e);
       // Clear corrupted data
       localStorage.removeItem("currentUser");
+      // Here we actually need to reload
       needsReload = true;
     }
   }
@@ -106,6 +193,7 @@ const ensureAuthState = () => {
 
       if (error) {
         console.error("Session check error:", error);
+        sessionStorage.removeItem("authRefreshInProgress");
         return;
       }
 
@@ -141,7 +229,7 @@ const ensureAuthState = () => {
             sessionStorage.setItem("mfa_verified", "true");
             localStorage.setItem("authStage", "post-mfa");
 
-            needsReload = true;
+            // We'll let the app naturally re-render instead of forcing a reload
           }
         } else {
           // For regular users, make sure isAuthenticated is set
@@ -159,8 +247,6 @@ const ensureAuthState = () => {
               };
               localStorage.setItem("currentUser", JSON.stringify(basicUser));
             }
-
-            needsReload = isAdminPage;
           }
         }
       } else {
@@ -181,13 +267,48 @@ const ensureAuthState = () => {
         }
       }
 
-      // Reload if needed (with slight delay to allow state to settle)
+      // Carefully handle reload if necessary, without actually modifying
+      // window.location.reload
       if (needsReload && isAdminPage) {
-        console.log("Auth state fixed, reloading page");
-        setTimeout(() => window.location.reload(), 100);
+        // Get current reload count
+        const refreshCount = parseInt(
+          localStorage.getItem("authRefreshCount") || "0"
+        );
+
+        // Safety check - don't reload more than 3 times
+        if (refreshCount > 3) {
+          console.warn("Too many auth refreshes detected, breaking the loop");
+          sessionStorage.setItem("breakReloadLoop", "true");
+          sessionStorage.removeItem("authRefreshInProgress");
+          localStorage.removeItem("authRefreshCount");
+          return;
+        }
+
+        // Set in-progress flag and increment counter
+        console.log(`Auth state needs reload (attempt ${refreshCount + 1})`);
+        sessionStorage.setItem("authRefreshInProgress", "true");
+        localStorage.setItem("authRefreshCount", (refreshCount + 1).toString());
+
+        // Use setTimeout to trigger the reload using history API
+        setTimeout(() => {
+          if (sessionStorage.getItem("breakReloadLoop") !== "true") {
+            sessionStorage.removeItem("authRefreshInProgress");
+            // Use history API instead of location.reload()
+            window.history.go(0);
+          } else {
+            console.log("Reload cancelled due to reload loop protection");
+            sessionStorage.removeItem("authRefreshInProgress");
+          }
+        }, 1000);
+      } else {
+        // Reset refresh count if no refresh needed
+        localStorage.removeItem("authRefreshCount");
+        sessionStorage.removeItem("authRefreshInProgress");
       }
     } catch (err) {
       console.error("Error checking Supabase session:", err);
+      // Clear the in-progress flag on error
+      sessionStorage.removeItem("authRefreshInProgress");
     }
   };
 
@@ -204,12 +325,25 @@ function AppContent() {
   const [outOfMemory, setOutOfMemory] = useState(false);
 
   useEffect(() => {
-    // Run auth verification after a short delay to let other components initialize
+    // Skip verification entirely if we're in a reload loop
+    if (sessionStorage.getItem("breakReloadLoop") === "true") {
+      console.log("Skipping auth verification due to reload loop protection");
+
+      // Create a way out of the loop protection after 15 seconds
+      const resetTimer = setTimeout(() => {
+        console.log("Removing reload loop protection");
+        sessionStorage.removeItem("breakReloadLoop");
+      }, 15000);
+
+      return () => clearTimeout(resetTimer);
+    }
+
+    // Run auth verification after a short delay
     const verifyTimer = setTimeout(() => {
       ensureAuthState();
-    }, 100);
+    }, 500);
 
-    // Handle out of memory errors
+    // Handle out of memory errors as before
     const handleOutOfMemory = () => {
       console.error("Out of memory error detected");
       setOutOfMemory(true);
