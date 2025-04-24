@@ -1,133 +1,306 @@
 // src/components/auth/SSOCallback.jsx
-import React, { useEffect } from "react";
-import { Loader } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Loader, CheckCircle, AlertCircle } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import "../auth.css";
 
 /**
- * Ultra-simplified callback handler with forced redirect
+ * Enhanced callback handler for Supabase auth
+ * Handles code exchange and ensures proper state setting
  */
 function SSOCallback() {
+  const [status, setStatus] = useState("processing");
+  const [error, setError] = useState(null);
+  const [userEmail, setUserEmail] = useState(null);
+  const [redirectTarget, setRedirectTarget] = useState("/admin");
+
+  // Helper function for debugging
+  const logCallback = (message, data = null) => {
+    const logMsg = `SSOCallback: ${message}`;
+    console.log(logMsg, data || "");
+
+    // Store logs in sessionStorage for debugging
+    try {
+      const logs = JSON.parse(
+        sessionStorage.getItem("sso_callback_logs") || "[]"
+      );
+      logs.push({
+        timestamp: new Date().toISOString(),
+        message,
+        data: data ? JSON.stringify(data) : null,
+      });
+
+      if (logs.length > 50) {
+        logs.splice(0, logs.length - 50);
+      }
+
+      sessionStorage.setItem("sso_callback_logs", JSON.stringify(logs));
+    } catch (e) {
+      console.error("Error saving log:", e);
+    }
+  };
+
   // Run immediately on render
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get("code");
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get("code");
+    const redirectTo = urlParams.get("returnUrl") || "/admin";
+
+    setRedirectTarget(redirectTo);
+    logCallback("Processing callback", {
+      code: code ? `${code.substring(0, 5)}...` : null,
+    });
 
     if (!code) {
-      console.error("No code parameter found");
-      window.location.href = "/login";
-      return;
-    }
+      logCallback("No code parameter found");
+      setError("Authentication failed: No code parameter found");
+      setStatus("error");
 
-    console.log("SSOCallback: Processing code", code.substring(0, 5) + "...");
+      // Add fallback redirect for no-code scenario
+      const fallbackTimeout = setTimeout(() => {
+        window.location.href = "/login";
+      }, 3000);
+
+      return () => clearTimeout(fallbackTimeout);
+    }
 
     // Add a meta refresh tag as a backup redirect method
     const meta = document.createElement("meta");
     meta.httpEquiv = "refresh";
-    meta.content = "5;url=/admin";
+    meta.content = `10;url=${redirectTo}`;
     document.head.appendChild(meta);
 
-    // Handle the code exchange
+    // Function to process the code exchange
     const exchangeCode = async () => {
       try {
-        console.log("SSOCallback: Exchanging code for session");
+        logCallback("Exchanging code for session");
 
-        // Exchange the code
-        const { data, error } = await supabase.auth.exchangeCodeForSession(
-          code
-        );
+        // Exchange the code for a session
+        const { data, error: exchangeError } =
+          await supabase.auth.exchangeCodeForSession(code);
 
-        if (error) {
-          console.error("SSOCallback: Code exchange error:", error);
-          window.location.href = "/login";
+        if (exchangeError) {
+          logCallback("Code exchange error:", exchangeError);
+          setError(`Authentication failed: ${exchangeError.message}`);
+          setStatus("error");
           return;
         }
 
         if (!data || !data.session) {
-          console.error("SSOCallback: No session returned");
-          window.location.href = "/login";
+          logCallback("No session returned");
+          setError("Authentication failed: No session data returned");
+          setStatus("error");
           return;
         }
 
-        console.log(
-          "SSOCallback: Session created successfully for",
-          data.session.user.email
-        );
+        const email = data.session.user.email;
+        setUserEmail(email);
+        logCallback("Session created successfully for", email);
 
-        // Set all needed flags
+        // Special handling for admin accounts
+        if (
+          email === "itsus@tatt2away.com" ||
+          email === "parker@tatt2away.com"
+        ) {
+          logCallback("Admin account detected, setting special flags");
+
+          // Create admin user
+          const adminUser = {
+            id: data.session.user.id,
+            email: email,
+            name:
+              email === "itsus@tatt2away.com"
+                ? "Tatt2Away Admin"
+                : "Parker Admin",
+            roles: ["super_admin", "admin", "user"],
+            tier: "enterprise",
+          };
+
+          // Set admin in localStorage
+          localStorage.setItem("currentUser", JSON.stringify(adminUser));
+        } else {
+          // For regular users, we'll need to get or create their profile
+          try {
+            logCallback("Fetching user profile");
+
+            let { data: profileData, error: profileError } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", data.session.user.id)
+              .single();
+
+            if (
+              profileError &&
+              profileError.message.includes("No rows found")
+            ) {
+              logCallback("Creating new user profile");
+
+              // Create a new profile
+              const { data: newProfile, error: insertError } = await supabase
+                .from("profiles")
+                .insert({
+                  id: data.session.user.id,
+                  email: email,
+                  full_name: email,
+                  roles: ["user"],
+                  created_at: new Date().toISOString(),
+                })
+                .select();
+
+              if (insertError) {
+                logCallback("Error creating profile:", insertError);
+              } else {
+                profileData = newProfile[0];
+              }
+            } else if (profileError) {
+              logCallback("Error fetching profile:", profileError);
+            }
+
+            // Create user object from profile data
+            if (profileData) {
+              const user = {
+                id: data.session.user.id,
+                email: email,
+                name: profileData.full_name || email,
+                roles: profileData.roles || ["user"],
+                tier: profileData.tier || "basic",
+              };
+
+              localStorage.setItem("currentUser", JSON.stringify(user));
+              logCallback("User profile saved to localStorage", user);
+            } else {
+              // Fallback if profile couldn't be fetched
+              const basicUser = {
+                id: data.session.user.id,
+                email: email,
+                name: email,
+                roles: ["user"],
+                tier: "basic",
+              };
+
+              localStorage.setItem("currentUser", JSON.stringify(basicUser));
+              logCallback("Basic user saved to localStorage");
+            }
+          } catch (profileErr) {
+            logCallback("Error processing user profile:", profileErr);
+          }
+        }
+
+        // Set all required auth flags
         localStorage.setItem("isAuthenticated", "true");
         localStorage.setItem("mfa_verified", "true");
         sessionStorage.setItem("mfa_verified", "true");
         localStorage.setItem("authStage", "post-mfa");
 
-        console.log(
-          "SSOCallback: Auth flags set, redirecting to /admin in 2 seconds"
-        );
+        logCallback("Auth flags set, preparing redirect to:", redirectTo);
+        setStatus("success");
 
-        // Use multiple redirect methods to ensure one works
-        setTimeout(() => {
-          console.log("SSOCallback: Executing redirect now");
-          try {
-            // Method 1
-            window.location.href = "/admin";
-
-            // If we're still here after 500ms, try method 2
-            setTimeout(() => {
-              console.log("SSOCallback: Trying redirect method 2");
-              window.location.replace("/admin");
-
-              // If still here after another 500ms, try method 3
-              setTimeout(() => {
-                console.log("SSOCallback: Trying redirect method 3");
-                window.open("/admin", "_self");
-              }, 500);
-            }, 500);
-          } catch (e) {
-            console.error("SSOCallback: Redirect error:", e);
-          }
-        }, 2000);
+        // Execute redirect with delays to ensure state is properly set
+        executeRedirect(redirectTo);
       } catch (err) {
-        console.error("SSOCallback: Unexpected error:", err);
-        // Force redirect to login as fallback
-        window.location.href = "/login?error=callback_failed";
+        logCallback("Unexpected error during code exchange:", err);
+        setError(`Authentication failed: ${err.message}`);
+        setStatus("error");
+
+        // Redirect to login as fallback
+        setTimeout(() => {
+          window.location.href = "/login?error=callback_failed";
+        }, 3000);
       }
     };
 
-    // Start the process
+    // Helper function to handle redirection with multiple fallbacks
+    const executeRedirect = (url) => {
+      // First attempt after 1 second
+      setTimeout(() => {
+        logCallback("Executing first redirect attempt");
+        try {
+          window.location.href = url;
+
+          // Second attempt after 2 seconds if still here
+          setTimeout(() => {
+            logCallback("Executing second redirect attempt");
+            try {
+              window.location.replace(url);
+
+              // Third attempt after 1 more second
+              setTimeout(() => {
+                logCallback("Executing third redirect attempt");
+                window.open(url, "_self");
+              }, 1000);
+            } catch (e) {
+              logCallback("Second redirect failed:", e.message);
+            }
+          }, 2000);
+        } catch (e) {
+          logCallback("First redirect failed:", e.message);
+        }
+      }, 1000);
+    };
+
+    // Start the code exchange process
     exchangeCode();
 
-    // Set a global timeout fallback
-    const fallbackTimeout = setTimeout(() => {
-      console.log("SSOCallback: Fallback redirect triggered");
-      window.location.href = "/admin";
+    // Global timeout fallback
+    const globalFallback = setTimeout(() => {
+      logCallback("Global fallback redirect triggered");
+      window.location.href = redirectTo;
     }, 8000);
 
     return () => {
-      clearTimeout(fallbackTimeout);
+      clearTimeout(globalFallback);
     };
   }, []);
 
-  // Simple UI with no state
-  return (
-    <div
-      className="sso-callback-container"
-      style={{ textAlign: "center", padding: "50px" }}
-    >
-      <Loader className="spinner" size={48} style={{ margin: "0 auto 20px" }} />
-      <h2>Authentication Successful</h2>
-      <p>Redirecting to your dashboard...</p>
-      <div style={{ marginTop: "30px", fontSize: "14px", color: "#666" }}>
-        If you are not redirected automatically,
-        <a
-          href="/admin"
-          style={{
-            marginLeft: "5px",
-            color: "#4f46e5",
-            textDecoration: "underline",
-          }}
-        >
-          click here
-        </a>
+  // Success state
+  if (status === "success") {
+    return (
+      <div className="sso-callback-container">
+        <div className="success-icon-container">
+          <CheckCircle className="success-icon" size={48} />
+        </div>
+        <h2>Authentication Successful</h2>
+        <p>
+          {userEmail ? `Signed in as ${userEmail}` : "Authentication completed"}
+        </p>
+        <p className="redirect-message">Redirecting to your account...</p>
+        <div className="loading-indicator">
+          <Loader className="spinner" size={24} />
+        </div>
+        <div className="manual-redirect">
+          If you are not redirected automatically,{" "}
+          <a href={redirectTarget} className="manual-link">
+            click here
+          </a>
+        </div>
       </div>
+    );
+  }
+
+  // Error state
+  if (status === "error") {
+    return (
+      <div className="sso-callback-container">
+        <div className="error-icon-container">
+          <AlertCircle className="error-icon" size={48} />
+        </div>
+        <h2>Authentication Failed</h2>
+        <p>{error || "An unexpected error occurred"}</p>
+        <div className="manual-redirect">
+          <a href="/login" className="manual-link">
+            Return to Login
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // Processing state (default)
+  return (
+    <div className="sso-callback-container">
+      <Loader className="spinner" size={48} />
+      <h2>Authentication in Progress</h2>
+      <p>Please wait while we complete your sign-in...</p>
     </div>
   );
 }

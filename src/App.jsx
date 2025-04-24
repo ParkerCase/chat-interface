@@ -51,6 +51,7 @@ const ensureAuthState = () => {
   let needsReload = false;
   const currentUserJson = localStorage.getItem("currentUser");
 
+  // Step 1: Test for admin accounts in localStorage
   if (currentUserJson) {
     try {
       const currentUser = JSON.parse(currentUserJson);
@@ -62,6 +63,7 @@ const ensureAuthState = () => {
       ) {
         console.log("Admin account detected:", currentUser.email);
 
+        // Ensure all auth flags are set
         if (
           localStorage.getItem("isAuthenticated") !== "true" ||
           localStorage.getItem("mfa_verified") !== "true" ||
@@ -91,9 +93,13 @@ const ensureAuthState = () => {
       }
     } catch (e) {
       console.warn("Error parsing currentUser:", e);
+      // Clear corrupted data
+      localStorage.removeItem("currentUser");
+      needsReload = true;
     }
   }
 
+  // Step 2: Check Supabase session
   const checkSupabaseSession = async () => {
     try {
       const { data, error } = await supabase.auth.getSession();
@@ -107,12 +113,14 @@ const ensureAuthState = () => {
         const email = data.session.user.email;
         console.log("Active session found for:", email);
 
+        // Special handling for admin accounts
         if (
           email === "itsus@tatt2away.com" ||
           email === "parker@tatt2away.com"
         ) {
           console.log("Admin account session detected");
 
+          // Create or update admin user in localStorage
           if (!currentUserJson) {
             console.log("Creating admin user in localStorage");
 
@@ -135,14 +143,45 @@ const ensureAuthState = () => {
 
             needsReload = true;
           }
-        }
+        } else {
+          // For regular users, make sure isAuthenticated is set
+          if (localStorage.getItem("isAuthenticated") !== "true") {
+            localStorage.setItem("isAuthenticated", "true");
 
-        if (localStorage.getItem("isAuthenticated") !== "true") {
-          localStorage.setItem("isAuthenticated", "true");
+            // For logged in users without profile, set a basic one
+            if (!currentUserJson) {
+              const basicUser = {
+                id: data.session.user.id,
+                email: email,
+                name: email,
+                roles: ["user"],
+                tier: "basic",
+              };
+              localStorage.setItem("currentUser", JSON.stringify(basicUser));
+            }
+
+            needsReload = isAdminPage;
+          }
+        }
+      } else {
+        console.log("No active session found");
+
+        // If no active session but we have localStorage data, clear it
+        if (
+          currentUserJson &&
+          localStorage.getItem("isAuthenticated") === "true"
+        ) {
+          console.log("Clearing stale auth data");
+          localStorage.removeItem("currentUser");
+          localStorage.removeItem("isAuthenticated");
+          localStorage.removeItem("mfa_verified");
+          sessionStorage.removeItem("mfa_verified");
+          localStorage.removeItem("authStage");
           needsReload = isAdminPage;
         }
       }
 
+      // Reload if needed (with slight delay to allow state to settle)
       if (needsReload && isAdminPage) {
         console.log("Auth state fixed, reloading page");
         setTimeout(() => window.location.reload(), 100);
@@ -152,6 +191,7 @@ const ensureAuthState = () => {
     }
   };
 
+  // Run session check
   checkSupabaseSession();
 };
 
@@ -164,6 +204,12 @@ function AppContent() {
   const [outOfMemory, setOutOfMemory] = useState(false);
 
   useEffect(() => {
+    // Run auth verification after a short delay to let other components initialize
+    const verifyTimer = setTimeout(() => {
+      ensureAuthState();
+    }, 100);
+
+    // Handle out of memory errors
     const handleOutOfMemory = () => {
       console.error("Out of memory error detected");
       setOutOfMemory(true);
@@ -186,9 +232,22 @@ function AppContent() {
     });
 
     return () => {
+      clearTimeout(verifyTimer);
       window.removeEventListener("error", handleOutOfMemory);
     };
   }, []);
+
+  // Custom event for auth verification completion
+  useEffect(() => {
+    if (isInitialized && !loading) {
+      // Dispatch a custom event that other components can listen for
+      window.dispatchEvent(
+        new CustomEvent("authInitialized", {
+          detail: { success: true, timestamp: Date.now() },
+        })
+      );
+    }
+  }, [isInitialized, loading]);
 
   if (outOfMemory) {
     return (
