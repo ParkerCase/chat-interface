@@ -56,7 +56,6 @@ import {
   AreaChart as RechartsAreaChart,
   Area,
 } from "recharts";
-import Header from "../Header";
 import "./EnhancedAnalyticsDashboard.css";
 
 const EnhancedAnalyticsDashboard = () => {
@@ -2230,8 +2229,6 @@ const EnhancedAnalyticsDashboard = () => {
 
   return (
     <div className="enhanced-analytics-dashboard">
-      <Header currentUser={currentUser} onLogout={logout} />
-
       <div className="dashboard-content">
         <div className="dashboard-header">
           <div className="header-title">

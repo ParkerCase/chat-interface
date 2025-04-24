@@ -10,6 +10,44 @@ import { supabase } from "../lib/supabase";
  * With special handling for admin test accounts
  */
 function AdminRoute() {
+  // 1. Add this function to your AdminRoute component, near the top:
+  const checkRedirectLoop = () => {
+    try {
+      const redirectCount = parseInt(
+        sessionStorage.getItem("adminRedirectCount") || "0"
+      );
+      const now = Date.now();
+      const lastRedirect = sessionStorage.getItem("lastAdminRedirectTime");
+
+      // If multiple redirects happened in a short time frame
+      if (
+        lastRedirect &&
+        now - parseInt(lastRedirect) < 3000 &&
+        redirectCount > 1
+      ) {
+        logDebug("Redirect loop detected in AdminRoute - breaking cycle");
+        return true;
+      }
+
+      // Update redirect tracking
+      sessionStorage.setItem(
+        "adminRedirectCount",
+        (redirectCount + 1).toString()
+      );
+      sessionStorage.setItem("lastAdminRedirectTime", now.toString());
+
+      // Safety valve - too many redirects
+      if (redirectCount > 5) {
+        logDebug("Too many admin redirects - breaking cycle");
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      console.error("Error in redirect loop check:", e);
+      return false;
+    }
+  };
   // State for verification
   const [isVerifying, setIsVerifying] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -287,18 +325,9 @@ function AdminRoute() {
     verifyAdminRights();
   }, [currentUser, isAdmin]); // Only run when these deps change
 
-  // Additional quick check for test admin accounts
-  if (currentUser && isAdminTestAccount(currentUser.email)) {
-    // Always grant access to test admin accounts
-    if (isVerifying) {
-      setIsVerifying(false);
-      setIsAuthenticated(true);
-      setHasAdminRights(true);
-    }
-    logDebug("Special admin account verified, granting access");
-    return <Outlet />;
-  }
+  // 2. REPLACE THE NAVIGATION SECTION in the same component:
 
+  // Show loading during initialization
   // Show loading during initialization
   if (loading || isVerifying) {
     return (
@@ -314,11 +343,42 @@ function AdminRoute() {
   // Check admin rights
   if (hasAdminRights) {
     logDebug("Admin rights verified, granting access");
+    // Reset redirect counter on successful access
+    sessionStorage.removeItem("adminRedirectCount");
     return <Outlet />;
   }
 
-  // Not authenticated at all, redirect to login
+  // Check for redirect loops before proceeding
+  const inRedirectLoop = checkRedirectLoop();
+
+  // Not authenticated at all
   if (!isAuthenticated) {
+    // If in a redirect loop, show message instead of redirecting again
+    if (inRedirectLoop) {
+      logDebug("Breaking redirect loop - showing message instead");
+      return (
+        <div className="auth-error-container">
+          <div className="auth-error">
+            <h3>Authentication Issue</h3>
+            <p>There seems to be an issue with your authentication.</p>
+            <p>
+              <a
+                href="/login"
+                onClick={() => {
+                  // Clear loop detection on manual navigation
+                  sessionStorage.removeItem("adminRedirectCount");
+                  sessionStorage.removeItem("lastAdminRedirectTime");
+                }}
+              >
+                Click here to log in again
+              </a>
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // Normal redirect to login
     logDebug("Not authenticated, redirecting to login");
     return (
       <Navigate
@@ -329,6 +389,31 @@ function AdminRoute() {
   }
 
   // User is authenticated but not admin, redirect to unauthorized
+  // But check for loops first
+  if (inRedirectLoop) {
+    logDebug("Breaking unauthorized redirect loop");
+    return (
+      <div className="auth-error-container">
+        <div className="auth-error">
+          <h3>Access Denied</h3>
+          <p>You don't have permission to access the admin area.</p>
+          <p>
+            <a
+              href="/"
+              onClick={() => {
+                // Clear loop detection on manual navigation
+                sessionStorage.removeItem("adminRedirectCount");
+                sessionStorage.removeItem("lastAdminRedirectTime");
+              }}
+            >
+              Return to home page
+            </a>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   logDebug("User lacks admin rights, redirecting to unauthorized");
   return <Navigate to="/unauthorized" replace />;
 }
