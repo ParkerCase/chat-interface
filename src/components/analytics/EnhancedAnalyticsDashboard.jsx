@@ -850,46 +850,49 @@ const EnhancedAnalyticsDashboard = () => {
                 </div>
               </div>
               <div className="growth-chart">
-                <ResponsiveContainer width="100%" height={120}>
-                  <AreaChart data={dashboardData.timeSeriesData.slice(-20)}>
-                    <defs>
-                      <linearGradient
-                        id="userGrowthGradient"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="5%"
-                          stopColor={COLORS[0]}
-                          stopOpacity={0.8}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor={COLORS[0]}
-                          stopOpacity={0.1}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <Tooltip
-                      formatter={(value) => [
-                        `${formatNumber(value)} users`,
-                        null,
-                      ]}
-                      labelFormatter={(date) =>
-                        new Date(date).toLocaleDateString()
-                      }
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="users"
-                      stroke={COLORS[0]}
-                      fillOpacity={1}
-                      fill="url(#userGrowthGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <SafeChart
+                  data={dashboardData?.timeSeriesData?.slice(-20) || []}
+                  type="area"
+                  height={120}
+                >
+                  {" "}
+                  <defs>
+                    <linearGradient
+                      id="userGrowthGradient"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="5%"
+                        stopColor={COLORS[0]}
+                        stopOpacity={0.8}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor={COLORS[0]}
+                        stopOpacity={0.1}
+                      />
+                    </linearGradient>
+                  </defs>
+                  <Tooltip
+                    formatter={(value) => [
+                      `${formatNumber(value)} users`,
+                      null,
+                    ]}
+                    labelFormatter={(date) =>
+                      new Date(date).toLocaleDateString()
+                    }
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="users"
+                    stroke={COLORS[0]}
+                    fillOpacity={1}
+                    fill="url(#userGrowthGradient)"
+                  />
+                </SafeChart>
               </div>
             </div>
           </div>
@@ -898,36 +901,31 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card">
             <h3 className="chart-title">Top Searches</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart
-                  layout="vertical"
-                  data={dashboardData.topSearches}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    horizontal={true}
-                    vertical={false}
-                  />
-                  <XAxis
-                    type="number"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                  />
-                  <YAxis
-                    dataKey="term"
-                    type="category"
-                    width={150}
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                  />
-                  <Tooltip
-                    formatter={(value) => [
-                      `${formatNumber(value)} searches`,
-                      null,
-                    ]}
-                  />
-                  <Bar dataKey="count" fill={COLORS[1]} radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={dashboardData?.topSearches || []}
+                type="bar"
+                height={220}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  horizontal={true}
+                  vertical={false}
+                />
+                <XAxis type="number" tick={{ fontSize: 12, fill: "#64748b" }} />
+                <YAxis
+                  dataKey="term"
+                  type="category"
+                  width={150}
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                />
+                <Tooltip
+                  formatter={(value) => [
+                    `${formatNumber(value)} searches`,
+                    null,
+                  ]}
+                />
+                <Bar dataKey="count" fill={COLORS[1]} radius={[0, 4, 4, 0]} />
+              </SafeChart>
             </div>
           </div>
 
@@ -1077,98 +1075,80 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card large">
             <h3 className="chart-title">User Growth Over Time</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={userMetrics.userGrowth}>
-                  <defs>
-                    <linearGradient id="totalUsers" x1="0" y1="0" x2="0" y2="1">
-                      <stop
-                        offset="5%"
-                        stopColor={COLORS[0]}
-                        stopOpacity={0.8}
-                      />
-                      <stop
-                        offset="95%"
-                        stopColor={COLORS[0]}
-                        stopOpacity={0.1}
-                      />
-                    </linearGradient>
-                    <linearGradient
-                      id="activeUsers"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop
-                        offset="5%"
-                        stopColor={COLORS[1]}
-                        stopOpacity={0.8}
-                      />
-                      <stop
-                        offset="95%"
-                        stopColor={COLORS[1]}
-                        stopOpacity={0.1}
-                      />
-                    </linearGradient>
-                    <linearGradient id="newUsers" x1="0" y1="0" x2="0" y2="1">
-                      <stop
-                        offset="5%"
-                        stopColor={COLORS[2]}
-                        stopOpacity={0.8}
-                      />
-                      <stop
-                        offset="95%"
-                        stopColor={COLORS[2]}
-                        stopOpacity={0.1}
-                      />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                    tickFormatter={(date) => {
-                      const d = new Date(date);
-                      return d.toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      });
-                    }}
-                  />
-                  <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
-                  <Tooltip
-                    formatter={(value) => [`${formatNumber(value)}`, null]}
-                    labelFormatter={(date) =>
-                      new Date(date).toLocaleDateString()
-                    }
-                  />
-                  <Legend />
-                  <Area
-                    type="monotone"
-                    dataKey="users"
-                    name="Total Users"
-                    stroke={COLORS[0]}
-                    fillOpacity={1}
-                    fill="url(#totalUsers)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="activeUsers"
-                    name="Active Users"
-                    stroke={COLORS[1]}
-                    fillOpacity={1}
-                    fill="url(#activeUsers)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="newUsers"
-                    name="New Users"
-                    stroke={COLORS[2]}
-                    fillOpacity={1}
-                    fill="url(#newUsers)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={userMetrics?.userGrowth || []}
+                type="area"
+                height={300}
+              >
+                <defs>
+                  <linearGradient id="totalUsers" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={COLORS[0]} stopOpacity={0.8} />
+                    <stop
+                      offset="95%"
+                      stopColor={COLORS[0]}
+                      stopOpacity={0.1}
+                    />
+                  </linearGradient>
+                  <linearGradient id="activeUsers" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={COLORS[1]} stopOpacity={0.8} />
+                    <stop
+                      offset="95%"
+                      stopColor={COLORS[1]}
+                      stopOpacity={0.1}
+                    />
+                  </linearGradient>
+                  <linearGradient id="newUsers" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={COLORS[2]} stopOpacity={0.8} />
+                    <stop
+                      offset="95%"
+                      stopColor={COLORS[2]}
+                      stopOpacity={0.1}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  tickFormatter={(date) => {
+                    const d = new Date(date);
+                    return d.toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    });
+                  }}
+                />
+                <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
+                <Tooltip
+                  formatter={(value) => [`${formatNumber(value)}`, null]}
+                  labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                />
+                <Legend />
+                <Area
+                  type="monotone"
+                  dataKey="users"
+                  name="Total Users"
+                  stroke={COLORS[0]}
+                  fillOpacity={1}
+                  fill="url(#totalUsers)"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="activeUsers"
+                  name="Active Users"
+                  stroke={COLORS[1]}
+                  fillOpacity={1}
+                  fill="url(#activeUsers)"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="newUsers"
+                  name="New Users"
+                  stroke={COLORS[2]}
+                  fillOpacity={1}
+                  fill="url(#newUsers)"
+                />
+              </SafeChart>
             </div>
           </div>
 
@@ -1176,23 +1156,30 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card">
             <h3 className="chart-title">User Role Distribution</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={Object.entries(userMetrics.roleDistribution).map(
-                      ([key, value]) => ({
-                        name: key,
-                        value,
-                      })
-                    )}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {Object.entries(userMetrics.roleDistribution).map(
+              <SafeChart
+                data={
+                  userMetrics?.roleDistribution
+                    ? Object.entries(userMetrics.roleDistribution).map(
+                        ([key, value]) => ({
+                          name: key,
+                          value,
+                        })
+                      )
+                    : []
+                }
+                type="pie"
+                height={250}
+              >
+                <Pie
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {userMetrics?.roleDistribution &&
+                    Object.entries(userMetrics.roleDistribution).map(
                       ([key, value], index) => (
                         <Cell
                           key={`cell-${index}`}
@@ -1200,16 +1187,15 @@ const EnhancedAnalyticsDashboard = () => {
                         />
                       )
                     )}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value, name) => [
-                      `${formatNumber(value)} users`,
-                      name,
-                    ]}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+                </Pie>
+                <Tooltip
+                  formatter={(value, name) => [
+                    `${formatNumber(value)} users`,
+                    name,
+                  ]}
+                />
+                <Legend />
+              </SafeChart>
             </div>
           </div>
 
@@ -1217,40 +1203,37 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card large">
             <h3 className="chart-title">User Engagement by Type</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart
-                  data={userMetrics.engagementData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                    tickFormatter={(date) => {
-                      const d = new Date(date);
-                      return d.toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      });
-                    }}
-                  />
-                  <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
-                  <Tooltip
-                    formatter={(value) => [
-                      `${formatNumber(value)} actions`,
-                      null,
-                    ]}
-                    labelFormatter={(date) =>
-                      new Date(date).toLocaleDateString()
-                    }
-                  />
-                  <Legend />
-                  <Bar dataKey="Search" stackId="a" fill={COLORS[0]} />
-                  <Bar dataKey="Chat" stackId="a" fill={COLORS[1]} />
-                  <Bar dataKey="Upload" stackId="a" fill={COLORS[2]} />
-                  <Bar dataKey="Download" stackId="a" fill={COLORS[3]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={userMetrics?.engagementData || []}
+                type="bar"
+                height={250}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  tickFormatter={(date) => {
+                    const d = new Date(date);
+                    return d.toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    });
+                  }}
+                />
+                <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
+                <Tooltip
+                  formatter={(value) => [
+                    `${formatNumber(value)} actions`,
+                    null,
+                  ]}
+                  labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                />
+                <Legend />
+                <Bar dataKey="Search" stackId="a" fill={COLORS[0]} />
+                <Bar dataKey="Chat" stackId="a" fill={COLORS[1]} />
+                <Bar dataKey="Upload" stackId="a" fill={COLORS[2]} />
+                <Bar dataKey="Download" stackId="a" fill={COLORS[3]} />
+              </SafeChart>
             </div>
           </div>
 
@@ -1258,33 +1241,28 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card">
             <h3 className="chart-title">Engagement by Feature</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart
-                  layout="vertical"
-                  data={userMetrics.engagementByFeature}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    horizontal={true}
-                    vertical={false}
-                  />
-                  <XAxis
-                    type="number"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                  />
-                  <YAxis
-                    dataKey="feature"
-                    type="category"
-                    width={120}
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                  />
-                  <Tooltip
-                    formatter={(value) => [`${formatNumber(value)} uses`, null]}
-                  />
-                  <Bar dataKey="count" fill={COLORS[4]} radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={userMetrics?.engagementByFeature || []}
+                type="bar"
+                height={250}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  horizontal={true}
+                  vertical={false}
+                />
+                <XAxis type="number" tick={{ fontSize: 12, fill: "#64748b" }} />
+                <YAxis
+                  dataKey="feature"
+                  type="category"
+                  width={120}
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                />
+                <Tooltip
+                  formatter={(value) => [`${formatNumber(value)} uses`, null]}
+                />
+                <Bar dataKey="count" fill={COLORS[4]} radius={[0, 4, 4, 0]} />
+              </SafeChart>
             </div>
           </div>
 
@@ -1325,33 +1303,35 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card">
             <h3 className="chart-title">User Retention</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={userMetrics.retentionData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="month"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                    domain={[0, 100]}
-                    tickFormatter={(value) => `${value}%`}
-                  />
-                  <Tooltip
-                    formatter={(value) => [`${value}%`, "Retention Rate"]}
-                  />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="retention"
-                    name="Retention Rate"
-                    stroke={COLORS[5]}
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                    activeDot={{ r: 6 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={userMetrics?.retentionData || []}
+                type="line"
+                height={250}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                />
+                <YAxis
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  domain={[0, 100]}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                <Tooltip
+                  formatter={(value) => [`${value}%`, "Retention Rate"]}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="retention"
+                  name="Retention Rate"
+                  stroke={COLORS[5]}
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+              </SafeChart>
             </div>
           </div>
 
@@ -1359,35 +1339,36 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card">
             <h3 className="chart-title">User Referrals</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={userMetrics.userReferrals}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
-                    }
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="count"
-                  >
-                    {userMetrics.userReferrals.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value, name) => [
-                      `${formatNumber(value)} users`,
-                      name,
-                    ]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={userMetrics?.userReferrals || []}
+                type="pie"
+                height={250}
+              >
+                <Pie
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) =>
+                    `${name} ${(percent * 100).toFixed(0)}%`
+                  }
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="count"
+                >
+                  {userMetrics.userReferrals.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value, name) => [
+                    `${formatNumber(value)} users`,
+                    name,
+                  ]}
+                />
+              </SafeChart>
             </div>
           </div>
         </div>
@@ -1468,62 +1449,62 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card large">
             <h3 className="chart-title">Storage Usage Over Time</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={contentMetrics.storageGrowth}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                    tickFormatter={(date) => {
-                      const d = new Date(date);
-                      return d.toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      });
-                    }}
-                  />
-                  <YAxis
-                    yAxisId="left"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                  />
-                  <Tooltip
-                    formatter={(value, name) => {
-                      if (name === "storageUsed")
-                        return [`${value} GB`, "Storage Used"];
-                      return [`${formatNumber(value)}`, "Documents"];
-                    }}
-                    labelFormatter={(date) =>
-                      new Date(date).toLocaleDateString()
-                    }
-                  />
-                  <Legend />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="storageUsed"
-                    name="Storage Used"
-                    stroke={COLORS[1]}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 6 }}
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="documentsCount"
-                    name="Documents"
-                    stroke={COLORS[0]}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 6 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={contentMetrics?.storageGrowth || []}
+                type="line"
+                height={300}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  tickFormatter={(date) => {
+                    const d = new Date(date);
+                    return d.toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    });
+                  }}
+                />
+                <YAxis
+                  yAxisId="left"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                />
+                <Tooltip
+                  formatter={(value, name) => {
+                    if (name === "storageUsed")
+                      return [`${value} GB`, "Storage Used"];
+                    return [`${formatNumber(value)}`, "Documents"];
+                  }}
+                  labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                />
+                <Legend />
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="storageUsed"
+                  name="Storage Used"
+                  stroke={COLORS[1]}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 6 }}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="documentsCount"
+                  name="Documents"
+                  stroke={COLORS[0]}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 6 }}
+                />
+              </SafeChart>
             </div>
           </div>
 
@@ -1531,33 +1512,34 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card">
             <h3 className="chart-title">Content Type Distribution</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={contentMetrics.contentDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    paddingAngle={2}
-                    dataKey="count"
-                    label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
-                    }
-                  >
-                    {contentMetrics.contentDistribution.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value) => [`${formatNumber(value)} files`, ""]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={contentMetrics?.contentDistribution || []}
+                type="pie"
+                height={250}
+              >
+                <Pie
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  paddingAngle={2}
+                  dataKey="count"
+                  label={({ name, percent }) =>
+                    `${name} ${(percent * 100).toFixed(0)}%`
+                  }
+                >
+                  {contentMetrics.contentDistribution.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value) => [`${formatNumber(value)} files`, ""]}
+                />
+              </SafeChart>
             </div>
           </div>
 
@@ -1565,23 +1547,29 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card large">
             <h3 className="chart-title">Content Engagement Over Time</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={contentMetrics.contentEngagement}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                  />
-                  <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
-                  <Tooltip
-                    formatter={(value) => [`${formatNumber(value)}`, null]}
-                  />
-                  <Legend />
-                  <Bar dataKey="views" name="Views" fill={COLORS[0]} />
-                  <Bar dataKey="downloads" name="Downloads" fill={COLORS[1]} />
-                  <Bar dataKey="shares" name="Shares" fill={COLORS[2]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={contentMetrics?.contentEngagement || []}
+                type="bar"
+                height={300}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                />
+                <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
+                <Tooltip
+                  formatter={(value) => [`${formatNumber(value)}`, null]}
+                />
+                <Legend />
+                <Bar dataKey="views" name="Views" fill={COLORS[0]} />
+                <Bar dataKey="downloads" name="Downloads" fill={COLORS[1]} />
+                <Bar dataKey="shares" name="Shares" fill={COLORS[2]} />
+              </SafeChart>
             </div>
           </div>
 
@@ -1625,48 +1613,43 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card">
             <h3 className="chart-title">Folder Access</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart
-                  layout="vertical"
-                  data={contentMetrics.folderAccess}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    horizontal={true}
-                    vertical={false}
-                  />
-                  <XAxis
-                    type="number"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                  />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    width={150}
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                  />
-                  <Tooltip
-                    formatter={(value) => [
-                      `${formatNumber(value)} accesses`,
-                      null,
-                    ]}
-                  />
-                  <Legend />
-                  <Bar
-                    dataKey="accessCount"
-                    name="Access Count"
-                    fill={COLORS[3]}
-                    radius={[0, 4, 4, 0]}
-                  />
-                  <Bar
-                    dataKey="userCount"
-                    name="User Count"
-                    fill={COLORS[4]}
-                    radius={[0, 4, 4, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={contentMetrics?.folderAccess || []}
+                type="bar"
+                height={250}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  horizontal={true}
+                  vertical={false}
+                />
+                <XAxis type="number" tick={{ fontSize: 12, fill: "#64748b" }} />
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  width={150}
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                />
+                <Tooltip
+                  formatter={(value) => [
+                    `${formatNumber(value)} accesses`,
+                    null,
+                  ]}
+                />
+                <Legend />
+                <Bar
+                  dataKey="accessCount"
+                  name="Access Count"
+                  fill={COLORS[3]}
+                  radius={[0, 4, 4, 0]}
+                />
+                <Bar
+                  dataKey="userCount"
+                  name="User Count"
+                  fill={COLORS[4]}
+                  radius={[0, 4, 4, 0]}
+                />
+              </SafeChart>
             </div>
           </div>
         </div>
@@ -1753,48 +1736,48 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card large">
             <h3 className="chart-title">Search Volume Over Time</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={searchMetrics.searchVolume}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                    tickFormatter={(date) => {
-                      const d = new Date(date);
-                      return d.toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      });
-                    }}
-                  />
-                  <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
-                  <Tooltip
-                    formatter={(value) => [`${formatNumber(value)}`, null]}
-                    labelFormatter={(date) =>
-                      new Date(date).toLocaleDateString()
-                    }
-                  />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="searches"
-                    name="Searches"
-                    stroke={COLORS[0]}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 6 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="uniqueUsers"
-                    name="Unique Users"
-                    stroke={COLORS[1]}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 6 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={searchMetrics?.searchVolume || []}
+                type="line"
+                height={300}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  tickFormatter={(date) => {
+                    const d = new Date(date);
+                    return d.toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    });
+                  }}
+                />
+                <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
+                <Tooltip
+                  formatter={(value) => [`${formatNumber(value)}`, null]}
+                  labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="searches"
+                  name="Searches"
+                  stroke={COLORS[0]}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 6 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="uniqueUsers"
+                  name="Unique Users"
+                  stroke={COLORS[1]}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 6 }}
+                />
+              </SafeChart>
             </div>
           </div>
 
@@ -1827,30 +1810,31 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card">
             <h3 className="chart-title">Search Categories</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={searchMetrics.searchCategories}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    dataKey="percentage"
-                    label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
-                    }
-                  >
-                    {searchMetrics.searchCategories.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => [`${value}%`, ""]} />
-                </PieChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={searchMetrics?.searchCategories || []}
+                type="pie"
+                height={250}
+              >
+                <Pie
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  dataKey="percentage"
+                  label={({ name, percent }) =>
+                    `${name} ${(percent * 100).toFixed(0)}%`
+                  }
+                >
+                  {searchMetrics.searchCategories.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => [`${value}%`, ""]} />
+              </SafeChart>
             </div>
           </div>
 
@@ -1858,26 +1842,25 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card">
             <h3 className="chart-title">Search by Type</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart
-                  data={searchMetrics.searchByType}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="type"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                  />
-                  <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
-                  <Tooltip
-                    formatter={(value) => [
-                      `${formatNumber(value)} searches`,
-                      null,
-                    ]}
-                  />
-                  <Bar dataKey="count" fill={COLORS[2]} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={searchMetrics?.searchByType || []}
+                type="bar"
+                height={250}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="type"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                />
+                <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
+                <Tooltip
+                  formatter={(value) => [
+                    `${formatNumber(value)} searches`,
+                    null,
+                  ]}
+                />
+                <Bar dataKey="count" fill={COLORS[2]} radius={[4, 4, 0, 0]} />
+              </SafeChart>
             </div>
           </div>
 
@@ -1990,74 +1973,74 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card large">
             <h3 className="chart-title">System Performance Over Time</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={systemMetrics.performance}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                    tickFormatter={(date) => {
-                      const d = new Date(date);
-                      return d.toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      });
-                    }}
-                  />
-                  <YAxis
-                    yAxisId="left"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                  />
-                  <Tooltip
-                    formatter={(value, name) => {
-                      if (name === "responseTime")
-                        return [`${value}s`, "Response Time"];
-                      if (name === "errorRate")
-                        return [`${value}%`, "Error Rate"];
-                      return [`${formatNumber(value)}`, "Requests"];
-                    }}
-                    labelFormatter={(date) =>
-                      new Date(date).toLocaleDateString()
-                    }
-                  />
-                  <Legend />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="responseTime"
-                    name="Response Time"
-                    stroke={COLORS[0]}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 6 }}
-                  />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="errorRate"
-                    name="Error Rate"
-                    stroke={COLORS[3]}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 6 }}
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="requests"
-                    name="Requests"
-                    stroke={COLORS[1]}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 6 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={systemMetrics?.performance || []}
+                type="line"
+                height={300}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  tickFormatter={(date) => {
+                    const d = new Date(date);
+                    return d.toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    });
+                  }}
+                />
+                <YAxis
+                  yAxisId="left"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                />
+                <Tooltip
+                  formatter={(value, name) => {
+                    if (name === "responseTime")
+                      return [`${value}s`, "Response Time"];
+                    if (name === "errorRate")
+                      return [`${value}%`, "Error Rate"];
+                    return [`${formatNumber(value)}`, "Requests"];
+                  }}
+                  labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                />
+                <Legend />
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="responseTime"
+                  name="Response Time"
+                  stroke={COLORS[0]}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 6 }}
+                />
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="errorRate"
+                  name="Error Rate"
+                  stroke={COLORS[3]}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 6 }}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="requests"
+                  name="Requests"
+                  stroke={COLORS[1]}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 6 }}
+                />
+              </SafeChart>
             </div>
           </div>
 
@@ -2065,108 +2048,84 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card large">
             <h3 className="chart-title">Resource Usage</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={250}>
-                <AreaChart data={systemMetrics.resourceUsage}>
-                  <defs>
-                    <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
-                      <stop
-                        offset="5%"
-                        stopColor={COLORS[0]}
-                        stopOpacity={0.8}
-                      />
-                      <stop
-                        offset="95%"
-                        stopColor={COLORS[0]}
-                        stopOpacity={0.1}
-                      />
-                    </linearGradient>
-                    <linearGradient
-                      id="colorMemory"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop
-                        offset="5%"
-                        stopColor={COLORS[1]}
-                        stopOpacity={0.8}
-                      />
-                      <stop
-                        offset="95%"
-                        stopColor={COLORS[1]}
-                        stopOpacity={0.1}
-                      />
-                    </linearGradient>
-                    <linearGradient
-                      id="colorStorage"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop
-                        offset="5%"
-                        stopColor={COLORS[2]}
-                        stopOpacity={0.8}
-                      />
-                      <stop
-                        offset="95%"
-                        stopColor={COLORS[2]}
-                        stopOpacity={0.1}
-                      />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                    tickFormatter={(date) => {
-                      const d = new Date(date);
-                      return d.toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      });
-                    }}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                    domain={[0, 100]}
-                    tickFormatter={(value) => `${value}%`}
-                  />
-                  <Tooltip
-                    formatter={(value) => [`${value}%`, null]}
-                    labelFormatter={(date) =>
-                      new Date(date).toLocaleDateString()
-                    }
-                  />
-                  <Legend />
-                  <Area
-                    type="monotone"
-                    dataKey="cpu"
-                    name="CPU Usage"
-                    stroke={COLORS[0]}
-                    fillOpacity={1}
-                    fill="url(#colorCpu)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="memory"
-                    name="Memory Usage"
-                    stroke={COLORS[1]}
-                    fillOpacity={1}
-                    fill="url(#colorMemory)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="storage"
-                    name="Storage Usage"
-                    stroke={COLORS[2]}
-                    fillOpacity={1}
-                    fill="url(#colorStorage)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={systemMetrics?.resourceUsage || []}
+                type="area"
+                height={250}
+              >
+                <defs>
+                  <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={COLORS[0]} stopOpacity={0.8} />
+                    <stop
+                      offset="95%"
+                      stopColor={COLORS[0]}
+                      stopOpacity={0.1}
+                    />
+                  </linearGradient>
+                  <linearGradient id="colorMemory" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={COLORS[1]} stopOpacity={0.8} />
+                    <stop
+                      offset="95%"
+                      stopColor={COLORS[1]}
+                      stopOpacity={0.1}
+                    />
+                  </linearGradient>
+                  <linearGradient id="colorStorage" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={COLORS[2]} stopOpacity={0.8} />
+                    <stop
+                      offset="95%"
+                      stopColor={COLORS[2]}
+                      stopOpacity={0.1}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  tickFormatter={(date) => {
+                    const d = new Date(date);
+                    return d.toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    });
+                  }}
+                />
+                <YAxis
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  domain={[0, 100]}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                <Tooltip
+                  formatter={(value) => [`${value}%`, null]}
+                  labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                />
+                <Legend />
+                <Area
+                  type="monotone"
+                  dataKey="cpu"
+                  name="CPU Usage"
+                  stroke={COLORS[0]}
+                  fillOpacity={1}
+                  fill="url(#colorCpu)"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="memory"
+                  name="Memory Usage"
+                  stroke={COLORS[1]}
+                  fillOpacity={1}
+                  fill="url(#colorMemory)"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="storage"
+                  name="Storage Usage"
+                  stroke={COLORS[2]}
+                  fillOpacity={1}
+                  fill="url(#colorStorage)"
+                />
+              </SafeChart>
             </div>
           </div>
 
@@ -2174,35 +2133,34 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="chart-card">
             <h3 className="chart-title">Errors by Type</h3>
             <div className="chart-container">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={systemMetrics.errorsByType}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    dataKey="count"
-                    label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
-                    }
-                  >
-                    {systemMetrics.errorsByType.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value) => [
-                      `${formatNumber(value)} errors`,
-                      null,
-                    ]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <SafeChart
+                data={systemMetrics?.errorsByType || []}
+                type="pie"
+                height={250}
+              >
+                <Pie
+                  data={systemMetrics.errorsByType}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  dataKey="count"
+                  label={({ name, percent }) =>
+                    `${name} ${(percent * 100).toFixed(0)}%`
+                  }
+                >
+                  {systemMetrics.errorsByType.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value) => [`${formatNumber(value)} errors`, null]}
+                />
+              </SafeChart>
             </div>
           </div>
 
