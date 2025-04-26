@@ -17,16 +17,19 @@ import {
   RefreshCw,
   Printer,
   Download,
+  ArrowRight,
+  DollarSign,
+  Clipboard,
 } from "lucide-react";
 import zenotiService from "../../services/zenotiService";
 import analyticsUtils from "../../utils/analyticsUtils";
 import "./AppointmentDetails.css";
 
 /**
- * Component for viewing detailed appointment information
+ * Enhanced component for viewing detailed appointment information
  * Including client details, service information, and appointment actions
  */
-const AppointmentDetails = ({
+const EnhancedAppointmentDetails = ({
   appointment,
   appointmentId,
   centerCode,
@@ -42,6 +45,11 @@ const AppointmentDetails = ({
   const [clientDetails, setClientDetails] = useState(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [serviceDetails, setServiceDetails] = useState(null);
+  const [staffDetails, setStaffDetails] = useState(null);
+  const [activeTab, setActiveTab] = useState("details");
+  const [showClientHistory, setShowClientHistory] = useState(false);
+  const [clientHistory, setClientHistory] = useState(null);
 
   // Load appointment details if appointmentId is provided but not appointment object
   useEffect(() => {
@@ -55,6 +63,16 @@ const AppointmentDetails = ({
         loadClientDetails(appointment.guest.id);
       } else if (appointment.client_id || appointment.guest_id) {
         loadClientDetails(appointment.client_id || appointment.guest_id);
+      }
+
+      // Load service details if service_id is available
+      if (appointment.service_id) {
+        loadServiceDetails(appointment.service_id);
+      }
+
+      // Load staff details if therapist_id is available
+      if (appointment.therapist_id || appointment.provider_id) {
+        loadStaffDetails(appointment.therapist_id || appointment.provider_id);
       }
     }
   }, [appointmentId, appointment]);
@@ -86,6 +104,22 @@ const AppointmentDetails = ({
           loadClientDetails(
             response.data.appointment.client_id ||
               response.data.appointment.guest_id
+          );
+        }
+
+        // Load service details if service_id is available
+        if (response.data.appointment.service_id) {
+          loadServiceDetails(response.data.appointment.service_id);
+        }
+
+        // Load staff details if therapist_id is available
+        if (
+          response.data.appointment.therapist_id ||
+          response.data.appointment.provider_id
+        ) {
+          loadStaffDetails(
+            response.data.appointment.therapist_id ||
+              response.data.appointment.provider_id
           );
         }
 
@@ -128,6 +162,66 @@ const AppointmentDetails = ({
     }
   };
 
+  // Load service details
+  const loadServiceDetails = async (serviceId) => {
+    if (!serviceId) return;
+
+    try {
+      const response = await zenotiService.getServiceDetails(
+        serviceId,
+        centerCode
+      );
+
+      if (response.data?.success) {
+        setServiceDetails(response.data.service);
+      }
+    } catch (err) {
+      console.error("Error loading service details:", err);
+      // Don't set error state as this is a non-critical operation
+    }
+  };
+
+  // Load staff details
+  const loadStaffDetails = async (staffId) => {
+    if (!staffId) return;
+
+    try {
+      const response = await zenotiService.getStaffDetails(staffId);
+
+      if (response.data?.success) {
+        setStaffDetails(response.data.staff);
+      }
+    } catch (err) {
+      console.error("Error loading staff details:", err);
+      // Don't set error state as this is a non-critical operation
+    }
+  };
+
+  // Load client history
+  const loadClientHistory = async (clientId) => {
+    if (!clientId) return;
+
+    try {
+      setIsLoading(true);
+      const response = await zenotiService.getClientHistory(clientId, {
+        centerCode,
+        limit: 10,
+      });
+
+      if (response.data?.success) {
+        setClientHistory(response.data.history || []);
+        setShowClientHistory(true);
+      } else {
+        throw new Error("Failed to load client history");
+      }
+    } catch (err) {
+      console.error("Error loading client history:", err);
+      setError("Failed to load client history");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
@@ -146,6 +240,16 @@ const AppointmentDetails = ({
       hour: "numeric",
       minute: "2-digit",
     });
+  };
+
+  // Format currency
+  const formatCurrency = (amount) => {
+    if (typeof amount !== "number") return "$0.00";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+    }).format(amount);
   };
 
   // Handle appointment cancellation
@@ -311,7 +415,12 @@ const AppointmentDetails = ({
     appointmentDetails.service_name ||
     (appointmentDetails.service
       ? appointmentDetails.service.name
-      : "Unknown Service");
+      : serviceDetails?.name || "Unknown Service");
+
+  const servicePrice =
+    (appointmentDetails.service && appointmentDetails.service.price) ||
+    (serviceDetails && serviceDetails.price) ||
+    0;
 
   // Determine if the appointment is in the past
   const isPastAppointment =
@@ -372,150 +481,545 @@ const AppointmentDetails = ({
         </div>
       )}
 
+      {/* Tabs Navigation */}
+      <div className="details-tabs">
+        <button
+          className={activeTab === "details" ? "active" : ""}
+          onClick={() => setActiveTab("details")}
+        >
+          Details
+        </button>
+        <button
+          className={activeTab === "client" ? "active" : ""}
+          onClick={() => setActiveTab("client")}
+        >
+          Client
+        </button>
+        <button
+          className={activeTab === "service" ? "active" : ""}
+          onClick={() => setActiveTab("service")}
+        >
+          Service
+        </button>
+        <button
+          className={activeTab === "notes" ? "active" : ""}
+          onClick={() => setActiveTab("notes")}
+        >
+          Notes
+        </button>
+      </div>
+
       <div className="appointment-details-content">
-        <div className="details-section appointment-info">
-          <h3>Appointment Information</h3>
+        {/* Details Tab */}
+        {activeTab === "details" && (
+          <div className="details-section appointment-info">
+            <h3>Appointment Information</h3>
 
-          <div className="info-grid">
-            <div className="info-item">
-              <div className="info-label">
-                <Calendar size={16} />
-                <span>Date</span>
-              </div>
-              <div className="info-value">
-                {formatDate(appointmentDetails.start_time)}
-              </div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">
-                <Clock size={16} />
-                <span>Time</span>
-              </div>
-              <div className="info-value">
-                {formatTime(appointmentDetails.start_time)}
-              </div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">
-                <Tag size={16} />
-                <span>Service</span>
-              </div>
-              <div className="info-value">{serviceName}</div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">
-                <Clock size={16} />
-                <span>Duration</span>
-              </div>
-              <div className="info-value">
-                {appointmentDetails.duration ||
-                  (appointmentDetails.service
-                    ? appointmentDetails.service.duration
-                    : "60")}{" "}
-                minutes
-              </div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">
-                <User size={16} />
-                <span>Provider</span>
-              </div>
-              <div className="info-value">
-                {appointmentDetails.therapist ||
-                  (appointmentDetails.provider
-                    ? `${appointmentDetails.provider.first_name || ""} ${
-                        appointmentDetails.provider.last_name || ""
-                      }`.trim()
-                    : "Not Assigned")}
-              </div>
-            </div>
-
-            <div className="info-item">
-              <div className="info-label">
-                <MapPin size={16} />
-                <span>Center</span>
-              </div>
-              <div className="info-value">
-                {appointmentDetails.center
-                  ? appointmentDetails.center.name
-                  : centerCode || "Unknown Center"}
-              </div>
-            </div>
-          </div>
-
-          {/* Notes section */}
-          {appointmentDetails.notes && (
-            <div className="notes-section">
-              <div className="notes-header">
-                <FileText size={16} />
-                <h4>Notes</h4>
-              </div>
-              <div className="notes-content">{appointmentDetails.notes}</div>
-            </div>
-          )}
-        </div>
-
-        {/* Client information section */}
-        <div className="details-section client-info">
-          <div className="section-header-with-action">
-            <h3>Client Information</h3>
-            {client.id && (
-              <button
-                className="view-client-button"
-                onClick={handleViewClient}
-                title="View Client Details"
-              >
-                View Full Profile
-              </button>
-            )}
-          </div>
-
-          <div className="info-grid">
-            <div className="info-item">
-              <div className="info-label">
-                <User size={16} />
-                <span>Name</span>
-              </div>
-              <div className="info-value">{clientName}</div>
-            </div>
-
-            {client.email && (
+            <div className="info-grid">
               <div className="info-item">
                 <div className="info-label">
-                  <Mail size={16} />
-                  <span>Email</span>
-                </div>
-                <div className="info-value">{client.email}</div>
-              </div>
-            )}
-
-            {(client.mobile || client.phone) && (
-              <div className="info-item">
-                <div className="info-label">
-                  <Phone size={16} />
-                  <span>Phone</span>
+                  <Calendar size={16} />
+                  <span>Date</span>
                 </div>
                 <div className="info-value">
-                  {client.mobile || client.phone}
+                  {formatDate(appointmentDetails.start_time)}
                 </div>
               </div>
-            )}
 
-            {client.gender && (
+              <div className="info-item">
+                <div className="info-label">
+                  <Clock size={16} />
+                  <span>Time</span>
+                </div>
+                <div className="info-value">
+                  {formatTime(appointmentDetails.start_time)}
+                </div>
+              </div>
+
+              <div className="info-item">
+                <div className="info-label">
+                  <Clock size={16} />
+                  <span>End Time</span>
+                </div>
+                <div className="info-value">
+                  {appointmentDetails.end_time
+                    ? formatTime(appointmentDetails.end_time)
+                    : calculateEndTime(
+                        appointmentDetails.start_time,
+                        appointmentDetails.duration || 60
+                      )}
+                </div>
+              </div>
+
+              <div className="info-item">
+                <div className="info-label">
+                  <Tag size={16} />
+                  <span>Service</span>
+                </div>
+                <div className="info-value">{serviceName}</div>
+              </div>
+
+              <div className="info-item">
+                <div className="info-label">
+                  <Clock size={16} />
+                  <span>Duration</span>
+                </div>
+                <div className="info-value">
+                  {appointmentDetails.duration ||
+                    (appointmentDetails.service
+                      ? appointmentDetails.service.duration
+                      : "60")}{" "}
+                  minutes
+                </div>
+              </div>
+
+              <div className="info-item">
+                <div className="info-label">
+                  <DollarSign size={16} />
+                  <span>Price</span>
+                </div>
+                <div className="info-value">{formatCurrency(servicePrice)}</div>
+              </div>
+
               <div className="info-item">
                 <div className="info-label">
                   <User size={16} />
-                  <span>Gender</span>
+                  <span>Provider</span>
                 </div>
-                <div className="info-value">{client.gender}</div>
+                <div className="info-value">
+                  {appointmentDetails.therapist ||
+                    (appointmentDetails.provider
+                      ? `${appointmentDetails.provider.first_name || ""} ${
+                          appointmentDetails.provider.last_name || ""
+                        }`.trim()
+                      : staffDetails
+                      ? `${staffDetails.first_name || ""} ${
+                          staffDetails.last_name || ""
+                        }`.trim()
+                      : "Not Assigned")}
+                </div>
+              </div>
+
+              <div className="info-item">
+                <div className="info-label">
+                  <MapPin size={16} />
+                  <span>Center</span>
+                </div>
+                <div className="info-value">
+                  {appointmentDetails.center
+                    ? appointmentDetails.center.name
+                    : centerCode || "Unknown Center"}
+                </div>
+              </div>
+            </div>
+
+            <div className="appointment-timeline">
+              <h4>Appointment Timeline</h4>
+              <div className="timeline-steps">
+                <div className="timeline-step completed">
+                  <div className="step-icon">
+                    <CheckCircle size={16} />
+                  </div>
+                  <div className="step-content">
+                    <div className="step-title">Booked</div>
+                    <div className="step-time">
+                      {appointmentDetails.created_date
+                        ? formatDate(appointmentDetails.created_date) +
+                          " at " +
+                          formatTime(appointmentDetails.created_date)
+                        : "Date unknown"}
+                    </div>
+                  </div>
+                </div>
+
+                {isCancelled ? (
+                  <div className="timeline-step cancelled">
+                    <div className="step-icon">
+                      <X size={16} />
+                    </div>
+                    <div className="step-content">
+                      <div className="step-title">Cancelled</div>
+                      <div className="step-time">
+                        {appointmentDetails.modified_date
+                          ? formatDate(appointmentDetails.modified_date) +
+                            " at " +
+                            formatTime(appointmentDetails.modified_date)
+                          : "Date unknown"}
+                      </div>
+                      {appointmentDetails.cancel_reason && (
+                        <div className="step-note">
+                          Reason: {appointmentDetails.cancel_reason}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : isPastAppointment &&
+                  (appointmentDetails.status || "").toLowerCase() ===
+                    "completed" ? (
+                  <div className="timeline-step completed">
+                    <div className="step-icon">
+                      <CheckCircle size={16} />
+                    </div>
+                    <div className="step-content">
+                      <div className="step-title">Completed</div>
+                      <div className="step-time">
+                        {formatDate(
+                          appointmentDetails.end_time ||
+                            appointmentDetails.start_time
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : isPastAppointment ? (
+                  <div className="timeline-step">
+                    <div className="step-icon">
+                      <Clock size={16} />
+                    </div>
+                    <div className="step-content">
+                      <div className="step-title">
+                        {(appointmentDetails.status || "").toLowerCase() ===
+                        "noshow"
+                          ? "No Show"
+                          : "Appointment Time Passed"}
+                      </div>
+                      <div className="step-time">
+                        {formatDate(appointmentDetails.start_time)}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="timeline-step upcoming">
+                    <div className="step-icon">
+                      <Clock size={16} />
+                    </div>
+                    <div className="step-content">
+                      <div className="step-title">Upcoming</div>
+                      <div className="step-time">
+                        {formatDate(appointmentDetails.start_time) +
+                          " at " +
+                          formatTime(appointmentDetails.start_time)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Client Tab */}
+        {activeTab === "client" && (
+          <div className="details-section client-info">
+            <div className="section-header-with-action">
+              <h3>Client Information</h3>
+              <div className="section-actions">
+                {client.id && !showClientHistory && (
+                  <button
+                    className="view-history-button"
+                    onClick={() => loadClientHistory(client.id)}
+                    title="View Client History"
+                  >
+                    <Clock size={14} />
+                    View History
+                  </button>
+                )}
+                {client.id && (
+                  <button
+                    className="view-client-button"
+                    onClick={handleViewClient}
+                    title="View Client Details"
+                  >
+                    <User size={14} />
+                    Full Profile
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {!showClientHistory ? (
+              <div className="info-grid">
+                <div className="info-item">
+                  <div className="info-label">
+                    <User size={16} />
+                    <span>Name</span>
+                  </div>
+                  <div className="info-value">{clientName}</div>
+                </div>
+
+                {client.email && (
+                  <div className="info-item">
+                    <div className="info-label">
+                      <Mail size={16} />
+                      <span>Email</span>
+                    </div>
+                    <div className="info-value">{client.email}</div>
+                  </div>
+                )}
+
+                {(client.mobile || client.phone) && (
+                  <div className="info-item">
+                    <div className="info-label">
+                      <Phone size={16} />
+                      <span>Phone</span>
+                    </div>
+                    <div className="info-value">
+                      {client.mobile || client.phone}
+                    </div>
+                  </div>
+                )}
+
+                {client.gender && (
+                  <div className="info-item">
+                    <div className="info-label">
+                      <User size={16} />
+                      <span>Gender</span>
+                    </div>
+                    <div className="info-value">{client.gender}</div>
+                  </div>
+                )}
+
+                {client.date_of_birth && (
+                  <div className="info-item">
+                    <div className="info-label">
+                      <Calendar size={16} />
+                      <span>Date of Birth</span>
+                    </div>
+                    <div className="info-value">
+                      {formatDate(client.date_of_birth)}
+                    </div>
+                  </div>
+                )}
+
+                {(client.membership || client.membership_id) && (
+                  <div className="info-item">
+                    <div className="info-label">
+                      <Tag size={16} />
+                      <span>Membership</span>
+                    </div>
+                    <div className="info-value">
+                      {client.membership?.name || "Active Membership"}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : isLoading ? (
+              <div className="loading-state">
+                <RefreshCw className="spinner" size={20} />
+                <p>Loading client history...</p>
+              </div>
+            ) : clientHistory && clientHistory.length > 0 ? (
+              <div className="client-history">
+                <button
+                  className="back-button"
+                  onClick={() => setShowClientHistory(false)}
+                >
+                  <ArrowRight size={14} className="back-icon" />
+                  Back to Client Details
+                </button>
+
+                <h4>Client History</h4>
+                <div className="history-items">
+                  {clientHistory.map((item, index) => (
+                    <div key={index} className="history-item">
+                      <div className="history-item-date">
+                        <Calendar size={14} />
+                        {formatDate(item.date)}
+                      </div>
+                      <div className="history-item-type">
+                        {item.type === "appointment" ? (
+                          <Clock size={14} />
+                        ) : item.type === "purchase" ? (
+                          <DollarSign size={14} />
+                        ) : (
+                          <Tag size={14} />
+                        )}
+                        {item.type || "Activity"}
+                      </div>
+                      <div className="history-item-details">
+                        <p className="item-description">
+                          {item.description || item.name || "Unknown activity"}
+                        </p>
+                        {item.amount && (
+                          <p className="item-amount">
+                            {formatCurrency(item.amount)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="no-history">
+                <p>No history available for this client.</p>
+                <button
+                  className="back-button"
+                  onClick={() => setShowClientHistory(false)}
+                >
+                  Back to Client Details
+                </button>
               </div>
             )}
           </div>
-        </div>
+        )}
+
+        {/* Service Tab */}
+        {activeTab === "service" && (
+          <div className="details-section service-info">
+            <h3>Service Information</h3>
+
+            {isLoading && !serviceDetails ? (
+              <div className="loading-state">
+                <RefreshCw className="spinner" size={20} />
+                <p>Loading service details...</p>
+              </div>
+            ) : serviceDetails ? (
+              <div className="service-details">
+                <div className="info-grid">
+                  <div className="info-item">
+                    <div className="info-label">
+                      <Tag size={16} />
+                      <span>Service Name</span>
+                    </div>
+                    <div className="info-value">{serviceDetails.name}</div>
+                  </div>
+
+                  <div className="info-item">
+                    <div className="info-label">
+                      <Clock size={16} />
+                      <span>Duration</span>
+                    </div>
+                    <div className="info-value">
+                      {serviceDetails.duration || 60} minutes
+                    </div>
+                  </div>
+
+                  <div className="info-item">
+                    <div className="info-label">
+                      <DollarSign size={16} />
+                      <span>Price</span>
+                    </div>
+                    <div className="info-value">
+                      {formatCurrency(serviceDetails.price || 0)}
+                    </div>
+                  </div>
+
+                  {serviceDetails.category && (
+                    <div className="info-item">
+                      <div className="info-label">
+                        <Tag size={16} />
+                        <span>Category</span>
+                      </div>
+                      <div className="info-value">
+                        {serviceDetails.category}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {serviceDetails.description && (
+                  <div className="service-description">
+                    <h4>Description</h4>
+                    <p>{serviceDetails.description}</p>
+                  </div>
+                )}
+
+                {staffDetails && (
+                  <div className="staff-details">
+                    <h4>Service Provider</h4>
+                    <div className="staff-card">
+                      <div className="staff-avatar">
+                        <User size={32} />
+                      </div>
+                      <div className="staff-info">
+                        <div className="staff-name">
+                          {staffDetails.first_name} {staffDetails.last_name}
+                        </div>
+                        <div className="staff-title">
+                          {staffDetails.title ||
+                            staffDetails.designation ||
+                            "Service Provider"}
+                        </div>
+                        {staffDetails.expertise && (
+                          <div className="staff-expertise">
+                            {staffDetails.expertise}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="no-service-details">
+                <p>No detailed service information available.</p>
+                <div className="basic-service-info">
+                  <div className="info-item">
+                    <div className="info-label">Service:</div>
+                    <div className="info-value">{serviceName}</div>
+                  </div>
+                  <div className="info-item">
+                    <div className="info-label">Duration:</div>
+                    <div className="info-value">
+                      {appointmentDetails.duration || "60"} minutes
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Notes Tab */}
+        {activeTab === "notes" && (
+          <div className="details-section notes-info">
+            <h3>Appointment Notes</h3>
+
+            {/* Notes section */}
+            {appointmentDetails.notes ? (
+              <div className="notes-section">
+                <div className="notes-content">{appointmentDetails.notes}</div>
+              </div>
+            ) : (
+              <div className="no-notes">
+                <p>No notes have been added to this appointment.</p>
+                {!isPastAppointment && !isCancelled && (
+                  <div className="add-note-placeholder">
+                    <Clipboard size={32} />
+                    <p>You can add notes for this appointment.</p>
+                    <textarea
+                      placeholder="Add notes here..."
+                      disabled={isLoading}
+                      rows={4}
+                    ></textarea>
+                    <button className="save-note-button" disabled={isLoading}>
+                      Save Notes
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Special instructions or follow-up notes if available */}
+            {appointmentDetails.special_instructions && (
+              <div className="special-instructions">
+                <h4>Special Instructions</h4>
+                <div className="instructions-content">
+                  {appointmentDetails.special_instructions}
+                </div>
+              </div>
+            )}
+
+            {appointmentDetails.follow_up_notes && (
+              <div className="follow-up-notes">
+                <h4>Follow-up Notes</h4>
+                <div className="follow-up-content">
+                  {appointmentDetails.follow_up_notes}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Appointment actions */}
         <div className="appointment-actions">
@@ -634,4 +1138,17 @@ const AppointmentDetails = ({
   );
 };
 
-export default AppointmentDetails;
+// Helper function to calculate end time
+function calculateEndTime(startTime, durationMinutes) {
+  if (!startTime) return "N/A";
+
+  const start = new Date(startTime);
+  const end = new Date(start.getTime() + durationMinutes * 60000);
+
+  return end.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export default EnhancedAppointmentDetails;
