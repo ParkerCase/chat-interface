@@ -1,4 +1,3 @@
-// src/components/crm/CRMReportsSection.jsx - Enhanced
 import React, { useState, useEffect } from "react";
 import {
   Download,
@@ -12,17 +11,23 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronUp,
+  Filter,
+  List,
+  CreditCard,
+  DollarSign,
 } from "lucide-react";
 import zenotiService from "../../services/zenotiService";
 import analyticsUtils from "../../utils/analyticsUtils";
 import CRMReportViewer from "./CRMReportViewer";
-import ComingSoonOverlay from "../common/ComingSoonOverlay";
 
 /**
- * Enhanced Reports section for the CRM Dashboard
- * Handles report generation, viewing, and export functionality
+ * Enhanced Reports section with additional Zenoti reports
  */
-const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
+const EnhancedCRMReportsSection = ({
+  selectedCenter,
+  connectionStatus,
+  onRefresh,
+}) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [dateRange, setDateRange] = useState({
@@ -32,16 +37,48 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
     endDate: new Date().toISOString().split("T")[0],
   });
   const [reportType, setReportType] = useState("collections");
+  const [advancedFilters, setAdvancedFilters] = useState({
+    appointment: {
+      date_type: 0, // Appointment date
+      appointment_statuses: [-1], // All statuses
+      appointment_sources: [-1], // All sources
+    },
+    sales: {
+      level_of_detail: "1",
+      item_types: [-1],
+      payment_types: [-1],
+      sale_types: [-1],
+      invoice_statuses: [-1],
+    },
+  });
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reportData, setReportData] = useState(null);
   const [showReportViewer, setShowReportViewer] = useState(false);
-  const [showComingSoon, setShowComingSoon] = useState(false);
-  const [comingSoonFeature, setComingSoonFeature] = useState("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [centerId, setCenterId] = useState(null);
 
-  // New state for packages
-  const [packages, setPackages] = useState([]);
-  const [loadingPackages, setLoadingPackages] = useState(false);
-  const [showPackages, setShowPackages] = useState(false);
+  // Load center ID when center code changes
+  useEffect(() => {
+    if (selectedCenter && connectionStatus?.connected) {
+      getCenterId();
+    }
+  }, [selectedCenter, connectionStatus?.connected]);
+
+  // Get center ID from center code
+  const getCenterId = async () => {
+    try {
+      const result = await zenotiService.getCenterIdFromCode(selectedCenter);
+      if (result.success) {
+        setCenterId(result.centerId);
+      } else {
+        console.warn("Could not get center ID from code:", result.error);
+        setCenterId(null);
+      }
+    } catch (err) {
+      console.error("Error getting center ID:", err);
+      setCenterId(null);
+    }
+  };
 
   // Handle date range change for reports
   const handleDateRangeChange = (type, value) => {
@@ -51,93 +88,94 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
     }));
   };
 
-  // Check if report type is in development
-  const checkReportAvailability = (type) => {
-    // We're removing the weekly and client-activity reports as requested
-    if (type === "weekly" || type === "client-activity") {
-      setComingSoonFeature(
-        type === "weekly"
-          ? "Weekly Business Reports"
-          : "Client Activity Reports"
-      );
-      setShowComingSoon(true);
-      return false;
-    }
-    return true;
+  // Handle advanced filter change
+  const handleAdvancedFilterChange = (reportCategory, filterName, value) => {
+    setAdvancedFilters((prev) => ({
+      ...prev,
+      [reportCategory]: {
+        ...prev[reportCategory],
+        [filterName]: value,
+      },
+    }));
   };
 
   // Generate report based on selected type
   const generateReport = async () => {
-    // First check if this report type is available
-    if (!checkReportAvailability(reportType)) {
-      return;
-    }
-
     try {
       setGeneratingReport(true);
       setError(null);
       setReportData(null);
 
-      // Define report params based on type
-      const reportParams = {
+      // Basic params with date range
+      const baseParams = {
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
         centerCode: selectedCenter,
       };
 
-      // Add debugging before making API call
-      console.log(`Generating ${reportType} report with params:`, reportParams);
-
       let response = null;
 
       switch (reportType) {
         case "collections":
-          console.log(
-            "Generating collections report with params:",
-            reportParams
-          );
-          response = await zenotiService.getCollectionsReport(reportParams);
+          response = await zenotiService.getCollectionsReport(baseParams);
           break;
 
         case "sales":
-          console.log("Generating sales report with params:", reportParams);
-          response = await zenotiService.getSalesReport(reportParams);
+          response = await zenotiService.getSalesReport(baseParams);
           break;
 
         case "invoices":
-          // Special case for invoices - use searchInvoices
-          console.log("Generating invoice report with params:", reportParams);
-          const searchResponse = await zenotiService.searchInvoices(
-            reportParams
-          );
-
-          if (searchResponse.data?.success) {
-            // Transform the invoice search results into a report format
-            response = {
-              data: {
-                success: true,
-                report: {
-                  summary: {
-                    total_amount:
-                      searchResponse.data.invoices?.reduce(
-                        (sum, inv) => sum + (parseFloat(inv.amount) || 0),
-                        0
-                      ) || 0,
-                    count: searchResponse.data.invoices?.length || 0,
-                  },
-                  invoices: searchResponse.data.invoices || [],
-                  dateRange: searchResponse.data.dateRange,
-                },
-              },
-            };
-          } else {
-            throw new Error("Failed to retrieve invoice data");
-          }
+          response = await zenotiService.searchInvoices(baseParams);
           break;
 
         case "packages":
-          console.log("Generating packages report with params:", reportParams);
-          response = await zenotiService.getPackages(reportParams);
+          response = await zenotiService.getPackages(baseParams);
+          break;
+
+        case "appointments-report":
+          if (!centerId) {
+            throw new Error("Center ID is required. Please try again.");
+          }
+
+          response = await zenotiService.getAppointmentsReport({
+            center_ids: [centerId],
+            start_date: dateRange.startDate,
+            end_date: dateRange.endDate,
+            date_type: advancedFilters.appointment.date_type,
+            appointment_statuses:
+              advancedFilters.appointment.appointment_statuses,
+            appointment_sources:
+              advancedFilters.appointment.appointment_sources,
+          });
+          break;
+
+        case "sales-accrual":
+          if (!centerId) {
+            throw new Error("Center ID is required. Please try again.");
+          }
+
+          response = await zenotiService.getSalesAccrualReport({
+            center_ids: [centerId],
+            start_date: dateRange.startDate,
+            end_date: dateRange.endDate,
+          });
+          break;
+
+        case "sales-cash":
+          if (!centerId) {
+            throw new Error("Center ID is required. Please try again.");
+          }
+
+          response = await zenotiService.getSalesCashReport({
+            center_ids: [centerId],
+            start_date: dateRange.startDate,
+            end_date: dateRange.endDate,
+            level_of_detail: advancedFilters.sales.level_of_detail,
+            item_types: advancedFilters.sales.item_types,
+            payment_types: advancedFilters.sales.payment_types,
+            sale_types: advancedFilters.sales.sale_types,
+            invoice_statuses: advancedFilters.sales.invoice_statuses,
+          });
           break;
 
         default:
@@ -150,6 +188,8 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
           response.data.report ||
           response.data.overview ||
           response.data.packages ||
+          response.data.appointments ||
+          response.data.sales ||
           (response.data.invoices
             ? { invoices: response.data.invoices }
             : null);
@@ -226,60 +266,6 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
     }
   };
 
-  // Handle report type selection with coming soon check
-  const handleReportTypeChange = (e) => {
-    const type = e.target.value;
-    setReportType(type);
-
-    // Check if this report type is still in development
-    checkReportAvailability(type);
-  };
-
-  // Load packages for the selected center
-  const loadPackages = async () => {
-    if (!selectedCenter || !connectionStatus?.connected) return;
-
-    try {
-      setLoadingPackages(true);
-      setError(null);
-
-      const response = await zenotiService.getPackages({
-        centerCode: selectedCenter,
-      });
-
-      if (response.data?.success) {
-        setPackages(response.data.packages || []);
-        setShowPackages(true);
-      } else {
-        throw new Error(response.data?.error || "Failed to load packages");
-      }
-    } catch (err) {
-      console.error("Error loading packages:", err);
-      setError(`Failed to load packages: ${err.message}`);
-    } finally {
-      setLoadingPackages(false);
-    }
-  };
-
-  // Toggle packages display
-  const togglePackages = () => {
-    if (!showPackages && packages.length === 0) {
-      loadPackages();
-    } else {
-      setShowPackages(!showPackages);
-    }
-  };
-
-  // Format currency for display
-  const formatCurrency = (amount) => {
-    if (typeof amount !== "number") return "$0.00";
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
-
   return (
     <div className="reports-section">
       <div className="section-header">
@@ -321,13 +307,26 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
             <select
               id="reportType"
               value={reportType}
-              onChange={handleReportTypeChange}
+              onChange={(e) => {
+                setReportType(e.target.value);
+                // Reset advanced filters when changing report type
+                setShowAdvancedFilters(false);
+              }}
             >
-              <option value="collections">Collections Report</option>
-              <option value="sales">Sales Report</option>
-              <option value="invoices">Invoices Report</option>
-              <option value="packages">Packages Report</option>
-              {/* Removing the non-working report types as requested */}
+              {/* Standard Reports */}
+              <optgroup label="Standard Reports">
+                <option value="collections">Collections Report</option>
+                <option value="sales">Sales Report</option>
+                <option value="invoices">Invoices Report</option>
+                <option value="packages">Packages Report</option>
+              </optgroup>
+
+              {/* Enhanced Reports */}
+              <optgroup label="Enhanced Reports">
+                <option value="appointments-report">Appointments Report</option>
+                <option value="sales-accrual">Sales Accrual Report</option>
+                <option value="sales-cash">Sales Cash Report</option>
+              </optgroup>
             </select>
           </div>
 
@@ -356,6 +355,24 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
             </div>
           </div>
 
+          {/* Advanced filters button - only show for enhanced reports */}
+          {(reportType === "appointments-report" ||
+            reportType === "sales-accrual" ||
+            reportType === "sales-cash") && (
+            <button
+              className="advanced-filters-btn"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            >
+              <Filter size={14} />
+              <span>Advanced Filters</span>
+              {showAdvancedFilters ? (
+                <ChevronUp size={12} />
+              ) : (
+                <ChevronDown size={12} />
+              )}
+            </button>
+          )}
+
           <button
             className="generate-report-btn"
             onClick={generateReport}
@@ -376,76 +393,161 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
         </div>
       )}
 
-      {/* Packages Section */}
-      {connectionStatus?.connected && (
-        <div className="packages-section">
-          <div
-            className="packages-header"
-            onClick={togglePackages}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              cursor: "pointer",
-              padding: "10px",
-              backgroundColor: "#f5f5f5",
-              borderRadius: "4px",
-              marginTop: "20px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <Package size={18} style={{ marginRight: "8px" }} />
-              <h4 style={{ margin: 0 }}>Available Packages</h4>
-            </div>
-            {showPackages ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-          </div>
+      {/* Advanced Filters Panel */}
+      {showAdvancedFilters && (
+        <div className="advanced-filters-panel">
+          <h4>Advanced Filters</h4>
 
-          {showPackages && (
-            <div className="packages-content" style={{ marginTop: "10px" }}>
-              {loadingPackages ? (
-                <div className="loading-state">
-                  <RefreshCw size={20} className="spinning" />
-                  <span>Loading packages...</span>
-                </div>
-              ) : packages.length > 0 ? (
-                <div className="packages-table-container">
-                  <table className="packages-table">
-                    <thead>
-                      <tr>
-                        <th>Package Name</th>
-                        <th>Type</th>
-                        <th>Price</th>
-                        <th>Validity</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {packages.map((pkg, index) => (
-                        <tr key={pkg.id || index}>
-                          <td>{pkg.name}</td>
-                          <td>{pkg.type || "Standard"}</td>
-                          <td>{formatCurrency(pkg.price || 0)}</td>
-                          <td>{pkg.validity_days || "N/A"} days</td>
-                          <td>
-                            <span
-                              className={`status-badge ${
-                                pkg.status?.toLowerCase() || "active"
-                              }`}
-                            >
-                              {pkg.status || "Active"}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="no-packages-message">
-                  <AlertCircle size={24} />
-                  <p>No packages available for this center.</p>
-                </div>
-              )}
+          {reportType === "appointments-report" && (
+            <div className="filter-groups">
+              <div className="filter-group">
+                <label>Date Type</label>
+                <select
+                  value={advancedFilters.appointment.date_type}
+                  onChange={(e) =>
+                    handleAdvancedFilterChange(
+                      "appointment",
+                      "date_type",
+                      parseInt(e.target.value)
+                    )
+                  }
+                >
+                  <option value={0}>Appointment Date</option>
+                  <option value={1}>Booking Date</option>
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Appointment Status</label>
+                <select
+                  value={advancedFilters.appointment.appointment_statuses[0]}
+                  onChange={(e) =>
+                    handleAdvancedFilterChange(
+                      "appointment",
+                      "appointment_statuses",
+                      [e.target.value]
+                    )
+                  }
+                >
+                  <option value={-1}>All Statuses</option>
+                  <option value="Open">Open</option>
+                  <option value="Closed">Closed</option>
+                  <option value="Cancelled">Cancelled</option>
+                  <option value="NoShow">No Show</option>
+                  <option value="CheckedIn">Checked In</option>
+                  <option value="Confirmed">Confirmed</option>
+                  <option value="Deleted">Deleted</option>
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Appointment Source</label>
+                <select
+                  value={advancedFilters.appointment.appointment_sources[0]}
+                  onChange={(e) =>
+                    handleAdvancedFilterChange(
+                      "appointment",
+                      "appointment_sources",
+                      [parseInt(e.target.value)]
+                    )
+                  }
+                >
+                  <option value={-1}>All Sources</option>
+                  <option value={0}>Zenoti</option>
+                  <option value={1}>Mobile CMA</option>
+                  <option value={2}>Online</option>
+                  <option value={14}>Zenoti Mobile</option>
+                  <option value={16}>POS</option>
+                  <option value={24}>Kiosk</option>
+                  <option value={26}>Kiosk Web</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {reportType === "sales-cash" && (
+            <div className="filter-groups">
+              <div className="filter-group">
+                <label>Level of Detail</label>
+                <select
+                  value={advancedFilters.sales.level_of_detail}
+                  onChange={(e) =>
+                    handleAdvancedFilterChange(
+                      "sales",
+                      "level_of_detail",
+                      e.target.value
+                    )
+                  }
+                >
+                  <option value="1">Level 1</option>
+                  <option value="2">Level 2</option>
+                  <option value="3">Level 3</option>
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Item Type</label>
+                <select
+                  value={advancedFilters.sales.item_types[0]}
+                  onChange={(e) =>
+                    handleAdvancedFilterChange("sales", "item_types", [
+                      parseInt(e.target.value),
+                    ])
+                  }
+                >
+                  <option value={-1}>All Item Types</option>
+                  <option value={0}>Service</option>
+                  <option value={2}>Product</option>
+                  <option value={3}>Membership</option>
+                  <option value={4}>Package</option>
+                  <option value={5}>Day Promo Package</option>
+                  <option value={6}>Prepaid Card</option>
+                  <option value={61}>Gift Card</option>
+                  <option value={11}>Class</option>
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Payment Type</label>
+                <select
+                  value={advancedFilters.sales.payment_types[0]}
+                  onChange={(e) =>
+                    handleAdvancedFilterChange("sales", "payment_types", [
+                      parseInt(e.target.value),
+                    ])
+                  }
+                >
+                  <option value={-1}>All Payment Types</option>
+                  <option value={0}>Cash</option>
+                  <option value={1}>Card</option>
+                  <option value={2}>Check</option>
+                  <option value={3}>Custom Financial</option>
+                  <option value={4}>Custom Non-Financial</option>
+                  <option value={5}>Membership</option>
+                  <option value={7}>Package</option>
+                  <option value={8}>Gift Card</option>
+                  <option value={9}>Prepaid Card</option>
+                  <option value={10}>Loyalty Points</option>
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Sale Type</label>
+                <select
+                  value={advancedFilters.sales.sale_types[0]}
+                  onChange={(e) =>
+                    handleAdvancedFilterChange("sales", "sale_types", [
+                      parseInt(e.target.value),
+                    ])
+                  }
+                >
+                  <option value={-1}>All Sale Types</option>
+                  <option value={0}>Sale</option>
+                  <option value={1}>Refund</option>
+                  <option value={2}>Recurring</option>
+                  <option value={3}>Charges</option>
+                </select>
+              </div>
             </div>
           )}
         </div>
@@ -454,9 +556,50 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
       {/* Error message */}
       {error && (
         <div className="error-message">
-          <Info size={18} />
-          <p>{error}</p>
+          <AlertCircle size={16} />
+          <span>{error}</span>
           <button onClick={() => setError(null)}>Dismiss</button>
+        </div>
+      )}
+
+      {/* Report Cards - shows when no report is generated yet */}
+      {!reportData && !isLoading && !error && (
+        <div className="report-cards">
+          <div
+            className="report-card"
+            onClick={() => setReportType("appointments-report")}
+          >
+            <Calendar size={24} />
+            <h4>Appointments Report</h4>
+            <p>View detailed appointment data with filtering options</p>
+          </div>
+
+          <div
+            className="report-card"
+            onClick={() => setReportType("sales-cash")}
+          >
+            <DollarSign size={24} />
+            <h4>Sales Cash Report</h4>
+            <p>Analyze sales data on a cash basis with multiple filters</p>
+          </div>
+
+          <div
+            className="report-card"
+            onClick={() => setReportType("sales-accrual")}
+          >
+            <CreditCard size={24} />
+            <h4>Sales Accrual Report</h4>
+            <p>View sales data on an accrual basis by center</p>
+          </div>
+
+          <div
+            className="report-card"
+            onClick={() => setReportType("collections")}
+          >
+            <List size={24} />
+            <h4>Collections Report</h4>
+            <p>Analyze payment collections and payment types</p>
+          </div>
         </div>
       )}
 
@@ -476,17 +619,8 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
           />
         </div>
       )}
-
-      {/* Coming Soon Modal */}
-      {showComingSoon && (
-        <ComingSoonOverlay
-          featureName={comingSoonFeature}
-          description="We're working with Zenoti to finalize the API integration for this report type."
-          onClose={() => setShowComingSoon(false)}
-        />
-      )}
     </div>
   );
 };
 
-export default CRMReportsSection;
+export default EnhancedCRMReportsSection;

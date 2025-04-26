@@ -308,10 +308,62 @@ const zenotiService = {
     }
   },
 
-  // NEW: Packages endpoint
+  getCenterIdFromCode: async (centerCode) => {
+    try {
+      if (!centerCode) {
+        throw new Error("Center code is required");
+      }
+
+      // Get all centers and find the matching one
+      const response = await zenotiService.getCenters();
+
+      if (response.data?.success) {
+        const centers = response.data.centers || [];
+        const center = centers.find((c) => c.code === centerCode);
+
+        if (center) {
+          return {
+            success: true,
+            centerId: center.id || center.center_id,
+          };
+        } else {
+          console.warn(`Center with code ${centerCode} not found`);
+          return {
+            success: false,
+            error: `Center with code ${centerCode} not found`,
+          };
+        }
+      } else {
+        throw new Error(response.data?.error || "Failed to get centers");
+      }
+    } catch (error) {
+      console.error("Error getting center ID from code:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to get center ID from code",
+      };
+    }
+  },
+
+  // Update the getPackages method to use center ID if available
   getPackages: async (params = {}) => {
     try {
       console.log("Getting Zenoti packages with params:", params);
+
+      // If centerCode is provided, convert it to centerId
+      if (params.centerCode && !params.centerId) {
+        const centerResult = await zenotiService.getCenterIdFromCode(
+          params.centerCode
+        );
+        if (centerResult.success) {
+          params.centerId = centerResult.centerId;
+        } else {
+          console.warn(
+            "Could not convert center code to ID, using code directly"
+          );
+        }
+      }
+
       const response = await apiClient.get("/api/zenoti/packages", { params });
 
       // Handle different possible response formats
@@ -442,6 +494,308 @@ const zenotiService = {
 
   // Reports
   // Removing client activity and weekly report methods that don't work
+  /**
+   * Get appointments report with detailed filters
+   * @param {Object} params - Report parameters
+   * @param {string[]} params.center_ids - Array of center IDs
+   * @param {number} params.date_type - 0 (Appointment date) or 1 (Booking date)
+   * @param {number[]} params.appointment_statuses - Array of status codes (-1: All, 0: Open, etc.)
+   * @param {number[]} params.appointment_sources - Array of source codes (-1: All, 0: Zenoti, etc.)
+   * @param {string} params.start_date - Start date (YYYY-MM-DD)
+   * @param {string} params.end_date - End date (YYYY-MM-DD)
+   * @param {number} params.page - Page number (default: 1)
+   * @param {number} params.size - Page size (default: 100)
+   */
+  getAppointmentsReport: async (params = {}) => {
+    try {
+      // Set defaults
+      const defaultParams = {
+        date_type: 0, // Appointment date
+        appointment_statuses: [-1], // All statuses
+        appointment_sources: [-1], // All sources
+        page: 1,
+        size: 100,
+      };
+
+      // Merge defaults with provided params
+      const reportParams = { ...defaultParams, ...params };
+
+      // Validation
+      if (!reportParams.start_date || !reportParams.end_date) {
+        throw new Error("Start date and end date are required");
+      }
+
+      if (!reportParams.center_ids || !reportParams.center_ids.length) {
+        if (reportParams.centerCode) {
+          // Try to convert center code to ID if provided
+          const centerResult = await zenotiService.getCenterIdFromCode(
+            reportParams.centerCode
+          );
+          if (centerResult.success) {
+            reportParams.center_ids = [centerResult.centerId];
+          } else {
+            throw new Error("Valid center_ids or centerCode is required");
+          }
+        } else {
+          throw new Error("center_ids are required");
+        }
+      }
+
+      // Remove any extra params not needed in the API request
+      const { centerCode, ...cleanParams } = reportParams;
+
+      console.log("Getting appointments report with params:", cleanParams);
+
+      const response = await apiClient.post(
+        `/api/zenoti/reports/appointments/flat_file?page=${cleanParams.page}&size=${cleanParams.size}`,
+        cleanParams
+      );
+
+      return response;
+    } catch (error) {
+      console.error("Error getting appointments report:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to get appointments report",
+          report: { appointments: [] },
+        },
+      };
+    }
+  },
+
+  /**
+   * Get sales accrual basis report
+   * @param {Object} params - Report parameters
+   * @param {string[]} params.center_ids - Array of center IDs
+   * @param {string} params.start_date - Start date (YYYY-MM-DD HH:MM:SS)
+   * @param {string} params.end_date - End date (YYYY-MM-DD HH:MM:SS)
+   * @param {number} params.page - Page number (default: 1)
+   * @param {number} params.size - Page size (default: 100)
+   */
+  getSalesAccrualReport: async (params = {}) => {
+    try {
+      // Set defaults
+      const defaultParams = {
+        page: 1,
+        size: 100,
+      };
+
+      // Merge defaults with provided params
+      const reportParams = { ...defaultParams, ...params };
+
+      // Validation
+      if (!reportParams.start_date || !reportParams.end_date) {
+        throw new Error("Start date and end date are required");
+      }
+
+      if (!reportParams.center_ids || !reportParams.center_ids.length) {
+        if (reportParams.centerCode) {
+          // Try to convert center code to ID if provided
+          const centerResult = await zenotiService.getCenterIdFromCode(
+            reportParams.centerCode
+          );
+          if (centerResult.success) {
+            reportParams.center_ids = [centerResult.centerId];
+          } else {
+            throw new Error("Valid center_ids or centerCode is required");
+          }
+        } else {
+          throw new Error("center_ids are required");
+        }
+      }
+
+      // Ensure dates are in correct format
+      if (!reportParams.start_date.includes(" ")) {
+        reportParams.start_date = `${reportParams.start_date} 00:00:00`;
+      }
+
+      if (!reportParams.end_date.includes(" ")) {
+        reportParams.end_date = `${reportParams.end_date} 23:59:59`;
+      }
+
+      // Remove any extra params not needed in the API request
+      const { centerCode, ...cleanParams } = reportParams;
+
+      console.log("Getting sales accrual report with params:", cleanParams);
+
+      const response = await apiClient.post(
+        `/api/zenoti/reports/sales/accrual_basis/flat_file?page=${cleanParams.page}&size=${cleanParams.size}`,
+        cleanParams
+      );
+
+      return response;
+    } catch (error) {
+      console.error("Error getting sales accrual report:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to get sales accrual report",
+          report: { sales: [] },
+        },
+      };
+    }
+  },
+
+  /**
+   * Get sales cash basis report with detailed filters
+   * @param {Object} params - Report parameters
+   * @param {string[]} params.center_ids - Array of center IDs
+   * @param {string} params.start_date - Start date (YYYY-MM-DD HH:MM:SS)
+   * @param {string} params.end_date - End date (YYYY-MM-DD HH:MM:SS)
+   * @param {string} params.level_of_detail - Detail level (default: "1")
+   * @param {number[]} params.item_types - Array of item type codes (-1: All, 0: Service, etc.)
+   * @param {number[]} params.payment_types - Array of payment type codes (-1: All, 0: Cash, etc.)
+   * @param {number[]} params.sale_types - Array of sale type codes (-1: All, 0: Sale, etc.)
+   * @param {string[]} params.sold_by_ids - Array of staff IDs (optional)
+   * @param {number[]} params.invoice_statuses - Array of invoice status codes (-1: All)
+   * @param {number} params.page - Page number (default: 1)
+   * @param {number} params.size - Page size (default: 50)
+   */
+  getSalesCashReport: async (params = {}) => {
+    try {
+      // Set defaults
+      const defaultParams = {
+        level_of_detail: "1",
+        item_types: [-1],
+        payment_types: [-1],
+        sale_types: [-1],
+        sold_by_ids: [],
+        invoice_statuses: [-1],
+        page: 1,
+        size: 50,
+      };
+
+      // Merge defaults with provided params
+      const reportParams = { ...defaultParams, ...params };
+
+      // Validation
+      if (!reportParams.start_date || !reportParams.end_date) {
+        throw new Error("Start date and end date are required");
+      }
+
+      if (!reportParams.center_ids || !reportParams.center_ids.length) {
+        if (reportParams.centerCode) {
+          // Try to convert center code to ID if provided
+          const centerResult = await zenotiService.getCenterIdFromCode(
+            reportParams.centerCode
+          );
+          if (centerResult.success) {
+            reportParams.center_ids = [centerResult.centerId];
+          } else {
+            throw new Error("Valid center_ids or centerCode is required");
+          }
+        } else {
+          throw new Error("center_ids are required");
+        }
+      }
+
+      // Ensure dates are in correct format
+      if (!reportParams.start_date.includes(" ")) {
+        reportParams.start_date = `${reportParams.start_date} 00:00:00`;
+      }
+
+      if (!reportParams.end_date.includes(" ")) {
+        reportParams.end_date = `${reportParams.end_date} 23:59:59`;
+      }
+
+      // Remove any extra params not needed in the API request
+      const { centerCode, ...cleanParams } = reportParams;
+
+      console.log("Getting sales cash report with params:", cleanParams);
+
+      const response = await apiClient.post(
+        `/api/zenoti/reports/sales/cash_basis/flat_file?page=${cleanParams.page}&size=${cleanParams.size}`,
+        cleanParams
+      );
+
+      return response;
+    } catch (error) {
+      console.error("Error getting sales cash report:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to get sales cash report",
+          report: { sales: [] },
+        },
+      };
+    }
+  },
+
+  // Handy utility for translating enum values to labels
+  getAppointmentStatusLabel: (statusCode) => {
+    const statuses = {
+      "-1": "All",
+      Open: "Open",
+      Closed: "Closed",
+      Cancelled: "Cancelled",
+      NoShow: "No Show",
+      CheckedIn: "Checked In",
+      Confirmed: "Confirmed",
+      Deleted: "Deleted",
+    };
+    return statuses[statusCode] || "Unknown";
+  },
+
+  getAppointmentSourceLabel: (sourceCode) => {
+    const sources = {
+      "-1": "All",
+      0: "Zenoti",
+      1: "Mobile CMA",
+      2: "Online",
+      14: "Zenoti Mobile",
+      16: "POS",
+      24: "Kiosk",
+      26: "Kiosk Web",
+    };
+    return sources[sourceCode] || "Unknown";
+  },
+
+  getItemTypeLabel: (typeCode) => {
+    const types = {
+      "-1": "All",
+      0: "Service",
+      2: "Product",
+      3: "Membership",
+      4: "Package",
+      5: "Day Promo Package",
+      6: "Prepaid Card",
+      61: "Gift Card",
+      11: "Class",
+    };
+    return types[typeCode] || "Unknown";
+  },
+
+  getPaymentTypeLabel: (typeCode) => {
+    const types = {
+      "-1": "All",
+      0: "Cash",
+      1: "Card",
+      2: "Check",
+      3: "Custom Financial",
+      4: "Custom Non-Financial",
+      5: "Membership",
+      6: "Membership Service",
+      7: "Package",
+      8: "Gift Card",
+      9: "Prepaid Card",
+      10: "Loyalty Points",
+      11: "Custom",
+      16: "Cashback",
+    };
+    return types[typeCode] || "Unknown";
+  },
+
+  getSaleTypeLabel: (typeCode) => {
+    const types = {
+      "-1": "All",
+      0: "Sale",
+      1: "Refund",
+      2: "Recurring",
+      3: "Charges",
+    };
+    return types[typeCode] || "Unknown";
+  },
 
   // Collections Report
   getCollectionsReport: async (params) => {
