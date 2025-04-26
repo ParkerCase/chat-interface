@@ -690,6 +690,38 @@ const chatApi = {
     return apiClient.post("/api/chat", formData);
   },
 
+  zenoti: async (message, userId = null) => {
+    try {
+      if (!message) {
+        throw new Error("Message is required");
+      }
+
+      const defaultUserId = userId || "default-user";
+
+      // Call the Zenoti-enhanced chat endpoint
+      const response = await apiClient.post("/api/chat/zenoti", {
+        message,
+        userId: defaultUserId,
+      });
+
+      return response;
+    } catch (error) {
+      console.error("Zenoti chat error:", error);
+
+      // Format error for consistent handling
+      if (error.response) {
+        return error.response;
+      }
+
+      return {
+        data: {
+          success: false,
+          error: error.message || "Zenoti chat request failed",
+        },
+      };
+    }
+  },
+
   uploadImage: (file, userId, message, onProgress) => {
     return uploadWithProgress("/api/chat", file, {
       data: { userId, message: message || "Analyze this image" },

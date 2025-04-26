@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// src/components/crm/CRMReportsSection.jsx - Enhanced
+import React, { useState, useEffect } from "react";
 import {
   Download,
   Printer,
@@ -7,6 +8,10 @@ import {
   Calendar,
   FileText,
   Info,
+  Package,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import zenotiService from "../../services/zenotiService";
 import analyticsUtils from "../../utils/analyticsUtils";
@@ -14,7 +19,7 @@ import CRMReportViewer from "./CRMReportViewer";
 import ComingSoonOverlay from "../common/ComingSoonOverlay";
 
 /**
- * Reports section for the CRM Dashboard
+ * Enhanced Reports section for the CRM Dashboard
  * Handles report generation, viewing, and export functionality
  */
 const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
@@ -33,6 +38,11 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [comingSoonFeature, setComingSoonFeature] = useState("");
 
+  // New state for packages
+  const [packages, setPackages] = useState([]);
+  const [loadingPackages, setLoadingPackages] = useState(false);
+  const [showPackages, setShowPackages] = useState(false);
+
   // Handle date range change for reports
   const handleDateRangeChange = (type, value) => {
     setDateRange((prev) => ({
@@ -43,6 +53,7 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
 
   // Check if report type is in development
   const checkReportAvailability = (type) => {
+    // We're removing the weekly and client-activity reports as requested
     if (type === "weekly" || type === "client-activity") {
       setComingSoonFeature(
         type === "weekly"
@@ -124,6 +135,11 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
           }
           break;
 
+        case "packages":
+          console.log("Generating packages report with params:", reportParams);
+          response = await zenotiService.getPackages(reportParams);
+          break;
+
         default:
           throw new Error(`Unsupported report type: ${reportType}`);
       }
@@ -133,6 +149,7 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
         const reportData =
           response.data.report ||
           response.data.overview ||
+          response.data.packages ||
           (response.data.invoices
             ? { invoices: response.data.invoices }
             : null);
@@ -218,6 +235,51 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
     checkReportAvailability(type);
   };
 
+  // Load packages for the selected center
+  const loadPackages = async () => {
+    if (!selectedCenter || !connectionStatus?.connected) return;
+
+    try {
+      setLoadingPackages(true);
+      setError(null);
+
+      const response = await zenotiService.getPackages({
+        centerCode: selectedCenter,
+      });
+
+      if (response.data?.success) {
+        setPackages(response.data.packages || []);
+        setShowPackages(true);
+      } else {
+        throw new Error(response.data?.error || "Failed to load packages");
+      }
+    } catch (err) {
+      console.error("Error loading packages:", err);
+      setError(`Failed to load packages: ${err.message}`);
+    } finally {
+      setLoadingPackages(false);
+    }
+  };
+
+  // Toggle packages display
+  const togglePackages = () => {
+    if (!showPackages && packages.length === 0) {
+      loadPackages();
+    } else {
+      setShowPackages(!showPackages);
+    }
+  };
+
+  // Format currency for display
+  const formatCurrency = (amount) => {
+    if (typeof amount !== "number") return "$0.00";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
   return (
     <div className="reports-section">
       <div className="section-header">
@@ -264,50 +326,34 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
               <option value="collections">Collections Report</option>
               <option value="sales">Sales Report</option>
               <option value="invoices">Invoices Report</option>
-              <option value="weekly">Weekly Business Report</option>
-              <option value="client-activity">Client Activity Report</option>
+              <option value="packages">Packages Report</option>
+              {/* Removing the non-working report types as requested */}
             </select>
           </div>
 
           <div className="date-fields">
-            {reportType === "weekly" ? (
-              <div className="date-field">
-                <label htmlFor="weekStartDate">Week Start Date (Sunday):</label>
-                <input
-                  type="date"
-                  id="weekStartDate"
-                  value={dateRange.startDate}
-                  onChange={(e) =>
-                    handleDateRangeChange("startDate", e.target.value)
-                  }
-                />
-              </div>
-            ) : (
-              <>
-                <div className="date-field">
-                  <label htmlFor="startDate">Start Date:</label>
-                  <input
-                    type="date"
-                    id="startDate"
-                    value={dateRange.startDate}
-                    onChange={(e) =>
-                      handleDateRangeChange("startDate", e.target.value)
-                    }
-                  />
-                </div>
-                <div className="date-field">
-                  <label htmlFor="endDate">End Date:</label>
-                  <input
-                    type="date"
-                    id="endDate"
-                    value={dateRange.endDate}
-                    onChange={(e) =>
-                      handleDateRangeChange("endDate", e.target.value)
-                    }
-                  />
-                </div>
-              </>
-            )}
+            <div className="date-field">
+              <label htmlFor="startDate">Start Date:</label>
+              <input
+                type="date"
+                id="startDate"
+                value={dateRange.startDate}
+                onChange={(e) =>
+                  handleDateRangeChange("startDate", e.target.value)
+                }
+              />
+            </div>
+            <div className="date-field">
+              <label htmlFor="endDate">End Date:</label>
+              <input
+                type="date"
+                id="endDate"
+                value={dateRange.endDate}
+                onChange={(e) =>
+                  handleDateRangeChange("endDate", e.target.value)
+                }
+              />
+            </div>
           </div>
 
           <button
@@ -327,6 +373,81 @@ const CRMReportsSection = ({ selectedCenter, connectionStatus, onRefresh }) => {
               </>
             )}
           </button>
+        </div>
+      )}
+
+      {/* Packages Section */}
+      {connectionStatus?.connected && (
+        <div className="packages-section">
+          <div
+            className="packages-header"
+            onClick={togglePackages}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              cursor: "pointer",
+              padding: "10px",
+              backgroundColor: "#f5f5f5",
+              borderRadius: "4px",
+              marginTop: "20px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <Package size={18} style={{ marginRight: "8px" }} />
+              <h4 style={{ margin: 0 }}>Available Packages</h4>
+            </div>
+            {showPackages ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </div>
+
+          {showPackages && (
+            <div className="packages-content" style={{ marginTop: "10px" }}>
+              {loadingPackages ? (
+                <div className="loading-state">
+                  <RefreshCw size={20} className="spinning" />
+                  <span>Loading packages...</span>
+                </div>
+              ) : packages.length > 0 ? (
+                <div className="packages-table-container">
+                  <table className="packages-table">
+                    <thead>
+                      <tr>
+                        <th>Package Name</th>
+                        <th>Type</th>
+                        <th>Price</th>
+                        <th>Validity</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {packages.map((pkg, index) => (
+                        <tr key={pkg.id || index}>
+                          <td>{pkg.name}</td>
+                          <td>{pkg.type || "Standard"}</td>
+                          <td>{formatCurrency(pkg.price || 0)}</td>
+                          <td>{pkg.validity_days || "N/A"} days</td>
+                          <td>
+                            <span
+                              className={`status-badge ${
+                                pkg.status?.toLowerCase() || "active"
+                              }`}
+                            >
+                              {pkg.status || "Active"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="no-packages-message">
+                  <AlertCircle size={24} />
+                  <p>No packages available for this center.</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

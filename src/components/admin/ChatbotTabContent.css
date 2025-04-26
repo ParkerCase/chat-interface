@@ -871,6 +871,46 @@
   background-color: #f9fafb;
 }
 
+.zenoti-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  margin-right: 8px;
+  transition: all 0.2s ease;
+}
+
+.zenoti-toggle:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.zenoti-toggle.active {
+  background: #4f46e5; /* Indigo color, but you can match your theme */
+  color: white;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 5px rgba(79, 70, 229, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+  }
+}
+
+.zenoti-toggle.active {
+  animation: pulse 2s infinite;
+}
+
 /* Upload modal specific styles */
 .upload-modal {
   max-width: 550px;
