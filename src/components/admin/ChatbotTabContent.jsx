@@ -19,6 +19,7 @@ import {
   Image,
   Eye,
   Clipboard,
+  Calendar, // Add this line to import the Calendar icon
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useFeatureFlags } from "../../utils/featureFlags";
@@ -55,6 +56,7 @@ const ChatbotTabContent = () => {
   const [searchMode, setSearchMode] = useState("tensor"); // "tensor" for full, "partial" for partial
   const [uploadType, setUploadType] = useState("document"); // "document" or "image"
   const [searchResults, setSearchResults] = useState(null);
+  const [useZenoti, setUseZenoti] = useState(false);
 
   // State for settings panel
   const [showSettings, setShowSettings] = useState(false);
@@ -65,11 +67,16 @@ const ChatbotTabContent = () => {
     autoScroll: true,
     exportFormat: "text",
     showInternetSearch: true,
+    showZenotiIntegration: true, // Add this new line
   });
 
   // Toggle settings panel
   const toggleSettings = () => {
     setShowSettings(!showSettings);
+  };
+
+  const toggleZenoti = () => {
+    setUseZenoti(!useZenoti);
   };
 
   // Update settings
@@ -623,9 +630,55 @@ const ChatbotTabContent = () => {
 
       setCurrentMessages((prev) => [...prev, userMessage]);
 
-      // Call API based on whether internet search is enabled
+      // Call API based on which mode is enabled
       let response;
-      if (useInternet && chatSettings.showInternetSearch) {
+
+      if (useZenoti) {
+        // Zenoti-enhanced chat
+        console.log("Using Zenoti integration for message:", inputText);
+
+        // First add a typing indicator
+        const typingMessage = {
+          sender: "system",
+          message_type: "system",
+          content: "Searching Zenoti data...",
+          created_at: new Date().toISOString(),
+        };
+
+        setCurrentMessages((prev) => [...prev, typingMessage]);
+
+        // Make the API call
+        const chatResponse = await fetch(
+          `${apiService.utils.getBaseUrl()}/api/chat/zenoti`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              message: inputText,
+              userId: currentUser?.id || "default-user",
+            }),
+          }
+        );
+
+        if (!chatResponse.ok) {
+          throw new Error(`Zenoti chat request failed: ${chatResponse.status}`);
+        }
+
+        response = { data: await chatResponse.json() };
+
+        // Remove the typing indicator
+        setCurrentMessages((prev) =>
+          prev.filter(
+            (msg) =>
+              !(
+                msg.sender === "system" &&
+                msg.content === "Searching Zenoti data..."
+              )
+          )
+        );
+      } else if (useInternet && chatSettings.showInternetSearch) {
         // Advanced chat with web search
         response = await apiService.chat.advanced(inputText, currentUser?.id);
       } else {
@@ -1071,6 +1124,19 @@ const ChatbotTabContent = () => {
               </button>
             )}
 
+            {/* Zenoti integration toggle */}
+            <button
+              className={`zenoti-toggle ${useZenoti ? "active" : ""}`}
+              onClick={toggleZenoti}
+              title={
+                useZenoti
+                  ? "Zenoti integration enabled"
+                  : "Enable Zenoti integration"
+              }
+            >
+              <Calendar size={18} />
+            </button>
+
             {/* Text input */}
             <div className="input-wrapper">
               <textarea
@@ -1142,6 +1208,20 @@ const ChatbotTabContent = () => {
                     checked={chatSettings.darkMode}
                     onChange={(e) =>
                       updateSetting("darkMode", e.target.checked)
+                    }
+                  />
+                </div>
+
+                <div className="setting-item">
+                  <label htmlFor="showZenotiIntegration">
+                    Zenoti Integration
+                  </label>
+                  <input
+                    type="checkbox"
+                    id="showZenotiIntegration"
+                    checked={chatSettings.showZenotiIntegration}
+                    onChange={(e) =>
+                      updateSetting("showZenotiIntegration", e.target.checked)
                     }
                   />
                 </div>

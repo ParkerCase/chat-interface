@@ -1,3 +1,4 @@
+// src/components/crm/CRMReportViewer.jsx - Enhanced
 import React, { useState, useEffect } from "react";
 import {
   Download,
@@ -13,13 +14,18 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
+  Package,
+  Tag,
+  Calendar,
+  Clock,
+  User,
 } from "lucide-react";
 import zenotiService from "../../services/zenotiService";
 import analyticsUtils from "../../utils/analyticsUtils";
 import "./CRMReportViewer.css";
 
 /**
- * Component for viewing CRM reports with download, print, and sharing capabilities
+ * Enhanced component for viewing CRM reports with download, print, and sharing capabilities
  */
 const CRMReportViewer = ({
   reportData,
@@ -34,9 +40,7 @@ const CRMReportViewer = ({
   const [expandedSections, setExpandedSections] = useState({});
   const [exportFormat, setExportFormat] = useState("csv");
   const [showExportOptions, setShowExportOptions] = useState(false);
-  const [showComingSoonModal, setShowComingSoonModal] = useState(
-    reportType === "weekly" || reportType === "client-activity"
-  );
+  const [showComingSoonModal, setShowComingSoonModal] = useState(false);
 
   // Format currency
   const formatCurrency = (amount) => {
@@ -50,11 +54,9 @@ const CRMReportViewer = ({
 
   // Check if report type is in development
   useEffect(() => {
-    if (reportType === "weekly" || reportType === "client-activity") {
-      setShowComingSoonModal(true);
-    } else {
-      setShowComingSoonModal(false);
-    }
+    // We are no longer checking for weekly or client-activity reports
+    // as they have been removed from the options in the parent component
+    setShowComingSoonModal(false);
   }, [reportType]);
 
   // Toggle section expansion
@@ -175,158 +177,165 @@ const CRMReportViewer = ({
       return <div className="no-data">No report data available</div>;
 
     switch (reportType) {
-      case "weekly":
-        return renderWeeklyReport();
       case "collections":
         return renderCollectionsReport();
       case "sales":
         return renderSalesReport();
-      case "client-activity":
-        return renderClientActivityReport();
       case "invoices":
         return renderInvoicesReport();
+      case "packages":
+        return renderPackagesReport();
       default:
         return <div className="no-data">Unknown report type: {reportType}</div>;
     }
   };
 
-  // Weekly business report renderer
-  const renderWeeklyReport = () => {
-    if (showComingSoonModal) return null;
+  // Packages report renderer (new)
+  const renderPackagesReport = () => {
+    // Check if the reportData is in the expected format
+    const packages = Array.isArray(reportData)
+      ? reportData
+      : reportData.items || [];
 
     return (
-      <div className="report-content weekly-report">
+      <div className="report-content packages-report">
         <div className="report-summary">
           <div className="summary-card">
-            <h4>Total Revenue</h4>
+            <h4>Total Packages</h4>
+            <div className="value">{packages.length}</div>
+          </div>
+          <div className="summary-card">
+            <h4>Active Packages</h4>
             <div className="value">
-              {formatCurrency(reportData.totalRevenue || 0)}
+              {
+                packages.filter(
+                  (p) => (p.status || "").toLowerCase() === "active"
+                ).length
+              }
             </div>
           </div>
           <div className="summary-card">
-            <h4>Appointments</h4>
-            <div className="value">{reportData.appointmentCount || 0}</div>
-          </div>
-          <div className="summary-card">
-            <h4>New Clients</h4>
-            <div className="value">{reportData.newClients || 0}</div>
+            <h4>Average Price</h4>
+            <div className="value">
+              {formatCurrency(
+                packages.length > 0
+                  ? packages.reduce(
+                      (sum, p) => sum + (parseFloat(p.price) || 0),
+                      0
+                    ) / packages.length
+                  : 0
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Comparison section */}
-        {reportData.comparison && (
-          <div className="report-section">
-            <div
-              className="section-header"
-              onClick={() => toggleSection("comparison")}
-            >
-              <h3>Comparison to Previous Week</h3>
-              {expandedSections.comparison ? (
-                <ChevronUp size={18} />
-              ) : (
-                <ChevronDown size={18} />
-              )}
-            </div>
-
-            {expandedSections.comparison && (
-              <div className="section-content">
-                <div className="comparison-grid">
-                  <div
-                    className={`comparison-item ${
-                      (reportData.comparison.revenueChange || 0) >= 0
-                        ? "positive"
-                        : "negative"
-                    }`}
-                  >
-                    <div className="label">Revenue</div>
-                    <div className="value">
-                      {(reportData.comparison.revenueChange || 0) >= 0
-                        ? "+"
-                        : ""}
-                      {reportData.comparison.revenueChange || 0}%
-                    </div>
-                  </div>
-                  <div
-                    className={`comparison-item ${
-                      (reportData.comparison.appointmentChange || 0) >= 0
-                        ? "positive"
-                        : "negative"
-                    }`}
-                  >
-                    <div className="label">Appointments</div>
-                    <div className="value">
-                      {(reportData.comparison.appointmentChange || 0) >= 0
-                        ? "+"
-                        : ""}
-                      {reportData.comparison.appointmentChange || 0}%
-                    </div>
-                  </div>
-                  <div
-                    className={`comparison-item ${
-                      (reportData.comparison.clientChange || 0) >= 0
-                        ? "positive"
-                        : "negative"
-                    }`}
-                  >
-                    <div className="label">New Clients</div>
-                    <div className="value">
-                      {(reportData.comparison.clientChange || 0) >= 0
-                        ? "+"
-                        : ""}
-                      {reportData.comparison.clientChange || 0}%
-                    </div>
-                  </div>
-                </div>
-              </div>
+        {/* Package details */}
+        <div className="report-section">
+          <div
+            className="section-header"
+            onClick={() => toggleSection("packageDetails")}
+          >
+            <h3>Package Details</h3>
+            {expandedSections.packageDetails ? (
+              <ChevronUp size={18} />
+            ) : (
+              <ChevronDown size={18} />
             )}
           </div>
-        )}
 
-        {/* Service breakdown section */}
-        {reportData.serviceBreakdown && (
-          <div className="report-section">
-            <div
-              className="section-header"
-              onClick={() => toggleSection("services")}
-            >
-              <h3>Service Breakdown</h3>
-              {expandedSections.services ? (
-                <ChevronUp size={18} />
-              ) : (
-                <ChevronDown size={18} />
-              )}
-            </div>
-
-            {expandedSections.services && (
-              <div className="section-content">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Service</th>
-                      <th>Appointments</th>
-                      <th>Revenue</th>
+          {expandedSections.packageDetails && (
+            <div className="section-content">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Price</th>
+                    <th>Validity</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {packages.map((pkg, index) => (
+                    <tr key={pkg.id || index}>
+                      <td>{pkg.name}</td>
+                      <td>{pkg.type || "Standard"}</td>
+                      <td>{formatCurrency(pkg.price || 0)}</td>
+                      <td>{pkg.validity_days || pkg.validity || "N/A"} days</td>
+                      <td>
+                        <span
+                          className={`status-badge ${(
+                            pkg.status || ""
+                          ).toLowerCase()}`}
+                        >
+                          {pkg.status || "Active"}
+                        </span>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(reportData.serviceBreakdown)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([service, count], index) => (
-                        <tr key={index}>
-                          <td>{service}</td>
-                          <td>{count}</td>
-                          <td>
-                            {formatCurrency(
-                              reportData.serviceRevenue?.[service] || 0
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Package services */}
+        <div className="report-section">
+          <div
+            className="section-header"
+            onClick={() => toggleSection("packageServices")}
+          >
+            <h3>Package Services</h3>
+            {expandedSections.packageServices ? (
+              <ChevronUp size={18} />
+            ) : (
+              <ChevronDown size={18} />
             )}
           </div>
-        )}
+
+          {expandedSections.packageServices && (
+            <div className="section-content">
+              <div className="package-services-list">
+                {packages.map((pkg, pkgIndex) =>
+                  pkg.services && pkg.services.length > 0 ? (
+                    <div
+                      key={`package-${pkgIndex}`}
+                      className="package-services-group"
+                    >
+                      <h4>{pkg.name}</h4>
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Service</th>
+                            <th>Quantity</th>
+                            <th>Value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pkg.services.map((service, svcIndex) => (
+                            <tr key={`service-${pkgIndex}-${svcIndex}`}>
+                              <td>{service.name}</td>
+                              <td>{service.quantity || 1}</td>
+                              <td>{formatCurrency(service.value || 0)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null
+                )}
+
+                {packages.every(
+                  (pkg) => !pkg.services || pkg.services.length === 0
+                ) && (
+                  <div className="no-data-message">
+                    <p>No service details available for these packages</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -573,136 +582,6 @@ const CRMReportViewer = ({
     );
   };
 
-  // Client activity report renderer
-  const renderClientActivityReport = () => {
-    if (showComingSoonModal) return null;
-
-    return (
-      <div className="report-content client-activity-report">
-        <div className="report-summary">
-          <div className="summary-card">
-            <h4>Total Clients</h4>
-            <div className="value">
-              {reportData.totalClients || reportData.total_clients || 0}
-            </div>
-          </div>
-          <div className="summary-card">
-            <h4>New Clients</h4>
-            <div className="value">
-              {reportData.newClients || reportData.new_clients || 0}
-            </div>
-          </div>
-          <div className="summary-card">
-            <h4>Returning Clients</h4>
-            <div className="value">
-              {reportData.returningClients || reportData.returning_clients || 0}
-            </div>
-          </div>
-          <div className="summary-card">
-            <h4>Avg. Spend</h4>
-            <div className="value">
-              {formatCurrency(
-                reportData.averageSpend || reportData.average_spend || 0
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Top clients section */}
-        {(reportData.topClients || reportData.top_clients) && (
-          <div className="report-section">
-            <div
-              className="section-header"
-              onClick={() => toggleSection("topClients")}
-            >
-              <h3>Top Clients by Spend</h3>
-              {expandedSections.topClients ? (
-                <ChevronUp size={18} />
-              ) : (
-                <ChevronDown size={18} />
-              )}
-            </div>
-
-            {expandedSections.topClients && (
-              <div className="section-content">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Client</th>
-                      <th>Visits</th>
-                      <th>Total Spend</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(
-                      reportData.topClients ||
-                      reportData.top_clients ||
-                      []
-                    ).map((client, index) => (
-                      <tr key={index}>
-                        <td>{client.name}</td>
-                        <td>{client.visits || 0}</td>
-                        <td>
-                          {formatCurrency(
-                            client.totalSpend || client.total_spend || 0
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Popular services section */}
-        {(reportData.popularServices || reportData.popular_services) && (
-          <div className="report-section">
-            <div
-              className="section-header"
-              onClick={() => toggleSection("popularServices")}
-            >
-              <h3>Popular Services</h3>
-              {expandedSections.popularServices ? (
-                <ChevronUp size={18} />
-              ) : (
-                <ChevronDown size={18} />
-              )}
-            </div>
-
-            {expandedSections.popularServices && (
-              <div className="section-content">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Service</th>
-                      <th>Bookings</th>
-                      <th>Revenue</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(
-                      reportData.popularServices ||
-                      reportData.popular_services ||
-                      []
-                    ).map((service, index) => (
-                      <tr key={index}>
-                        <td>{service.name}</td>
-                        <td>{service.bookings || 0}</td>
-                        <td>{formatCurrency(service.revenue || 0)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   // Invoices report renderer
   const renderInvoicesReport = () => {
     return (
@@ -784,7 +663,7 @@ const CRMReportViewer = ({
                         <td>
                           <span
                             className={`status-badge ${
-                              invoice.status?.toLowerCase() || "paid"
+                              (invoice.status || "").toLowerCase() || "paid"
                             }`}
                           >
                             {invoice.status || "Paid"}
@@ -817,12 +696,7 @@ const CRMReportViewer = ({
             </div>
             <div className="coming-soon-content">
               <AlertCircle size={48} className="coming-soon-icon" />
-              <p>
-                {reportType === "weekly"
-                  ? "Weekly Business Reports"
-                  : "Client Activity Reports"}{" "}
-                are currently in development.
-              </p>
+              <p>This report type is currently in development.</p>
               <p>
                 We're working with Zenoti to finalize this feature and it will
                 be available soon.
@@ -850,7 +724,7 @@ const CRMReportViewer = ({
         <div className="report-date-range">
           {dateRange && (
             <span>
-              {new Date(dateRange.start).toLocaleDateString()} —
+              {new Date(dateRange.start).toLocaleDateString()} —{" "}
               {new Date(dateRange.end).toLocaleDateString()}
             </span>
           )}

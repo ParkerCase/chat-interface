@@ -1,11 +1,5 @@
-// src/services/zenotiService.js
-// Fix import statement - use either version depending on how apiService is exported
-// OPTION 1: If apiClient is exported as a named export
+// src/services/zenotiService.js - Enhanced to support new endpoints
 import { apiClient } from "./apiService";
-
-// OPTION 2: If apiClient is a property of the default export
-// import apiService from "./apiService";
-// const apiClient = apiService.apiClient;
 
 /**
  * Service to handle all Zenoti-related API calls with comprehensive error handling
@@ -140,18 +134,6 @@ const zenotiService = {
       });
     } catch (error) {
       console.error("Error updating Zenoti client:", error);
-      throw error;
-    }
-  },
-
-  // Find client across centers
-  findClientAcrossCenters: async (searchParams) => {
-    try {
-      return await apiClient.get("/api/zenoti/client/find", {
-        params: searchParams,
-      });
-    } catch (error) {
-      console.error("Error finding client across centers:", error);
       throw error;
     }
   },
@@ -326,21 +308,91 @@ const zenotiService = {
     }
   },
 
-  getServicesAcrossAllCenters: async (params = {}) => {
+  // NEW: Packages endpoint
+  getPackages: async (params = {}) => {
     try {
-      // Add allCenters flag to params
-      const updatedParams = { ...params, allCenters: true };
-      return await apiClient.get("/api/zenoti/services", {
-        params: updatedParams,
-      });
-    } catch (error) {
-      console.error("Error getting services across all centers:", error);
+      console.log("Getting Zenoti packages with params:", params);
+      const response = await apiClient.get("/api/zenoti/packages", { params });
+
+      // Handle different possible response formats
+      if (response.data?.success) {
+        // If packages are not directly in the data object, look in packages property
+        if (!Array.isArray(response.data) && !response.data.packages) {
+          return {
+            data: {
+              success: true,
+              packages: [],
+              message: "No packages found",
+            },
+          };
+        }
+
+        // Return as-is if already formatted correctly
+        return response;
+      }
+
+      // Return consistent error format if unsuccessful
       return {
         data: {
           success: false,
-          combinedData: [],
-          centerResults: {},
-          error: error.message,
+          error: response.data?.error || "Failed to get packages",
+          packages: [],
+        },
+      };
+    } catch (error) {
+      console.error("Error getting Zenoti packages:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to get packages",
+          packages: [],
+        },
+      };
+    }
+  },
+
+  // Get packages by center
+  getPackagesByCenter: async (centerCode) => {
+    try {
+      if (!centerCode) {
+        return {
+          data: {
+            success: false,
+            error: "Center code is required",
+            packages: [],
+          },
+        };
+      }
+
+      return await zenotiService.getPackages({ centerCode });
+    } catch (error) {
+      console.error("Error getting packages by center:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to get packages by center",
+          packages: [],
+        },
+      };
+    }
+  },
+
+  // Get package details
+  getPackageDetails: async (packageId, centerCode = null) => {
+    try {
+      const params = centerCode ? { centerCode } : {};
+      const response = await apiClient.get(
+        `/api/zenoti/packages/${packageId}`,
+        { params }
+      );
+
+      return response;
+    } catch (error) {
+      console.error("Error getting package details:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to get package details",
         },
       };
     }
@@ -388,161 +440,13 @@ const zenotiService = {
     }
   },
 
-  getStaffAcrossAllCenters: async (params = {}) => {
-    try {
-      // Add allCenters flag to params
-      const updatedParams = { ...params, allCenters: true };
-      return await apiClient.get("/api/zenoti/staff", {
-        params: updatedParams,
-      });
-    } catch (error) {
-      console.error("Error getting staff across all centers:", error);
-      return {
-        data: {
-          success: false,
-          combinedData: [],
-          centerResults: {},
-          error: error.message,
-        },
-      };
-    }
-  },
-
   // Reports
-  generateWeeklyBusinessReport: async (params) => {
-    try {
-      console.log("Generating weekly business report with params:", params);
-      if (!params.weekStartDate) {
-        throw new Error("Week start date is required");
-      }
-
-      const response = await apiClient.get("/api/zenoti/reports/weekly", {
-        params,
-      });
-
-      // Ensure we return a consistent structure even with empty data
-      if (response.data?.success && !response.data.report) {
-        response.data.report = {
-          totalRevenue: 0,
-          appointmentCount: 0,
-          newClients: 0,
-          serviceBreakdown: {},
-        };
-      }
-
-      return response;
-    } catch (error) {
-      console.error("Error generating weekly business report:", error);
-      return {
-        data: {
-          success: false,
-          error: error.message || "Failed to generate weekly business report",
-          report: {
-            totalRevenue: 0,
-            appointmentCount: 0,
-            newClients: 0,
-            serviceBreakdown: {},
-          },
-        },
-      };
-    }
-  },
-
-  generateWeeklyBusinessReportForAllCenters: async (params) => {
-    try {
-      const allCentersParams = { ...params, allCenters: true };
-      return await apiClient.get("/api/zenoti/reports/weekly", {
-        params: allCentersParams,
-      });
-    } catch (error) {
-      console.error("Error generating weekly report for all centers:", error);
-      return {
-        data: {
-          success: false,
-          error: error.message,
-          overview: {
-            centerCount: 0,
-            totalRevenue: 0,
-            appointmentCount: 0,
-            newClients: 0,
-          },
-        },
-      };
-    }
-  },
-
-  generateClientActivityReport: async (params) => {
-    try {
-      if (!params.startDate || !params.endDate) {
-        throw new Error("Start date and end date are required");
-      }
-
-      const response = await apiClient.get(
-        "/api/zenoti/reports/client-activity",
-        {
-          params,
-        }
-      );
-
-      // Ensure we return a consistent structure even with empty data
-      if (response.data?.success && !response.data.report) {
-        response.data.report = {
-          totalClients: 0,
-          newClients: 0,
-          returningClients: 0,
-          averageSpend: 0,
-          topClients: [],
-        };
-      }
-
-      return response;
-    } catch (error) {
-      console.error("Error generating client activity report:", error);
-      return {
-        data: {
-          success: false,
-          error: error.message || "Failed to generate client activity report",
-          report: {
-            totalClients: 0,
-            newClients: 0,
-            returningClients: 0,
-            averageSpend: 0,
-            topClients: [],
-          },
-        },
-      };
-    }
-  },
-
-  generateClientActivityReportAcrossAllCenters: async (params) => {
-    try {
-      const allCentersParams = { ...params, allCenters: true };
-      return await apiClient.get("/api/zenoti/reports/client-activity", {
-        params: allCentersParams,
-      });
-    } catch (error) {
-      console.error(
-        "Error generating client activity report across centers:",
-        error
-      );
-      return {
-        data: {
-          success: false,
-          error: error.message,
-          report: {
-            centerCount: 0,
-            totalClients: 0,
-            newClients: 0,
-            returningClients: 0,
-          },
-        },
-      };
-    }
-  },
+  // Removing client activity and weekly report methods that don't work
 
   // Collections Report
   getCollectionsReport: async (params) => {
     try {
+      console.log("Getting collections report with params:", params);
       if (!params.startDate || !params.endDate) {
         throw new Error("Start date and end date are required");
       }
@@ -550,20 +454,6 @@ const zenotiService = {
       const response = await apiClient.get("/api/zenoti/reports/collections", {
         params,
       });
-
-      // Ensure the response has a consistent format
-      if (response.data?.success && !response.data.report) {
-        // Create empty report structure if none exists
-        response.data.report = {
-          summary: {
-            total_collected: 0,
-            total_collected_cash: 0,
-            total_collected_non_cash: 0,
-          },
-          centers: {},
-          transactions: [],
-        };
-      }
 
       return response;
     } catch (error) {
@@ -578,7 +468,7 @@ const zenotiService = {
               total_collected_cash: 0,
               total_collected_non_cash: 0,
             },
-            centers: {},
+            payment_types: {},
             transactions: [],
           },
         },
@@ -589,6 +479,7 @@ const zenotiService = {
   // Sales Report
   getSalesReport: async (params) => {
     try {
+      console.log("Getting sales report with params:", params);
       if (!params.startDate || !params.endDate) {
         throw new Error("Start date and end date are required");
       }
@@ -596,20 +487,6 @@ const zenotiService = {
       const response = await apiClient.get("/api/zenoti/reports/sales", {
         params,
       });
-
-      // Ensure the response has a consistent format
-      if (response.data?.success && !response.data.report) {
-        // Create empty report structure if none exists
-        response.data.report = {
-          summary: {
-            total_sales: 0,
-            total_refunds: 0,
-            net_sales: 0,
-          },
-          items: [],
-          centers: {},
-        };
-      }
 
       return response;
     } catch (error) {
@@ -625,7 +502,6 @@ const zenotiService = {
               net_sales: 0,
             },
             items: [],
-            centers: {},
           },
         },
       };
