@@ -28,6 +28,9 @@ import axios from "axios";
 import ChatHistory from "../chat/ChatHistory";
 import AdvancedSearch from "../AdvancedSearch";
 import ExportButton from "../ExportButton";
+import { useChatImageSearch } from "../../hooks/useChatImageSearch";
+import { supabase } from "../../lib/supabase";
+import ChatImageResults from "../../components/ChatImageResults";
 import "./ChatbotTabContent.css";
 
 const ChatbotTabContent = () => {
@@ -74,6 +77,8 @@ const ChatbotTabContent = () => {
   const toggleSettings = () => {
     setShowSettings(!showSettings);
   };
+
+  const { processImageSearchRequest } = useChatImageSearch();
 
   const toggleZenoti = () => {
     setUseZenoti(!useZenoti);
@@ -609,6 +614,355 @@ const ChatbotTabContent = () => {
     }
   };
 
+  // Add this function inside your ChatbotTabContent component
+  const isImageSearchRequest = (message) => {
+    const normalizedMessage = message.toLowerCase();
+
+    // Image search keywords
+    const searchPatterns = [
+      /find|search|show|get|display/,
+      /image(s)?|picture(s)?|photo(s)?/,
+      /tattoo(s)?|tat(s)?/,
+      /folder|directory|path/,
+      /body part|arm|leg|back|chest|shoulder/,
+      /similar|like|resemble/,
+      /without tattoo|no tattoo/,
+    ];
+
+    // Count how many patterns match
+    const matchCount = searchPatterns.filter((pattern) =>
+      pattern.test(normalizedMessage)
+    ).length;
+
+    // If at least 2 patterns match, it's likely an image search request
+    return matchCount >= 2;
+  };
+
+  // Add this function to parse search parameters
+  const parseSearchQuery = (query) => {
+    // Default search params
+    const params = {
+      type: "keyword",
+      keyword: "",
+      bodyPart: null,
+      path: null,
+      noTattoo: false,
+      similarityPath: null,
+      limit: 12,
+    };
+
+    // Normalize query
+    const normalizedQuery = query.toLowerCase().trim();
+
+    // Extract search type
+    if (
+      normalizedQuery.includes("similar") ||
+      normalizedQuery.includes("like") ||
+      normalizedQuery.includes("resembles")
+    ) {
+      params.type = "similarity";
+
+      // Try to find a path reference
+      const pathMatch =
+        normalizedQuery.match(/similar to ([\w\/.-]+)/i) ||
+        normalizedQuery.match(/like ([\w\/.-]+)/i);
+      if (pathMatch && pathMatch[1]) {
+        params.similarityPath = pathMatch[1];
+      }
+    } else if (
+      normalizedQuery.includes("body part") ||
+      normalizedQuery.match(
+        /\b(arm|leg|back|chest|face|neck|shoulder|hand|foot|ankle|thigh|calf|forearm|wrist)\b/i
+      )
+    ) {
+      params.type = "bodyPart";
+
+      // Find body part mentioned
+      const bodyPartMatch = normalizedQuery.match(
+        /\b(arm|leg|back|chest|face|neck|shoulder|hand|foot|ankle|thigh|calf|forearm|wrist)\b/i
+      );
+
+      if (bodyPartMatch && bodyPartMatch[1]) {
+        params.bodyPart = bodyPartMatch[1].toLowerCase();
+      }
+    } else if (
+      normalizedQuery.includes("no tattoo") ||
+      normalizedQuery.includes("without tattoo") ||
+      normalizedQuery.includes("non-tattoo") ||
+      normalizedQuery.includes("clean skin")
+    ) {
+      params.type = "noTattoo";
+      params.noTattoo = true;
+    } else if (
+      normalizedQuery.includes("folder") ||
+      normalizedQuery.includes("directory") ||
+      normalizedQuery.includes("path") ||
+      normalizedQuery.match(/in ([\w\/.-]+)/i)
+    ) {
+      params.type = "path";
+
+      // Try to find a path reference
+      const pathMatch =
+        normalizedQuery.match(/in ([\w\/.-]+)/i) ||
+        normalizedQuery.match(/folder ([\w\/.-]+)/i) ||
+        normalizedQuery.match(/path ([\w\/.-]+)/i);
+
+      if (pathMatch && pathMatch[1]) {
+        params.path = pathMatch[1];
+      }
+    } else {
+      // Default to keyword search
+      params.type = "keyword";
+      params.keyword = normalizedQuery
+        .replace(
+          /show|find|search|me|for|images|with|tattoo[s]?|containing/gi,
+          ""
+        )
+        .trim();
+    }
+
+    // Extract limit if specified
+    const limitMatch = normalizedQuery.match(/\b(limit|show|find|get) (\d+)\b/);
+    if (limitMatch && limitMatch[2]) {
+      const requestedLimit = parseInt(limitMatch[2]);
+      params.limit =
+        requestedLimit > 0 && requestedLimit <= 50 ? requestedLimit : 12;
+    }
+
+    return params;
+  };
+
+  // Add this right after the parseSearchQuery function
+  const getImageUrl = (imagePath) => {
+    // Use your existing API proxy for production
+    if (process.env.NODE_ENV === "production") {
+      return `/api/image-proxy?path=${encodeURIComponent(imagePath)}`;
+    }
+
+    // For local development without backend, use a direct approach
+    // This assumes you have a public folder with some test images
+    if (imagePath.startsWith("test/")) {
+      return `/sample-images/${imagePath.replace("test/", "")}`;
+    }
+
+    // Fallback to placeholder
+    console.log("Can't display image in test mode:", imagePath);
+    return "/placeholder-image.jpg";
+  };
+
+  // Function to process image search
+  const processImageSearch = async (query) => {
+    try {
+      // Parse query
+      const searchParams = parseSearchQuery(query);
+      let results = [];
+      let responseText = "";
+
+      // Execute search based on type
+      switch (searchParams.type) {
+        case "keyword":
+          // Split keywords
+          const keywords = searchParams.keyword
+            .split(/\s+/)
+            .filter((k) => k.length > 1);
+
+          // Use search_images_by_keywords function
+          const { data: keywordData, error: keywordError } = await supabase.rpc(
+            "search_images_by_keywords",
+            { search_terms: keywords, match_limit: searchParams.limit }
+          );
+
+          if (keywordError) throw keywordError;
+
+          results = keywordData.map((item) => ({
+            id: item.path, // Using path as ID since the function doesn't return original IDs
+            path: item.path,
+            filename: item.path.split("/").pop(),
+            matchScore: item.match_score,
+            analysis: item.analysis,
+          }));
+
+          responseText = `I found ${results.length} image${
+            results.length === 1 ? "" : "s"
+          } matching "${searchParams.keyword}".`;
+          break;
+
+        case "bodyPart":
+          // Use find_images_by_body_part function
+          const { data: bodyPartData, error: bodyPartError } =
+            await supabase.rpc("find_images_by_body_part", {
+              body_part: searchParams.bodyPart,
+              match_limit: searchParams.limit,
+            });
+
+          if (bodyPartError) throw bodyPartError;
+
+          results = bodyPartData.map((item) => ({
+            id: item.path,
+            path: item.path,
+            filename: item.path.split("/").pop(),
+            bodyPart: searchParams.bodyPart,
+            analysis: item.analysis,
+          }));
+
+          responseText = `Here ${results.length === 1 ? "is" : "are"} ${
+            results.length
+          } image${results.length === 1 ? "" : "s"} with tattoos on the ${
+            searchParams.bodyPart
+          }.`;
+          break;
+
+        case "noTattoo":
+          // Use find_images_without_tattoos function
+          const { data: noTattooData, error: noTattooError } =
+            await supabase.rpc("find_images_without_tattoos", {
+              match_limit: searchParams.limit,
+            });
+
+          if (noTattooError) throw noTattooError;
+
+          results = noTattooData.map((item) => ({
+            id: item.path,
+            path: item.path,
+            filename: item.path.split("/").pop(),
+            noTattoo: true,
+            analysis: item.analysis,
+          }));
+
+          responseText = `Here ${results.length === 1 ? "is" : "are"} ${
+            results.length
+          } image${results.length === 1 ? "" : "s"} without tattoos.`;
+          break;
+
+        case "path":
+          // Search by path using direct query
+          const { data: pathData, error: pathError } = await supabase
+            .from("image_embeddings")
+            .select("id, image_path, embedding_type, created_at")
+            .ilike("image_path", `%${searchParams.path}%`)
+            .limit(searchParams.limit);
+
+          if (pathError) throw pathError;
+
+          // Remove duplicates by path
+          const uniquePaths = {};
+          results = pathData
+            .filter((item) => {
+              if (!uniquePaths[item.image_path]) {
+                uniquePaths[item.image_path] = true;
+                return true;
+              }
+              return false;
+            })
+            .map((item) => ({
+              id: item.id,
+              path: item.image_path,
+              filename: item.image_path.split("/").pop(),
+              type: item.embedding_type,
+              created: item.created_at,
+            }));
+
+          responseText = `I found ${results.length} image${
+            results.length === 1 ? "" : "s"
+          } in the path containing "${searchParams.path}".`;
+          break;
+
+        case "similarity":
+          if (!searchParams.similarityPath) {
+            responseText =
+              "I need a reference image to find similar images. Please specify an image path.";
+            break;
+          }
+
+          // First get the embedding
+          const { data: embeddingData, error: embeddingError } = await supabase
+            .from("image_embeddings")
+            .select("embedding_data")
+            .eq("image_path", searchParams.similarityPath)
+            .eq("embedding_type", "full")
+            .limit(1)
+            .single();
+
+          if (embeddingError) {
+            if (embeddingError.code === "PGRST116") {
+              responseText = `I couldn't find the reference image at "${searchParams.similarityPath}".`;
+              break;
+            }
+            throw embeddingError;
+          }
+
+          if (!embeddingData?.embedding_data?.embedding) {
+            responseText = `The reference image doesn't have an embedding to compare with.`;
+            break;
+          }
+
+          // Use search_images_by_embedding function
+          const { data: similarityData, error: similarityError } =
+            await supabase.rpc("search_images_by_embedding", {
+              query_embedding: embeddingData.embedding_data.embedding,
+              match_threshold: 0.5,
+              match_count: searchParams.limit,
+            });
+
+          if (similarityError) throw similarityError;
+
+          results = similarityData
+            .filter((item) => item.image_path !== searchParams.similarityPath) // Remove reference image
+            .map((item) => ({
+              id: item.id,
+              path: item.image_path,
+              filename: item.image_path.split("/").pop(),
+              similarity: item.similarity,
+            }));
+
+          responseText = `I found ${results.length} image${
+            results.length === 1 ? "" : "s"
+          } similar to the reference image.`;
+          break;
+
+        default:
+          responseText =
+            "I'm not sure what kind of image search you're looking for. Try being more specific.";
+      }
+
+      // If no results
+      if (results.length === 0) {
+        switch (searchParams.type) {
+          case "keyword":
+            responseText = `I couldn't find any images matching "${searchParams.keyword}". Try different keywords or check for typos.`;
+            break;
+          case "bodyPart":
+            responseText = `I couldn't find any images with tattoos on the ${searchParams.bodyPart}. Try searching for a different body part.`;
+            break;
+          case "path":
+            responseText = `I couldn't find any images in the path containing "${searchParams.path}". Try a different folder name.`;
+            break;
+          case "noTattoo":
+            responseText = `I couldn't find any images without tattoos in our database.`;
+            break;
+          case "similarity":
+            responseText = `I couldn't find any images similar to the one you specified.`;
+            break;
+        }
+      }
+
+      return {
+        success: true,
+        results,
+        response: responseText,
+        searchParams,
+      };
+    } catch (error) {
+      console.error("Error processing image search:", error);
+      return {
+        success: false,
+        results: [],
+        response: `I encountered an error while searching for images: ${error.message}`,
+        error: error.message,
+      };
+    }
+  };
+
   // Handle sending text message
   const handleSendMessage = async () => {
     if (file) {
@@ -630,43 +984,20 @@ const ChatbotTabContent = () => {
 
       setCurrentMessages((prev) => [...prev, userMessage]);
 
-      // Call API based on which mode is enabled
-      let response;
-
-      if (useZenoti) {
-        // Zenoti-enhanced chat
-        console.log("Using Zenoti integration for message:", inputText);
-
+      // Check if it's an image search request
+      if (isImageSearchRequest(inputText)) {
         // First add a typing indicator
         const typingMessage = {
           sender: "system",
           message_type: "system",
-          content: "Searching Zenoti data...",
+          content: "Searching for images...",
           created_at: new Date().toISOString(),
         };
 
         setCurrentMessages((prev) => [...prev, typingMessage]);
 
-        // Make the API call
-        const chatResponse = await fetch(
-          `${apiService.utils.getBaseUrl()}/api/chat/zenoti`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              message: inputText,
-              userId: currentUser?.id || "default-user",
-            }),
-          }
-        );
-
-        if (!chatResponse.ok) {
-          throw new Error(`Zenoti chat request failed: ${chatResponse.status}`);
-        }
-
-        response = { data: await chatResponse.json() };
+        // Process the image search
+        const result = await processImageSearch(inputText);
 
         // Remove the typing indicator
         setCurrentMessages((prev) =>
@@ -674,52 +1005,125 @@ const ChatbotTabContent = () => {
             (msg) =>
               !(
                 msg.sender === "system" &&
-                msg.content === "Searching Zenoti data..."
+                msg.content === "Searching for images..."
               )
           )
         );
-      } else if (useInternet && chatSettings.showInternetSearch) {
-        // Advanced chat with web search
-        response = await apiService.chat.advanced(inputText, currentUser?.id);
-      } else {
-        // Regular chat
-        const chatResponse = await fetch(
-          `${apiService.utils.getBaseUrl()}/api/chat`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              message: inputText,
-              userId: currentUser?.id || "default-user",
-            }),
-          }
-        );
 
-        if (!chatResponse.ok) {
-          throw new Error(`Chat request failed: ${chatResponse.status}`);
+        // Add assistant response with images
+        const assistantMessage = {
+          sender: "assistant",
+          message_type: "assistant",
+          content: result.response,
+          created_at: new Date().toISOString(),
+          thread_id: selectedThreadId || null,
+          isImageSearch: true,
+          images: result.results,
+          searchParams: result.searchParams,
+        };
+
+        setCurrentMessages((prev) => [...prev, assistantMessage]);
+
+        // Update selected thread ID if this is a new thread
+        if (result.threadId && !selectedThreadId) {
+          setSelectedThreadId(result.threadId);
+          // Turn off new chat mode once we have a thread ID
+          setIsNewChat(false);
+        }
+      } else {
+        // Call API based on which mode is enabled
+        let response;
+
+        if (useZenoti) {
+          // Zenoti-enhanced chat
+          console.log("Using Zenoti integration for message:", inputText);
+
+          // First add a typing indicator
+          const typingMessage = {
+            sender: "system",
+            message_type: "system",
+            content: "Searching Zenoti data...",
+            created_at: new Date().toISOString(),
+          };
+
+          setCurrentMessages((prev) => [...prev, typingMessage]);
+
+          // Make the API call
+          const chatResponse = await fetch(
+            `${apiService.utils.getBaseUrl()}/api/chat/zenoti`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                message: inputText,
+                userId: currentUser?.id || "default-user",
+              }),
+            }
+          );
+
+          if (!chatResponse.ok) {
+            throw new Error(
+              `Zenoti chat request failed: ${chatResponse.status}`
+            );
+          }
+
+          response = { data: await chatResponse.json() };
+
+          // Remove the typing indicator
+          setCurrentMessages((prev) =>
+            prev.filter(
+              (msg) =>
+                !(
+                  msg.sender === "system" &&
+                  msg.content === "Searching Zenoti data..."
+                )
+            )
+          );
+        } else if (useInternet && chatSettings.showInternetSearch) {
+          // Advanced chat with web search
+          response = await apiService.chat.advanced(inputText, currentUser?.id);
+        } else {
+          // Regular chat
+          const chatResponse = await fetch(
+            `${apiService.utils.getBaseUrl()}/api/chat`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                message: inputText,
+                userId: currentUser?.id || "default-user",
+              }),
+            }
+          );
+
+          if (!chatResponse.ok) {
+            throw new Error(`Chat request failed: ${chatResponse.status}`);
+          }
+
+          response = { data: await chatResponse.json() };
         }
 
-        response = { data: await chatResponse.json() };
-      }
+        // Add assistant response
+        const assistantMessage = {
+          sender: "assistant",
+          message_type: "assistant",
+          content: response.data.response,
+          created_at: new Date().toISOString(),
+          thread_id: response.data.threadId,
+        };
 
-      // Add assistant response
-      const assistantMessage = {
-        sender: "assistant",
-        message_type: "assistant",
-        content: response.data.response,
-        created_at: new Date().toISOString(),
-        thread_id: response.data.threadId,
-      };
+        setCurrentMessages((prev) => [...prev, assistantMessage]);
 
-      setCurrentMessages((prev) => [...prev, assistantMessage]);
-
-      // Update selected thread ID if this is a new thread
-      if (response.data.threadId && !selectedThreadId) {
-        setSelectedThreadId(response.data.threadId);
-        // Turn off new chat mode once we have a thread ID
-        setIsNewChat(false);
+        // Update selected thread ID if this is a new thread
+        if (response.data.threadId && !selectedThreadId) {
+          setSelectedThreadId(response.data.threadId);
+          // Turn off new chat mode once we have a thread ID
+          setIsNewChat(false);
+        }
       }
 
       // Reset input
@@ -829,7 +1233,106 @@ const ChatbotTabContent = () => {
 
   // Render message content
   // Render message content
+  // Replace your existing renderMessageContent function with this version
   const renderMessageContent = (message) => {
+    // Handle image search messages
+    if (message.isImageSearch && message.images) {
+      return (
+        <div className="image-search-results">
+          <div className="search-response">{message.content}</div>
+
+          {message.images.length > 0 && (
+            <div className="image-grid">
+              {message.images.slice(0, 8).map((image, idx) => (
+                <div key={idx} className="image-result">
+                  <div className="image-container">
+                    <img
+                      src={`/api/image-proxy?path=${encodeURIComponent(
+                        image.path
+                      )}`}
+                      alt={image.filename || "Image"}
+                      onClick={() => {
+                        // Handle image click - show in full view
+                        window.open(
+                          `/api/image-proxy?path=${encodeURIComponent(
+                            image.path
+                          )}`,
+                          "_blank"
+                        );
+                      }}
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = "/placeholder-image.jpg";
+                      }}
+                    />
+
+                    {/* Show similarity score if available */}
+                    {image.similarity !== undefined && (
+                      <div className="similarity-badge">
+                        {Math.round(image.similarity * 100)}%
+                      </div>
+                    )}
+                  </div>
+                  <div className="image-caption">
+                    {image.filename || image.path?.split("/").pop() || "Image"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {message.images.length > 8 && (
+            <div className="more-results">
+              <button
+                onClick={() => {
+                  console.log("Show all results:", message.images);
+                  // You could implement a modal or separate view here
+                }}
+                className="more-results-btn"
+              >
+                Show all {message.images.length} results
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const testSupabaseConnection = async () => {
+      try {
+        // Test basic connection
+        const { data, error } = await supabase
+          .from("image_embeddings")
+          .select("count(*)");
+        console.log("Supabase connection test:", { data, error });
+
+        // Test function availability
+        const { data: fnData, error: fnError } = await supabase.rpc(
+          "search_images_by_keywords",
+          { search_terms: ["test"], match_limit: 5 }
+        );
+        console.log("Function test:", { data: fnData, error: fnError });
+
+        return !error && !fnError;
+      } catch (e) {
+        console.error("Connection test failed:", e);
+        return false;
+      }
+    };
+
+    // Test function for individual searches
+    const testSearch = async (query) => {
+      try {
+        console.log("Testing search:", query);
+        const result = await processImageSearch(query);
+        console.log("Test result:", result);
+        alert(`Found ${result.results.length} results`);
+      } catch (e) {
+        console.error("Test failed:", e);
+        alert("Test failed: " + e.message);
+      }
+    };
+
     // Handle different message types
     if (
       message.message_type === "error" ||
@@ -907,6 +1410,13 @@ const ChatbotTabContent = () => {
     return () => {
       delete window.viewImage;
     };
+  }, []);
+
+  // Add this with your other useEffect hooks
+  useEffect(() => {
+    testSupabaseConnection().then((success) => {
+      console.log("Supabase test result:", success ? "SUCCESS" : "FAILED");
+    });
   }, []);
 
   // Add event listener for image links
