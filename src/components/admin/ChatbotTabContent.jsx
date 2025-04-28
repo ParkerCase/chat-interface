@@ -278,6 +278,7 @@ const ChatbotTabContent = () => {
   };
 
   // Handle file selection
+  // Handling file preview
   const handleFileChange = (event) => {
     const selectedFile = event.target.files[0];
     if (!selectedFile) return;
@@ -1232,8 +1233,6 @@ const ChatbotTabContent = () => {
   };
 
   // Render message content
-  // Render message content
-  // Replace your existing renderMessageContent function with this version
   const renderMessageContent = (message) => {
     // Handle image search messages
     if (message.isImageSearch && message.images) {
@@ -1286,7 +1285,7 @@ const ChatbotTabContent = () => {
               <button
                 onClick={() => {
                   console.log("Show all results:", message.images);
-                  // You could implement a modal or separate view here
+                  // Implement modal or separate view for all results
                 }}
                 className="more-results-btn"
               >
@@ -1297,41 +1296,6 @@ const ChatbotTabContent = () => {
         </div>
       );
     }
-
-    const testSupabaseConnection = async () => {
-      try {
-        // Test basic connection
-        const { data, error } = await supabase
-          .from("image_embeddings")
-          .select("count(*)");
-        console.log("Supabase connection test:", { data, error });
-
-        // Test function availability
-        const { data: fnData, error: fnError } = await supabase.rpc(
-          "search_images_by_keywords",
-          { search_terms: ["test"], match_limit: 5 }
-        );
-        console.log("Function test:", { data: fnData, error: fnError });
-
-        return !error && !fnError;
-      } catch (e) {
-        console.error("Connection test failed:", e);
-        return false;
-      }
-    };
-
-    // Test function for individual searches
-    const testSearch = async (query) => {
-      try {
-        console.log("Testing search:", query);
-        const result = await processImageSearch(query);
-        console.log("Test result:", result);
-        alert(`Found ${result.results.length} results`);
-      } catch (e) {
-        console.error("Test failed:", e);
-        alert("Test failed: " + e.message);
-      }
-    };
 
     // Handle different message types
     if (
@@ -1375,15 +1339,11 @@ const ChatbotTabContent = () => {
 
     // Handle HTML content with image links
     if (message.isHtml) {
-      // Transform the content to make certain parts interactive
       const processedContent = message.content
-        // Make image links clickable for the viewer
         .replace(/\[View Image\]\((.*?)\)/g, (match, path) => {
-          // Properly escape the path for JavaScript string usage
           const escapedPath = path.replace(/['\\]/g, "\\$&");
           return `<a href="#" class="view-image-link" data-path="${escapedPath}" onclick="window.viewImage('${escapedPath}')">View Image</a>`;
         })
-        // Make regular path links clickable
         .replace(
           /\/([^\/\s"']+\/)*[^\/\s"']+\.(jpg|jpeg|png|gif|webp)/gi,
           (match) => {
@@ -1411,6 +1371,29 @@ const ChatbotTabContent = () => {
       delete window.viewImage;
     };
   }, []);
+
+  const testSupabaseConnection = async () => {
+    try {
+      // Test basic connection
+      const { data, error } = await supabase
+        .from("image_embeddings")
+        .select("id", { count: "exact" }); // Use 'count: exact' to count rows correctly
+
+      console.log("Supabase connection test:", { data, error });
+
+      // Test function availability
+      const { data: fnData, error: fnError } = await supabase.rpc(
+        "search_images_by_keywords",
+        { search_terms: ["test"], match_limit: 5 }
+      );
+      console.log("Function test:", { data: fnData, error: fnError });
+
+      return !error && !fnError;
+    } catch (e) {
+      console.error("Connection test failed:", e);
+      return false;
+    }
+  };
 
   // Add this with your other useEffect hooks
   useEffect(() => {
