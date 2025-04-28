@@ -1242,44 +1242,116 @@ const ChatbotTabContent = () => {
 
           {message.images.length > 0 && (
             <div className="image-grid">
-              {message.images.slice(0, 8).map((image, idx) => (
-                <div key={idx} className="image-result">
-                  <div className="image-container">
-                    <img
-                      src={`/api/image-proxy?path=${encodeURIComponent(
-                        image.path
-                      )}`}
-                      alt={image.filename || "Image"}
-                      onClick={() => {
-                        // Handle image click - show in full view
-                        window.open(
-                          `/api/image-proxy?path=${encodeURIComponent(
-                            image.path
-                          )}`,
-                          "_blank"
-                        );
-                      }}
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = "/placeholder-image.jpg";
-                      }}
-                    />
+              {message.images.slice(0, 8).map((image, idx) => {
+                // Comprehensive path processing
+                let imagePath = image.path;
 
-                    {/* Show similarity score if available */}
-                    {image.similarity !== undefined && (
-                      <div className="similarity-badge">
-                        {Math.round(image.similarity * 100)}%
-                      </div>
-                    )}
+                // Advanced logging with full diagnostic information
+                console.group(`🖼️ Image ${idx} Detailed Diagnostics`);
+                console.log(
+                  "Original Image Object:",
+                  JSON.parse(JSON.stringify(image))
+                );
+                console.log("Original Path:", imagePath);
+
+                // Remove any leading/trailing whitespaces
+                imagePath = imagePath.trim();
+
+                // Ensure path starts with dropbox: prefix
+                if (!imagePath.startsWith("dropbox:")) {
+                  imagePath = `dropbox:${imagePath}`;
+                }
+
+                console.log("Processed Path:", imagePath);
+
+                // Generate proxy URL
+                const proxyUrl = `/api/image-proxy?path=${encodeURIComponent(
+                  imagePath
+                )}&t=${Date.now()}`;
+
+                console.log("Proxy URL:", proxyUrl);
+                console.groupEnd();
+
+                // Custom fetch function with extensive error handling
+                const fetchImageWithDiagnostics = async (url) => {
+                  try {
+                    console.group(`🔍 Fetch Attempt for ${idx}`);
+                    console.log("Attempting to fetch:", url);
+
+                    // Use fetch with more detailed error handling
+                    const response = await fetch(url, {
+                      method: "GET",
+                      headers: {
+                        Accept: "image/*",
+                        "Cache-Control": "no-cache",
+                      },
+                    });
+
+                    console.log("Fetch Response:", {
+                      status: response.status,
+                      statusText: response.statusText,
+                      headers: Object.fromEntries(response.headers.entries()),
+                    });
+
+                    if (!response.ok) {
+                      throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    // Convert response to blob to verify content
+                    const blob = await response.blob();
+                    console.log("Blob Size:", blob.size);
+                    console.log("Blob Type:", blob.type);
+
+                    return URL.createObjectURL(blob);
+                  } catch (error) {
+                    console.error("Fetch Error Details:", {
+                      message: error.message,
+                      stack: error.stack,
+                      url,
+                    });
+                    throw error;
+                  } finally {
+                    console.groupEnd();
+                  }
+                };
+
+                return (
+                  <div key={idx} className="image-result">
+                    <div className="image-container">
+                      <ImageWithFetchFallback
+                        proxyUrl={proxyUrl}
+                        fetchFunction={fetchImageWithDiagnostics}
+                        alt={image.filename || "Image"}
+                        fallbackSrc="/placeholder-image.jpg"
+                      />
+
+                      {/* Show similarity score if available */}
+                      {image.similarity !== undefined && (
+                        <div className="similarity-badge">
+                          {Math.round(image.similarity * 100)}%
+                        </div>
+                      )}
+
+                      {/* Debug overlay */}
+                      {process.env.NODE_ENV === "development" && (
+                        <div
+                          className="debug-overlay"
+                          title={`Original: ${image.path}\nProcessed: ${imagePath}`}
+                        >
+                          🔍
+                        </div>
+                      )}
+                    </div>
+                    <div className="image-caption">
+                      {image.filename || imagePath.split("/").pop() || "Image"}
+                    </div>
                   </div>
-                  <div className="image-caption">
-                    {image.filename || image.path?.split("/").pop() || "Image"}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
+          {/* Show all results button */}
           {message.images.length > 8 && (
             <div className="more-results">
               <button
@@ -1371,6 +1443,56 @@ const ChatbotTabContent = () => {
       delete window.viewImage;
     };
   }, []);
+
+  // Separate component for advanced image loading with fallback
+  const ImageWithFetchFallback = ({
+    proxyUrl,
+    fetchFunction,
+    alt,
+    fallbackSrc,
+  }) => {
+    const [imageSrc, setImageSrc] = useState(null);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+      const loadImage = async () => {
+        try {
+          const src = await fetchFunction(proxyUrl);
+          setImageSrc(src);
+        } catch (err) {
+          console.error("Image Load Failure:", {
+            url: proxyUrl,
+            error: err,
+          });
+          setError(err);
+        }
+      };
+
+      loadImage();
+
+      // Cleanup function to revoke object URL
+      return () => {
+        if (imageSrc) {
+          URL.revokeObjectURL(imageSrc);
+        }
+      };
+    }, [proxyUrl, fetchFunction]);
+
+    if (error) {
+      return (
+        <img src={fallbackSrc} alt="Failed to load" className="error-image" />
+      );
+    }
+
+    return imageSrc ? (
+      <img
+        src={imageSrc}
+        alt={alt}
+        className="search-result-image"
+        onError={() => setError(new Error("Image load failed"))}
+      />
+    ) : null;
+  };
 
   const testSupabaseConnection = async () => {
     try {
