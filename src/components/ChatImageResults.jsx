@@ -1,9 +1,10 @@
 // src/components/ChatImageResults.jsx
 import React, { useState } from "react";
-import { useSupabase } from "../hooks/useSupabase";
 
 /**
- * Component to display image search results in a chat message
+ * Enhanced component to display image search results in a chat message
+ * Works with multiple storage providers using StorageManager
+ *
  * @param {Object} props - Component props
  * @param {Array} props.images - Image results to display
  * @param {string} props.responseText - Natural language response
@@ -17,47 +18,55 @@ const ChatImageResults = ({
   searchParams = {},
   onImageClick,
 }) => {
-  const supabase = useSupabase();
   const [expanded, setExpanded] = useState(true);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [failedImages, setFailedImages] = useState({});
 
   // Display settings
   const maxImagesToShow = images.length > 8 ? 6 : images.length;
   const hasMoreImages = images.length > maxImagesToShow;
 
   /**
-   * Generate image URL based on storage provider
+   * Enhanced function to generate image URL using the image proxy
    * @param {string} imagePath - Path to the image
    * @returns {string} URL for the image
    */
   const getImageUrl = (imagePath) => {
     if (!imagePath) return "/placeholder-image.jpg";
 
-    // Handle different storage providers
-    if (imagePath.startsWith("dropbox:")) {
-      // For Dropbox paths, use our proxy endpoint
-      const path = encodeURIComponent(imagePath.replace("dropbox:", ""));
-      return `/api/image-proxy?path=${path}`;
+    // Add cache busting parameter
+    const cacheBuster = `t=${Date.now()}`;
+
+    // Handle different path formats to ensure they work with our image proxy
+    let formattedPath = imagePath;
+
+    // If the image has a provider explicitly set, use provider:// format
+    if (
+      imagePath.provider &&
+      !formattedPath.startsWith(`${imagePath.provider}://`)
+    ) {
+      // Remove leading slash if present
+      const normalizedPath = formattedPath.startsWith("/")
+        ? formattedPath.substring(1)
+        : formattedPath;
+      formattedPath = `${imagePath.provider}://${normalizedPath}`;
     }
 
-    // For Supabase storage
-    if (imagePath.startsWith("supabase:")) {
-      const path = imagePath.replace("supabase:", "");
-      return supabase.storage.from("images").getPublicUrl(path).data.publicUrl;
-    }
+    // Always proxy through our backend API to handle any storage provider
+    return `/api/image-proxy?path=${encodeURIComponent(
+      formattedPath
+    )}&${cacheBuster}`;
+  };
 
-    // For local development testing or relative paths
-    if (imagePath.startsWith("/")) {
-      return imagePath;
-    }
-
-    // For absolute URLs
-    if (imagePath.startsWith("http")) {
-      return imagePath;
-    }
-
-    // Default fallback - assume it's a relative path
-    return `/api/image-proxy?path=${encodeURIComponent(imagePath)}`;
+  /**
+   * Handle image load error
+   * @param {string} imageId - ID of the image
+   */
+  const handleImageError = (imageId) => {
+    setFailedImages((prev) => ({
+      ...prev,
+      [imageId]: true,
+    }));
   };
 
   /**
@@ -65,8 +74,8 @@ const ChatImageResults = ({
    */
   const handleShowMore = () => {
     // Navigate to full search results view
-    // This could link to your standalone search UI with these results pre-loaded
     console.log("Show more clicked", searchParams);
+    // Implementation for showing more results
   };
 
   /**
@@ -103,40 +112,61 @@ const ChatImageResults = ({
       {/* Results grid - only shown when expanded */}
       {expanded && (
         <div className="chat-image-grid">
-          {images.slice(0, maxImagesToShow).map((image, index) => (
-            <div
-              key={image.id || index}
-              className="chat-image-item"
-              onClick={() => handleImageClick(image)}
-            >
-              <div className="image-container">
-                <img
-                  src={getImageUrl(image.path)}
-                  alt={image.filename || "Image"}
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "/placeholder-image.jpg";
-                  }}
-                />
+          {images.slice(0, maxImagesToShow).map((image, index) => {
+            const imageId = image.id || `chat-img-${index}`;
+            const hasFailed = !!failedImages[imageId];
 
-                {/* Show similarity score badge if available */}
-                {image.similarity !== undefined && (
-                  <div className="similarity-badge">
-                    {Math.round(image.similarity * 100)}%
-                  </div>
-                )}
+            return (
+              <div
+                key={imageId}
+                className={`chat-image-item ${hasFailed ? "failed" : ""}`}
+                onClick={() => handleImageClick(image)}
+              >
+                <div className="image-container">
+                  <img
+                    src={getImageUrl(image.path)}
+                    alt={image.filename || image.name || "Image"}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/placeholder-image.jpg";
+                      handleImageError(imageId);
+                    }}
+                  />
 
-                {/* Show body part badge if available */}
-                {image.bodyPart && (
-                  <div className="body-part-badge">{image.bodyPart}</div>
-                )}
+                  {/* Show similarity score badge if available */}
+                  {image.similarity !== undefined && (
+                    <div className="similarity-badge">
+                      {Math.round(image.similarity * 100)}%
+                    </div>
+                  )}
+
+                  {/* Show body part badge if available */}
+                  {image.bodyPart && (
+                    <div className="body-part-badge">{image.bodyPart}</div>
+                  )}
+
+                  {/* Show error badge if image failed to load */}
+                  {hasFailed && (
+                    <div className="image-error-badge">
+                      <span className="error-icon">⚠️</span>
+                    </div>
+                  )}
+
+                  {/* Provider badge if available */}
+                  {image.provider && (
+                    <div className="provider-badge">{image.provider}</div>
+                  )}
+                </div>
+
+                <div className="image-caption">
+                  {image.filename ||
+                    image.name ||
+                    image.path?.split("/").pop() ||
+                    "Image"}
+                </div>
               </div>
-
-              <div className="image-caption">
-                {image.filename || image.path?.split("/").pop() || "Image"}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -163,39 +193,77 @@ const ChatImageResults = ({
             <div className="modal-image">
               <img
                 src={getImageUrl(selectedImage.path)}
-                alt={selectedImage.filename || "Image"}
+                alt={selectedImage.filename || selectedImage.name || "Image"}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "/placeholder-image.jpg";
+                }}
               />
             </div>
 
             <div className="image-details">
-              <h3>{selectedImage.filename}</h3>
-              <p className="image-path">{selectedImage.path}</p>
+              <h3>
+                {selectedImage.filename ||
+                  selectedImage.name ||
+                  selectedImage.path?.split("/").pop()}
+              </h3>
+
+              <div className="detail-item">
+                <strong>Path:</strong> {selectedImage.path}
+              </div>
+
+              {selectedImage.provider && (
+                <div className="detail-item">
+                  <strong>Provider:</strong> {selectedImage.provider}
+                </div>
+              )}
 
               {selectedImage.insights?.bodyPart && (
-                <p className="detail-item">
+                <div className="detail-item">
                   <strong>Body part:</strong> {selectedImage.insights.bodyPart}
-                </p>
+                </div>
               )}
 
               {selectedImage.similarity !== undefined && (
-                <p className="detail-item">
+                <div className="detail-item">
                   <strong>Similarity:</strong>{" "}
                   {Math.round(selectedImage.similarity * 100)}%
-                </p>
+                </div>
               )}
 
               {selectedImage.insights?.isLikelyTattoo !== undefined && (
-                <p className="detail-item">
+                <div className="detail-item">
                   <strong>Contains tattoo:</strong>{" "}
                   {selectedImage.insights.isLikelyTattoo ? "Yes" : "No"}
-                </p>
+                </div>
               )}
 
               {selectedImage.insights?.hasFaded && (
-                <p className="detail-item">
+                <div className="detail-item">
                   <strong>Faded:</strong> Yes
-                </p>
+                </div>
               )}
+
+              <div className="modal-actions">
+                <button
+                  className="action-button copy-path"
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedImage.path);
+                    alert("Path copied to clipboard");
+                  }}
+                >
+                  Copy Path
+                </button>
+
+                <button
+                  className="action-button view-full"
+                  onClick={() => {
+                    window.open(getImageUrl(selectedImage.path), "_blank");
+                  }}
+                >
+                  View Full Size
+                </button>
+              </div>
             </div>
           </div>
         </div>
