@@ -733,24 +733,6 @@ const ChatbotTabContent = () => {
     return params;
   };
 
-  // Add this right after the parseSearchQuery function
-  const getImageUrl = (imagePath) => {
-    // Use your existing API proxy for production
-    if (process.env.NODE_ENV === "production") {
-      return `/api/image-proxy?path=${encodeURIComponent(imagePath)}`;
-    }
-
-    // For local development without backend, use a direct approach
-    // This assumes you have a public folder with some test images
-    if (imagePath.startsWith("test/")) {
-      return `/sample-images/${imagePath.replace("test/", "")}`;
-    }
-
-    // Fallback to placeholder
-    console.log("Can't display image in test mode:", imagePath);
-    return "/placeholder-image.jpg";
-  };
-
   // Function to process image search
   const processImageSearch = async (query) => {
     try {
@@ -1177,24 +1159,55 @@ const ChatbotTabContent = () => {
   // Handle image view
   // Handle image view
   const handleImageView = (imagePath) => {
+    if (!imagePath) {
+      console.error("No image path provided");
+      return;
+    }
+
     // Ensure the path is properly formatted - remove leading slash if needed
-    const normalizedPath = imagePath.startsWith("/")
-      ? imagePath.substring(1)
-      : imagePath;
+    const normalizedPath =
+      typeof imagePath === "string"
+        ? imagePath.startsWith("/")
+          ? imagePath.substring(1)
+          : imagePath
+        : "";
+
+    if (!normalizedPath) {
+      console.error("Invalid image path:", imagePath);
+      return;
+    }
 
     setCurrentViewImage(normalizedPath);
     setShowImageViewerModal(true);
 
-    // Track image view event
-    const analyticsHelpers = require("../../utils/analytics-helpers");
-    analyticsHelpers.trackServerEvent(
-      { headers: {} }, // Mock request object
-      analyticsHelpers.EVENT_TYPES.IMAGE_VIEW || "image:view",
-      {
-        imagePath: normalizedPath,
-        userId: currentUser?.id || "default-user",
+    // Try to track analytics if available
+    try {
+      // Check if analytics helpers are available
+      const analyticsHelpers = require("../../utils/analytics-helpers");
+      if (
+        analyticsHelpers &&
+        analyticsHelpers.EVENT_TYPES &&
+        analyticsHelpers.EVENT_TYPES.IMAGE_VIEW
+      ) {
+        analyticsHelpers.trackServerEvent(
+          { headers: {} }, // Mock request object
+          analyticsHelpers.EVENT_TYPES.IMAGE_VIEW,
+          {
+            imagePath: normalizedPath,
+            userId: currentUser?.id || "default-user",
+          }
+        );
+      } else {
+        // Fallback tracking - just log to console
+        console.log(
+          "Image view event (analytics not available):",
+          normalizedPath
+        );
       }
-    );
+    } catch (error) {
+      // Silently handle errors in analytics to prevent breaking the UI
+      console.warn("Error tracking image view:", error);
+    }
   };
 
   // Toggle internet search
@@ -1237,135 +1250,22 @@ const ChatbotTabContent = () => {
     // Handle image search messages
     if (message.isImageSearch && message.images) {
       return (
-        <div className="image-search-results">
-          <div className="search-response">{message.content}</div>
-
-          {message.images.length > 0 && (
-            <div className="image-grid">
-              {message.images.slice(0, 8).map((image, idx) => {
-                // Comprehensive path processing
-                let imagePath = image.path;
-
-                // Advanced logging with full diagnostic information
-                console.group(`🖼️ Image ${idx} Detailed Diagnostics`);
-                console.log(
-                  "Original Image Object:",
-                  JSON.parse(JSON.stringify(image))
-                );
-                console.log("Original Path:", imagePath);
-
-                // Remove any leading/trailing whitespaces
-                imagePath = imagePath.trim();
-
-                // Ensure path starts with dropbox: prefix
-                if (!imagePath.startsWith("dropbox:")) {
-                  imagePath = `dropbox:${imagePath}`;
-                }
-
-                console.log("Processed Path:", imagePath);
-
-                // Generate proxy URL
-                const proxyUrl = `/api/image-proxy?path=${encodeURIComponent(
-                  imagePath
-                )}&t=${Date.now()}`;
-
-                console.log("Proxy URL:", proxyUrl);
-                console.groupEnd();
-
-                // Custom fetch function with extensive error handling
-                const fetchImageWithDiagnostics = async (url) => {
-                  try {
-                    console.group(`🔍 Fetch Attempt for ${idx}`);
-                    console.log("Attempting to fetch:", url);
-
-                    // Use fetch with more detailed error handling
-                    const response = await fetch(url, {
-                      method: "GET",
-                      headers: {
-                        Accept: "image/*",
-                        "Cache-Control": "no-cache",
-                      },
-                    });
-
-                    console.log("Fetch Response:", {
-                      status: response.status,
-                      statusText: response.statusText,
-                      headers: Object.fromEntries(response.headers.entries()),
-                    });
-
-                    if (!response.ok) {
-                      throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    // Convert response to blob to verify content
-                    const blob = await response.blob();
-                    console.log("Blob Size:", blob.size);
-                    console.log("Blob Type:", blob.type);
-
-                    return URL.createObjectURL(blob);
-                  } catch (error) {
-                    console.error("Fetch Error Details:", {
-                      message: error.message,
-                      stack: error.stack,
-                      url,
-                    });
-                    throw error;
-                  } finally {
-                    console.groupEnd();
-                  }
-                };
-
-                return (
-                  <div key={idx} className="image-result">
-                    <div className="image-container">
-                      <ImageWithFetchFallback
-                        proxyUrl={proxyUrl}
-                        fetchFunction={fetchImageWithDiagnostics}
-                        alt={image.filename || "Image"}
-                        fallbackSrc="/placeholder-image.jpg"
-                      />
-
-                      {/* Show similarity score if available */}
-                      {image.similarity !== undefined && (
-                        <div className="similarity-badge">
-                          {Math.round(image.similarity * 100)}%
-                        </div>
-                      )}
-
-                      {/* Debug overlay */}
-                      {process.env.NODE_ENV === "development" && (
-                        <div
-                          className="debug-overlay"
-                          title={`Original: ${image.path}\nProcessed: ${imagePath}`}
-                        >
-                          🔍
-                        </div>
-                      )}
-                    </div>
-                    <div className="image-caption">
-                      {image.filename || imagePath.split("/").pop() || "Image"}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Show all results button */}
-          {message.images.length > 8 && (
-            <div className="more-results">
-              <button
-                onClick={() => {
-                  console.log("Show all results:", message.images);
-                  // Implement modal or separate view for all results
-                }}
-                className="more-results-btn"
-              >
-                Show all {message.images.length} results
-              </button>
-            </div>
-          )}
-        </div>
+        <ChatImageResults
+          images={message.images}
+          responseText={message.content}
+          searchParams={message.searchParams}
+          onImageClick={(image) => {
+            console.log("Image clicked:", image);
+            handleImageView(image.path);
+          }}
+          onSearchWithImage={(imagePath, searchQuery) => {
+            // Set input text to search query
+            setInputText(searchQuery);
+          }}
+          onCopyPath={(path) => {
+            console.log(`Path copied: ${path}`);
+          }}
+        />
       );
     }
 
@@ -1414,13 +1314,13 @@ const ChatbotTabContent = () => {
       const processedContent = message.content
         .replace(/\[View Image\]\((.*?)\)/g, (match, path) => {
           const escapedPath = path.replace(/['\\]/g, "\\$&");
-          return `<a href="#" class="view-image-link" data-path="${escapedPath}" onclick="window.viewImage('${escapedPath}')">View Image</a>`;
+          return `<a href="#" class="view-image-link" data-path="${escapedPath}" onclick="event.preventDefault(); window.viewImage('${escapedPath}')">View Image</a>`;
         })
         .replace(
           /\/([^\/\s"']+\/)*[^\/\s"']+\.(jpg|jpeg|png|gif|webp)/gi,
           (match) => {
             const encodedPath = encodeURIComponent(match);
-            return `<a href="#" class="view-image-link" data-path="${match}">View ${match}</a>`;
+            return `<a href="#" class="view-image-link" data-path="${match}" onclick="event.preventDefault(); window.viewImage('${match}')">View ${match}</a>`;
           }
         );
 
@@ -1432,7 +1332,6 @@ const ChatbotTabContent = () => {
       .split("\n")
       .map((line, i) => <div key={i}>{line || <br />}</div>);
   };
-
   // Expose image viewing function to window for link handling
   useEffect(() => {
     window.viewImage = (path) => {
@@ -1445,6 +1344,7 @@ const ChatbotTabContent = () => {
   }, []);
 
   // Separate component for advanced image loading with fallback
+  // Improved ImageWithFetchFallback component to fix image loading issues
   const ImageWithFetchFallback = ({
     proxyUrl,
     fetchFunction,
@@ -1453,45 +1353,65 @@ const ChatbotTabContent = () => {
   }) => {
     const [imageSrc, setImageSrc] = useState(null);
     const [error, setError] = useState(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-      const loadImage = async () => {
-        try {
-          const src = await fetchFunction(proxyUrl);
-          setImageSrc(src);
-        } catch (err) {
-          console.error("Image Load Failure:", {
-            url: proxyUrl,
-            error: err,
-          });
-          setError(err);
-        }
+      // Reset state when URL changes
+      setLoading(true);
+      setError(null);
+      setImageSrc(null);
+
+      // Instead of using fetchFunction which adds complexity, use a direct approach
+      const img = new Image();
+
+      // This correctly uses the absolute URL including the host
+      const absoluteUrl = new URL(proxyUrl, window.location.origin).href;
+
+      img.onload = () => {
+        setImageSrc(absoluteUrl);
+        setLoading(false);
       };
 
-      loadImage();
+      img.onerror = (err) => {
+        console.error("Image load failed:", absoluteUrl, err);
+        setError(new Error(`Failed to load image: ${absoluteUrl}`));
+        setLoading(false);
+      };
 
-      // Cleanup function to revoke object URL
+      img.src = absoluteUrl;
+
       return () => {
-        if (imageSrc) {
-          URL.revokeObjectURL(imageSrc);
-        }
+        img.onload = null;
+        img.onerror = null;
       };
-    }, [proxyUrl, fetchFunction]);
+    }, [proxyUrl]);
+
+    if (loading) {
+      return <div className="image-loading">Loading...</div>;
+    }
 
     if (error) {
       return (
-        <img src={fallbackSrc} alt="Failed to load" className="error-image" />
+        <img
+          src={fallbackSrc}
+          alt="Failed to load"
+          className="error-image"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = "/placeholder-image.jpg";
+          }}
+        />
       );
     }
 
-    return imageSrc ? (
+    return (
       <img
         src={imageSrc}
         alt={alt}
         className="search-result-image"
         onError={() => setError(new Error("Image load failed"))}
       />
-    ) : null;
+    );
   };
 
   const testSupabaseConnection = async () => {
@@ -2015,61 +1935,6 @@ const ChatbotTabContent = () => {
                     Vision
                   </p>
                 </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Image viewer modal */}
-        {/* Image viewer modal */}
-        {showImageViewerModal && currentViewImage && (
-          <div className="modal-overlay">
-            <div className="modal-content image-viewer-modal">
-              <div className="modal-header">
-                <h3>Image Viewer</h3>
-                <button
-                  className="modal-close"
-                  onClick={() => setShowImageViewerModal(false)}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-              <div className="image-container">
-                <img
-                  src={`${apiService.utils.getBaseUrl()}/image-viewer?path=${encodeURIComponent(
-                    currentViewImage
-                  )}`}
-                  alt="Viewed image"
-                  className="viewed-image"
-                />
-              </div>
-              <div className="modal-footer">
-                <p className="image-path">{currentViewImage}</p>
-                <div className="modal-actions">
-                  <button
-                    className="copy-path-btn"
-                    onClick={() => {
-                      navigator.clipboard.writeText(currentViewImage);
-                      alert("Path copied to clipboard!");
-                    }}
-                  >
-                    <Clipboard size={16} />
-                    <span>Copy Path</span>
-                  </button>
-                  <button
-                    className="search-path-btn"
-                    onClick={() => {
-                      setShowImageViewerModal(false);
-                      // Add the path to the input field or trigger a search
-                      setInputText(
-                        `Search for images related to: ${currentViewImage}`
-                      );
-                    }}
-                  >
-                    <Search size={16} />
-                    <span>Use in Search</span>
-                  </button>
-                </div>
               </div>
             </div>
           </div>
