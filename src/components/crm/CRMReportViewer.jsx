@@ -1,31 +1,30 @@
-// src/components/crm/CRMReportViewer.jsx - Enhanced
+// src/components/crm/CRMReportViewer.jsx - Improved version
 import React, { useState, useEffect } from "react";
 import {
   Download,
   Printer,
-  FileText,
   X,
-  BarChart,
+  BarChart2,
   RefreshCw,
-  Share2,
   Mail,
-  ExternalLink,
-  Info,
+  FileText,
   ChevronDown,
   ChevronUp,
   AlertCircle,
+  Info,
   Package,
   Tag,
   Calendar,
   Clock,
   User,
+  CreditCard,
+  DollarSign,
 } from "lucide-react";
-import zenotiService from "../../services/zenotiService";
-import analyticsUtils from "../../utils/analyticsUtils";
-import "./CRMReportViewer.css";
+import reportsApiService from "../../services/reportsApiService";
+import "./ImprovedReportViewer.css";
 
 /**
- * Enhanced component for viewing CRM reports with download, print, and sharing capabilities
+ * Enhanced CRM Report Viewer component
  */
 const CRMReportViewer = ({
   reportData,
@@ -37,37 +36,39 @@ const CRMReportViewer = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [expandedSections, setExpandedSections] = useState({});
-  const [exportFormat, setExportFormat] = useState("csv");
+  const [success, setSuccess] = useState(null);
+  const [expandedSections, setExpandedSections] = useState({
+    summary: true, // Start with summary expanded by default
+    details: false,
+  });
   const [showExportOptions, setShowExportOptions] = useState(false);
-  const [showComingSoonModal, setShowComingSoonModal] = useState(false);
 
-  // Format currency - safely handles all types
-  const formatCurrency = (amount) => {
-    // Handle string values that might contain numbers
-    if (typeof amount === 'string') {
-      amount = parseFloat(amount.replace(/[^0-9.-]+/g, ''));
+  // Auto-hide success messages after 5 seconds
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => setSuccess(null), 5000);
+      return () => clearTimeout(timer);
     }
-    
-    // Handle undefined, null, or NaN values
+  }, [success]);
+
+  // Format currency properly with fallbacks for various data types
+  const formatCurrency = (amount) => {
+    // Handle string values with dollar signs or commas
+    if (typeof amount === "string") {
+      amount = parseFloat(amount.replace(/[^0-9.-]+/g, ""));
+    }
+
+    // Handle undefined, null, or NaN
     if (amount === undefined || amount === null || isNaN(amount)) {
       return "$0.00";
     }
-    
-    // Now we're sure it's a valid number
+
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
       minimumFractionDigits: 2,
     }).format(amount);
   };
-
-  // Check if report type is in development
-  useEffect(() => {
-    // We are no longer checking for weekly or client-activity reports
-    // as they have been removed from the options in the parent component
-    setShowComingSoonModal(false);
-  }, [reportType]);
 
   // Toggle section expansion
   const toggleSection = (sectionId) => {
@@ -77,7 +78,7 @@ const CRMReportViewer = ({
     }));
   };
 
-  // Export report to selected format
+  // Handle export action with proper format
   const handleExport = async (format) => {
     try {
       setIsLoading(true);
@@ -95,112 +96,14 @@ const CRMReportViewer = ({
         return;
       }
 
-      // Prepare filename with date
+      // Default export behavior
       const timestamp = new Date().toISOString().split("T")[0];
-      const filename = `${reportType}-report-${timestamp}`;
+      const filename = `${reportType}-${centerCode}-${timestamp}`;
 
-      // Make a direct download instead of API call if possible
-      if (format === "csv") {
-        try {
-          // Convert report data to CSV
-          const csv = convertReportToCSV(reportData, reportType);
+      await reportsApiService.generateReportFile(reportData, format, filename);
 
-          // Create download link
-          const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.setAttribute("download", `${filename}.csv`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          // Track export event
-          try {
-            analyticsUtils.trackEvent(
-              analyticsUtils.EVENT_TYPES.CRM_REPORT_EXPORT,
-              {
-                reportType,
-                format,
-                dateRange,
-                centerCode,
-              }
-            );
-          } catch (analyticsError) {
-            console.warn("Analytics error:", analyticsError);
-          }
-
-          setShowExportOptions(false);
-          return;
-        } catch (csvError) {
-          console.warn("Direct CSV conversion failed, trying API:", csvError);
-        }
-      }
-
-      // Fall back to API call for export
-      const response = await zenotiService.generateReportFile(
-        reportData,
-        format,
-        filename
-      );
-
-      if (response && response.data?.success) {
-        // Check if we got a file URL or direct file data
-        if (
-          response.data.result?.downloadUrl ||
-          response.data.result?.fileUrl
-        ) {
-          // Create download link
-          const downloadLink = document.createElement("a");
-          downloadLink.href =
-            response.data.result.downloadUrl || response.data.result.fileUrl;
-          downloadLink.download =
-            response.data.result.filename || `${filename}.${format}`;
-          downloadLink.click();
-        } else if (response.data.result?.fileData) {
-          // Create blob from base64 data
-          const mimeTypes = {
-            csv: "text/csv",
-            pdf: "application/pdf",
-            xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          };
-
-          const blob = b64toBlob(
-            response.data.result.fileData,
-            mimeTypes[format] || "application/octet-stream"
-          );
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = `${filename}.${format}`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        } else {
-          throw new Error(`No file data or URL in response`);
-        }
-
-        // Track export event
-        try {
-          analyticsUtils.trackEvent(
-            analyticsUtils.EVENT_TYPES.CRM_REPORT_EXPORT,
-            {
-              reportType,
-              format,
-              dateRange,
-              centerCode,
-            }
-          );
-        } catch (analyticsError) {
-          console.warn("Analytics error:", analyticsError);
-        }
-
-        setShowExportOptions(false);
-      } else {
-        throw new Error(
-          response?.data?.error || `Failed to export report as ${format}`
-        );
-      }
+      setSuccess(`Report exported as ${format.toUpperCase()}`);
+      setShowExportOptions(false);
     } catch (err) {
       console.error(`Error exporting report as ${format}:`, err);
       setError(`Failed to export report: ${err.message}`);
@@ -209,155 +112,14 @@ const CRMReportViewer = ({
     }
   };
 
-  const convertSalesReportToCSV = (data) => {
-    if (!data || !data.summary) return "";
-    
-    let csv = "Category,Metric,Value\n";
-    
-    // Add summary data
-    Object.entries(data.summary).forEach(([key, value]) => {
-      csv += `Summary,${key.replace(/_/g, " ")},${value}\n`;
-    });
-    
-    // Add items if available
-    if (data.items && data.items.length > 0) {
-      csv += "\nItem,Name,Quantity,Total Amount,Refund Amount,Net Amount\n";
-      data.items.forEach(item => {
-        csv += `Item,${item.name || ""},${item.quantity || 0},${item.total_amount || 0},${item.refund_amount || 0},${item.net_amount || 0}\n`;
-      });
-    }
-    
-    return csv;
-  };
-  
-  const convertInvoicesReportToCSV = (data) => {
-    if (!data || !data.invoices) return "";
-    
-    let csv = "Category,Metric,Value\n";
-    
-    // Add summary data if available
-    if (data.summary) {
-      Object.entries(data.summary).forEach(([key, value]) => {
-        csv += `Summary,${key.replace(/_/g, " ")},${value}\n`;
-      });
-    }
-    
-    // Add invoice details
-    if (data.invoices.length > 0) {
-      csv += "\nInvoice Number,Date,Client,Amount,Status\n";
-      data.invoices.forEach(invoice => {
-        const date = invoice.invoice_date || invoice.date || invoice.created_date;
-        csv += `${invoice.invoice_number || invoice.number || "-"},${date ? new Date(date).toLocaleDateString() : "-"},${invoice.client_name || invoice.guest_name || "-"},${invoice.amount || invoice.total_amount || 0},${invoice.status || "Paid"}\n`;
-      });
-    }
-    
-    return csv;
-  };
-  
-  const convertPackagesReportToCSV = (data) => {
-    if (!data) return "";
-    
-    // Handle both array format and object with items
-    const packages = Array.isArray(data) ? data : (data.items || []);
-    
-    if (packages.length === 0) return "No package data available";
-    
-    let csv = "Name,Type,Price,Validity,Status\n";
-    
-    packages.forEach(pkg => {
-      csv += `"${pkg.name || ""}","${pkg.type || "Standard"}",${pkg.price || 0},${pkg.validity_days || pkg.validity || "N/A"},"${pkg.status || "Active"}"\n`;
-    });
-    
-    return csv;
-  };
-  
-  const convertGenericReportToCSV = (data) => {
-    if (!data) return "";
-    
-    // If data is an array of objects, convert to CSV
-    if (Array.isArray(data)) {
-      if (data.length === 0) return "";
-      
-      // Get headers from first object
-      const headers = Object.keys(data[0]).join(",");
-      let csv = headers + "\n";
-      
-      // Add each row
-      data.forEach(row => {
-        const values = Object.values(row).map(value => {
-          // Handle strings with commas
-          if (typeof value === "string" && value.includes(",")) {
-            return `"${value}"`;
-          }
-          return value;
-        }).join(",");
-        
-        csv += values + "\n";
-      });
-      
-      return csv;
-    }
-    
-    // If data is an object, try to convert top-level properties
-    let csv = "Property,Value\n";
-    Object.entries(data).forEach(([key, value]) => {
-      if (typeof value !== "object") {
-        csv += `${key},${value}\n`;
-      } else if (value === null) {
-        csv += `${key},null\n`;
-      } else {
-        csv += `${key},${JSON.stringify(value).replace(/,/g, ";").replace(/"/g, "'")}\n`;
-      }
-    });
-    
-    return csv;
-  };
-
-  const convertReportToCSV = (data, reportType) => {
-    // Different conversions based on report type
-    switch (reportType) {
-      case "sales":
-        return convertSalesReportToCSV(data);
-      case "invoices":
-        return convertInvoicesReportToCSV(data);
-      case "packages":
-        return convertPackagesReportToCSV(data);
-      default:
-        // Generic conversion
-        return convertGenericReportToCSV(data);
-    }
-  };
-
-  // Helper function to convert a base64 string to Blob
-  const b64toBlob = (b64Data, contentType = "", sliceSize = 512) => {
-    const byteCharacters = atob(b64Data);
-    const byteArrays = [];
-
-    for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
-      const slice = byteCharacters.slice(offset, offset + sliceSize);
-      const byteNumbers = new Array(slice.length);
-
-      for (let i = 0; i < slice.length; i++) {
-        byteNumbers[i] = slice.charCodeAt(i);
-      }
-
-      const byteArray = new Uint8Array(byteNumbers);
-      byteArrays.push(byteArray);
-    }
-
-    return new Blob(byteArrays, { type: contentType });
-  };
-
-  // Email report function fix in CRMReportViewer.jsx
-  const [success, setSuccess] = useState(null);
-  
+  // Email the report
   const handleEmailReport = async () => {
     try {
       setIsLoading(true);
       setError(null);
       setSuccess(null);
 
-      // Show email form in a modal
+      // Get recipient email
       const recipientEmail = prompt("Enter recipient email address:");
 
       if (!recipientEmail) {
@@ -365,7 +127,8 @@ const CRMReportViewer = ({
         return; // User cancelled
       }
 
-      if (!validateEmail(recipientEmail)) {
+      // Basic email validation
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
         setError("Please enter a valid email address");
         setIsLoading(false);
         return;
@@ -376,34 +139,21 @@ const CRMReportViewer = ({
         report_data: reportData,
         report_type: reportType,
         recipients: [recipientEmail],
-        subject: `${reportType.toUpperCase()} Report - ${dateRange.start} to ${
-          dateRange.end
-        }`,
-        message: `Here is your ${reportType} report for the period ${dateRange.start} to ${dateRange.end}.`,
+        subject: `${getReportTypeLabel(
+          reportType
+        )} Report - ${formatDateDisplay(
+          dateRange.startDate
+        )} to ${formatDateDisplay(dateRange.endDate)}`,
+        message: `Here is your ${getReportTypeLabel(
+          reportType
+        )} report for ${centerCode} from ${formatDateDisplay(
+          dateRange.startDate
+        )} to ${formatDateDisplay(dateRange.endDate)}.`,
       };
 
-      // Call API to send email
-      const response = await zenotiService.emailReport(emailData);
-
-      if (response && response.data?.success) {
-        setSuccess(`Report successfully emailed to ${recipientEmail}`);
-
-        // Track email event
-        try {
-          analyticsUtils.trackEvent(
-            analyticsUtils.EVENT_TYPES.CRM_REPORT_SHARE,
-            {
-              reportType,
-              method: "email",
-              dateRange,
-            }
-          );
-        } catch (analyticsError) {
-          console.warn("Analytics error:", analyticsError);
-        }
-      } else {
-        throw new Error(response?.data?.error || "Failed to email report");
-      }
+      // Send the email
+      await reportsApiService.emailReport(emailData);
+      setSuccess(`Report emailed to ${recipientEmail}`);
     } catch (err) {
       console.error("Error emailing report:", err);
       setError(`Failed to email report: ${err.message}`);
@@ -412,70 +162,103 @@ const CRMReportViewer = ({
     }
   };
 
-  const validateEmail = (email) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
-
-  // Handle printing
+  // Print the report
   const handlePrint = () => {
     window.print();
+  };
 
-    // Track print event
-    analyticsUtils.trackEvent(analyticsUtils.EVENT_TYPES.CRM_REPORT_SHARE, {
-      reportType,
-      method: "print",
-      dateRange,
+  // Get human-readable report type label
+  const getReportTypeLabel = (type) => {
+    const labels = {
+      sales_accrual: "Sales",
+      sales_cash: "Sales (Cash)",
+      packages: "Packages",
+      collections: "Collections",
+      appointments: "Appointments",
+      services: "Services",
+    };
+
+    return labels[type] || type.charAt(0).toUpperCase() + type.slice(1);
+  };
+
+  // Format date for display
+  const formatDateDisplay = (dateString) => {
+    if (!dateString) return "";
+
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
-  // Render different report types
+  // Render the appropriate report content based on type
   const renderReportContent = () => {
-    if (!reportData)
-      return <div className="no-data">No report data available</div>;
+    if (!reportData) {
+      return <div className="no-data-message">No report data available</div>;
+    }
 
-    switch (reportType) {
-      case "sales":
-        return renderSalesReport();
-      case "packages":
-        return renderPackagesReport();
-      case "collections":
-        return renderCollectionsReport();
-      case "appointments-report":
-        return renderAppointmentsReport();
-      case "sales-accrual":
-      case "sales-cash":
-        return renderSalesReport(); // Use the same renderer for all sales report types
-      default:
-        return <div className="no-data">Unknown report type: {reportType}</div>;
+    try {
+      console.log(`Rendering ${reportType} report with data:`, reportData);
+
+      switch (reportType) {
+        case "sales_accrual":
+        case "sales_cash":
+          return renderSalesReport();
+        case "packages":
+          return renderPackagesReport();
+        case "collections":
+          return renderCollectionsReport();
+        case "appointments":
+          return renderAppointmentsReport();
+        case "services":
+          return renderServicesReport();
+        default:
+          return (
+            <div className="no-data-message">
+              Unsupported report type: {reportType}
+            </div>
+          );
+      }
+    } catch (error) {
+      console.error("Error rendering report content:", error);
+      return (
+        <div className="error-message">
+          <AlertCircle size={24} />
+          <p>Error rendering report: {error.message}</p>
+          <p>Please try again or contact support if the problem persists.</p>
+        </div>
+      );
     }
   };
-  
-  // Appointments report renderer
+
+  // Render appointments report
   const renderAppointmentsReport = () => {
+    const appointments = reportData.appointments || [];
+
     return (
-      <div className="report-content appointments-report">
+      <div className="report-content">
         <div className="report-summary">
           <div className="summary-card">
             <h4>Total Appointments</h4>
-            <div className="value">
-              {reportData.appointments ? reportData.appointments.length : 0}
-            </div>
+            <div className="value">{appointments.length}</div>
           </div>
           <div className="summary-card">
             <h4>Date Range</h4>
             <div className="value">
-              {dateRange.start} to {dateRange.end}
+              {formatDateDisplay(dateRange.startDate)} to{" "}
+              {formatDateDisplay(dateRange.endDate)}
             </div>
           </div>
         </div>
 
-        {/* Appointments list */}
         <div className="report-section">
           <div
             className="section-header"
             onClick={() => toggleSection("appointments")}
           >
-            <h3>Appointments</h3>
+            <h3>Appointment Details</h3>
             {expandedSections.appointments ? (
               <ChevronUp size={18} />
             ) : (
@@ -485,12 +268,11 @@ const CRMReportViewer = ({
 
           {expandedSections.appointments && (
             <div className="section-content">
-              {reportData.appointments && reportData.appointments.length > 0 ? (
+              {appointments.length > 0 ? (
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Date</th>
-                      <th>Time</th>
+                      <th>Date & Time</th>
                       <th>Client</th>
                       <th>Service</th>
                       <th>Provider</th>
@@ -498,54 +280,87 @@ const CRMReportViewer = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {reportData.appointments.map((appointment, index) => (
-                      <tr key={index}>
-                        <td>
-                          {new Date(appointment.start_time).toLocaleDateString()}
-                        </td>
-                        <td>
-                          {new Date(appointment.start_time).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </td>
-                        <td>{typeof appointment.client_name === 'string' 
-                            ? appointment.client_name 
-                            : (appointment.client_name && typeof appointment.client_name === 'object'
-                               ? (appointment.client_name.displayName || "Unknown Client")
-                               : "Unknown Client")}
-                        </td>
-                        <td>{typeof appointment.service_name === 'string' 
-                            ? appointment.service_name 
-                            : (appointment.service_name && typeof appointment.service_name === 'object'
-                               ? (appointment.service_name.name || "Unknown Service")
-                               : "Unknown Service")}
-                        </td>
-                        <td>{typeof appointment.therapist === 'string' 
-                            ? appointment.therapist 
-                            : (appointment.therapist && typeof appointment.therapist === 'object'
-                               ? (appointment.therapist.displayName || 
-                                 (appointment.therapist.firstName && appointment.therapist.lastName ? 
-                                   `${appointment.therapist.firstName} ${appointment.therapist.lastName}` : 
-                                   "Unknown Provider"))
-                               : "Unknown Provider")}
-                        </td>
-                        <td>
-                          <span className={`status-badge ${typeof appointment.status === 'string' ? appointment.status.toLowerCase() : 'booked'}`}>
-                            {typeof appointment.status === 'string' 
-                              ? appointment.status 
-                              : (appointment.status && typeof appointment.status === 'object'
-                                 ? (appointment.status.name || "Booked")
-                                 : "Booked")}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    {appointments.map((appointment, index) => {
+                      // Extract client name with fallbacks
+                      const clientName =
+                        typeof appointment.client_name === "string"
+                          ? appointment.client_name
+                          : appointment.client_name &&
+                            typeof appointment.client_name === "object"
+                          ? appointment.client_name.displayName ||
+                            "Unknown Client"
+                          : appointment.guest_name || "Unknown Client";
+
+                      // Extract service name with fallbacks
+                      const serviceName =
+                        typeof appointment.service_name === "string"
+                          ? appointment.service_name
+                          : appointment.service_name &&
+                            typeof appointment.service_name === "object"
+                          ? appointment.service_name.name || "Unknown Service"
+                          : appointment.service
+                          ? appointment.service.name
+                          : "Unknown Service";
+
+                      // Extract provider name with fallbacks
+                      const providerName =
+                        typeof appointment.therapist === "string"
+                          ? appointment.therapist
+                          : appointment.therapist &&
+                            typeof appointment.therapist === "object"
+                          ? appointment.therapist.displayName ||
+                            (appointment.therapist.firstName &&
+                            appointment.therapist.lastName
+                              ? `${appointment.therapist.firstName} ${appointment.therapist.lastName}`
+                              : "Unknown Provider")
+                          : "Unknown Provider";
+
+                      // Extract status with fallbacks
+                      const status =
+                        typeof appointment.status === "string"
+                          ? appointment.status
+                          : appointment.status &&
+                            typeof appointment.status === "object"
+                          ? appointment.status.name || "Booked"
+                          : "Booked";
+
+                      // Format date & time
+                      const startTime =
+                        appointment.start_time ||
+                        appointment.startTime ||
+                        appointment.start_date;
+                      const formattedDateTime = startTime
+                        ? `${new Date(
+                            startTime
+                          ).toLocaleDateString()} ${new Date(
+                            startTime
+                          ).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}`
+                        : "N/A";
+
+                      return (
+                        <tr key={appointment.id || index}>
+                          <td>{formattedDateTime}</td>
+                          <td>{clientName}</td>
+                          <td>{serviceName}</td>
+                          <td>{providerName}</td>
+                          <td>
+                            <span
+                              className={`status-badge ${status.toLowerCase()}`}
+                            >
+                              {status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               ) : (
                 <div className="no-data-message">
-                  <p>No appointment data available for the selected period</p>
+                  <p>No appointments found for the selected period</p>
                 </div>
               )}
             </div>
@@ -555,15 +370,40 @@ const CRMReportViewer = ({
     );
   };
 
-  // Packages report renderer (new)
+  // Render packages report
   const renderPackagesReport = () => {
-    // Check if the reportData is in the expected format
+    console.log("Rendering packages report with data:", reportData);
+
+    // Ensure packages is an array with multiple fallbacks
     const packages = Array.isArray(reportData)
       ? reportData
-      : reportData.items || [];
+      : reportData.packages || reportData.items || [];
+
+    console.log("Processed packages array:", packages);
+
+    // Calculate summary data with safety checks
+    const activePackages = packages.filter(
+      (p) => p && p.status && p.status.toLowerCase() === "active"
+    ).length;
+
+    const totalPrice = packages.reduce((sum, p) => {
+      // Handle various price formats safely
+      let price = 0;
+      if (p && p.price) {
+        if (typeof p.price === "number") {
+          price = p.price;
+        } else if (typeof p.price === "string") {
+          // Remove currency symbols and parse
+          price = parseFloat(p.price.replace(/[^0-9.-]+/g, ""));
+        }
+      }
+      return sum + (isNaN(price) ? 0 : price);
+    }, 0);
+
+    const avgPrice = packages.length > 0 ? totalPrice / packages.length : 0;
 
     return (
-      <div className="report-content packages-report">
+      <div className="report-content">
         <div className="report-summary">
           <div className="summary-card">
             <h4>Total Packages</h4>
@@ -571,30 +411,14 @@ const CRMReportViewer = ({
           </div>
           <div className="summary-card">
             <h4>Active Packages</h4>
-            <div className="value">
-              {
-                packages.filter(
-                  (p) => (p.status || "").toLowerCase() === "active"
-                ).length
-              }
-            </div>
+            <div className="value">{activePackages}</div>
           </div>
           <div className="summary-card">
             <h4>Average Price</h4>
-            <div className="value">
-              {formatCurrency(
-                packages.length > 0
-                  ? packages.reduce(
-                      (sum, p) => sum + (parseFloat(p.price) || 0),
-                      0
-                    ) / packages.length
-                  : 0
-              )}
-            </div>
+            <div className="value">{formatCurrency(avgPrice)}</div>
           </div>
         </div>
 
-        {/* Package details */}
         <div className="report-section">
           <div
             className="section-header"
@@ -610,41 +434,48 @@ const CRMReportViewer = ({
 
           {expandedSections.packageDetails && (
             <div className="section-content">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Price</th>
-                    <th>Validity</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {packages.map((pkg, index) => (
-                    <tr key={pkg.id || index}>
-                      <td>{pkg.name}</td>
-                      <td>{pkg.type || "Standard"}</td>
-                      <td>{formatCurrency(pkg.price || 0)}</td>
-                      <td>{pkg.validity_days || pkg.validity || "N/A"} days</td>
-                      <td>
-                        <span
-                          className={`status-badge ${(
-                            pkg.status || ""
-                          ).toLowerCase()}`}
-                        >
-                          {pkg.status || "Active"}
-                        </span>
-                      </td>
+              {packages.length > 0 ? (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Price</th>
+                      <th>Validity</th>
+                      <th>Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {packages.map((pkg, index) => (
+                      <tr key={pkg.id || index}>
+                        <td>{pkg.name}</td>
+                        <td>{pkg.type || "Standard"}</td>
+                        <td>{formatCurrency(pkg.price || 0)}</td>
+                        <td>
+                          {pkg.validity_days || pkg.validity || "N/A"} days
+                        </td>
+                        <td>
+                          <span
+                            className={`status-badge ${(
+                              pkg.status || ""
+                            ).toLowerCase()}`}
+                          >
+                            {pkg.status || "Active"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="no-data-message">
+                  <p>No packages available</p>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Package services */}
         <div className="report-section">
           <div
             className="section-header"
@@ -660,44 +491,44 @@ const CRMReportViewer = ({
 
           {expandedSections.packageServices && (
             <div className="section-content">
-              <div className="package-services-list">
-                {packages.map((pkg, pkgIndex) =>
-                  pkg.services && pkg.services.length > 0 ? (
-                    <div
-                      key={`package-${pkgIndex}`}
-                      className="package-services-group"
-                    >
-                      <h4>{pkg.name}</h4>
-                      <table className="data-table">
-                        <thead>
-                          <tr>
-                            <th>Service</th>
-                            <th>Quantity</th>
-                            <th>Value</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {pkg.services.map((service, svcIndex) => (
-                            <tr key={`service-${pkgIndex}-${svcIndex}`}>
-                              <td>{service.name}</td>
-                              <td>{service.quantity || 1}</td>
-                              <td>{formatCurrency(service.value || 0)}</td>
+              {packages.some(
+                (pkg) => pkg.services && pkg.services.length > 0
+              ) ? (
+                <div className="package-services-container">
+                  {packages.map((pkg, pkgIndex) =>
+                    pkg.services && pkg.services.length > 0 ? (
+                      <div
+                        key={`pkg-services-${pkgIndex}`}
+                        className="package-services-group"
+                      >
+                        <h4>{pkg.name}</h4>
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Service</th>
+                              <th>Quantity</th>
+                              <th>Value</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : null
-                )}
-
-                {packages.every(
-                  (pkg) => !pkg.services || pkg.services.length === 0
-                ) && (
-                  <div className="no-data-message">
-                    <p>No service details available for these packages</p>
-                  </div>
-                )}
-              </div>
+                          </thead>
+                          <tbody>
+                            {pkg.services.map((service, svcIndex) => (
+                              <tr key={`service-${pkgIndex}-${svcIndex}`}>
+                                <td>{service.name}</td>
+                                <td>{service.quantity || 1}</td>
+                                <td>{formatCurrency(service.value || 0)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : null
+                  )}
+                </div>
+              ) : (
+                <div className="no-data-message">
+                  <p>No service details available for these packages</p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -705,50 +536,51 @@ const CRMReportViewer = ({
     );
   };
 
-  // Collections report renderer
+  // Render collections report
   const renderCollectionsReport = () => {
+    const summary = reportData.summary || {};
+    const paymentTypes = reportData.payment_types || {};
+    const transactions = reportData.transactions || [];
+
     return (
-      <div className="report-content collections-report">
+      <div className="report-content">
         <div className="report-summary">
           <div className="summary-card">
             <h4>Total Collected</h4>
             <div className="value">
-              {formatCurrency(reportData.summary?.total_collected || 0)}
+              {formatCurrency(summary.total_collected || 0)}
             </div>
           </div>
           <div className="summary-card">
             <h4>Cash Collections</h4>
             <div className="value">
-              {formatCurrency(reportData.summary?.total_collected_cash || 0)}
+              {formatCurrency(summary.total_collected_cash || 0)}
             </div>
           </div>
           <div className="summary-card">
             <h4>Non-Cash Collections</h4>
             <div className="value">
-              {formatCurrency(
-                reportData.summary?.total_collected_non_cash || 0
-              )}
+              {formatCurrency(summary.total_collected_non_cash || 0)}
             </div>
           </div>
         </div>
 
-        {/* Payment types section */}
-        {reportData.payment_types && (
-          <div className="report-section">
-            <div
-              className="section-header"
-              onClick={() => toggleSection("paymentTypes")}
-            >
-              <h3>Payment Types</h3>
-              {expandedSections.paymentTypes ? (
-                <ChevronUp size={18} />
-              ) : (
-                <ChevronDown size={18} />
-              )}
-            </div>
+        <div className="report-section">
+          <div
+            className="section-header"
+            onClick={() => toggleSection("paymentTypes")}
+          >
+            <h3>Payment Types</h3>
+            {expandedSections.paymentTypes ? (
+              <ChevronUp size={18} />
+            ) : (
+              <ChevronDown size={18} />
+            )}
+          </div>
 
-            {expandedSections.paymentTypes && (
-              <div className="section-content">
+          {expandedSections.paymentTypes && (
+            <div className="section-content">
+              {Object.keys(paymentTypes).length > 0 ? (
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -758,11 +590,13 @@ const CRMReportViewer = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.entries(reportData.payment_types)
+                    {Object.entries(paymentTypes)
                       .sort(([, a], [, b]) => b - a)
                       .map(([type, amount], index) => {
-                        const percentage =
-                          (amount / reportData.summary.total_collected) * 100;
+                        const percentage = summary.total_collected
+                          ? (amount / summary.total_collected) * 100
+                          : 0;
+
                         return (
                           <tr key={index}>
                             <td>{type}</td>
@@ -773,13 +607,16 @@ const CRMReportViewer = ({
                       })}
                   </tbody>
                 </table>
-              </div>
-            )}
-          </div>
-        )}
+              ) : (
+                <div className="no-data-message">
+                  <p>No payment type breakdown available</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
-        {/* Transactions section - only if available */}
-        {reportData.transactions && reportData.transactions.length > 0 && (
+        {transactions.length > 0 && (
           <div className="report-section">
             <div
               className="section-header"
@@ -806,19 +643,34 @@ const CRMReportViewer = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {reportData.transactions.map((transaction, index) => (
-                      <tr key={index}>
-                        <td>
-                          {new Date(transaction.date).toLocaleDateString()}
-                        </td>
-                        <td>
-                          {transaction.receipt_number || transaction.id || "-"}
-                        </td>
-                        <td>{transaction.client_name || "-"}</td>
-                        <td>{transaction.payment_type || "-"}</td>
-                        <td>{formatCurrency(transaction.amount || 0)}</td>
-                      </tr>
-                    ))}
+                    {transactions.map((transaction, index) => {
+                      const date =
+                        transaction.date || transaction.transaction_date;
+
+                      return (
+                        <tr key={index}>
+                          <td>
+                            {date ? new Date(date).toLocaleDateString() : "N/A"}
+                          </td>
+                          <td>
+                            {transaction.receipt_number ||
+                              transaction.id ||
+                              "-"}
+                          </td>
+                          <td>
+                            {transaction.client_name ||
+                              transaction.guest_name ||
+                              "-"}
+                          </td>
+                          <td>
+                            {transaction.payment_type ||
+                              transaction.payment_method ||
+                              "-"}
+                          </td>
+                          <td>{formatCurrency(transaction.amount || 0)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -829,48 +681,54 @@ const CRMReportViewer = ({
     );
   };
 
-  // Sales report renderer
+  // Render sales report
   const renderSalesReport = () => {
+    console.log("Rendering sales report with data:", reportData);
+
+    // Make sure we have valid data with appropriate fallbacks
+    const summary = reportData?.summary || {};
+    const items = reportData?.items || [];
+    const centers = reportData?.centers || {};
+
     return (
-      <div className="report-content sales-report">
+      <div className="report-content">
         <div className="report-summary">
           <div className="summary-card">
             <h4>Total Sales</h4>
             <div className="value">
-              {formatCurrency(reportData.summary?.total_sales || 0)}
+              {formatCurrency(summary.total_sales || 0)}
             </div>
           </div>
           <div className="summary-card">
             <h4>Total Refunds</h4>
             <div className="value">
-              {formatCurrency(reportData.summary?.total_refunds || 0)}
+              {formatCurrency(summary.total_refunds || 0)}
             </div>
           </div>
           <div className="summary-card">
             <h4>Net Sales</h4>
             <div className="value">
-              {formatCurrency(reportData.summary?.net_sales || 0)}
+              {formatCurrency(summary.net_sales || 0)}
             </div>
           </div>
         </div>
 
-        {/* Items breakdown section */}
-        {reportData.items && reportData.items.length > 0 && (
-          <div className="report-section">
-            <div
-              className="section-header"
-              onClick={() => toggleSection("items")}
-            >
-              <h3>Sales by Item</h3>
-              {expandedSections.items ? (
-                <ChevronUp size={18} />
-              ) : (
-                <ChevronDown size={18} />
-              )}
-            </div>
+        <div className="report-section">
+          <div
+            className="section-header"
+            onClick={() => toggleSection("items")}
+          >
+            <h3>Sales by Item</h3>
+            {expandedSections.items ? (
+              <ChevronUp size={18} />
+            ) : (
+              <ChevronDown size={18} />
+            )}
+          </div>
 
-            {expandedSections.items && (
-              <div className="section-content">
+          {expandedSections.items && (
+            <div className="section-content">
+              {items.length > 0 ? (
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -882,7 +740,7 @@ const CRMReportViewer = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {reportData.items
+                    {items
                       .sort((a, b) => (b.net_amount || 0) - (a.net_amount || 0))
                       .map((item, index) => (
                         <tr key={index}>
@@ -895,13 +753,16 @@ const CRMReportViewer = ({
                       ))}
                   </tbody>
                 </table>
-              </div>
-            )}
-          </div>
-        )}
+              ) : (
+                <div className="no-data-message">
+                  <p>No item breakdown available</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
-        {/* Centers section - if multiple centers */}
-        {reportData.centers && Object.keys(reportData.centers).length > 0 && (
+        {Object.keys(centers).length > 0 && (
           <div className="report-section">
             <div
               className="section-header"
@@ -927,113 +788,12 @@ const CRMReportViewer = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.entries(reportData.centers).map(
-                      ([center, data], index) => (
-                        <tr key={index}>
-                          <td>{center}</td>
-                          <td>{formatCurrency(data.total_sales || 0)}</td>
-                          <td>{formatCurrency(data.total_refunds || 0)}</td>
-                          <td>{formatCurrency(data.net_sales || 0)}</td>
-                        </tr>
-                      )
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Invoices report renderer
-  const renderInvoicesReport = () => {
-    return (
-      <div className="report-content invoices-report">
-        <div className="report-summary">
-          <div className="summary-card">
-            <h4>Total Amount</h4>
-            <div className="value">
-              {formatCurrency(reportData.summary?.total_amount || 0)}
-            </div>
-          </div>
-          <div className="summary-card">
-            <h4>Invoice Count</h4>
-            <div className="value">
-              {reportData.summary?.count || reportData.invoices?.length || 0}
-            </div>
-          </div>
-          <div className="summary-card">
-            <h4>Avg. Invoice</h4>
-            <div className="value">
-              {formatCurrency(
-                reportData.summary?.count
-                  ? (reportData.summary.total_amount || 0) /
-                      reportData.summary.count
-                  : 0
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Invoices list section */}
-        {reportData.invoices && reportData.invoices.length > 0 && (
-          <div className="report-section">
-            <div
-              className="section-header"
-              onClick={() => toggleSection("invoices")}
-            >
-              <h3>Invoices</h3>
-              {expandedSections.invoices ? (
-                <ChevronUp size={18} />
-              ) : (
-                <ChevronDown size={18} />
-              )}
-            </div>
-
-            {expandedSections.invoices && (
-              <div className="section-content">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Invoice #</th>
-                      <th>Date</th>
-                      <th>Client</th>
-                      <th>Amount</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reportData.invoices.map((invoice, index) => (
+                    {Object.entries(centers).map(([center, data], index) => (
                       <tr key={index}>
-                        <td>
-                          {invoice.invoice_number || invoice.number || "—"}
-                        </td>
-                        <td>
-                          {new Date(
-                            invoice.invoice_date ||
-                              invoice.date ||
-                              invoice.created_date
-                          ).toLocaleDateString()}
-                        </td>
-                        <td>
-                          {invoice.client_name || invoice.guest_name || "—"}
-                        </td>
-                        <td>
-                          {formatCurrency(
-                            invoice.amount || invoice.total_amount || 0
-                          )}
-                        </td>
-                        <td>
-                          <span
-                            className={`status-badge ${
-                              (invoice.status || "").toLowerCase() || "paid"
-                            }`}
-                          >
-                            {invoice.status || "Paid"}
-                          </span>
-                        </td>
+                        <td>{center}</td>
+                        <td>{formatCurrency(data.total_sales || 0)}</td>
+                        <td>{formatCurrency(data.total_refunds || 0)}</td>
+                        <td>{formatCurrency(data.net_sales || 0)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1046,53 +806,116 @@ const CRMReportViewer = ({
     );
   };
 
-  // Main render
-  return (
-    <div className="report-viewer">
-      {/* Coming Soon Modal */}
-      {showComingSoonModal && (
-        <div className="coming-soon-overlay">
-          <div className="coming-soon-modal">
-            <div className="coming-soon-header">
-              <h3>Feature Coming Soon!</h3>
-              <button className="close-button" onClick={onClose}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="coming-soon-content">
-              <AlertCircle size={48} className="coming-soon-icon" />
-              <p>This report type is currently in development.</p>
-              <p>
-                We're working with Zenoti to finalize this feature and it will
-                be available soon.
-              </p>
-            </div>
-            <div className="coming-soon-footer">
-              <button className="primary-button" onClick={onClose}>
-                OK, I'll check back later
-              </button>
+  // Render services report
+  const renderServicesReport = () => {
+    // Ensure services is an array
+    const services = Array.isArray(reportData)
+      ? reportData
+      : reportData.services || [];
+
+    return (
+      <div className="report-content">
+        <div className="report-summary">
+          <div className="summary-card">
+            <h4>Total Services</h4>
+            <div className="value">{services.length}</div>
+          </div>
+          <div className="summary-card">
+            <h4>Center</h4>
+            <div className="value">{centerCode}</div>
+          </div>
+          <div className="summary-card">
+            <h4>Average Price</h4>
+            <div className="value">
+              {formatCurrency(
+                services.length > 0
+                  ? services.reduce(
+                      (sum, s) => sum + (parseFloat(s.price) || 0),
+                      0
+                    ) / services.length
+                  : 0
+              )}
             </div>
           </div>
         </div>
-      )}
 
+        <div className="report-section">
+          <div
+            className="section-header"
+            onClick={() => toggleSection("serviceDetails")}
+          >
+            <h3>Service Details</h3>
+            {expandedSections.serviceDetails ? (
+              <ChevronUp size={18} />
+            ) : (
+              <ChevronDown size={18} />
+            )}
+          </div>
+
+          {expandedSections.serviceDetails && (
+            <div className="section-content">
+              {services.length > 0 ? (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Category</th>
+                      <th>Duration</th>
+                      <th>Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {services.map((service, index) => (
+                      <tr key={service.id || index}>
+                        <td>{service.name}</td>
+                        <td>{service.category || "Uncategorized"}</td>
+                        <td>{formatDuration(service.duration)}</td>
+                        <td>{formatCurrency(service.price || 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="no-data-message">
+                  <p>No services available</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Format duration helper
+  const formatDuration = (minutes) => {
+    if (!minutes) return "N/A";
+
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+
+    if (hours > 0) {
+      return `${hours}h ${mins > 0 ? `${mins}m` : ""}`;
+    } else {
+      return `${mins}m`;
+    }
+  };
+
+  // Main rendering
+  return (
+    <div className="report-viewer">
       <div className="report-viewer-header">
         <div className="report-title">
           <FileText size={20} />
-          <h2>
-            {reportType.charAt(0).toUpperCase() +
-              reportType.slice(1).replace(/-/g, " ")}{" "}
-            Report
-          </h2>
+          <h2>{getReportTypeLabel(reportType)} Report</h2>
         </div>
 
         <div className="report-date-range">
-          {dateRange && (
-            <span>
-              {new Date(dateRange.start).toLocaleDateString()} —{" "}
-              {new Date(dateRange.end).toLocaleDateString()}
-            </span>
-          )}
+          <Calendar size={16} />
+          <span>
+            {formatDateDisplay(dateRange.startDate)} —{" "}
+            {formatDateDisplay(dateRange.endDate)}
+          </span>
         </div>
 
         <div className="report-actions">
@@ -1101,7 +924,6 @@ const CRMReportViewer = ({
               className="action-button"
               onClick={() => setShowExportOptions(!showExportOptions)}
               title="Export Report"
-              disabled={showComingSoonModal}
             >
               <Download size={18} />
               <span>Export</span>
@@ -1121,7 +943,6 @@ const CRMReportViewer = ({
             className="action-button"
             onClick={handlePrint}
             title="Print Report"
-            disabled={showComingSoonModal}
           >
             <Printer size={18} />
             <span>Print</span>
@@ -1131,7 +952,6 @@ const CRMReportViewer = ({
             className="action-button"
             onClick={handleEmailReport}
             title="Email Report"
-            disabled={showComingSoonModal}
           >
             <Mail size={18} />
             <span>Email</span>
@@ -1151,12 +971,21 @@ const CRMReportViewer = ({
         <div className="error-message">
           <AlertCircle size={16} />
           <span>{error}</span>
+          <button onClick={() => setError(null)}>Dismiss</button>
+        </div>
+      )}
+
+      {success && (
+        <div className="success-message">
+          <Info size={16} />
+          <span>{success}</span>
+          <button onClick={() => setSuccess(null)}>Dismiss</button>
         </div>
       )}
 
       {isLoading ? (
         <div className="loading-container">
-          <RefreshCw className="spinner" size={24} />
+          <RefreshCw className="spinning" size={24} />
           <span>Loading report data...</span>
         </div>
       ) : (

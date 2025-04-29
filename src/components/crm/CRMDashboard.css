@@ -191,7 +191,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: scroll;
 }
 
 /* Search container */
@@ -415,19 +415,22 @@
   gap: 16px;
 }
 
-.date-field, .filter-field {
+.date-field,
+.filter-field {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.date-field label, .filter-field label {
+.date-field label,
+.filter-field label {
   font-size: 14px;
   font-weight: 500;
   color: #4b5563;
 }
 
-.date-field input, .filter-field select {
+.date-field input,
+.filter-field select {
   padding: 6px 8px;
   border-radius: 4px;
   border: 1px solid #d1d5db;
@@ -1205,13 +1208,23 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .modal-container {
@@ -1221,7 +1234,8 @@
   max-width: 650px;
   max-height: 85vh;
   overflow-y: auto;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3),
+    0 10px 10px -5px rgba(0, 0, 0, 0.2);
   animation: slideUp 0.3s ease-out;
   position: relative;
   scrollbar-width: thin;
@@ -1325,11 +1339,11 @@
     flex-direction: column;
     gap: 8px;
   }
-  
+
   .filter-field {
     width: 100%;
   }
-  
+
   .filter-field select {
     width: 100%;
   }
