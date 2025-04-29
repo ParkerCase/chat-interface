@@ -111,7 +111,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
     window.openAppointmentDetailsModal = (appointment) => {
       setSelectedAppointment(appointment);
       // For now, we'll use the AppointmentDetails component to show the details
-      // Show the details in read-only mode 
+      // Show the details in read-only mode
       setShowAppointmentDetails(true);
     };
 
@@ -128,7 +128,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
       window.removeEventListener("scheduleAppointment", handleScheduleEvent);
       delete window.openAppointmentModal;
       delete window.openAppointmentDetailsModal;
-      
+
       // Clean up any pending state
       setSelectedAppointment(null);
       setShowAppointmentDetails(false);
@@ -382,7 +382,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
         // Add a freshData flag to bypass cache if needed
         freshData: false,
       };
-      
+
       console.log("Requesting appointments with params:", params);
 
       const response = await zenotiService.getAppointments(params);
@@ -645,7 +645,11 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
 
     // Show success message based on mode
     const wasRescheduling = !!selectedAppointment;
-    setSuccessMessage(`Appointment ${wasRescheduling ? 'rescheduled' : 'scheduled'} successfully`);
+    setSuccessMessage(
+      `Appointment ${
+        wasRescheduling ? "rescheduled" : "scheduled"
+      } successfully`
+    );
   };
 
   // Handle search
@@ -1337,7 +1341,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                         </p>
                       </div>
                       <div className="appointment-actions">
-                        <button 
+                        <button
                           className="view-details-btn"
                           onClick={() => {
                             setSelectedAppointment(appointment);
@@ -1346,7 +1350,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                         >
                           View Details
                         </button>
-                        <button 
+                        <button
                           className="reschedule-btn"
                           onClick={() => {
                             // Open reschedule form with the selected appointment
@@ -1431,11 +1435,19 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
         <div className="modal-overlay">
           <div className="modal-container">
             <div className="modal-header">
-              <h3>{selectedAppointment ? "Reschedule Appointment" : "Schedule Appointment"}</h3>
-              <button onClick={() => {
-                setShowCreateAppointment(false);
-                setSelectedAppointment(null);
-              }}>×</button>
+              <h3>
+                {selectedAppointment
+                  ? "Reschedule Appointment"
+                  : "Schedule Appointment"}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowCreateAppointment(false);
+                  setSelectedAppointment(null);
+                }}
+              >
+                ×
+              </button>
             </div>
             <div className="modal-content">
               <AppointmentForm
@@ -1460,13 +1472,17 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
           <div className="modal-container">
             <div className="modal-header">
               <h3>Appointment Details</h3>
-              <button onClick={() => {
-                setShowAppointmentDetails(false);
-                setSelectedAppointment(null);
-              }}>×</button>
+              <button
+                onClick={() => {
+                  setShowAppointmentDetails(false);
+                  setSelectedAppointment(null);
+                }}
+              >
+                ×
+              </button>
             </div>
             <div className="modal-content">
-              <AppointmentDetails 
+              <AppointmentDetails
                 appointment={selectedAppointment}
                 onClose={() => {
                   setShowAppointmentDetails(false);
