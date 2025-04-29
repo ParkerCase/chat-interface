@@ -37,6 +37,7 @@ import analyticsUtils from "../../utils/analyticsUtils";
 import CRMContactLookup from "./CRMContactLookup";
 import CreateContactForm from "./CreateContactForm";
 import AppointmentForm from "./AppointmentForm";
+import AppointmentDetails from "./AppointmentDetails";
 import ClientDetailModal from "./ClientDetailModal";
 import EnhancedCRMReportsSection from "./CRMReportsSection";
 import ZenotiServicesSection from "../zenoti/ZenotiServicesSection";
@@ -90,6 +91,8 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
   const [contactToDelete, setContactToDelete] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [showAppointmentDetails, setShowAppointmentDetails] = useState(false);
 
   // Refs for keeping track of loading state per section
   const loadingContactsRef = useRef(false);
@@ -104,6 +107,14 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
       setShowCreateAppointment(true);
     };
 
+    // Make the appointment details modal accessible globally
+    window.openAppointmentDetailsModal = (appointment) => {
+      setSelectedAppointment(appointment);
+      // For now, we'll use the AppointmentDetails component to show the details
+      // Show the details in read-only mode 
+      setShowAppointmentDetails(true);
+    };
+
     // Add event listener for the scheduleAppointment event
     const handleScheduleEvent = (event) => {
       if (event.detail && event.detail.client) {
@@ -116,6 +127,12 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
     return () => {
       window.removeEventListener("scheduleAppointment", handleScheduleEvent);
       delete window.openAppointmentModal;
+      delete window.openAppointmentDetailsModal;
+      
+      // Clean up any pending state
+      setSelectedAppointment(null);
+      setShowAppointmentDetails(false);
+      setShowCreateAppointment(false);
     };
   }, []);
 
@@ -356,14 +373,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
       // Clear any previous error
       setError(null);
 
-      console.log("Requesting appointments with params:", {
-        startDate: appointmentDateRange.startDate,
-        endDate: appointmentDateRange.endDate,
-        centerCode: selectedCenter,
-        status: filter === "all" ? "" : filter,
-      });
-
-      const response = await zenotiService.getAppointments({
+      const params = {
         startDate: appointmentDateRange.startDate,
         endDate: appointmentDateRange.endDate,
         centerCode: selectedCenter,
@@ -371,7 +381,11 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
         // For wider date ranges, backend will chunk into multiple requests
         // Add a freshData flag to bypass cache if needed
         freshData: false,
-      });
+      };
+      
+      console.log("Requesting appointments with params:", params);
+
+      const response = await zenotiService.getAppointments(params);
 
       console.log("Appointment response:", response);
 
@@ -621,15 +635,17 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
     setSuccessMessage(`Contact ${newContact.name} created successfully`);
   };
 
-  // Handle appointment creation
+  // Handle appointment creation or rescheduling
   const handleAppointmentCreated = (newAppointment) => {
     setShowCreateAppointment(false);
+    setSelectedAppointment(null);
 
-    // Reload appointments to show the new one
+    // Reload appointments to show the new one or updated one
     loadAppointments();
 
-    // Show success message
-    setSuccessMessage("Appointment scheduled successfully");
+    // Show success message based on mode
+    const wasRescheduling = !!selectedAppointment;
+    setSuccessMessage(`Appointment ${wasRescheduling ? 'rescheduled' : 'scheduled'} successfully`);
   };
 
   // Handle search
@@ -962,15 +978,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                 onClick={handleSearch}
                 disabled={!searchTerm || !connectionStatus?.connected}
               >
-                <Search size={18} />
                 <span>Search</span>
-              </button>
-            </div>
-            <div className="search-filters">
-              <button disabled={!connectionStatus?.connected}>
-                <Filter size={16} />
-                <span>Filters</span>
-                <ChevronDown size={14} />
               </button>
             </div>
           </div>
@@ -1228,6 +1236,22 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                     }
                   />
                 </div>
+                <div className="filter-field">
+                  <label htmlFor="appointmentFilter">Status:</label>
+                  <select
+                    id="appointmentFilter"
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="Open">Open</option>
+                    <option value="Closed">Closed</option>
+                    <option value="Cancelled">Cancelled</option>
+                    <option value="NoShow">No Show</option>
+                    <option value="CheckedIn">Checked In</option>
+                    <option value="Confirmed">Confirmed</option>
+                  </select>
+                </div>
                 <button
                   className="apply-date-btn"
                   onClick={loadAppointments}
@@ -1236,7 +1260,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                     loadingAppointmentsRef.current
                   }
                 >
-                  Apply Date Range
+                  Apply Filters
                 </button>
               </div>
 
@@ -1313,10 +1337,25 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                         </p>
                       </div>
                       <div className="appointment-actions">
-                        <button className="view-details-btn">
+                        <button 
+                          className="view-details-btn"
+                          onClick={() => {
+                            setSelectedAppointment(appointment);
+                            setShowAppointmentDetails(true);
+                          }}
+                        >
                           View Details
                         </button>
-                        <button className="reschedule-btn">Reschedule</button>
+                        <button 
+                          className="reschedule-btn"
+                          onClick={() => {
+                            // Open reschedule form with the selected appointment
+                            setSelectedAppointment(appointment);
+                            setShowCreateAppointment(true);
+                          }}
+                        >
+                          Reschedule
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1387,19 +1426,57 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
         </div>
       )}
 
-      {/* Create appointment modal */}
+      {/* Create or reschedule appointment modal */}
       {showCreateAppointment && (
         <div className="modal-overlay">
           <div className="modal-container">
             <div className="modal-header">
-              <h3>Schedule Appointment</h3>
-              <button onClick={() => setShowCreateAppointment(false)}>×</button>
+              <h3>{selectedAppointment ? "Reschedule Appointment" : "Schedule Appointment"}</h3>
+              <button onClick={() => {
+                setShowCreateAppointment(false);
+                setSelectedAppointment(null);
+              }}>×</button>
             </div>
             <div className="modal-content">
               <AppointmentForm
                 onSuccess={handleAppointmentCreated}
-                onCancel={() => setShowCreateAppointment(false)}
+                onCancel={() => {
+                  setShowCreateAppointment(false);
+                  setSelectedAppointment(null);
+                }}
                 initialContact={selectedContact}
+                centerCode={selectedCenter}
+                initialAppointment={selectedAppointment}
+                rescheduleMode={!!selectedAppointment}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Appointment details modal */}
+      {showAppointmentDetails && selectedAppointment && (
+        <div className="modal-overlay">
+          <div className="modal-container">
+            <div className="modal-header">
+              <h3>Appointment Details</h3>
+              <button onClick={() => {
+                setShowAppointmentDetails(false);
+                setSelectedAppointment(null);
+              }}>×</button>
+            </div>
+            <div className="modal-content">
+              <AppointmentDetails 
+                appointment={selectedAppointment}
+                onClose={() => {
+                  setShowAppointmentDetails(false);
+                  setSelectedAppointment(null);
+                }}
+                onReschedule={() => {
+                  setShowAppointmentDetails(false);
+                  setShowCreateAppointment(true);
+                  // Keep the selectedAppointment for rescheduling
+                }}
                 centerCode={selectedCenter}
               />
             </div>

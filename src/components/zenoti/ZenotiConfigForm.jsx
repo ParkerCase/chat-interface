@@ -15,6 +15,7 @@ import {
 import { RefreshCw, Save, Lock, Unlock, Info } from "lucide-react";
 import apiService from "../../services/apiService";
 import zenotiService from "../../services/zenotiService";
+import "./ZenotiConfigForm.css";
 
 const ZenotiConfigForm = ({ onSuccess, onCancel }) => {
   const [config, setConfig] = useState({
@@ -231,216 +232,217 @@ const ZenotiConfigForm = ({ onSuccess, onCancel }) => {
       <CardHeader>
         <CardTitle>Zenoti Integration Configuration</CardTitle>
       </CardHeader>
+      <div className="zenoti-form-container">
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <Info className="h-4 w-4" />
+                <p>{error}</p>
+              </Alert>
+            )}
 
-      <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <Info className="h-4 w-4" />
-              <p>{error}</p>
-            </Alert>
-          )}
+            {success && (
+              <Alert variant="success">
+                <Info className="h-4 w-4" />
+                <p>{success}</p>
+              </Alert>
+            )}
 
-          {success && (
-            <Alert variant="success">
-              <Info className="h-4 w-4" />
-              <p>{success}</p>
-            </Alert>
-          )}
+            {connectionStatus && (
+              <Alert
+                variant={connectionStatus.success ? "success" : "destructive"}
+              >
+                <Info className="h-4 w-4" />
+                <p>{connectionStatus.message}</p>
+              </Alert>
+            )}
 
-          {connectionStatus && (
-            <Alert
-              variant={connectionStatus.success ? "success" : "destructive"}
-            >
-              <Info className="h-4 w-4" />
-              <p>{connectionStatus.message}</p>
-            </Alert>
-          )}
+            <div className="space-y-2">
+              <Label htmlFor="apiUrl">Zenoti API URL</Label>
+              <Input
+                id="apiUrl"
+                name="apiUrl"
+                value={config.apiUrl}
+                onChange={handleChange}
+                placeholder="https://api.zenoti.com/v1"
+                required
+              />
+              <p className="text-sm text-gray-500">
+                The base URL for Zenoti API (usually https://api.zenoti.com/v1)
+              </p>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="apiUrl">Zenoti API URL</Label>
-            <Input
-              id="apiUrl"
-              name="apiUrl"
-              value={config.apiUrl}
-              onChange={handleChange}
-              placeholder="https://api.zenoti.com/v1"
-              required
-            />
-            <p className="text-sm text-gray-500">
-              The base URL for Zenoti API (usually https://api.zenoti.com/v1)
-            </p>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="apiKey">API Key</Label>
+              <Input
+                id="apiKey"
+                name="apiKey"
+                type="password"
+                value={config.apiKey}
+                onChange={handleChange}
+                placeholder="Enter your Zenoti API key"
+                required={!config.username || !config.password}
+              />
+              <p className="text-sm text-gray-500">
+                Your Zenoti API key (required for API access)
+              </p>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="apiKey">API Key</Label>
-            <Input
-              id="apiKey"
-              name="apiKey"
-              type="password"
-              value={config.apiKey}
-              onChange={handleChange}
-              placeholder="Enter your Zenoti API key"
-              required={!config.username || !config.password}
-            />
-            <p className="text-sm text-gray-500">
-              Your Zenoti API key (required for API access)
-            </p>
-          </div>
+            <div className="flex items-center space-x-2 my-4">
+              <input
+                type="checkbox"
+                id="useOAuth"
+                name="useOAuth"
+                checked={config.useOAuth}
+                onChange={handleChange}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="useOAuth" className="mb-0">
+                Use Username/Password Authentication (OAuth)
+              </Label>
+            </div>
 
-          <div className="flex items-center space-x-2 my-4">
-            <input
-              type="checkbox"
-              id="useOAuth"
-              name="useOAuth"
-              checked={config.useOAuth}
-              onChange={handleChange}
-              className="h-4 w-4"
-            />
-            <Label htmlFor="useOAuth" className="mb-0">
-              Use Username/Password Authentication (OAuth)
-            </Label>
-          </div>
-
-          {config.useOAuth && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  name="username"
-                  value={config.username}
-                  onChange={handleChange}
-                  placeholder="Enter your Zenoti username"
-                  required={config.useOAuth}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
+            {config.useOAuth && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="username">Username</Label>
                   <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    value={config.password}
+                    id="username"
+                    name="username"
+                    value={config.username}
                     onChange={handleChange}
-                    placeholder="Enter your Zenoti password"
+                    placeholder="Enter your Zenoti username"
                     required={config.useOAuth}
                   />
-                  <button
-                    type="button"
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <Lock className="h-4 w-4 text-gray-500" />
-                    ) : (
-                      <Unlock className="h-4 w-4 text-gray-500" />
-                    )}
-                  </button>
                 </div>
-              </div>
-            </>
-          )}
 
-          <div className="space-y-2">
-            <Label htmlFor="defaultCenterCode">Default Center</Label>
-            <Select
-              id="defaultCenterCode"
-              name="defaultCenterCode"
-              value={config.defaultCenterCode}
-              onChange={handleChange}
-            >
-              <option value="">-- Select a default center --</option>
-              {centers.map((center) => (
-                <option key={center.code} value={center.code}>
-                  {center.name} ({center.code})
-                </option>
-              ))}
-            </Select>
-            <p className="text-sm text-gray-500">
-              Select a default center for Zenoti operations
-            </p>
-          </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      value={config.password}
+                      onChange={handleChange}
+                      placeholder="Enter your Zenoti password"
+                      required={config.useOAuth}
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <Lock className="h-4 w-4 text-gray-500" />
+                      ) : (
+                        <Unlock className="h-4 w-4 text-gray-500" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
 
-          <div className="space-y-2">
-            <Label htmlFor="refreshRate">Data Refresh Rate</Label>
-            <Select
-              id="refreshRate"
-              name="refreshRate"
-              value={config.refreshRate}
-              onChange={handleChange}
-            >
-              <option value="hourly">Hourly</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="manual">Manual Only</option>
-            </Select>
-            <p className="text-sm text-gray-500">
-              How often to sync data from Zenoti
-            </p>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="defaultCenterCode">Default Center</Label>
+              <Select
+                id="defaultCenterCode"
+                name="defaultCenterCode"
+                value={config.defaultCenterCode}
+                onChange={handleChange}
+              >
+                <option value="">-- Select a default center --</option>
+                {centers.map((center) => (
+                  <option key={center.code} value={center.code}>
+                    {center.name} ({center.code})
+                  </option>
+                ))}
+              </Select>
+              <p className="text-sm text-gray-500">
+                Select a default center for Zenoti operations
+              </p>
+            </div>
 
-          <div className="pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="refreshRate">Data Refresh Rate</Label>
+              <Select
+                id="refreshRate"
+                name="refreshRate"
+                value={config.refreshRate}
+                onChange={handleChange}
+              >
+                <option value="hourly">Hourly</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="manual">Manual Only</option>
+              </Select>
+              <p className="text-sm text-gray-500">
+                How often to sync data from Zenoti
+              </p>
+            </div>
+
+            <div className="pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={
+                  isTestingConnection ||
+                  !config.apiUrl ||
+                  (!config.apiKey && !config.useOAuth) ||
+                  (config.useOAuth && (!config.username || !config.password))
+                }
+                className="w-full"
+              >
+                {isTestingConnection ? (
+                  <>
+                    <Spinner className="mr-2 h-4 w-4" />
+                    Testing Connection...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Test Connection
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+
+          <CardFooter className="flex justify-between space-x-4 border-t px-6 py-4">
+            {onCancel && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+            )}
+
             <Button
-              type="button"
-              variant="outline"
-              onClick={handleTestConnection}
-              disabled={
-                isTestingConnection ||
-                !config.apiUrl ||
-                (!config.apiKey && !config.useOAuth) ||
-                (config.useOAuth && (!config.username || !config.password))
-              }
-              className="w-full"
+              type="submit"
+              disabled={isSaving || isTestingConnection}
+              className="flex-1"
             >
-              {isTestingConnection ? (
+              {isSaving ? (
                 <>
                   <Spinner className="mr-2 h-4 w-4" />
-                  Testing Connection...
+                  Saving...
                 </>
               ) : (
                 <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Test Connection
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Configuration
                 </>
               )}
             </Button>
-          </div>
-        </CardContent>
-
-        <CardFooter className="flex justify-between space-x-4 border-t px-6 py-4">
-          {onCancel && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onCancel}
-              disabled={isSaving}
-            >
-              Cancel
-            </Button>
-          )}
-
-          <Button
-            type="submit"
-            disabled={isSaving || isTestingConnection}
-            className="flex-1"
-          >
-            {isSaving ? (
-              <>
-                <Spinner className="mr-2 h-4 w-4" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Save Configuration
-              </>
-            )}
-          </Button>
-        </CardFooter>
-      </form>
+          </CardFooter>
+        </form>
+      </div>
     </Card>
   );
 };

@@ -51,14 +51,15 @@ export const trackEvent = async (eventType, eventData = {}) => {
       sessionId: localStorage.getItem("sessionId") || null,
     };
 
-    // Post to backend analytics endpoint
-    await apiService.post("/api/analytics/events", {
+    // Post to backend analytics endpoint using apiClient from apiService
+    return await apiService.apiClient.post("/api/analytics/events", {
       eventType,
       data: enrichedData,
     });
   } catch (error) {
     // Silently fail - analytics should never break the app
     console.warn("Failed to track analytics event:", error);
+    return { success: false, error: error.message };
   }
 };
 

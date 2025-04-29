@@ -42,9 +42,19 @@ const CRMReportViewer = ({
   const [showExportOptions, setShowExportOptions] = useState(false);
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);
 
-  // Format currency
+  // Format currency - safely handles all types
   const formatCurrency = (amount) => {
-    if (typeof amount !== "number") return "$0.00";
+    // Handle string values that might contain numbers
+    if (typeof amount === 'string') {
+      amount = parseFloat(amount.replace(/[^0-9.-]+/g, ''));
+    }
+    
+    // Handle undefined, null, or NaN values
+    if (amount === undefined || amount === null || isNaN(amount)) {
+      return "$0.00";
+    }
+    
+    // Now we're sure it's a valid number
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
@@ -85,34 +95,111 @@ const CRMReportViewer = ({
         return;
       }
 
+      // Prepare filename with date
+      const timestamp = new Date().toISOString().split("T")[0];
+      const filename = `${reportType}-report-${timestamp}`;
+
+      // Make a direct download instead of API call if possible
+      if (format === "csv") {
+        try {
+          // Convert report data to CSV
+          const csv = convertReportToCSV(reportData, reportType);
+
+          // Create download link
+          const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", `${filename}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          // Track export event
+          try {
+            analyticsUtils.trackEvent(
+              analyticsUtils.EVENT_TYPES.CRM_REPORT_EXPORT,
+              {
+                reportType,
+                format,
+                dateRange,
+                centerCode,
+              }
+            );
+          } catch (analyticsError) {
+            console.warn("Analytics error:", analyticsError);
+          }
+
+          setShowExportOptions(false);
+          return;
+        } catch (csvError) {
+          console.warn("Direct CSV conversion failed, trying API:", csvError);
+        }
+      }
+
+      // Fall back to API call for export
       const response = await zenotiService.generateReportFile(
         reportData,
         format,
-        `${reportType}-report-${new Date().toISOString().split("T")[0]}`
+        filename
       );
 
-      if (response.data?.success) {
-        // Create download link
-        const downloadLink = document.createElement("a");
-        downloadLink.href =
-          response.data.result.downloadUrl || response.data.result.fileUrl;
-        downloadLink.download = response.data.result.filename;
-        downloadLink.click();
+      if (response && response.data?.success) {
+        // Check if we got a file URL or direct file data
+        if (
+          response.data.result?.downloadUrl ||
+          response.data.result?.fileUrl
+        ) {
+          // Create download link
+          const downloadLink = document.createElement("a");
+          downloadLink.href =
+            response.data.result.downloadUrl || response.data.result.fileUrl;
+          downloadLink.download =
+            response.data.result.filename || `${filename}.${format}`;
+          downloadLink.click();
+        } else if (response.data.result?.fileData) {
+          // Create blob from base64 data
+          const mimeTypes = {
+            csv: "text/csv",
+            pdf: "application/pdf",
+            xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          };
+
+          const blob = b64toBlob(
+            response.data.result.fileData,
+            mimeTypes[format] || "application/octet-stream"
+          );
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `${filename}.${format}`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } else {
+          throw new Error(`No file data or URL in response`);
+        }
 
         // Track export event
-        analyticsUtils.trackEvent(
-          analyticsUtils.EVENT_TYPES.CRM_REPORT_EXPORT,
-          {
-            reportType,
-            format,
-            dateRange,
-            centerCode,
-          }
-        );
+        try {
+          analyticsUtils.trackEvent(
+            analyticsUtils.EVENT_TYPES.CRM_REPORT_EXPORT,
+            {
+              reportType,
+              format,
+              dateRange,
+              centerCode,
+            }
+          );
+        } catch (analyticsError) {
+          console.warn("Analytics error:", analyticsError);
+        }
 
         setShowExportOptions(false);
       } else {
-        throw new Error(`Failed to export report as ${format}`);
+        throw new Error(
+          response?.data?.error || `Failed to export report as ${format}`
+        );
       }
     } catch (err) {
       console.error(`Error exporting report as ${format}:`, err);
@@ -122,34 +209,200 @@ const CRMReportViewer = ({
     }
   };
 
-  // Email report
+  const convertSalesReportToCSV = (data) => {
+    if (!data || !data.summary) return "";
+    
+    let csv = "Category,Metric,Value\n";
+    
+    // Add summary data
+    Object.entries(data.summary).forEach(([key, value]) => {
+      csv += `Summary,${key.replace(/_/g, " ")},${value}\n`;
+    });
+    
+    // Add items if available
+    if (data.items && data.items.length > 0) {
+      csv += "\nItem,Name,Quantity,Total Amount,Refund Amount,Net Amount\n";
+      data.items.forEach(item => {
+        csv += `Item,${item.name || ""},${item.quantity || 0},${item.total_amount || 0},${item.refund_amount || 0},${item.net_amount || 0}\n`;
+      });
+    }
+    
+    return csv;
+  };
+  
+  const convertInvoicesReportToCSV = (data) => {
+    if (!data || !data.invoices) return "";
+    
+    let csv = "Category,Metric,Value\n";
+    
+    // Add summary data if available
+    if (data.summary) {
+      Object.entries(data.summary).forEach(([key, value]) => {
+        csv += `Summary,${key.replace(/_/g, " ")},${value}\n`;
+      });
+    }
+    
+    // Add invoice details
+    if (data.invoices.length > 0) {
+      csv += "\nInvoice Number,Date,Client,Amount,Status\n";
+      data.invoices.forEach(invoice => {
+        const date = invoice.invoice_date || invoice.date || invoice.created_date;
+        csv += `${invoice.invoice_number || invoice.number || "-"},${date ? new Date(date).toLocaleDateString() : "-"},${invoice.client_name || invoice.guest_name || "-"},${invoice.amount || invoice.total_amount || 0},${invoice.status || "Paid"}\n`;
+      });
+    }
+    
+    return csv;
+  };
+  
+  const convertPackagesReportToCSV = (data) => {
+    if (!data) return "";
+    
+    // Handle both array format and object with items
+    const packages = Array.isArray(data) ? data : (data.items || []);
+    
+    if (packages.length === 0) return "No package data available";
+    
+    let csv = "Name,Type,Price,Validity,Status\n";
+    
+    packages.forEach(pkg => {
+      csv += `"${pkg.name || ""}","${pkg.type || "Standard"}",${pkg.price || 0},${pkg.validity_days || pkg.validity || "N/A"},"${pkg.status || "Active"}"\n`;
+    });
+    
+    return csv;
+  };
+  
+  const convertGenericReportToCSV = (data) => {
+    if (!data) return "";
+    
+    // If data is an array of objects, convert to CSV
+    if (Array.isArray(data)) {
+      if (data.length === 0) return "";
+      
+      // Get headers from first object
+      const headers = Object.keys(data[0]).join(",");
+      let csv = headers + "\n";
+      
+      // Add each row
+      data.forEach(row => {
+        const values = Object.values(row).map(value => {
+          // Handle strings with commas
+          if (typeof value === "string" && value.includes(",")) {
+            return `"${value}"`;
+          }
+          return value;
+        }).join(",");
+        
+        csv += values + "\n";
+      });
+      
+      return csv;
+    }
+    
+    // If data is an object, try to convert top-level properties
+    let csv = "Property,Value\n";
+    Object.entries(data).forEach(([key, value]) => {
+      if (typeof value !== "object") {
+        csv += `${key},${value}\n`;
+      } else if (value === null) {
+        csv += `${key},null\n`;
+      } else {
+        csv += `${key},${JSON.stringify(value).replace(/,/g, ";").replace(/"/g, "'")}\n`;
+      }
+    });
+    
+    return csv;
+  };
+
+  const convertReportToCSV = (data, reportType) => {
+    // Different conversions based on report type
+    switch (reportType) {
+      case "sales":
+        return convertSalesReportToCSV(data);
+      case "invoices":
+        return convertInvoicesReportToCSV(data);
+      case "packages":
+        return convertPackagesReportToCSV(data);
+      default:
+        // Generic conversion
+        return convertGenericReportToCSV(data);
+    }
+  };
+
+  // Helper function to convert a base64 string to Blob
+  const b64toBlob = (b64Data, contentType = "", sliceSize = 512) => {
+    const byteCharacters = atob(b64Data);
+    const byteArrays = [];
+
+    for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+      const slice = byteCharacters.slice(offset, offset + sliceSize);
+      const byteNumbers = new Array(slice.length);
+
+      for (let i = 0; i < slice.length; i++) {
+        byteNumbers[i] = slice.charCodeAt(i);
+      }
+
+      const byteArray = new Uint8Array(byteNumbers);
+      byteArrays.push(byteArray);
+    }
+
+    return new Blob(byteArrays, { type: contentType });
+  };
+
+  // Email report function fix in CRMReportViewer.jsx
+  const [success, setSuccess] = useState(null);
+  
   const handleEmailReport = async () => {
     try {
       setIsLoading(true);
       setError(null);
+      setSuccess(null);
+
+      // Show email form in a modal
+      const recipientEmail = prompt("Enter recipient email address:");
+
+      if (!recipientEmail) {
+        setIsLoading(false);
+        return; // User cancelled
+      }
+
+      if (!validateEmail(recipientEmail)) {
+        setError("Please enter a valid email address");
+        setIsLoading(false);
+        return;
+      }
 
       // Prepare email data
       const emailData = {
         report_data: reportData,
         report_type: reportType,
-        recipients: [], // Would come from a form in a production app
+        recipients: [recipientEmail],
         subject: `${reportType.toUpperCase()} Report - ${dateRange.start} to ${
           dateRange.end
         }`,
         message: `Here is your ${reportType} report for the period ${dateRange.start} to ${dateRange.end}.`,
       };
 
+      // Call API to send email
       const response = await zenotiService.emailReport(emailData);
 
-      if (response.data?.success) {
+      if (response && response.data?.success) {
+        setSuccess(`Report successfully emailed to ${recipientEmail}`);
+
         // Track email event
-        analyticsUtils.trackEvent(analyticsUtils.EVENT_TYPES.CRM_REPORT_SHARE, {
-          reportType,
-          method: "email",
-          dateRange,
-        });
+        try {
+          analyticsUtils.trackEvent(
+            analyticsUtils.EVENT_TYPES.CRM_REPORT_SHARE,
+            {
+              reportType,
+              method: "email",
+              dateRange,
+            }
+          );
+        } catch (analyticsError) {
+          console.warn("Analytics error:", analyticsError);
+        }
       } else {
-        throw new Error(response.data?.error || "Failed to email report");
+        throw new Error(response?.data?.error || "Failed to email report");
       }
     } catch (err) {
       console.error("Error emailing report:", err);
@@ -157,6 +410,10 @@ const CRMReportViewer = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const validateEmail = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
   // Handle printing
@@ -177,17 +434,125 @@ const CRMReportViewer = ({
       return <div className="no-data">No report data available</div>;
 
     switch (reportType) {
-      case "collections":
-        return renderCollectionsReport();
       case "sales":
         return renderSalesReport();
-      case "invoices":
-        return renderInvoicesReport();
       case "packages":
         return renderPackagesReport();
+      case "collections":
+        return renderCollectionsReport();
+      case "appointments-report":
+        return renderAppointmentsReport();
+      case "sales-accrual":
+      case "sales-cash":
+        return renderSalesReport(); // Use the same renderer for all sales report types
       default:
         return <div className="no-data">Unknown report type: {reportType}</div>;
     }
+  };
+  
+  // Appointments report renderer
+  const renderAppointmentsReport = () => {
+    return (
+      <div className="report-content appointments-report">
+        <div className="report-summary">
+          <div className="summary-card">
+            <h4>Total Appointments</h4>
+            <div className="value">
+              {reportData.appointments ? reportData.appointments.length : 0}
+            </div>
+          </div>
+          <div className="summary-card">
+            <h4>Date Range</h4>
+            <div className="value">
+              {dateRange.start} to {dateRange.end}
+            </div>
+          </div>
+        </div>
+
+        {/* Appointments list */}
+        <div className="report-section">
+          <div
+            className="section-header"
+            onClick={() => toggleSection("appointments")}
+          >
+            <h3>Appointments</h3>
+            {expandedSections.appointments ? (
+              <ChevronUp size={18} />
+            ) : (
+              <ChevronDown size={18} />
+            )}
+          </div>
+
+          {expandedSections.appointments && (
+            <div className="section-content">
+              {reportData.appointments && reportData.appointments.length > 0 ? (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Time</th>
+                      <th>Client</th>
+                      <th>Service</th>
+                      <th>Provider</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportData.appointments.map((appointment, index) => (
+                      <tr key={index}>
+                        <td>
+                          {new Date(appointment.start_time).toLocaleDateString()}
+                        </td>
+                        <td>
+                          {new Date(appointment.start_time).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </td>
+                        <td>{typeof appointment.client_name === 'string' 
+                            ? appointment.client_name 
+                            : (appointment.client_name && typeof appointment.client_name === 'object'
+                               ? (appointment.client_name.displayName || "Unknown Client")
+                               : "Unknown Client")}
+                        </td>
+                        <td>{typeof appointment.service_name === 'string' 
+                            ? appointment.service_name 
+                            : (appointment.service_name && typeof appointment.service_name === 'object'
+                               ? (appointment.service_name.name || "Unknown Service")
+                               : "Unknown Service")}
+                        </td>
+                        <td>{typeof appointment.therapist === 'string' 
+                            ? appointment.therapist 
+                            : (appointment.therapist && typeof appointment.therapist === 'object'
+                               ? (appointment.therapist.displayName || 
+                                 (appointment.therapist.firstName && appointment.therapist.lastName ? 
+                                   `${appointment.therapist.firstName} ${appointment.therapist.lastName}` : 
+                                   "Unknown Provider"))
+                               : "Unknown Provider")}
+                        </td>
+                        <td>
+                          <span className={`status-badge ${typeof appointment.status === 'string' ? appointment.status.toLowerCase() : 'booked'}`}>
+                            {typeof appointment.status === 'string' 
+                              ? appointment.status 
+                              : (appointment.status && typeof appointment.status === 'object'
+                                 ? (appointment.status.name || "Booked")
+                                 : "Booked")}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="no-data-message">
+                  <p>No appointment data available for the selected period</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   // Packages report renderer (new)
