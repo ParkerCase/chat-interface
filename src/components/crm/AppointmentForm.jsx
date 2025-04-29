@@ -16,6 +16,8 @@ const AppointmentForm = ({
   onCancel,
   initialContact = null,
   centerCode = null,
+  initialAppointment = null, // For reschedule mode
+  rescheduleMode = false // Flag to indicate reschedule mode
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -25,21 +27,25 @@ const AppointmentForm = ({
   const [availableSlots, setAvailableSlots] = useState([]);
   const [slotsFetched, setSlotsFetched] = useState(false);
 
-  // Form state
+  // Form state - initialize with appointment data in reschedule mode
   const [formData, setFormData] = useState({
-    contactId: initialContact?.id || "",
-    contactName: initialContact?.name || "",
-    serviceId: "",
-    staffId: "",
-    date: new Date().toISOString().split("T")[0], // Today's date
-    time: "",
-    notes: "",
+    contactId: initialContact?.id || initialAppointment?.guest_id || "",
+    contactName: initialContact?.name || (initialAppointment?.guest ? 
+      `${initialAppointment.guest.first_name || ""} ${initialAppointment.guest.last_name || ""}`.trim() : ""),
+    serviceId: rescheduleMode && initialAppointment?.service_id ? initialAppointment.service_id : "",
+    staffId: rescheduleMode && initialAppointment?.therapist_id ? initialAppointment.therapist_id : "",
+    date: rescheduleMode && initialAppointment?.start_time ? 
+      initialAppointment.start_time.split("T")[0] : 
+      new Date().toISOString().split("T")[0], // Today's date or appointment date
+    time: rescheduleMode && initialAppointment?.start_time ? 
+      initialAppointment.start_time.split("T")[1].substring(0, 5) : "",
+    notes: rescheduleMode && initialAppointment?.notes ? initialAppointment.notes : "",
   });
 
   // States for contact lookup
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
-  const [showContactSearch, setShowContactSearch] = useState(!initialContact);
+  const [showContactSearch, setShowContactSearch] = useState(!initialContact && !rescheduleMode);
 
   // Fetch services for the selected center
   useEffect(() => {
@@ -322,16 +328,31 @@ const AppointmentForm = ({
         notes: formData.notes,
       };
 
-      console.log("Booking appointment with data:", appointmentData);
-      console.log("Using center code:", effectiveCenterCode);
-
-      // Book appointment
-      const response = await zenotiService.bookAppointment(
-        appointmentData,
-        effectiveCenterCode
-      );
-
-      console.log("Appointment booking response:", response);
+      let response;
+      
+      if (rescheduleMode && initialAppointment?.id) {
+        // Reschedule existing appointment
+        console.log("Rescheduling appointment with ID:", initialAppointment.id);
+        console.log("Reschedule data:", appointmentData);
+        
+        response = await zenotiService.rescheduleAppointment(
+          initialAppointment.id,
+          appointmentData
+        );
+        
+        console.log("Appointment reschedule response:", response);
+      } else {
+        // Book new appointment
+        console.log("Booking new appointment with data:", appointmentData);
+        console.log("Using center code:", effectiveCenterCode);
+        
+        response = await zenotiService.bookAppointment(
+          appointmentData,
+          effectiveCenterCode
+        );
+        
+        console.log("Appointment booking response:", response);
+      }
 
       if (response.data?.success) {
         setSuccess(true);
@@ -343,12 +364,12 @@ const AppointmentForm = ({
           }
         }, 1500);
       } else {
-        setError(response.data?.error || "Failed to create appointment.");
+        setError(response.data?.error || `Failed to ${rescheduleMode ? "reschedule" : "create"} appointment.`);
       }
     } catch (err) {
-      console.error("Error creating appointment:", err);
+      console.error(`Error ${rescheduleMode ? "rescheduling" : "creating"} appointment:`, err);
       setError(
-        err.message || "Failed to create appointment. Please try again."
+        err.message || `Failed to ${rescheduleMode ? "reschedule" : "create"} appointment. Please try again.`
       );
     } finally {
       setIsLoading(false);
@@ -357,6 +378,8 @@ const AppointmentForm = ({
 
   return (
     <div className="appointment-form-container">
+      <h3 className="form-title">{rescheduleMode ? "Reschedule Appointment" : "Schedule New Appointment"}</h3>
+      
       {/* Error message */}
       {error && (
         <div className="form-error">
@@ -369,7 +392,7 @@ const AppointmentForm = ({
       {success ? (
         <div className="form-success">
           <Check size={16} />
-          <span>Appointment successfully scheduled!</span>
+          <span>Appointment successfully {rescheduleMode ? "rescheduled" : "scheduled"}!</span>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="appointment-form">
@@ -609,7 +632,8 @@ const AppointmentForm = ({
                 !formData.time
               }
             >
-              {isLoading ? "Scheduling..." : "Schedule Appointment"}
+              {isLoading ? (rescheduleMode ? "Rescheduling..." : "Scheduling...") : 
+                (rescheduleMode ? "Reschedule Appointment" : "Schedule Appointment")}
             </button>
           </div>
         </form>

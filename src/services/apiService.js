@@ -476,6 +476,34 @@ const crmApi = {
       )}`
     ),
 
+  getCRMAnalytics: async (params = {}) => {
+    try {
+      const queryParams = new URLSearchParams();
+
+      // Add all params to query string
+      if (params.centerCode)
+        queryParams.append("centerCode", params.centerCode);
+      if (params.timeframe) queryParams.append("timeframe", params.timeframe);
+      if (params.startDate) queryParams.append("startDate", params.startDate);
+      if (params.endDate) queryParams.append("endDate", params.endDate);
+      if (params.comparisonPeriod)
+        queryParams.append("comparisonPeriod", params.comparisonPeriod);
+
+      const response = await apiClient.get(`/api/analytics/crm?${queryParams}`);
+      return response;
+    } catch (error) {
+      console.error("Error fetching CRM analytics:", error);
+      // Return a fallback format for error handling
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to fetch CRM analytics",
+          analytics: null,
+        },
+      };
+    }
+  },
+
   linkDocument: (contactId, data) =>
     apiClient.post(`/api/crm/contacts/${contactId}/documents`, data),
 
@@ -1107,6 +1135,34 @@ const analyticsApi = {
         clientId ? `&clientId=${clientId}` : ""
       }`
     ),
+
+  getCRMAnalytics: async (params = {}) => {
+    try {
+      const queryParams = new URLSearchParams();
+
+      // Add all params to query string
+      if (params.centerCode)
+        queryParams.append("centerCode", params.centerCode);
+      if (params.timeframe) queryParams.append("timeframe", params.timeframe);
+      if (params.startDate) queryParams.append("startDate", params.startDate);
+      if (params.endDate) queryParams.append("endDate", params.endDate);
+      if (params.comparisonPeriod)
+        queryParams.append("comparisonPeriod", params.comparisonPeriod);
+
+      const response = await apiClient.get(`/api/analytics/crm?${queryParams}`);
+      return response;
+    } catch (error) {
+      console.error("Error fetching CRM analytics:", error);
+      // Return a fallback format for error handling
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to fetch CRM analytics",
+          analytics: null,
+        },
+      };
+    }
+  },
 
   getSearchAnalytics: (options = {}) => {
     const params = new URLSearchParams();

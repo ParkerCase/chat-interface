@@ -187,19 +187,20 @@ const CRMAnalyticsDashboard = ({
       };
 
       // Calculate appointment metrics
-      const completedAppointments = appointments.filter(
-        (a) => (a.status || "").toLowerCase() === "completed"
-      );
+      const completedAppointments = appointments.filter((a) => {
+        const status = a && a.status ? String(a.status).toLowerCase() : "";
+        return status === "completed";
+      });
 
-      const canceledAppointments = appointments.filter(
-        (a) =>
-          (a.status || "").toLowerCase() === "cancelled" ||
-          (a.status || "").toLowerCase() === "canceled"
-      );
+      const canceledAppointments = appointments.filter((a) => {
+        const status = a && a.status ? String(a.status).toLowerCase() : "";
+        return status === "cancelled" || status === "canceled";
+      });
 
-      const upcomingAppointments = appointments.filter(
-        (a) => new Date(a.start_time) > new Date()
-      );
+      const upcomingAppointments = appointments.filter((a) => {
+        // Make sure date values are valid
+        return a && a.start_time && new Date(a.start_time) > new Date();
+      });
 
       // Calculate service popularity
       const serviceCountMap = {};
@@ -423,41 +424,56 @@ const CRMAnalyticsDashboard = ({
     }
 
     // Count appointments per date
-    appointments.forEach((appointment) => {
-      const appointmentDate = new Date(appointment.start_time);
-      const key = appointmentDate.toISOString().split("T")[0];
+    if (appointments && Array.isArray(appointments)) {
+      appointments.forEach((appointment) => {
+        if (!appointment || !appointment.start_time) return;
+        
+        try {
+          const appointmentDate = new Date(appointment.start_time);
+          
+          // Skip invalid dates
+          if (isNaN(appointmentDate.getTime())) return;
+          
+          const key = appointmentDate.toISOString().split("T")[0];
 
-      // Find the closest bucket if exact date not found
-      if (dateBuckets[key]) {
-        dateBuckets[key].appointments++;
-        // Add service price if available
-        if (appointment.service && appointment.service.price) {
-          dateBuckets[key].revenue +=
-            parseFloat(appointment.service.price) || 0;
-        }
-      } else {
-        // Find closest bucket
-        let closestKey = Object.keys(dateBuckets)[0];
-        let smallestDiff = Math.abs(new Date(closestKey) - appointmentDate);
+          // Find the closest bucket if exact date not found
+          if (dateBuckets[key]) {
+            dateBuckets[key].appointments++;
+            // Add service price if available
+            if (appointment.service && appointment.service.price) {
+              dateBuckets[key].revenue +=
+                parseFloat(appointment.service.price) || 0;
+            }
+          } else {
+            // Find closest bucket
+            let closestKey = Object.keys(dateBuckets)[0];
+            if (!closestKey) return; // No buckets available
+            
+            let smallestDiff = Math.abs(new Date(closestKey) - appointmentDate);
 
-        Object.keys(dateBuckets).forEach((bucketKey) => {
-          const diff = Math.abs(new Date(bucketKey) - appointmentDate);
-          if (diff < smallestDiff) {
-            smallestDiff = diff;
-            closestKey = bucketKey;
+            Object.keys(dateBuckets).forEach((bucketKey) => {
+              const diff = Math.abs(new Date(bucketKey) - appointmentDate);
+              if (diff < smallestDiff) {
+                smallestDiff = diff;
+                closestKey = bucketKey;
+              }
+            });
+
+            if (closestKey) {
+              dateBuckets[closestKey].appointments++;
+              // Add service price if available
+              if (appointment.service && appointment.service.price) {
+                dateBuckets[closestKey].revenue +=
+                  parseFloat(appointment.service.price) || 0;
+              }
+            }
           }
-        });
-
-        if (closestKey) {
-          dateBuckets[closestKey].appointments++;
-          // Add service price if available
-          if (appointment.service && appointment.service.price) {
-            dateBuckets[closestKey].revenue +=
-              parseFloat(appointment.service.price) || 0;
-          }
+        } catch (err) {
+          console.warn("Error processing appointment date:", err);
+          // Skip this appointment and continue with others
         }
-      }
-    });
+      });
+    }
 
     // Convert to array and format for charts
     return Object.entries(dateBuckets)

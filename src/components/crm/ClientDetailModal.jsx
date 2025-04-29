@@ -357,30 +357,46 @@ const ClientDetailModal = ({ client, onClose, centerCode }) => {
                       </div>
                       <div
                         className={`appointment-status ${
-                          appointment.status?.toLowerCase() || "booked"
+                          typeof appointment.status === 'string' ? appointment.status.toLowerCase() : "booked"
                         }`}
                       >
-                        {appointment.status || "Booked"}
+                        {/* Safely handle status which might be an object */}
+                        {typeof appointment.status === 'string' 
+                          ? appointment.status 
+                          : (appointment.status && typeof appointment.status === 'object'
+                             ? (appointment.status.name || "Booked")
+                             : "Booked")}
                       </div>
                     </div>
                     <div className="appointment-details">
                       <h4>
-                        {appointment.service_name ||
-                          appointment.service?.name ||
-                          "Service"}
+                        {/* Handle potential object values for service */}
+                        {typeof appointment.service_name === 'string' 
+                          ? appointment.service_name 
+                          : (typeof appointment.service?.name === 'string' 
+                             ? appointment.service.name 
+                             : "Service")}
                       </h4>
+                      {/* Handle therapist which might be an object */}
                       {appointment.therapist && (
                         <p className="therapist-name">
-                          Provider: {appointment.therapist}
+                          Provider: {typeof appointment.therapist === 'string' 
+                            ? appointment.therapist 
+                            : (appointment.therapist.firstName && appointment.therapist.lastName 
+                                ? `${appointment.therapist.firstName} ${appointment.therapist.lastName}`
+                                : (appointment.therapist.displayName || "Unknown Provider"))}
                         </p>
                       )}
-                      {appointment.notes && (
+                      {/* Only show notes if it's a string */}
+                      {typeof appointment.notes === 'string' && appointment.notes && (
                         <p className="appointment-notes small-text">
                           {appointment.notes}
                         </p>
                       )}
                       <p className="duration">
-                        {appointment.duration || "60"} minutes
+                        {typeof appointment.duration === 'number' || typeof appointment.duration === 'string' 
+                          ? appointment.duration 
+                          : "60"} minutes
                       </p>
                     </div>
                   </div>

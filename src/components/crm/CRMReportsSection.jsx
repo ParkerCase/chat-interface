@@ -36,7 +36,7 @@ const EnhancedCRMReportsSection = ({
       .split("T")[0],
     endDate: new Date().toISOString().split("T")[0],
   });
-  const [reportType, setReportType] = useState("collections");
+  const [reportType, setReportType] = useState("sales");
   const [advancedFilters, setAdvancedFilters] = useState({
     appointment: {
       date_type: 0, // Appointment date
@@ -63,20 +63,87 @@ const EnhancedCRMReportsSection = ({
       getCenterId();
     }
   }, [selectedCenter, connectionStatus?.connected]);
+  
+  // Also update center ID when the component is first rendered
+  useEffect(() => {
+    if (selectedCenter && connectionStatus?.connected && !centerId) {
+      console.log("Initial center ID loading for center code:", selectedCenter);
+      getCenterId();
+    }
+  }, []);
 
   // Get center ID from center code
   const getCenterId = async () => {
     try {
-      const result = await zenotiService.getCenterIdFromCode(selectedCenter);
-      if (result.success) {
-        setCenterId(result.centerId);
+      if (!selectedCenter) {
+        console.warn("No center selected");
+        return;
+      }
+
+      // First, try to get from local cache
+      const cachedCenterId = localStorage.getItem(
+        `zenoti_center_id_${selectedCenter}`
+      );
+      if (cachedCenterId) {
+        console.log(
+          `Using cached center ID for ${selectedCenter}: ${cachedCenterId}`
+        );
+        setCenterId(cachedCenterId);
+        return;
+      }
+
+      // If not in cache, use the direct API method
+      console.log("Fetching center ID for center code:", selectedCenter);
+      const directResult = await zenotiService.getCenterIdFromCode(selectedCenter);
+      
+      if (directResult.success && directResult.centerId) {
+        console.log("Successfully retrieved center ID:", directResult.centerId);
+        setCenterId(directResult.centerId);
+        return;
+      }
+      
+      // If direct method fails, try using centers list as fallback
+      console.log("Direct method failed, trying fallback with centers list");
+      const response = await zenotiService.getCenters();
+
+      if (response.data?.success) {
+        const centers = response.data.centers || [];
+        console.log(`Found ${centers.length} centers in response`);
+        
+        const center = centers.find((c) => c.code === selectedCenter);
+
+        if (center && (center.id || center.center_id)) {
+          const id = center.id || center.center_id;
+          setCenterId(id);
+
+          // Cache for future use
+          localStorage.setItem(`zenoti_center_id_${selectedCenter}`, id);
+          console.log(
+            `Retrieved and cached center ID for ${selectedCenter}: ${id}`
+          );
+        } else {
+          console.warn(
+            `Center with code ${selectedCenter} not found or has no ID in centers list`
+          );
+          
+          // Last resort - check if there's a defaultCenter in the response
+          if (response.data.defaultCenter && response.data.defaultCenterId) {
+            console.log("Using default center ID as fallback:", response.data.defaultCenterId);
+            setCenterId(response.data.defaultCenterId);
+            localStorage.setItem(`zenoti_center_id_${selectedCenter}`, response.data.defaultCenterId);
+          } else {
+            setCenterId(null);
+          }
+        }
       } else {
-        console.warn("Could not get center ID from code:", result.error);
-        setCenterId(null);
+        throw new Error(response.data?.error || "Failed to get centers");
       }
     } catch (err) {
       console.error("Error getting center ID:", err);
       setCenterId(null);
+      
+      // Show user-friendly error
+      setError("Failed to get center ID. Please try selecting a different center or refreshing the page.");
     }
   };
 
@@ -116,16 +183,8 @@ const EnhancedCRMReportsSection = ({
       let response = null;
 
       switch (reportType) {
-        case "collections":
-          response = await zenotiService.getCollectionsReport(baseParams);
-          break;
-
         case "sales":
           response = await zenotiService.getSalesReport(baseParams);
-          break;
-
-        case "invoices":
-          response = await zenotiService.searchInvoices(baseParams);
           break;
 
         case "packages":
@@ -133,49 +192,125 @@ const EnhancedCRMReportsSection = ({
           break;
 
         case "appointments-report":
-          if (!centerId) {
-            throw new Error("Center ID is required. Please try again.");
-          }
+          try {
+            // Always try to get a fresh centerId before making report calls
+            const centerResult = await zenotiService.getCenterIdFromCode(
+              selectedCenter
+            );
+            
+            // If we get a center ID (which we should with our robust fallbacks), use it
+            if (centerResult.success) {
+              console.log(`Using center ID for appointments report: ${centerResult.centerId} (source: ${centerResult.source || "unknown"})`);
+              setCenterId(centerResult.centerId);
+              
+              response = await zenotiService.getAppointmentsReport({
+                center_ids: [centerResult.centerId],
+                start_date: dateRange.startDate,
+                end_date: dateRange.endDate,
+                date_type: advancedFilters.appointment.date_type,
+                appointment_statuses:
+                  advancedFilters.appointment.appointment_statuses,
+                appointment_sources:
+                  advancedFilters.appointment.appointment_sources,
+              });
+              
+              // Log success
+              console.log("Successfully retrieved appointments report with center ID");
+            } else {
+              // This should never happen with our failsafe mechanism, but just in case
+              console.warn("Failed to get center ID, falling back to direct appointments API");
+              
+              // Fallback to direct appointments API
+              response = await zenotiService.getAppointments({
+                startDate: dateRange.startDate,
+                endDate: dateRange.endDate,
+                centerCode: selectedCenter,
+                includeDetails: true,
+                limit: 200,
+              });
 
-          response = await zenotiService.getAppointmentsReport({
-            center_ids: [centerId],
-            start_date: dateRange.startDate,
-            end_date: dateRange.endDate,
-            date_type: advancedFilters.appointment.date_type,
-            appointment_statuses:
-              advancedFilters.appointment.appointment_statuses,
-            appointment_sources:
-              advancedFilters.appointment.appointment_sources,
-          });
+              if (response.data?.success) {
+                setReportData({
+                  appointments: response.data.appointments || [],
+                  total: response.data.appointments?.length || 0,
+                });
+                setShowReportViewer(true);
+                return;
+              } else {
+                throw new Error(
+                  response.data?.error || "Failed to load appointments"
+                );
+              }
+            }
+          } catch (err) {
+            console.error("Error generating appointments report:", err);
+            throw err;
+          }
           break;
 
         case "sales-accrual":
-          if (!centerId) {
-            throw new Error("Center ID is required. Please try again.");
+          try {
+            // Always try to get a fresh centerId before making report calls
+            const centerResult = await zenotiService.getCenterIdFromCode(
+              selectedCenter
+            );
+            
+            // If we get a center ID (which we should with our robust fallbacks), use it
+            if (centerResult.success) {
+              console.log(`Using center ID for sales accrual report: ${centerResult.centerId} (source: ${centerResult.source || "unknown"})`);
+              setCenterId(centerResult.centerId);
+              
+              response = await zenotiService.getSalesAccrualReport({
+                center_ids: [centerResult.centerId],
+                start_date: dateRange.startDate,
+                end_date: dateRange.endDate,
+              });
+              
+              // Log success
+              console.log("Successfully retrieved sales accrual report with center ID");
+            } else {
+              // This should never happen with our failsafe mechanism
+              throw new Error("Failed to get center ID despite failsafe mechanisms. Please try again.");
+            }
+          } catch (err) {
+            console.error("Error generating sales accrual report:", err);
+            throw err;
           }
-
-          response = await zenotiService.getSalesAccrualReport({
-            center_ids: [centerId],
-            start_date: dateRange.startDate,
-            end_date: dateRange.endDate,
-          });
           break;
 
         case "sales-cash":
-          if (!centerId) {
-            throw new Error("Center ID is required. Please try again.");
+          try {
+            // Always try to get a fresh centerId before making report calls
+            const centerResult = await zenotiService.getCenterIdFromCode(
+              selectedCenter
+            );
+            
+            // If we get a center ID (which we should with our robust fallbacks), use it
+            if (centerResult.success) {
+              console.log(`Using center ID for sales cash report: ${centerResult.centerId} (source: ${centerResult.source || "unknown"})`);
+              setCenterId(centerResult.centerId);
+              
+              response = await zenotiService.getSalesCashReport({
+                center_ids: [centerResult.centerId],
+                start_date: dateRange.startDate,
+                end_date: dateRange.endDate,
+                level_of_detail: advancedFilters.sales.level_of_detail,
+                item_types: advancedFilters.sales.item_types,
+                payment_types: advancedFilters.sales.payment_types,
+                sale_types: advancedFilters.sales.sale_types,
+                invoice_statuses: advancedFilters.sales.invoice_statuses,
+              });
+              
+              // Log success
+              console.log("Successfully retrieved sales cash report with center ID");
+            } else {
+              // This should never happen with our failsafe mechanism
+              throw new Error("Failed to get center ID despite failsafe mechanisms. Please try again.");
+            }
+          } catch (err) {
+            console.error("Error generating sales cash report:", err);
+            throw err;
           }
-
-          response = await zenotiService.getSalesCashReport({
-            center_ids: [centerId],
-            start_date: dateRange.startDate,
-            end_date: dateRange.endDate,
-            level_of_detail: advancedFilters.sales.level_of_detail,
-            item_types: advancedFilters.sales.item_types,
-            payment_types: advancedFilters.sales.payment_types,
-            sale_types: advancedFilters.sales.sale_types,
-            invoice_statuses: advancedFilters.sales.invoice_statuses,
-          });
           break;
 
         default:
@@ -315,14 +450,8 @@ const EnhancedCRMReportsSection = ({
             >
               {/* Standard Reports */}
               <optgroup label="Standard Reports">
-                <option value="collections">Collections Report</option>
                 <option value="sales">Sales Report</option>
-                <option value="invoices">Invoices Report</option>
                 <option value="packages">Packages Report</option>
-              </optgroup>
-
-              {/* Enhanced Reports */}
-              <optgroup label="Enhanced Reports">
                 <option value="appointments-report">Appointments Report</option>
                 <option value="sales-accrual">Sales Accrual Report</option>
                 <option value="sales-cash">Sales Cash Report</option>
@@ -373,23 +502,34 @@ const EnhancedCRMReportsSection = ({
             </button>
           )}
 
-          <button
-            className="generate-report-btn"
-            onClick={generateReport}
-            disabled={generatingReport}
-          >
-            {generatingReport ? (
-              <>
-                <RefreshCw size={16} className="spinning" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <BarChart4 size={16} />
-                Generate Report
-              </>
-            )}
-          </button>
+          <div>
+            <button
+              className="generate-report-btn"
+              onClick={generateReport}
+              disabled={generatingReport}
+            >
+              {generatingReport ? (
+                <>
+                  <RefreshCw size={16} className="spinning" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <BarChart4 size={16} />
+                  Generate Report
+                </>
+              )}
+            </button>
+            
+            {/* Hidden button to refresh center ID if needed */}
+            <button 
+              onClick={getCenterId}
+              style={{display: 'none'}}
+              id="refresh-center-id-button"
+            >
+              Refresh Center ID
+            </button>
+          </div>
         </div>
       )}
 
@@ -592,14 +732,6 @@ const EnhancedCRMReportsSection = ({
             <p>View sales data on an accrual basis by center</p>
           </div>
 
-          <div
-            className="report-card"
-            onClick={() => setReportType("collections")}
-          >
-            <List size={24} />
-            <h4>Collections Report</h4>
-            <p>Analyze payment collections and payment types</p>
-          </div>
         </div>
       )}
 
