@@ -1,7 +1,6 @@
 // src/hooks/useImageSimilaritySearch.js
 import { useState } from "react";
 import { useSupabase } from "./useSupabase";
-import axios from "axios";
 
 /**
  * Hook for searching similar images using vector embeddings
@@ -20,55 +19,49 @@ export function useImageSimilaritySearch() {
    * @param {Object} options - Search options
    * @param {number} options.limit - Maximum results to return
    * @param {number} options.threshold - Similarity threshold (0-1)
+   * @param {string} options.embeddingType - Type of embedding to use ('full' or 'partial')
    * @returns {Promise<Array>} Similar images
    */
   const searchSimilarImages = async (imageFile, options = {}) => {
-    const { limit = 20, threshold = 0.5 } = options;
+    const { limit = 20, threshold = 0.65, embeddingType = "full" } = options;
 
     try {
       setLoading(true);
       setError(null);
       setProcessingProgress(10);
 
-      // Create FormData for file upload
-      const formData = new FormData();
-      formData.append("image", imageFile);
+      // Read file as base64
+      const base64Image = await readFileAsBase64(imageFile);
+      const base64Data = base64Image.split(",")[1]; // Remove the data:image/jpeg;base64, part
 
-      // Generate embedding using our backend API
-      setProcessingProgress(20);
-      const embeddingResponse = await axios.post(
-        "/api/embedding/generate",
-        formData,
+      setProcessingProgress(30);
+
+      console.log(`Using embedding type for search: ${embeddingType}`);
+
+      // Call Supabase RPC function for embedding generation and search
+      const { data, error } = await supabase.rpc(
+        "generate_embedding_and_search_from_base64",
         {
-          headers: { "Content-Type": "multipart/form-data" },
+          image_base64: base64Data,
+          match_threshold: threshold,
+          match_count: limit,
+          embedding_type: embeddingType,
         }
       );
 
-      if (!embeddingResponse.data.success) {
-        throw new Error(
-          "Failed to generate embedding: " + embeddingResponse.data.error
-        );
+      if (error) {
+        console.error("Supabase RPC error:", error);
+        throw error;
       }
 
-      setProcessingProgress(60);
-      const embedding = embeddingResponse.data.embedding;
-
-      // Then call the Supabase function for vector search
-      const { data, error } = await supabase.rpc("search_images_by_embedding", {
-        query_embedding: embedding,
-        match_threshold: threshold,
-        match_count: limit,
-      });
-
-      if (error) throw error;
+      setProcessingProgress(80);
 
       // Process results
-      setProcessingProgress(90);
       const processedResults = (data || []).map((item) => ({
         id: item.id,
         path: item.image_path,
         filename: item.image_path.split("/").pop(),
-        type: item.embedding_type,
+        type: embeddingType,
         similarity: item.similarity,
       }));
 
@@ -91,10 +84,11 @@ export function useImageSimilaritySearch() {
    * @param {Object} options - Search options
    * @param {number} options.limit - Maximum results to return
    * @param {number} options.threshold - Similarity threshold (0-1)
+   * @param {string} options.embeddingType - Type of embedding to use ('full' or 'partial')
    * @returns {Promise<Array>} Similar images
    */
   const searchSimilarByPath = async (imagePath, options = {}) => {
-    const { limit = 20, threshold = 0.5 } = options;
+    const { limit = 20, threshold = 0.65, embeddingType = "full" } = options;
 
     try {
       setLoading(true);
@@ -106,20 +100,19 @@ export function useImageSimilaritySearch() {
         .from("image_embeddings")
         .select("embedding_data")
         .eq("image_path", imagePath)
-        .eq("embedding_type", "full")
+        .eq("embedding_type", embeddingType)
         .limit(1)
         .single();
 
-      if (embeddingError) throw embeddingError;
+      if (embeddingError) {
+        console.error("Error fetching embedding:", embeddingError);
+        throw embeddingError;
+      }
 
       setProcessingProgress(40);
 
-      if (
-        !embeddingData ||
-        !embeddingData.embedding_data ||
-        !embeddingData.embedding_data.embedding
-      ) {
-        throw new Error("No embedding found for this image");
+      if (!embeddingData?.embedding_data?.embedding) {
+        throw new Error(`No ${embeddingType} embedding found for this image`);
       }
 
       const embedding = embeddingData.embedding_data.embedding;
@@ -130,9 +123,13 @@ export function useImageSimilaritySearch() {
         query_embedding: embedding,
         match_threshold: threshold,
         match_count: limit,
+        embedding_type: embeddingType,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Search by embedding error:", error);
+        throw error;
+      }
 
       // Process results
       setProcessingProgress(90);
@@ -140,7 +137,7 @@ export function useImageSimilaritySearch() {
         id: item.id,
         path: item.image_path,
         filename: item.image_path.split("/").pop(),
-        type: item.embedding_type,
+        type: item.embedding_type || embeddingType,
         similarity: item.similarity,
       }));
 
@@ -174,45 +171,35 @@ export function useImageSimilaritySearch() {
       setError(null);
       setProcessingProgress(10);
 
-      // Create FormData
-      const formData = new FormData();
-      formData.append("image", imageFile);
+      // Read file as base64
+      const base64Image = await readFileAsBase64(imageFile);
+      const base64Data = base64Image.split(",")[1]; // Remove the data:image/jpeg;base64, part
 
-      // Add options
-      if (options.generateFull !== undefined) {
-        formData.append("generateFull", options.generateFull.toString());
-      }
-      if (options.generatePartial !== undefined) {
-        formData.append("generatePartial", options.generatePartial.toString());
-      }
-      if (options.analyze !== undefined) {
-        formData.append("analyze", options.analyze.toString());
-      }
-      if (options.store !== undefined) {
-        formData.append("store", options.store.toString());
-      }
-      if (options.imagePath) {
-        formData.append("imagePath", options.imagePath);
-      }
-
-      // Process the image using our backend endpoint
       setProcessingProgress(30);
-      const response = await axios.post("/api/embedding/process", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round(
-            (progressEvent.loaded * 70) / progressEvent.total
-          );
-          setProcessingProgress(30 + percentCompleted);
-        },
-      });
 
-      if (!response.data.success) {
-        throw new Error("Failed to process image: " + response.data.error);
+      // Prepare options for the Supabase function
+      const functionOptions = {
+        image_base64: base64Data,
+        generate_full: options.generateFull !== false,
+        generate_partial: options.generatePartial === true,
+        analyze: options.analyze !== false,
+        store: options.store === true,
+        image_path: options.imagePath || null,
+      };
+
+      // Process the image using Supabase RPC
+      const { data, error } = await supabase.rpc(
+        "process_image_complete",
+        functionOptions
+      );
+
+      if (error) {
+        console.error("Image processing error:", error);
+        throw error;
       }
 
       setProcessingProgress(100);
-      return response.data;
+      return data;
     } catch (err) {
       console.error("Error processing new image:", err);
       setError(err.message);
@@ -220,6 +207,23 @@ export function useImageSimilaritySearch() {
     } finally {
       setLoading(false);
     }
+  };
+
+  /**
+   * Utility function to read a file as base64
+   * @param {File} file - File to read
+   * @returns {Promise<string>} Base64 string
+   */
+  const readFileAsBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => {
+        console.error("Error reading file:", error);
+        reject(new Error("Failed to read file"));
+      };
+      reader.readAsDataURL(file);
+    });
   };
 
   return {

@@ -409,7 +409,9 @@ const ChatbotTabContent = () => {
     }
   };
 
-  // Handle image search
+  // Production-ready handleImageSearch function for ChatbotTabContent.jsx
+  // Minimal fix for handleImageSearch - using your existing Supabase functions
+  // Fix for handleImageSearch function
   const handleImageSearch = async () => {
     if (!file) return;
 
@@ -435,6 +437,7 @@ const ChatbotTabContent = () => {
       };
 
       setCurrentMessages((prev) => [...prev, newUserMessage]);
+      setUploadProgress(10);
 
       // Create system message indicating processing
       const systemMessage = {
@@ -447,138 +450,122 @@ const ChatbotTabContent = () => {
       };
 
       setCurrentMessages((prev) => [...prev, systemMessage]);
+      setUploadProgress(20);
 
-      // Prepare form data for the image upload
+      // First, upload the image to get its embedding
+      // We'll use FormData for the file upload
       const formData = new FormData();
       formData.append("image", file);
-      formData.append("mode", searchMode);
-      formData.append("userId", currentUser?.id || "default-user");
 
-      // Always include a message - this is required by the API
-      formData.append("message", searchMessage);
+      // For image display, we still need to use the backend API to proxy images
+      const imageProxyBase = apiService.utils.getBaseUrl()
+        ? `${apiService.utils.getBaseUrl()}/api/image-proxy`
+        : "/api/image-proxy";
 
-      // Always include enhanced analysis
-      formData.append("enhancedAnalysis", "true");
+      setUploadProgress(30);
 
-      // Perform image search - use the DIRECT endpoint to avoid fetch issues
-      const response = await fetch(
-        `${apiService.utils.getBaseUrl()}/api/search/visual`,
+      // Extract embedding from the image using backend API
+      // Keep this part since we need the embedding vector
+      const embeddingResponse = await fetch(
+        `${apiService.utils.getBaseUrl()}/api/embedding/generate`,
         {
           method: "POST",
           body: formData,
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`Search request failed: ${response.status}`);
+      if (!embeddingResponse.ok) {
+        throw new Error(
+          `Failed to generate embedding: ${embeddingResponse.status}`
+        );
       }
 
-      const data = await response.json();
-      setSearchResults(data);
-
-      // Now analyze the image using the chat API
-      const analysisFormData = new FormData();
-      analysisFormData.append("image", file);
-      analysisFormData.append("userId", currentUser?.id || "default-user");
-      analysisFormData.append("message", inputText || "Analyze this image");
-
-      // Make sure to include the search results in the analysis request
-      if (data.matches && data.matches.length > 0) {
-        analysisFormData.append("searchResults", JSON.stringify(data));
+      const embeddingData = await embeddingResponse.json();
+      if (!embeddingData.success || !embeddingData.embedding) {
+        throw new Error(
+          "Failed to generate embedding: " +
+            (embeddingData.error || "Unknown error")
+        );
       }
 
-      const analysisResponse = await fetch(
-        `${apiService.utils.getBaseUrl()}/api/chat/upload`,
+      setUploadProgress(60);
+
+      // Get the vector from the response
+      const embedding = embeddingData.embedding;
+
+      // Get embedding type based on search mode
+      const embeddingType = searchMode === "tensor" ? "full" : "partial";
+
+      console.log(
+        `Using ${embeddingType} search with threshold 0.65 and limit ${20}`
+      );
+
+      // Call Supabase function WITH THE CORRECT PARAMETER ORDER
+      // Based on your SQL, the order is: query_embedding, match_threshold, match_count, embedding_type
+      const { data: searchResults, error: searchError } = await supabase.rpc(
+        "search_images_by_embedding",
         {
-          method: "POST",
-          body: analysisFormData,
+          query_embedding: embedding,
+          match_threshold: 0.65,
+          match_limit: 20,
+          embedding_type: embeddingType,
         }
       );
 
-      if (!analysisResponse.ok) {
-        throw new Error(`Image analysis failed: ${analysisResponse.status}`);
+      if (searchError) {
+        console.error("Supabase search error:", searchError);
+        throw new Error(`Search failed: ${searchError.message}`);
       }
 
-      const analysisData = await analysisResponse.json();
+      setUploadProgress(80);
+
+      // Process the search results
+      const matches = searchResults || [];
+      console.log(
+        `Found ${matches.length} matches with ${embeddingType} search`
+      );
+
+      // Format the matches for display
+      const processedMatches = matches.map((match) => ({
+        id: match.id,
+        path: match.image_path,
+        score: match.similarity,
+        filename: match.image_path.split("/").pop(),
+        // For image URLs, use the image proxy endpoint
+        url: `${imageProxyBase}?path=${encodeURIComponent(match.image_path)}`,
+      }));
+
+      setUploadProgress(90);
 
       // Format search results for display
-      let searchResultsText = "### Similar Images Found\n\n";
+      let searchResultsText = `I found ${processedMatches.length} image${
+        processedMatches.length === 1 ? "" : "s"
+      } similar to the uploaded image.`;
 
-      if (data.matches && data.matches.length > 0) {
-        searchResultsText += `Found ${
-          data.matches.length
-        } similar images using ${
-          searchMode === "tensor" ? "full" : "partial"
-        } image search mode.\n\n`;
-
-        // Include top match analysis if available
-        if (data.topMatchAnalysis) {
-          searchResultsText += `**Top Match Analysis:** ${data.topMatchAnalysis.description}\n\n`;
-        }
-
-        // Group by directory
-        const groupedByDir = {};
-        data.matches.forEach((match) => {
-          const pathParts = match.path.split("/");
-          const dir = pathParts.slice(0, -1).join("/");
-          if (!groupedByDir[dir]) {
-            groupedByDir[dir] = [];
-          }
-          groupedByDir[dir].push(match);
-        });
-
-        // Add each directory group
-        Object.entries(groupedByDir).forEach(([dir, matches]) => {
-          searchResultsText += `**Directory: ${dir}/**\n`;
-          matches.forEach((match, index) => {
-            // Get just the filename
-            const filename = match.path.split("/").pop();
-
-            // Create entry with clickable view link
-            searchResultsText += `• **${filename}** (Score: ${parseFloat(
-              match.score
-            ).toFixed(2)})\n`;
-            searchResultsText += `  [View Image](${match.path})\n\n`;
-          });
-        });
-
-        // Add processing stats
-        if (data.stats) {
-          searchResultsText += `\n*Search completed in ${(
-            data.stats.processingTime / 1000
-          ).toFixed(2)} seconds`;
-          if (data.stats.totalSignaturesSearched) {
-            searchResultsText += ` with ${data.stats.totalSignaturesSearched} signatures searched`;
-          }
-          searchResultsText += ".*\n";
-        }
-      } else {
-        searchResultsText +=
-          "No matching images found. This could be because:\n" +
-          "• There are no similar images in the database\n" +
-          "• The image signature database may need to be updated\n" +
-          "• The search threshold may be too strict\n\n" +
-          "Try using the other search mode or contact your administrator if this issue persists.";
-      }
+      // Store total possible results for pagination
+      const totalResults = Math.min(100, processedMatches.length * 2); // Estimate more available
 
       // Add the analysis and search results to the chat
       const assistantMessage = {
         sender: "assistant",
         message_type: "assistant",
-        content: analysisData.response + "\n\n" + searchResultsText,
+        content: searchResultsText,
         created_at: new Date().toISOString(),
-        thread_id: analysisData.threadId,
-        isHtml: true,
+        thread_id: selectedThreadId || null,
+        isImageSearch: true,
+        images: processedMatches,
+        searchParams: {
+          type: "similarity",
+          mode: embeddingType,
+          embedding: embedding, // Store embedding for "Get more" functionality
+          currentPage: 0,
+          totalResults: totalResults,
+          hasMore: processedMatches.length >= 20, // Assume more if we hit the limit
+        },
       };
 
       setCurrentMessages((prev) => [...prev, assistantMessage]);
-
-      // Update selected thread ID if this is a new thread
-      if (analysisData.threadId && !selectedThreadId) {
-        setSelectedThreadId(analysisData.threadId);
-        // Turn off new chat mode once we have a thread ID
-        setIsNewChat(false);
-      }
+      setUploadProgress(100);
 
       // Clear input and file after sending
       setInputText("");
@@ -601,6 +588,225 @@ const ChatbotTabContent = () => {
     } finally {
       setIsLoading(false);
       setUploadProgress(0);
+    }
+  };
+
+  // Add this function to the ChatbotTabContent.jsx component
+  const handleGetMoreImages = async (searchParams) => {
+    if (!searchParams) return;
+
+    try {
+      // Create loading indicator
+      const loadingMessage = {
+        sender: "system",
+        message_type: "system",
+        content: "Loading more images...",
+        created_at: new Date().toISOString(),
+      };
+
+      // Add loading message temporarily
+      setCurrentMessages((prev) => [...prev, loadingMessage]);
+
+      // Calculate next page
+      const nextPage = (searchParams.currentPage || 0) + 1;
+      const offset = nextPage * 20; // 20 per page
+
+      let results = [];
+      let responseText = "";
+
+      switch (searchParams.type) {
+        case "similarity":
+          // For similarity search, we need to reuse the embedding
+          if (!searchParams.embedding) {
+            throw new Error("Missing embedding for pagination");
+          }
+
+          // Call search_images_by_embedding with offset
+          const { data: moreImages, error: searchError } = await supabase.rpc(
+            "search_images_by_embedding",
+            {
+              query_embedding: searchParams.embedding,
+              match_threshold: 0.65,
+              match_limit: 20,
+              embedding_type: searchParams.mode,
+              offset_value: offset, // Make sure your function supports this
+            }
+          );
+
+          if (searchError) throw searchError;
+
+          results = (moreImages || []).map((match) => ({
+            id: match.id,
+            path: match.image_path,
+            score: match.similarity,
+            filename: match.image_path.split("/").pop(),
+          }));
+
+          responseText = `Here are ${results.length} more similar images.`;
+          break;
+
+        case "keyword":
+          // For keyword search
+          const keywords = searchParams.keyword?.split(/\s+/) || [];
+
+          const { data: moreKeywordResults, error: keywordError } =
+            await supabase.rpc("search_images_by_keywords", {
+              search_terms: keywords,
+              match_limit: 20,
+              offset_value: offset,
+            });
+
+          if (keywordError) throw keywordError;
+
+          results = (moreKeywordResults || []).map((item) => ({
+            id: item.id || item.path,
+            path: item.path,
+            filename: item.path.split("/").pop(),
+            matchScore: item.match_score,
+          }));
+
+          responseText = `Here are ${results.length} more images matching "${searchParams.keyword}".`;
+          break;
+
+        case "bodyPart":
+          // For body part search
+          const { data: moreBodyPartResults, error: bodyPartError } =
+            await supabase.rpc("find_images_by_body_part", {
+              body_part: searchParams.bodyPart,
+              match_limit: 20,
+              offset_value: offset,
+            });
+
+          if (bodyPartError) throw bodyPartError;
+
+          results = (moreBodyPartResults || []).map((item) => ({
+            id: item.id || item.path,
+            path: item.path,
+            filename: item.path.split("/").pop(),
+            bodyPart: searchParams.bodyPart,
+            confidence: item.confidence || 0.8,
+          }));
+
+          responseText = `Here are ${results.length} more images with tattoos on the ${searchParams.bodyPart}.`;
+          break;
+
+        case "path":
+          // For path search
+          const { data: morePathResults, error: pathError } = await supabase
+            .from("image_embeddings")
+            .select("id, image_path, embedding_type, created_at")
+            .ilike("image_path", `%${searchParams.path}%`)
+            .range(offset, offset + 19);
+
+          if (pathError) throw pathError;
+
+          // Remove duplicates by path
+          const uniquePaths = {};
+          results = (morePathResults || [])
+            .filter((item) => {
+              if (!uniquePaths[item.image_path]) {
+                uniquePaths[item.image_path] = true;
+                return true;
+              }
+              return false;
+            })
+            .map((item) => ({
+              id: item.id,
+              path: item.image_path,
+              filename: item.image_path.split("/").pop(),
+              type: item.embedding_type,
+            }));
+
+          responseText = `Here are ${results.length} more images from the path containing "${searchParams.path}".`;
+          break;
+
+        case "noTattoo":
+          // For no tattoo search
+          const { data: moreNoTattooResults, error: noTattooError } =
+            await supabase.rpc("find_images_without_tattoos", {
+              match_limit: 20,
+              offset_value: offset,
+            });
+
+          if (noTattooError) throw noTattooError;
+
+          results = (moreNoTattooResults || []).map((item) => ({
+            id: item.id || item.path,
+            path: item.path,
+            filename: item.path.split("/").pop(),
+            noTattoo: true,
+          }));
+
+          responseText = `Here are ${results.length} more images without tattoos.`;
+          break;
+
+        default:
+          throw new Error("Unknown search type for pagination");
+      }
+
+      // Remove loading message
+      setCurrentMessages((prev) =>
+        prev.filter(
+          (msg) =>
+            !(
+              msg.sender === "system" &&
+              msg.content === "Loading more images..."
+            )
+        )
+      );
+
+      // If no results found
+      if (results.length === 0) {
+        const noMoreMessage = {
+          sender: "assistant",
+          message_type: "assistant",
+          content: "No more images found.",
+          created_at: new Date().toISOString(),
+        };
+
+        setCurrentMessages((prev) => [...prev, noMoreMessage]);
+        return;
+      }
+
+      // Add new message with more results
+      const moreResultsMessage = {
+        sender: "assistant",
+        message_type: "assistant",
+        content: responseText,
+        created_at: new Date().toISOString(),
+        isImageSearch: true,
+        images: results,
+        searchParams: {
+          ...searchParams,
+          currentPage: nextPage,
+          hasMore: results.length >= 20, // Assume more if we hit the limit
+        },
+      };
+
+      setCurrentMessages((prev) => [...prev, moreResultsMessage]);
+    } catch (error) {
+      console.error("Error getting more images:", error);
+
+      // Remove loading message if exists
+      setCurrentMessages((prev) =>
+        prev.filter(
+          (msg) =>
+            !(
+              msg.sender === "system" &&
+              msg.content === "Loading more images..."
+            )
+        )
+      );
+
+      // Add error message
+      const errorMessage = {
+        sender: "system",
+        message_type: "error",
+        content: `Error loading more images: ${error.message}`,
+        created_at: new Date().toISOString(),
+      };
+
+      setCurrentMessages((prev) => [...prev, errorMessage]);
     }
   };
 
@@ -734,36 +940,81 @@ const ChatbotTabContent = () => {
   };
 
   // Function to process image search
+  // Improved processImageSearch with better keyword handling
   const processImageSearch = async (query) => {
     try {
+      console.log("Processing image search query:", query);
+
       // Parse query
       const searchParams = parseSearchQuery(query);
       let results = [];
       let responseText = "";
 
+      console.log("Parsed search parameters:", searchParams);
+
       // Execute search based on type
       switch (searchParams.type) {
         case "keyword":
-          // Split keywords
-          const keywords = searchParams.keyword
+          // Improved keyword handling - split and filter meaningfully
+          let keywords = searchParams.keyword
+            .toLowerCase()
             .split(/\s+/)
-            .filter((k) => k.length > 1);
+            .filter((k) => k.length > 1)
+            // Filter out common words that aren't useful for tattoo searches
+            .filter(
+              (k) =>
+                ![
+                  "the",
+                  "and",
+                  "with",
+                  "for",
+                  "me",
+                  "please",
+                  "show",
+                  "get",
+                  "of",
+                ].includes(k)
+            );
+
+          // If no meaningful keywords left, extract tattoo-related terms
+          if (keywords.length === 0) {
+            const tattooTerms = query.match(
+              /tattoo|ink|design|art|color|black|sleeve|tribal|script|portrait/gi
+            );
+            if (tattooTerms) {
+              keywords = [...new Set(tattooTerms.map((t) => t.toLowerCase()))];
+            } else {
+              // Default to "tattoo" if no specific terms found
+              keywords = ["tattoo"];
+            }
+          }
+
+          console.log("Searching with keywords:", keywords);
 
           // Use search_images_by_keywords function
           const { data: keywordData, error: keywordError } = await supabase.rpc(
             "search_images_by_keywords",
-            { search_terms: keywords, match_limit: searchParams.limit }
+            {
+              search_terms: keywords,
+              match_limit: searchParams.limit,
+            }
           );
 
-          if (keywordError) throw keywordError;
+          if (keywordError) {
+            console.error("Keyword search error:", keywordError);
+            throw keywordError;
+          }
 
           results = keywordData.map((item) => ({
-            id: item.path, // Using path as ID since the function doesn't return original IDs
+            id: item.id || item.path,
             path: item.path,
             filename: item.path.split("/").pop(),
             matchScore: item.match_score,
             analysis: item.analysis,
           }));
+
+          // Store the keywords in search params for pagination
+          searchParams.keywords = keywords;
 
           responseText = `I found ${results.length} image${
             results.length === 1 ? "" : "s"
@@ -771,6 +1022,8 @@ const ChatbotTabContent = () => {
           break;
 
         case "bodyPart":
+          console.log("Searching for body part:", searchParams.bodyPart);
+
           // Use find_images_by_body_part function
           const { data: bodyPartData, error: bodyPartError } =
             await supabase.rpc("find_images_by_body_part", {
@@ -778,13 +1031,17 @@ const ChatbotTabContent = () => {
               match_limit: searchParams.limit,
             });
 
-          if (bodyPartError) throw bodyPartError;
+          if (bodyPartError) {
+            console.error("Body part search error:", bodyPartError);
+            throw bodyPartError;
+          }
 
           results = bodyPartData.map((item) => ({
-            id: item.path,
+            id: item.id || item.path,
             path: item.path,
             filename: item.path.split("/").pop(),
             bodyPart: searchParams.bodyPart,
+            confidence: item.confidence || 0.8,
             analysis: item.analysis,
           }));
 
@@ -796,16 +1053,21 @@ const ChatbotTabContent = () => {
           break;
 
         case "noTattoo":
+          console.log("Searching for images without tattoos");
+
           // Use find_images_without_tattoos function
           const { data: noTattooData, error: noTattooError } =
             await supabase.rpc("find_images_without_tattoos", {
               match_limit: searchParams.limit,
             });
 
-          if (noTattooError) throw noTattooError;
+          if (noTattooError) {
+            console.error("No tattoo search error:", noTattooError);
+            throw noTattooError;
+          }
 
           results = noTattooData.map((item) => ({
-            id: item.path,
+            id: item.id || item.path,
             path: item.path,
             filename: item.path.split("/").pop(),
             noTattoo: true,
@@ -818,6 +1080,8 @@ const ChatbotTabContent = () => {
           break;
 
         case "path":
+          console.log("Searching for images by path:", searchParams.path);
+
           // Search by path using direct query
           const { data: pathData, error: pathError } = await supabase
             .from("image_embeddings")
@@ -825,7 +1089,10 @@ const ChatbotTabContent = () => {
             .ilike("image_path", `%${searchParams.path}%`)
             .limit(searchParams.limit);
 
-          if (pathError) throw pathError;
+          if (pathError) {
+            console.error("Path search error:", pathError);
+            throw pathError;
+          }
 
           // Remove duplicates by path
           const uniquePaths = {};
@@ -857,6 +1124,11 @@ const ChatbotTabContent = () => {
             break;
           }
 
+          console.log(
+            "Searching for similar images to:",
+            searchParams.similarityPath
+          );
+
           // First get the embedding
           const { data: embeddingData, error: embeddingError } = await supabase
             .from("image_embeddings")
@@ -867,6 +1139,8 @@ const ChatbotTabContent = () => {
             .single();
 
           if (embeddingError) {
+            console.error("Embedding fetch error:", embeddingError);
+
             if (embeddingError.code === "PGRST116") {
               responseText = `I couldn't find the reference image at "${searchParams.similarityPath}".`;
               break;
@@ -883,11 +1157,14 @@ const ChatbotTabContent = () => {
           const { data: similarityData, error: similarityError } =
             await supabase.rpc("search_images_by_embedding", {
               query_embedding: embeddingData.embedding_data.embedding,
-              match_threshold: 0.5,
-              match_count: searchParams.limit,
+              match_threshold: 0.65,
+              match_limit: searchParams.limit,
             });
 
-          if (similarityError) throw similarityError;
+          if (similarityError) {
+            console.error("Similarity search error:", similarityError);
+            throw similarityError;
+          }
 
           results = similarityData
             .filter((item) => item.image_path !== searchParams.similarityPath) // Remove reference image
@@ -929,11 +1206,20 @@ const ChatbotTabContent = () => {
         }
       }
 
+      console.log(`Search completed. Found ${results.length} results.`);
+
+      // Add pagination information
+      const updatedSearchParams = {
+        ...searchParams,
+        currentPage: 0,
+        hasMore: results.length >= searchParams.limit,
+      };
+
       return {
         success: true,
         results,
         response: responseText,
-        searchParams,
+        searchParams: updatedSearchParams,
       };
     } catch (error) {
       console.error("Error processing image search:", error);
@@ -1265,6 +1551,7 @@ const ChatbotTabContent = () => {
           onCopyPath={(path) => {
             console.log(`Path copied: ${path}`);
           }}
+          onGetMore={handleGetMoreImages} // Add this line
         />
       );
     }
