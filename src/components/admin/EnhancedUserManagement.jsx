@@ -1,6 +1,5 @@
 // src/components/admin/EnhancedUserManagement.jsx
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -29,19 +28,22 @@ import {
   MoreHorizontal,
   ArrowUpDown,
   CheckSquare,
+  UserCog,
+  Settings as SettingsIcon,
 } from "lucide-react";
-import "./Admin.css";
-import "./EnhancedUserManagement.css"; // We'll create this later
+import "./EnhancedUserManagement.css";
 
-const EnhancedUserManagement = () => {
-  const { currentUser, logout } = useAuth();
-  const navigate = useNavigate();
-
+const EnhancedUserManagement = ({
+  users: initialUsers,
+  currentUser,
+  formatDate,
+  setError,
+  onRefreshUsers,
+}) => {
   // State
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState(initialUsers || []);
   const [filteredUsers, setFilteredUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -66,6 +68,8 @@ const EnhancedUserManagement = () => {
   // Form states
   const [editForm, setEditForm] = useState({
     name: "",
+    firstName: "",
+    lastName: "",
     email: "",
     role: "user",
     status: "Active",
@@ -83,10 +87,15 @@ const EnhancedUserManagement = () => {
     methods: [],
   });
 
-  // Load users on component mount
+  // Initialize and filter users when component mounts
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (initialUsers?.length) {
+      setUsers(initialUsers);
+      setFilteredUsers(initialUsers);
+    } else {
+      fetchUsers();
+    }
+  }, [initialUsers]);
 
   // Filter and sort users when dependencies change
   useEffect(() => {
@@ -257,6 +266,11 @@ const EnhancedUserManagement = () => {
 
       setUsers(processedUsers);
       setFilteredUsers(processedUsers);
+
+      // Update parent component if callback provided
+      if (onRefreshUsers) {
+        onRefreshUsers(processedUsers);
+      }
     } catch (error) {
       console.error("Error fetching users:", error);
       setError(`Failed to load users: ${error.message}`);
@@ -335,22 +349,6 @@ const EnhancedUserManagement = () => {
       sortField === field && prevDirection === "asc" ? "desc" : "asc"
     );
     setSortField(field);
-  };
-
-  // Format date for display
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMin = Math.floor(diffMs / 60000);
-
-    if (diffMin < 60) {
-      return `${diffMin} minutes ago`;
-    } else if (diffMin < 1440) {
-      return `${Math.floor(diffMin / 60)} hours ago`;
-    } else {
-      return `${Math.floor(diffMin / 1440)} days ago`;
-    }
   };
 
   // Check if user can manage another user
@@ -512,9 +510,12 @@ const EnhancedUserManagement = () => {
         }
       }
 
+      // Calculate full name from first and last name
+      const fullName = `${editForm.firstName} ${editForm.lastName}`.trim();
+
       // Prepare the update data
       const updateData = {
-        full_name: editForm.name,
+        full_name: fullName,
         first_name: editForm.firstName,
         last_name: editForm.lastName,
         roles: newRoles,
@@ -536,7 +537,7 @@ const EnhancedUserManagement = () => {
       try {
         await supabase.auth.admin.updateUserById(userToEdit.id, {
           user_metadata: {
-            full_name: editForm.name,
+            full_name: fullName,
             first_name: editForm.firstName,
             last_name: editForm.lastName,
             status: editForm.status,
@@ -553,7 +554,7 @@ const EnhancedUserManagement = () => {
           if (user.id === userToEdit.id) {
             return {
               ...user,
-              name: editForm.name,
+              name: fullName,
               firstName: editForm.firstName,
               lastName: editForm.lastName,
               role: editForm.role,
@@ -565,9 +566,28 @@ const EnhancedUserManagement = () => {
         })
       );
 
-      setSuccess(`User ${editForm.name} successfully updated`);
+      setSuccess(`User ${fullName} successfully updated`);
       setShowEditModal(false);
       setUserToEdit(null);
+
+      // Refresh user list
+      if (onRefreshUsers) {
+        onRefreshUsers(
+          users.map((user) =>
+            user.id === userToEdit.id
+              ? {
+                  ...user,
+                  name: fullName,
+                  firstName: editForm.firstName,
+                  lastName: editForm.lastName,
+                  role: editForm.role,
+                  status: editForm.status,
+                  roleArray: newRoles,
+                }
+              : user
+          )
+        );
+      }
     } catch (error) {
       console.error("Error updating user:", error);
       setError(`Failed to update user: ${error.message}`);
@@ -618,9 +638,8 @@ const EnhancedUserManagement = () => {
       }
 
       // Update local state
-      setUsers((prevUsers) =>
-        prevUsers.filter((user) => user.id !== userToDelete.id)
-      );
+      const updatedUsers = users.filter((user) => user.id !== userToDelete.id);
+      setUsers(updatedUsers);
       setSelectedUsers((prevSelected) =>
         prevSelected.filter((id) => id !== userToDelete.id)
       );
@@ -628,6 +647,11 @@ const EnhancedUserManagement = () => {
       setSuccess(`User ${userToDelete.name} successfully deleted`);
       setShowDeleteModal(false);
       setUserToDelete(null);
+
+      // Update parent component if callback provided
+      if (onRefreshUsers) {
+        onRefreshUsers(updatedUsers);
+      }
     } catch (error) {
       console.error("Error deleting user:", error);
       setError(`Failed to delete user: ${error.message}`);
@@ -680,13 +704,19 @@ const EnhancedUserManagement = () => {
         .map((result) => result.value);
 
       // Update local state
-      setUsers((prevUsers) =>
-        prevUsers.filter((user) => !deletedIds.includes(user.id))
+      const updatedUsers = users.filter(
+        (user) => !deletedIds.includes(user.id)
       );
+      setUsers(updatedUsers);
       setSelectedUsers([]);
 
       setSuccess(`Successfully deleted ${deletedIds.length} users`);
       setShowBulkDeleteModal(false);
+
+      // Update parent component if callback provided
+      if (onRefreshUsers) {
+        onRefreshUsers(updatedUsers);
+      }
     } catch (error) {
       console.error("Error in bulk delete:", error);
       setError(`Failed to delete users: ${error.message}`);
@@ -801,22 +831,27 @@ const EnhancedUserManagement = () => {
       }
 
       // Update user in state
-      setUsers((prevUsers) =>
-        prevUsers.map((user) => {
-          if (user.id === userForMfa.id) {
-            return {
-              ...user,
-              mfaEnabled: updatedMethods.length > 0,
-              mfaMethods: updatedMethods,
-            };
-          }
-          return user;
-        })
-      );
+      const updatedUsers = users.map((user) => {
+        if (user.id === userForMfa.id) {
+          return {
+            ...user,
+            mfaEnabled: updatedMethods.length > 0,
+            mfaMethods: updatedMethods,
+          };
+        }
+        return user;
+      });
+
+      setUsers(updatedUsers);
 
       setSuccess(`MFA settings updated for ${userForMfa.name}`);
       setShowMfaModal(false);
       setUserForMfa(null);
+
+      // Update parent component if callback provided
+      if (onRefreshUsers) {
+        onRefreshUsers(updatedUsers);
+      }
     } catch (error) {
       console.error("Error saving MFA settings:", error);
       setError(`Failed to save MFA settings: ${error.message}`);
@@ -897,7 +932,9 @@ const EnhancedUserManagement = () => {
       // Add the new user to the state
       const newUser = {
         id: data.user.id,
-        name: `${inviteForm.firstName} ${inviteForm.lastName}`.trim(),
+        name:
+          `${inviteForm.firstName} ${inviteForm.lastName}`.trim() ||
+          inviteForm.email,
         firstName: inviteForm.firstName,
         lastName: inviteForm.lastName,
         email: inviteForm.email,
@@ -912,7 +949,8 @@ const EnhancedUserManagement = () => {
         emailConfirmed: true,
       };
 
-      setUsers((prevUsers) => [newUser, ...prevUsers]);
+      const updatedUsers = [newUser, ...users];
+      setUsers(updatedUsers);
 
       setSuccess(`Invitation sent to ${inviteForm.email}`);
       setShowInviteModal(false);
@@ -922,6 +960,11 @@ const EnhancedUserManagement = () => {
         firstName: "",
         lastName: "",
       });
+
+      // Update parent component if callback provided
+      if (onRefreshUsers) {
+        onRefreshUsers(updatedUsers);
+      }
     } catch (error) {
       console.error("Error inviting user:", error);
       setError(`Failed to invite user: ${error.message}`);
@@ -974,7 +1017,6 @@ const EnhancedUserManagement = () => {
     }
   };
 
-  // Render
   return (
     <div className="enhanced-user-management">
       <div className="admin-section">
@@ -985,14 +1027,6 @@ const EnhancedUserManagement = () => {
           <div className="success-message">
             <CheckCircle className="success-icon" size={18} />
             <p>{success}</p>
-          </div>
-        )}
-
-        {/* Error message */}
-        {error && (
-          <div className="error-message">
-            <AlertCircle className="error-icon" size={18} />
-            <p>{error}</p>
           </div>
         )}
 
