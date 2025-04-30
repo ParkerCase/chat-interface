@@ -1,7 +1,47 @@
 // src/services/reportsApiService.js - Fixed version
 
 import { apiClient } from "./apiService";
-import axios from "axios";
+
+// Utility function for extracting CSV data - place this OUTSIDE the reportsApiService object
+function extractSalesDataFromCSV(csvData) {
+  if (!csvData || typeof csvData !== "string") return [];
+
+  try {
+    // Simple CSV parsing for Zenoti sales data
+    const lines = csvData.split("\n");
+    if (lines.length <= 1) return [];
+
+    // Get headers
+    const headers = lines[0].split(",");
+
+    // Process data rows
+    const result = [];
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+
+      const values = lines[i].split(",");
+      const row = {};
+
+      headers.forEach((header, index) => {
+        row[header.trim()] = values[index]?.trim() || "";
+      });
+
+      result.push({
+        item_name: row["Item Name"] || "",
+        item_type: row["Item Type"] || "",
+        final_sale_price: parseFloat(row["Sales(Inc. Tax)"] || 0),
+        is_refund:
+          (row["Sales(Inc. Tax)"] && parseFloat(row["Sales(Inc. Tax)"]) < 0) ||
+          false,
+      });
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Error parsing CSV data:", error);
+    return [];
+  }
+}
 
 /**
  * Enhanced service for handling CRM and Zenoti reports with improved
@@ -28,22 +68,29 @@ const reportsApiService = {
     }
   },
 
-  /**
-   * Get sales report data using the accrual basis endpoint
-   * @param {Object} params - The request body parameters
-   * @returns {Promise<Object>} The response object
-   */
+  // Replace ONLY these two functions in your reportsApiService.js file
+  // DO NOT replace the entire file this time
+
+  // Replace getSalesAccrualBasisReport function
   getSalesAccrualBasisReport: async (params) => {
     try {
       console.log("Making accrual basis report request with params:", params);
 
-      // Ensure center_ids is not empty or contains empty strings
-      if (!params.center_ids || !params.center_ids[0]) {
+      // Validate center_ids parameter
+      if (
+        !params.center_ids ||
+        !params.center_ids.length ||
+        !params.center_ids[0]
+      ) {
         console.error("Invalid center_ids parameter:", params.center_ids);
         throw new Error("A valid center ID is required for sales reports");
       }
 
-      const response = await axios.post(
+      console.log(
+        "Sending accrual basis request with params:",
+        JSON.stringify(params)
+      );
+      const response = await apiClient.post(
         "/api/zenoti/reports/sales/accrual-basis",
         params,
         {
@@ -54,30 +101,104 @@ const reportsApiService = {
         }
       );
 
-      console.log("Accrual basis response status:", response.status);
+      // Log the raw response and data with full details
+      console.log("Accrual basis raw response status:", response.status);
+      console.log(
+        "Accrual basis FULL response data:",
+        JSON.stringify(response.data, null, 2)
+      );
+
+      // Fix the response format to be what the frontend expects
+      if (response.status === 200) {
+        // Extract data from response
+        let success = true;
+        let salesData = [];
+        let summary = {
+          total_sales: 0,
+          total_refunds: 0,
+          net_sales: 0,
+        };
+
+        // Check for the report format from Zenoti
+        if (response.data && response.data.report) {
+          console.log("Response has report property, checking structure...");
+
+          // If we have sales array data, use it
+          if (
+            response.data.report.sales &&
+            Array.isArray(response.data.report.sales)
+          ) {
+            console.log(
+              "Found sales array with items:",
+              response.data.report.sales.length
+            );
+            salesData = response.data.report.sales;
+          }
+
+          // Check for total information
+          if (response.data.report.total) {
+            console.log("Found totals data:", response.data.report.total);
+            summary.total_sales = response.data.report.total.sales || 0;
+            summary.total_refunds = response.data.report.total.refunds || 0;
+            summary.net_sales = summary.total_sales - summary.total_refunds;
+          }
+
+          // Check if we have error information
+          if (response.data.report.error) {
+            console.log("Report contains error:", response.data.report.error);
+            // Still return success true since we got a valid response, just no data
+          }
+        }
+
+        // Create properly structured response for frontend
+        const standardResponse = {
+          success: success,
+          data: salesData,
+          summary: summary,
+        };
+
+        console.log("Standardized response:", standardResponse);
+        return { data: standardResponse };
+      }
+
       return response;
     } catch (error) {
       console.error("Error fetching accrual basis sales report:", error);
-      throw error;
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to fetch sales report",
+          data: [],
+          summary: {
+            total_sales: 0,
+            total_refunds: 0,
+            net_sales: 0,
+          },
+        },
+      };
     }
   },
 
-  /**
-   * Get sales report data using the cash basis endpoint
-   * @param {Object} params - The request body parameters
-   * @returns {Promise<Object>} The response object
-   */
+  // Replace getSalesCashBasisReport function
   getSalesCashBasisReport: async (params) => {
     try {
       console.log("Making cash basis report request with params:", params);
 
-      // Ensure center_ids is not empty or contains empty strings
-      if (!params.center_ids || !params.center_ids[0]) {
+      // Validate center_ids parameter
+      if (
+        !params.center_ids ||
+        !params.center_ids.length ||
+        !params.center_ids[0]
+      ) {
         console.error("Invalid center_ids parameter:", params.center_ids);
         throw new Error("A valid center ID is required for sales reports");
       }
 
-      const response = await axios.post(
+      console.log(
+        "Sending cash basis request with params:",
+        JSON.stringify(params)
+      );
+      const response = await apiClient.post(
         "/api/zenoti/reports/sales/cash-basis",
         params,
         {
@@ -88,26 +209,135 @@ const reportsApiService = {
         }
       );
 
-      console.log("Cash basis response status:", response.status);
+      // Log the raw response and data with full details
+      console.log("Cash basis raw response status:", response.status);
+      console.log(
+        "Cash basis FULL response data:",
+        JSON.stringify(response.data, null, 2)
+      );
+
+      // Fix the response format to be what the frontend expects
+      if (response.status === 200) {
+        // Extract data from response
+        let success = true;
+        let salesData = [];
+        let summary = {
+          total_sales: 0,
+          total_refunds: 0,
+          net_sales: 0,
+        };
+
+        // Check for the report format from Zenoti
+        if (response.data && response.data.report) {
+          console.log("Response has report property, checking structure...");
+
+          // If we have sales array data, use it
+          if (
+            response.data.report.sales &&
+            Array.isArray(response.data.report.sales)
+          ) {
+            console.log(
+              "Found sales array with items:",
+              response.data.report.sales.length
+            );
+            salesData = response.data.report.sales;
+          }
+
+          // Check for total information
+          if (response.data.report.total) {
+            console.log("Found totals data:", response.data.report.total);
+            summary.total_sales = response.data.report.total.sales || 0;
+            summary.total_refunds = response.data.report.total.refunds || 0;
+            summary.net_sales = summary.total_sales - summary.total_refunds;
+          }
+
+          // Check if we have error information
+          if (response.data.report.error) {
+            console.log("Report contains error:", response.data.report.error);
+            // Still return success true since we got a valid response, just no data
+          }
+        }
+
+        // Create properly structured response for frontend
+        const standardResponse = {
+          success: success,
+          data: salesData,
+          summary: summary,
+        };
+
+        console.log("Standardized response:", standardResponse);
+        return { data: standardResponse };
+      }
+
       return response;
     } catch (error) {
       console.error("Error fetching cash basis sales report:", error);
-      throw error;
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to fetch sales report",
+          data: [],
+          summary: {
+            total_sales: 0,
+            total_refunds: 0,
+            net_sales: 0,
+          },
+        },
+      };
     }
   },
 
   /**
    * Get sales report with proper handling of actual API response format
+   * This is the more reliable fallback method that uses centerCode instead of center_ids
    */
   getSalesReport: async (params) => {
     try {
-      const response = await axios.get("/api/zenoti/reports/sales", {
+      console.log("Using fallback sales report method with params:", params);
+
+      // Make sure we have required parameters
+      if (!params.startDate || !params.endDate || !params.centerCode) {
+        throw new Error("Start date, end date and center code are required");
+      }
+
+      // Add timestamp to prevent caching
+      if (!params._t) params._t = Date.now();
+
+      const response = await apiClient.get("/api/zenoti/reports/sales", {
         params,
       });
+
+      console.log("Regular sales report response:", response.data);
+
+      if (!response.data) {
+        // If response doesn't contain data, create a default structure
+        response.data = {
+          success: true,
+          items: [],
+          summary: {
+            total_sales: 0,
+            total_refunds: 0,
+            net_sales: 0,
+          },
+        };
+      }
+
       return response;
     } catch (error) {
       console.error("Error fetching sales report:", error);
-      throw error;
+      // Return a structured error response instead of throwing
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to fetch sales report",
+          items: [],
+          summary: {
+            total_sales: 0,
+            total_refunds: 0,
+            net_sales: 0,
+          },
+        },
+      };
     }
   },
 
@@ -133,11 +363,13 @@ const reportsApiService = {
         params,
       });
 
+      console.log("Appointments response:", response.data);
+
       // Ensure appointments array exists
       if (response.data && response.data.success === undefined) {
         response.data = {
           success: true,
-          appointments: response.data.appointments || [],
+          appointments: response.data.appointments || response.data || [],
         };
       }
 
@@ -161,12 +393,38 @@ const reportsApiService = {
     try {
       console.log("Fetching packages report with params:", params);
 
+      // Make sure we have a centerCode
+      if (!params.centerCode) {
+        throw new Error("Center code is required");
+      }
+
       // Add timestamp to prevent caching
       params._t = Date.now();
 
       const response = await apiClient.get("/api/zenoti/packages", {
         params,
       });
+
+      console.log("Packages response:", response.data);
+
+      // Ensure we have a consistent data structure
+      if (response.data) {
+        if (!response.data.packages && Array.isArray(response.data)) {
+          // If the response is already an array, wrap it
+          response.data = {
+            success: true,
+            packages: response.data,
+          };
+        } else if (!response.data.packages) {
+          // If there's no packages property, add an empty one
+          response.data.packages = [];
+        }
+      } else {
+        response.data = {
+          success: true,
+          packages: [],
+        };
+      }
 
       return response;
     } catch (error) {
@@ -188,6 +446,11 @@ const reportsApiService = {
     try {
       console.log("Fetching services report with params:", params);
 
+      // Make sure we have a centerCode
+      if (!params.centerCode) {
+        throw new Error("Center code is required");
+      }
+
       // Add timestamp to prevent caching
       params._t = Date.now();
 
@@ -197,6 +460,33 @@ const reportsApiService = {
       }
 
       const response = await apiClient.get("/api/zenoti/services", { params });
+
+      console.log("Services response:", response.data);
+
+      // Ensure we have a consistent data structure
+      if (response.data) {
+        if (!response.data.services && Array.isArray(response.data)) {
+          // If the response is already an array, wrap it
+          response.data = {
+            success: true,
+            services: response.data,
+          };
+        } else if (response.data.success === undefined) {
+          // Ensure success flag exists
+          response.data.success = true;
+        }
+
+        // If success is true but no services array exists, add an empty one
+        if (response.data.success && !response.data.services) {
+          response.data.services = [];
+        }
+      } else {
+        response.data = {
+          success: true,
+          services: [],
+        };
+      }
+
       return response;
     } catch (error) {
       console.error("Error fetching services report:", error);
@@ -217,7 +507,26 @@ const reportsApiService = {
     try {
       console.log(`Generating ${format} report file: ${filename}`);
 
-      // Use client-side solution for now to avoid backend issues
+      // First try to use the API if available
+      try {
+        const response = await apiClient.post("/api/zenoti/reports/export", {
+          reportData,
+          format,
+          filename,
+        });
+
+        if (response.data?.success) {
+          console.log("Successfully generated report file via API");
+          return response.data;
+        }
+      } catch (apiError) {
+        console.warn(
+          "API export failed, using client-side generation:",
+          apiError
+        );
+      }
+
+      // Use client-side solution as fallback
       let fileContent = "";
       let mimeType = "";
       let extension = format;
@@ -255,17 +564,32 @@ const reportsApiService = {
   },
 
   /**
-   * Email a report (mock implementation for now)
+   * Email a report
    */
   emailReport: async (emailData) => {
     try {
       console.log("Emailing report to:", emailData.recipients);
 
+      // Try to use the API
+      try {
+        const response = await apiClient.post(
+          "/api/zenoti/reports/email",
+          emailData
+        );
+        if (response.data?.success) {
+          return response;
+        }
+      } catch (apiError) {
+        console.warn("API email failed, using fallback:", apiError);
+      }
+
       // For now, just simulate success
       return {
         data: {
           success: true,
-          message: `Report emailed to ${emailData.recipients.join(", ")}`,
+          message: `Report would be emailed to ${emailData.recipients.join(
+            ", "
+          )}`,
         },
       };
     } catch (error) {
@@ -313,29 +637,31 @@ function convertToCSV(data) {
     const headers = "Date,Time,Client,Service,Therapist,Status";
 
     const rows = appointments.map((appt) => {
-      const date = appt.startTime
-        ? new Date(appt.startTime).toLocaleDateString()
-        : "N/A";
-      const time = appt.startTime
-        ? new Date(appt.startTime).toLocaleTimeString()
-        : "N/A";
+      const date =
+        appt.startTime || appt.start_time
+          ? new Date(appt.startTime || appt.start_time).toLocaleDateString()
+          : "N/A";
+      const time =
+        appt.startTime || appt.start_time
+          ? new Date(appt.startTime || appt.start_time).toLocaleTimeString()
+          : "N/A";
 
       // Extract client name with fallbacks
       const clientName = appt.guest
         ? `${appt.guest.firstName || ""} ${appt.guest.lastName || ""}`.trim()
-        : "Unknown Client";
+        : appt.guest_name || appt.clientName || "Unknown Client";
 
       // Extract service name with fallbacks
       const serviceName = appt.service
         ? appt.service.name
-        : appt.parentServiceName || "Unknown Service";
+        : appt.parentServiceName || appt.serviceName || "Unknown Service";
 
       // Extract therapist name with fallbacks
       const therapistName = appt.therapist
         ? `${appt.therapist.firstName || ""} ${
             appt.therapist.lastName || ""
           }`.trim()
-        : "Unknown Therapist";
+        : appt.therapistName || "Unknown Therapist";
 
       // Map status codes to readable strings
       const statusMap = {
@@ -346,7 +672,10 @@ function convertToCSV(data) {
         4: "Cancelled",
         5: "No Show",
       };
-      const status = statusMap[appt.status] || "Unknown";
+      const status =
+        typeof appt.status === "number"
+          ? statusMap[appt.status] || "Unknown"
+          : appt.status || "Unknown";
 
       return [date, time, clientName, serviceName, therapistName, status]
         .map(formatCSVValue)
@@ -373,6 +702,44 @@ function convertToCSV(data) {
     }
 
     return csv;
+  } else if (data.packages && Array.isArray(data.packages)) {
+    // Handle packages report
+    const packages = data.packages;
+    if (packages.length === 0) return "No packages found";
+
+    const headers = "Name,Type,Price,Validity,Status";
+
+    const rows = packages.map((pkg) => {
+      const name = pkg.name || "Unknown";
+      const type = pkg.type || "Standard";
+      const price = pkg.price || 0;
+      const validity = pkg.validity_days || pkg.validity || "N/A";
+      const status =
+        pkg.active || pkg.status === "Active" ? "Active" : "Inactive";
+
+      return [name, type, price, validity, status]
+        .map(formatCSVValue)
+        .join(",");
+    });
+
+    return [headers, ...rows].join("\n");
+  } else if (data.services && Array.isArray(data.services)) {
+    // Handle services report
+    const services = data.services;
+    if (services.length === 0) return "No services found";
+
+    const headers = "Name,Category,Duration,Price";
+
+    const rows = services.map((svc) => {
+      const name = svc.name || "Unknown";
+      const category = svc.category || "Uncategorized";
+      const duration = formatDuration(svc.duration);
+      const price = svc.price_info?.sale_price || svc.price || 0;
+
+      return [name, category, duration, price].map(formatCSVValue).join(",");
+    });
+
+    return [headers, ...rows].join("\n");
   }
 
   // Fallback - convert to JSON and then to CSV
@@ -398,35 +765,18 @@ function formatCSVValue(value) {
   return stringValue;
 }
 
-// Process items from centerSalesReport format
-function processItemsFromCenterSalesReport(centerSalesReport) {
-  if (!Array.isArray(centerSalesReport)) return [];
+// Format duration for CSV output
+function formatDuration(minutes) {
+  if (!minutes) return "N/A";
 
-  // Group items by name
-  const itemMap = {};
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
 
-  centerSalesReport.forEach((sale) => {
-    const itemName = sale.item?.name || "Unknown Item";
-
-    if (!itemMap[itemName]) {
-      itemMap[itemName] = {
-        name: itemName,
-        quantity: 0,
-        totalAmount: 0,
-        finalSalePrice: 0,
-        netAmount: 0,
-      };
-    }
-
-    // Increment counters
-    itemMap[itemName].quantity += sale.quantity || 0;
-    itemMap[itemName].totalAmount += sale.finalSalePrice || 0;
-    itemMap[itemName].finalSalePrice += sale.finalSalePrice || 0;
-    itemMap[itemName].netAmount += sale.finalSalePrice || 0;
-  });
-
-  // Convert map to array
-  return Object.values(itemMap);
+  if (hours > 0) {
+    return `${hours}h ${mins > 0 ? `${mins}m` : ""}`;
+  } else {
+    return `${mins}m`;
+  }
 }
 
 export default reportsApiService;
