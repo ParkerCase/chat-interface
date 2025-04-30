@@ -37,6 +37,8 @@ import analyticsUtils from "../../utils/analyticsUtils";
 import CRMContactLookup from "./CRMContactLookup";
 import CreateContactForm from "./CreateContactForm";
 import AppointmentForm from "./AppointmentForm";
+import ImprovedReportsSection from "./ImprovedReportsSection";
+
 import AppointmentDetails from "./AppointmentDetails";
 import ClientDetailModal from "./ClientDetailModal";
 import EnhancedCRMReportsSection from "./CRMReportsSection";
@@ -1385,7 +1387,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
           )}
 
           {activeSection === "reports" && (
-            <EnhancedCRMReportsSection
+            <ImprovedReportsSection
               selectedCenter={selectedCenter}
               connectionStatus={connectionStatus}
               onRefresh={loadRecentContacts}
