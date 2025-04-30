@@ -770,7 +770,7 @@
 .reports-section {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: scroll;
   flex: 1;
 }
 
