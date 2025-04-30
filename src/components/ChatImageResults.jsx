@@ -13,6 +13,7 @@ const ChatImageResults = ({
   onImageClick,
   onSearchWithImage = null, // Add this prop with default value
   onCopyPath = null, // Add this prop with default value
+  onGetMore = null, // Add this new prop
 }) => {
   const [expanded, setExpanded] = useState(true);
   const [selectedImage, setSelectedImage] = useState(null);
@@ -71,6 +72,13 @@ const ChatImageResults = ({
     return `http://147.182.247.128:4000/api/image-proxy?path=${encodeURIComponent(
       normalizedPath
     )}&${cacheBuster}`;
+  };
+
+  const handleGetMore = async () => {
+    if (!searchParams || !onGetMore) return;
+
+    // Call the parent component's onGetMore handler
+    onGetMore(searchParams);
   };
 
   /**
@@ -266,11 +274,13 @@ const ChatImageResults = ({
         </div>
       )}
 
-      {/* Show more button */}
-      {hasMoreImages && expanded && (
-        <div className="chat-results-footer">
-          <button className="show-more-btn" onClick={handleShowMore}>
-            Show all {images.length} results
+      {searchParams?.hasMore && (
+        <div style={{ marginTop: "1rem", textAlign: "center" }}>
+          <button
+            className="get-more-btn"
+            onClick={() => onGetMore(searchParams)}
+          >
+            Get more images
           </button>
         </div>
       )}
@@ -357,6 +367,13 @@ const ChatImageResults = ({
                   <span className="action-icon">🔍</span>
                   Use in Search
                 </button>
+                {expanded && hasMoreImages && (
+                  <div className="chat-results-footer">
+                    <button className="get-more-btn" onClick={handleGetMore}>
+                      Get More Images
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
