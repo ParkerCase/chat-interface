@@ -1233,14 +1233,6 @@ const AdminPanel = () => {
         </div>
         <div
           className={`admin-nav-item ${
-            activeTab === "settings" ? "active" : ""
-          }`}
-          onClick={() => setActiveTab("settings")}
-        >
-          Settings
-        </div>
-        <div
-          className={`admin-nav-item ${
             activeTab === "analytics" ? "active" : ""
           }`}
           onClick={() => setActiveTab("analytics")}
@@ -1258,6 +1250,14 @@ const AdminPanel = () => {
             File Permissions
           </div>
         )}
+        <div
+          className={`admin-nav-item ${
+            activeTab === "settings" ? "active" : ""
+          }`}
+          onClick={() => setActiveTab("settings")}
+        >
+          Settings
+        </div>
       </nav>
 
       {/* Error message */}
@@ -1422,7 +1422,6 @@ const AdminPanel = () => {
                       <th>Email</th>
                       <th>Role</th>
                       <th>Last Active</th>
-                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1444,18 +1443,7 @@ const AdminPanel = () => {
                         </td>
                         <td>
                           <div className="flex items-center gap-1">
-                            <Clock size={14} />
                             <span>{formatDate(user.lastActive)}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="action-buttons">
-                            <button
-                              className="action-button edit-button"
-                              onClick={() => setActiveTab("users")}
-                            >
-                              <Settings size={14} />
-                            </button>
                           </div>
                         </td>
                       </tr>

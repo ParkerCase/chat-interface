@@ -91,6 +91,7 @@
 }
 
 .profile-avatar {
+  margin: 24px 0 0 0;
   width: 100px;
   height: 100px;
   border-radius: 50%;
@@ -139,28 +140,40 @@
   margin-top: 4px;
 }
 
-.save-button {
+.user-info {
+  padding: 5% 0 5% 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background-color: #4f46e5;
-  color: white;
+  flex-direction: column;
+  align-items: flex-start !important;
+  gap: 0.5rem;
+}
+
+.save-button {
+  gap: 1%;
+  display: flex;
+  width: 40%;
+  padding: 1rem !important;
   border: none;
   border-radius: 6px;
   font-weight: 500;
   cursor: pointer;
-  margin-top: 8px;
-  align-self: flex-start;
+  transition: background-color 0.2s;
+  background-color: #4f46e5 !important;
+  color: white !important;
+  border: none !important;
+  align-items: flex-start;
+  align-self: center;
+  box-shadow: 0 1px 2px rgba(79, 70, 229, 0.1) !important;
+  justify-content: center;
 }
 
 .save-button:hover {
-  background-color: #4338ca;
+  background-color: #4338ca !important;
+  color: white !important;
 }
 
 .profile-security {
-  margin-top: 32px;
+  margin-top: 7%;
 }
 
 .security-options {
@@ -449,7 +462,8 @@
 }
 
 /* Spinner for loading states */
-.spinner, .spinning {
+.spinner,
+.spinning {
   animation: spin 1s linear infinite;
 }
 
@@ -752,10 +766,30 @@
   border-top: 1px solid #e5e7eb;
 }
 
+.view-all-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background-color: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.view-all-button:hover {
+  background-color: #4338ca;
+}
+
 .cancel-button {
   padding: 0.5rem 1rem;
   background-color: white;
   border: 1px solid #d1d5db;
+  width: 100% !important;
   border-radius: 4px;
   cursor: pointer;
 }
@@ -1107,18 +1141,22 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: #666;
+  color: #667;
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 1.5rem !important;
+  font-weight: 500;
+  overflow-y: visible !important;
 }
 
 .modal-footer {
+  margin: 1rem 0 0 0;
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  padding: 16px 20px;
+  padding: 1rem 0px !important;
+  background-color: transparent !important;
   border-top: 1px solid #eee;
 }
 

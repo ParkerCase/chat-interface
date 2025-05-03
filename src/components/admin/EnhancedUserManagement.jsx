@@ -39,6 +39,7 @@ const EnhancedUserManagement = ({
   formatDate,
   setError,
   onRefreshUsers,
+  error,
 }) => {
   // State
   const [users, setUsers] = useState(initialUsers || []);
@@ -1030,92 +1031,90 @@ const EnhancedUserManagement = ({
           </div>
         )}
 
+        {/* Error message */}
+        {error && (
+          <div className="error-message">
+            <AlertCircle className="error-icon" size={18} />
+            <p>{error}</p>
+          </div>
+        )}
+
+        {/* IMPROVED LAYOUT: More compact controls with better alignment */}
         <div className="user-management-controls">
+          {/* Left side actions */}
           <div className="user-management-actions">
             <button
-              className="action-button create-button"
+              className=" invite-button"
               onClick={() => setShowInviteModal(true)}
             >
               <UserPlus size={16} />
-              <span>Invite User</span>
+              Invite
             </button>
 
             <button
-              className="action-button refresh-button"
+              className=" refresh-button"
               onClick={fetchUsers}
               disabled={loading}
             >
-              <RefreshCw size={16} className={loading ? "spinning" : ""} />
-              <span>Refresh</span>
+              <RefreshCw
+                style={{ marginBottom: "0" }}
+                size={16}
+                className={loading ? "spinning" : ""}
+              />
+              Refresh
             </button>
 
             <button
-              className="action-button export-button"
+              className=" export-button"
               onClick={exportUsers}
               disabled={filteredUsers.length === 0}
             >
               <Download size={16} />
-              <span>Export CSV</span>
+              Export
             </button>
-
-            {selectedUsers.length > 0 && (
-              <button
-                className="action-button delete-button"
-                onClick={() => setShowBulkDeleteModal(true)}
-              >
-                <Trash2 size={16} />
-                <span>Delete Selected ({selectedUsers.length})</span>
-              </button>
-            )}
           </div>
 
+          {/* Right side filters - IMPROVED LAYOUT */}
           <div className="user-management-filters">
-            <div className="search-input">
-              <Search size={16} />
+            {/* Search input */}
+            <div className="search-container">
               <input
                 type="text"
                 placeholder="Search users..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                className="search-input"
               />
-              {searchQuery && (
-                <button
-                  className="clear-search"
-                  onClick={() => setSearchQuery("")}
-                >
-                  <X size={14} />
-                </button>
-              )}
             </div>
 
-            <div className="filters-container">
-              <div className="filter-select">
-                <label htmlFor="role-filter">Role:</label>
-                <select
-                  id="role-filter"
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                >
-                  <option value="all">All Roles</option>
-                  <option value="super_admin">Super Admin</option>
-                  <option value="admin">Admin</option>
-                  <option value="user">User</option>
-                </select>
-              </div>
+            {/* Role filter */}
+            <div className="filter-group">
+              <select
+                id="role-filter"
+                className="filter-select"
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+              >
+                <option value="all">All Roles</option>
+                <option value="super_admin">Super Admin</option>
+                <option value="admin">Admin</option>
+                <option value="user">User</option>
+              </select>
+            </div>
 
-              <div className="filter-select">
-                <label htmlFor="status-filter">Status:</label>
-                <select
-                  id="status-filter"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="banned">Banned</option>
-                </select>
-              </div>
+            {/* Status filter */}
+            <div className="filter-group">
+              <select
+                id="status-filter"
+                className="filter-select"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="banned">Banned</option>
+              </select>
             </div>
           </div>
         </div>
@@ -1148,7 +1147,7 @@ const EnhancedUserManagement = ({
             </div>
           ) : (
             <table className="users-table">
-              <thead>
+              <thead className="user-filters">
                 <tr>
                   <th className="checkbox-cell">
                     <label className="checkbox-container">
@@ -1160,76 +1159,82 @@ const EnhancedUserManagement = ({
                       <span className="checkbox-checkmark"></span>
                     </label>
                   </th>
-                  <th className="sortable" onClick={() => handleSort("name")}>
-                    <div className="th-content">
-                      <span>Name</span>
-                      {sortField === "name" && (
-                        <ArrowUpDown
-                          size={14}
-                          className={
-                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                          }
-                        />
-                      )}
-                    </div>
-                  </th>
-                  <th className="sortable" onClick={() => handleSort("email")}>
-                    <div className="th-content">
-                      <span>Email</span>
-                      {sortField === "email" && (
-                        <ArrowUpDown
-                          size={14}
-                          className={
-                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                          }
-                        />
-                      )}
-                    </div>
-                  </th>
-                  <th className="sortable" onClick={() => handleSort("role")}>
-                    <div className="th-content">
-                      <span>Role</span>
-                      {sortField === "role" && (
-                        <ArrowUpDown
-                          size={14}
-                          className={
-                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                          }
-                        />
-                      )}
-                    </div>
-                  </th>
-                  <th className="sortable" onClick={() => handleSort("status")}>
-                    <div className="th-content">
-                      <span>Status</span>
-                      {sortField === "status" && (
-                        <ArrowUpDown
-                          size={14}
-                          className={
-                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                          }
-                        />
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    className="sortable"
-                    onClick={() => handleSort("lastActive")}
-                  >
-                    <div className="th-content">
-                      <span>Last Active</span>
-                      {sortField === "lastActive" && (
-                        <ArrowUpDown
-                          size={14}
-                          className={
-                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                          }
-                        />
-                      )}
-                    </div>
-                  </th>
-                  <th>MFA</th>
-                  <th>Actions</th>
+                  <div className="user-filters-selector">
+                    <th className="sortable" onClick={() => handleSort("name")}>
+                      <div className="th-content">
+                        <span>Name</span>
+                        {sortField === "name" && (
+                          <ArrowUpDown
+                            size={14}
+                            className={
+                              sortDirection === "asc" ? "sort-asc" : "sort-desc"
+                            }
+                          />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="sortable"
+                      onClick={() => handleSort("email")}
+                    >
+                      <div className="th-content">
+                        <span>Email</span>
+                        {sortField === "email" && (
+                          <ArrowUpDown
+                            size={14}
+                            className={
+                              sortDirection === "asc" ? "sort-asc" : "sort-desc"
+                            }
+                          />
+                        )}
+                      </div>
+                    </th>
+                    <th className="sortable" onClick={() => handleSort("role")}>
+                      <div className="th-content">
+                        <span>Role</span>
+                        {sortField === "role" && (
+                          <ArrowUpDown
+                            size={14}
+                            className={
+                              sortDirection === "asc" ? "sort-asc" : "sort-desc"
+                            }
+                          />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="sortable"
+                      onClick={() => handleSort("status")}
+                    >
+                      <div className="th-content">
+                        <span>Status</span>
+                        {sortField === "status" && (
+                          <ArrowUpDown
+                            size={14}
+                            className={
+                              sortDirection === "asc" ? "sort-asc" : "sort-desc"
+                            }
+                          />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="sortable"
+                      onClick={() => handleSort("lastActive")}
+                    >
+                      <div className="th-content">
+                        <span>Last Active</span>
+                        {sortField === "lastActive" && (
+                          <ArrowUpDown
+                            size={14}
+                            className={
+                              sortDirection === "asc" ? "sort-asc" : "sort-desc"
+                            }
+                          />
+                        )}
+                      </div>
+                    </th>
+                  </div>
                 </tr>
               </thead>
               <tbody>
@@ -1278,33 +1283,14 @@ const EnhancedUserManagement = ({
                     </td>
                     <td>
                       <div className="last-active">
-                        <Clock size={14} />
                         <span>{formatDate(user.lastActive)}</span>
                       </div>
                     </td>
-                    <td>
-                      <span
-                        className={`mfa-status ${
-                          user.mfaEnabled ? "enabled" : "disabled"
-                        }`}
-                      >
-                        {user.mfaEnabled ? (
-                          <>
-                            <Lock size={14} />
-                            <span>Enabled</span>
-                          </>
-                        ) : (
-                          <>
-                            <Unlock size={14} />
-                            <span>Disabled</span>
-                          </>
-                        )}
-                      </span>
-                    </td>
+
                     <td>
                       <div className="action-buttons">
                         <button
-                          className="action-button edit-button"
+                          className=" edit-button"
                           onClick={() => openEditModal(user)}
                           title="Edit User"
                         >
@@ -1312,7 +1298,7 @@ const EnhancedUserManagement = ({
                         </button>
 
                         <button
-                          className="action-button reset-password-button"
+                          className=" reset-password-button"
                           onClick={() => {
                             setUserToReset(user);
                             setShowResetModal(true);
@@ -1323,7 +1309,7 @@ const EnhancedUserManagement = ({
                         </button>
 
                         <button
-                          className="action-button mfa-button"
+                          className=" mfa-button"
                           onClick={() => openMfaModal(user)}
                           title="Manage MFA Settings"
                         >
@@ -1336,7 +1322,7 @@ const EnhancedUserManagement = ({
 
                         {canSeeDeleteButton(user) && (
                           <button
-                            className="action-button delete-button"
+                            className=" delete-button"
                             onClick={() => {
                               setUserToDelete(user);
                               setShowDeleteModal(true);
@@ -1464,14 +1450,6 @@ const EnhancedUserManagement = ({
 
                 <div className="modal-footer">
                   <button
-                    type="button"
-                    className="cancel-button"
-                    onClick={() => setShowInviteModal(false)}
-                    disabled={loading}
-                  >
-                    Cancel
-                  </button>
-                  <button
                     type="submit"
                     className="submit-button"
                     disabled={
@@ -1489,6 +1467,14 @@ const EnhancedUserManagement = ({
                         Send Invitation
                       </>
                     )}
+                  </button>
+                  <button
+                    type="button"
+                    className="cancel-button"
+                    onClick={() => setShowInviteModal(false)}
+                    disabled={loading}
+                  >
+                    Cancel
                   </button>
                 </div>
               </form>
@@ -1600,24 +1586,13 @@ const EnhancedUserManagement = ({
                       userToEdit.email === "parker@tatt2away.com"
                     }
                   >
-                    <option value="Active">Active</option>
+                    <option value="Active">Active </option>
                     <option value="Inactive">Inactive</option>
                     <option value="Banned">Banned</option>
                   </select>
                 </div>
 
                 <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="cancel-button"
-                    onClick={() => {
-                      setShowEditModal(false);
-                      setUserToEdit(null);
-                    }}
-                    disabled={loading}
-                  >
-                    Cancel
-                  </button>
                   <button
                     type="submit"
                     className="save-button"
@@ -1634,6 +1609,17 @@ const EnhancedUserManagement = ({
                         Save Changes
                       </>
                     )}
+                  </button>
+                  <button
+                    type="button"
+                    className="cancel-button"
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setUserToEdit(null);
+                    }}
+                    disabled={loading}
+                  >
+                    Cancel
                   </button>
                 </div>
               </form>
@@ -1679,39 +1665,40 @@ const EnhancedUserManagement = ({
                 )}
               </div>
               <p className="warning-text">This action cannot be undone.</p>
-            </div>
-            <div className="modal-footer">
-              <button
-                className="cancel-button"
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setUserToDelete(null);
-                }}
-                disabled={loading}
-              >
-                Cancel
-              </button>
-              <button
-                className="delete-button"
-                onClick={handleDeleteUser}
-                disabled={
-                  loading ||
-                  userToDelete.email === "itsus@tatt2away.com" ||
-                  userToDelete.email === "parker@tatt2away.com"
-                }
-              >
-                {loading ? (
-                  <>
-                    <Loader size={14} className="spinner" />
-                    Deleting...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 size={14} />
-                    Delete User
-                  </>
-                )}
-              </button>
+
+              <div className="modal-footer">
+                <button
+                  className="delete-button"
+                  onClick={handleDeleteUser}
+                  disabled={
+                    loading ||
+                    userToDelete.email === "itsus@tatt2away.com" ||
+                    userToDelete.email === "parker@tatt2away.com"
+                  }
+                >
+                  {loading ? (
+                    <>
+                      <Loader size={14} className="spinner" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={14} />
+                      Delete User
+                    </>
+                  )}
+                </button>
+                <button
+                  className="cancel-button"
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setUserToDelete(null);
+                  }}
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1803,35 +1790,36 @@ const EnhancedUserManagement = ({
               <p>
                 A password reset link will be sent to the user's email address.
               </p>
-            </div>
-            <div className="modal-footer">
-              <button
-                className="cancel-button"
-                onClick={() => {
-                  setShowResetModal(false);
-                  setUserToReset(null);
-                }}
-                disabled={loading}
-              >
-                Cancel
-              </button>
-              <button
-                className="send-button"
-                onClick={handleResetPassword}
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <Loader size={14} className="spinner" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Mail size={14} />
-                    Send Reset Email
-                  </>
-                )}
-              </button>
+
+              <div className="modal-footer">
+                <button
+                  className="send-button"
+                  onClick={handleResetPassword}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader size={14} className="spinner" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Mail size={14} />
+                      Send Reset Email
+                    </>
+                  )}
+                </button>
+                <button
+                  className="cancel-button"
+                  onClick={() => {
+                    setShowResetModal(false);
+                    setUserToReset(null);
+                  }}
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
