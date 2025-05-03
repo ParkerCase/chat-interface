@@ -81,7 +81,11 @@ const ChatbotTabContent = () => {
   const { processImageSearchRequest } = useChatImageSearch();
 
   const toggleZenoti = () => {
-    setUseZenoti(!useZenoti);
+    const newValue = !useZenoti;
+    setUseZenoti(newValue);
+
+    // Also update the settings
+    updateSetting("showZenotiIntegration", newValue);
   };
 
   // Update settings
@@ -101,7 +105,13 @@ const ChatbotTabContent = () => {
     const savedSettings = localStorage.getItem("chatSettings");
     if (savedSettings) {
       try {
-        setChatSettings(JSON.parse(savedSettings));
+        const parsedSettings = JSON.parse(savedSettings);
+        setChatSettings(parsedSettings);
+
+        // Initialize useZenoti from settings
+        if (parsedSettings.showZenotiIntegration !== undefined) {
+          setUseZenoti(parsedSettings.showZenotiIntegration);
+        }
       } catch (e) {
         console.error("Error loading chat settings:", e);
       }

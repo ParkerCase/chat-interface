@@ -286,11 +286,25 @@ const EnhancedUserManagement = ({
 
     // Apply search filter
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+      const query = searchQuery.toLowerCase().trim();
       result = result.filter(
         (user) =>
-          user.name.toLowerCase().includes(query) ||
-          user.email.toLowerCase().includes(query)
+          // Check all text fields
+          (user.name &&
+            typeof user.name === "string" &&
+            user.name.toLowerCase().includes(query)) ||
+          (user.email &&
+            typeof user.email === "string" &&
+            user.email.toLowerCase().includes(query)) ||
+          (user.firstName &&
+            typeof user.firstName === "string" &&
+            user.firstName.toLowerCase().includes(query)) ||
+          (user.lastName &&
+            typeof user.lastName === "string" &&
+            user.lastName.toLowerCase().includes(query)) ||
+          (user.role &&
+            typeof user.role === "string" &&
+            user.role.toLowerCase().includes(query))
       );
     }
 
@@ -765,17 +779,19 @@ const EnhancedUserManagement = ({
       const { data, error } = await supabase
         .from("profiles")
         .select("mfa_methods")
-        .eq("id", user.id)
-        .single();
+        .eq("id", user.id);
 
       if (error) {
         throw error;
       }
 
+      // Process the first profile found or use default
+      const profile = data && data.length > 0 ? data[0] : { mfa_methods: [] };
+
       setUserForMfa(user);
       setMfaOptions({
-        requireMfa: data?.mfa_methods?.length > 0 || false,
-        methods: data?.mfa_methods || [],
+        requireMfa: profile?.mfa_methods?.length > 0 || false,
+        methods: profile?.mfa_methods || [],
       });
       setShowMfaModal(true);
     } catch (error) {

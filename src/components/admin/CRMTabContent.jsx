@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { User, Database, Clock } from "lucide-react";
+import { User, RefreshCw, Database, Clock } from "lucide-react";
 import zenotiService from "../../services/zenotiService";
 import ImportContacts from "../crm/ImportContacts";
 import CRMDashboard from "../crm/CRMDashboard";
@@ -288,17 +288,10 @@ const CRMTabContent = () => {
           </div>
 
           <div className="connection-actions">
-            <button
-              className="config-button"
-              onClick={() => setShowConfigModal(true)}
-            >
-              Configure
+            <button className="refresh-button" onClick={initializeTab}>
+              <RefreshCw style={{ marginBottom: "0" }} size={16} />
+              Refresh
             </button>
-            {connectionStatus?.connected && (
-              <button className="refresh-button" onClick={initializeTab}>
-                Refresh
-              </button>
-            )}
           </div>
         </div>
       </div>

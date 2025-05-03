@@ -228,10 +228,9 @@ const EnhancedSystemSettings = () => {
         updated_by: currentUser?.id,
       }));
 
-      // Upsert settings
-      const { error } = await supabase.from("settings").upsert(settingsToSave, {
-        onConflict: "category,key",
-        returning: "minimal",
+      // Use the RPC function to bypass RLS
+      const { error } = await supabase.rpc("save_settings", {
+        settings: settingsToSave,
       });
 
       if (error) throw error;
