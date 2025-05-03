@@ -47,7 +47,7 @@
 
 .dashboard-presets {
   display: flex;
-  gap: 0.5rem;
+  gap: 1rem;
   align-items: center;
 }
 
@@ -130,29 +130,40 @@
 }
 
 .refresh-button {
-  background-color: #f1f5f9;
+  color: #3b82f6 !important;
+
+  background-color: #f1f5f9 !important;
+  margin: 0 !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 0.375rem !important;
 }
 
 .export-button {
-  background-color: #f0fdf4;
-  color: #10b981;
-  border-color: #d1fae5;
+  background-color: #f0fdf4 !important;
+  color: #10b981 !important;
+  border-color: #d1fae5 !important;
+  margin: 0 !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 0.375rem !important;
 }
 
 .export-button:hover {
-  background-color: #d1fae5;
-  color: #059669;
+  background-color: #d1fae5 !important;
+  color: #059669 !important;
 }
 
 .save-button {
-  background-color: #eff6ff;
-  color: #3b82f6;
-  border-color: #bfdbfe;
+  background-color: #eff6ff !important;
+  color: #3b82f6 !important;
+  border-color: #bfdbfe !important;
+  margin: 0 !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 0.375rem !important;
 }
 
 .save-button:hover {
-  background-color: #bfdbfe;
-  color: #2563eb;
+  background-color: #bfdbfe !important;
+  color: #2563eb !important;
 }
 
 .error-message {
@@ -326,6 +337,7 @@
 }
 
 .stat-change {
+  margin: 0 !important;
   font-size: 0.75rem;
   font-weight: 500;
 }

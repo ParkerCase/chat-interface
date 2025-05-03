@@ -355,7 +355,6 @@ const CRMTabContent = () => {
                     <td>
                       {contact.lastContact ? (
                         <div className="flex items-center gap-1">
-                          <Clock size={14} />
                           <span>{formatDate(contact.lastContact)}</span>
                         </div>
                       ) : (

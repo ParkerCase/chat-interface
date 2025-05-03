@@ -2234,7 +2234,6 @@ const EnhancedAnalyticsDashboard = () => {
         <div className="dashboard-header">
           <div className="header-title">
             <h1>Analytics Dashboard</h1>
-            <span className="tier-badge">{organizationTier}</span>
           </div>
 
           <div className="dashboard-actions">
@@ -2252,11 +2251,11 @@ const EnhancedAnalyticsDashboard = () => {
               </select>
 
               <button
-                className="action-button save-button"
+                className="save-button"
                 onClick={() => setShowSaveModal(true)}
               >
                 <Save size={16} />
-                <span>Save As</span>
+                <span>Save</span>
               </button>
             </div>
 
@@ -2295,16 +2294,20 @@ const EnhancedAnalyticsDashboard = () => {
 
             <div className="dashboard-buttons">
               <button
-                className="action-button refresh-button"
+                className=" refresh-button"
                 onClick={handleRefresh}
                 disabled={loading}
               >
-                <RefreshCw size={16} className={loading ? "spinning" : ""} />
+                <RefreshCw
+                  style={{ marginBottom: "0" }}
+                  size={16}
+                  className={loading ? "spinning" : ""}
+                />
                 <span>Refresh</span>
               </button>
 
               <button
-                className="action-button export-button"
+                className=" export-button"
                 onClick={() => handleExport("csv")}
                 disabled={loading}
               >

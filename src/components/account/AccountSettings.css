@@ -366,7 +366,7 @@
   border-radius: 6px;
   font-weight: 500;
   cursor: pointer;
-  margin-top: 20px;
+  margin-top: 0;
   transition: background-color 0.2s;
 }
 
@@ -375,6 +375,58 @@
 }
 
 .reset-password-button:disabled {
+  background-color: #a5b4fc;
+  cursor: not-allowed;
+}
+
+.mfa-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 0;
+  transition: background-color 0.2s;
+}
+
+.mfa-button:hover {
+  background-color: #4338ca;
+}
+
+.mfa-button:disabled {
+  background-color: #a5b4fc;
+  cursor: not-allowed;
+}
+
+.edit-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 0;
+  transition: background-color 0.2s;
+}
+
+.edit-button:hover {
+  background-color: #4338ca;
+}
+
+.edit-button:disabled {
   background-color: #a5b4fc;
   cursor: not-allowed;
 }

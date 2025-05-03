@@ -323,6 +323,9 @@
   border-radius: var(--radius);
   font-weight: 500;
   cursor: pointer;
+  justify-content: center;
+  width: 80%;
+  margin: auto;
 }
 
 .create-button {
@@ -344,6 +347,7 @@
 
 .spinner {
   animation: spin 1s linear infinite;
+  margin: 0;
 }
 
 @keyframes spin {

@@ -14,7 +14,7 @@ import {
   X,
   Loader,
   RefreshCw,
-  Filter,
+  Lock,
   FileQuestion,
 } from "lucide-react";
 import "./FilePermissionsManager.css";
@@ -60,68 +60,88 @@ const FilePermissionsManager = ({ currentUser }) => {
 
       // Process the files to extract more readable information
       const processedFiles = data.map((file) => {
-        let content = {};
         let fileType = "document";
-        let title = file.id;
-        let thumbnailUrl = null;
+        let title = "Untitled Document";
+        let isRestricted = false;
+        let visibleTo = ["super_admin", "admin", "user"];
 
-        // Try to parse the content JSON
+        // Process file metadata
         try {
-          if (file.content) {
-            content =
-              typeof file.content === "object"
-                ? file.content
-                : JSON.parse(file.content);
+          // Try to extract title from various properties
+          if (file.name) {
+            title = file.name;
+          } else if (file.path) {
+            const pathParts = file.path.split("/");
+            title = pathParts[pathParts.length - 1];
+          } else if (file.metadata && file.metadata.fileName) {
+            title = file.metadata.fileName;
+          } else if (file.metadata && file.metadata.path) {
+            const pathParts = file.metadata.path.split("/");
+            title = pathParts[pathParts.length - 1];
+          } else if (file.title) {
+            title = file.title;
           }
 
           // Determine file type
           if (
             file.document_type === "image" ||
-            (content.analysis && content.analysis.type === "image")
+            (file.content &&
+              typeof file.content === "string" &&
+              file.content.includes("image")) ||
+            (title && /\.(jpg|jpeg|png|gif|bmp|svg)$/i.test(title))
           ) {
             fileType = "image";
-            // Extract potential image path if available
-            if (content.metadata && content.metadata.path) {
-              title = content.metadata.path.split("/").pop() || file.id;
-            }
-          } else {
-            fileType = "document";
-            // Extract title from metadata if available
-            if (content.metadata && content.metadata.fileName) {
-              title = content.metadata.fileName;
-            }
           }
-        } catch (e) {
-          console.warn("Error processing file content:", e);
-        }
 
-        // Extract visibility settings
-        let visibleTo = ["super_admin", "admin", "user"];
-        try {
+          // Extract visibility settings
           if (file.metadata && file.metadata.visible_to) {
-            visibleTo = file.metadata.visible_to;
+            if (typeof file.metadata.visible_to === "string") {
+              try {
+                visibleTo = JSON.parse(file.metadata.visible_to);
+              } catch (e) {
+                visibleTo = file.metadata.visible_to.split(",");
+              }
+            } else if (Array.isArray(file.metadata.visible_to)) {
+              visibleTo = file.metadata.visible_to;
+            }
           }
+
+          // Check if file is restricted
+          isRestricted = !visibleTo.includes("user");
         } catch (e) {
-          console.warn("Error processing visibility settings:", e);
+          console.warn(`Error processing file ${file.id}:`, e);
         }
 
-        // Check if this file is restricted (not visible to everyone)
-        const isRestricted =
-          !visibleTo.includes("user") || !visibleTo.includes("admin");
+        // Ensure the title isn't just the ID if we couldn't extract a proper name
+        if (!title || title === "Untitled Document") {
+          if (file.id.includes("_")) {
+            // Try to extract a meaningful name from the ID
+            const idParts = file.id.split("_");
+            title =
+              idParts[0].length > 3
+                ? idParts[0]
+                : `File ${file.id.substring(0, 8)}...`;
+          } else {
+            title = `File ${file.id.substring(0, 8)}...`;
+          }
+        }
+
+        // Format ID for display - truncate long IDs
+        const displayId =
+          file.id.length > 12 ? `${file.id.substring(0, 10)}...` : file.id;
 
         return {
           id: file.id,
-          title: title || `File ${file.id}`,
+          displayId: displayId,
+          title: title,
           fileType,
           createdAt: file.created_at,
-          status: file.status,
+          status: file.status || "Active",
           documentType: file.document_type,
           sourceType: file.source_type,
           visibleTo,
           isRestricted,
-          content,
-          rawContent: file.content,
-          rawMetadata: file.metadata,
+          rawMetadata: file.metadata || {},
         };
       });
 
@@ -134,55 +154,38 @@ const FilePermissionsManager = ({ currentUser }) => {
     }
   };
 
-  // Filter files based on search and filters
-  const getFilteredFiles = () => {
-    return files.filter((file) => {
-      // Apply search filter
-      const matchesSearch =
-        searchQuery === "" ||
-        file.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        file.id.toString().includes(searchQuery);
-
-      // Apply file type filter
-      const matchesType = filterType === "all" || file.fileType === filterType;
-
-      // Apply visibility filter
-      const matchesVisibility = !showOnlyRestricted || file.isRestricted;
-
-      return matchesSearch && matchesType && matchesVisibility;
-    });
-  };
-
-  // Toggle file visibility for admin and basic users
+  // Toggle file visibility
   const toggleFileVisibility = async (file) => {
     try {
       setLoading(true);
 
       // Determine new visibility settings
-      const currentVisibleTo = file.visibleTo || [
-        "super_admin",
-        "admin",
-        "user",
-      ];
       let newVisibleTo = ["super_admin"]; // Super admin can always see
 
-      // If currently restricted, make it visible to everyone
+      // Toggle visibility to users and admins
       if (file.isRestricted) {
+        // If currently restricted, make it visible to everyone
         newVisibleTo = ["super_admin", "admin", "user"];
-      }
-      // If not restricted, restrict to super admin only
-      else {
+      } else {
+        // If not restricted, restrict to super admin only
         newVisibleTo = ["super_admin"];
       }
 
       // Update the metadata to include visibility settings
-      let updatedMetadata = file.rawMetadata || {};
+      let updatedMetadata = { ...file.rawMetadata };
+
+      // Ensure metadata is an object
       if (typeof updatedMetadata === "string") {
         try {
           updatedMetadata = JSON.parse(updatedMetadata);
         } catch (e) {
           updatedMetadata = {};
         }
+      }
+
+      // If metadata is null or undefined, initialize as empty object
+      if (!updatedMetadata) {
+        updatedMetadata = {};
       }
 
       updatedMetadata.visible_to = newVisibleTo;
@@ -203,12 +206,13 @@ const FilePermissionsManager = ({ currentUser }) => {
                 ...f,
                 visibleTo: newVisibleTo,
                 isRestricted: !f.isRestricted,
+                rawMetadata: updatedMetadata,
               }
             : f
         )
       );
 
-      setSuccess(`File visibility updated successfully`);
+      setSuccess(`File visibility for "${file.title}" updated successfully`);
     } catch (err) {
       console.error("Error updating file visibility:", err);
       setError(`Failed to update file visibility: ${err.message}`);
@@ -219,7 +223,13 @@ const FilePermissionsManager = ({ currentUser }) => {
 
   // Format date string
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
+    const date = new Date(dateString);
+    // Format to MM/DD/YYYY, HH:MM
+    return (
+      date.toLocaleDateString() +
+      ", " +
+      date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    );
   };
 
   // Get file icon based on type
@@ -232,6 +242,25 @@ const FilePermissionsManager = ({ currentUser }) => {
       default:
         return <File size={20} />;
     }
+  };
+
+  // Filter files based on search and filters
+  const getFilteredFiles = () => {
+    return files.filter((file) => {
+      // Apply search filter
+      const matchesSearch =
+        searchQuery === "" ||
+        file.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        file.id.includes(searchQuery);
+
+      // Apply file type filter
+      const matchesType = filterType === "all" || file.fileType === filterType;
+
+      // Apply visibility filter
+      const matchesVisibility = !showOnlyRestricted || file.isRestricted;
+
+      return matchesSearch && matchesType && matchesVisibility;
+    });
   };
 
   // Get filter count
@@ -272,7 +301,6 @@ const FilePermissionsManager = ({ currentUser }) => {
         {/* Search and filters */}
         <div className="files-toolbar">
           <div className="search-container">
-            <Search size={18} className="search-icon" />
             <input
               type="text"
               placeholder="Search files by title or ID..."
@@ -314,7 +342,7 @@ const FilePermissionsManager = ({ currentUser }) => {
                 />
                 <span className="slider"></span>
               </label>
-              <span>Show restricted only</span>
+              <span style={{ marginBottom: "10px" }}>Show restricted only</span>
             </div>
 
             <button
@@ -323,7 +351,11 @@ const FilePermissionsManager = ({ currentUser }) => {
               disabled={loading}
               title="Refresh files"
             >
-              <RefreshCw size={16} className={loading ? "spinning" : ""} />
+              <RefreshCw
+                style={{ marginBottom: "0" }}
+                size={16}
+                className={loading ? "spinning" : ""}
+              />
               <span>Refresh</span>
             </button>
           </div>
@@ -341,11 +373,11 @@ const FilePermissionsManager = ({ currentUser }) => {
               <FileQuestion size={48} />
               <h3>No files found</h3>
               <p>
-                {searchQuery
+                {searchQuery || filterType !== "all" || showOnlyRestricted
                   ? "No files match your search criteria."
                   : "There are no files in the system yet."}
               </p>
-              {searchQuery && (
+              {(searchQuery || filterType !== "all" || showOnlyRestricted) && (
                 <button
                   className="clear-filters-button"
                   onClick={() => {
@@ -389,7 +421,9 @@ const FilePermissionsManager = ({ currentUser }) => {
                               <span className="file-name" title={file.title}>
                                 {file.title}
                               </span>
-                              <span className="file-id">ID: {file.id}</span>
+                              <span className="file-id" title={file.id}>
+                                ID: {file.displayId}
+                              </span>
                             </div>
                           </div>
                         </td>
@@ -402,7 +436,9 @@ const FilePermissionsManager = ({ currentUser }) => {
                           {formatDate(file.createdAt)}
                         </td>
                         <td className="status-column">
-                          <span className={`status-badge ${file.status}`}>
+                          <span
+                            className={`status-badge ${file.status.toLowerCase()}`}
+                          >
                             {file.status}
                           </span>
                         </td>
@@ -411,7 +447,7 @@ const FilePermissionsManager = ({ currentUser }) => {
                             {file.isRestricted ? (
                               <span className="visibility-tag restricted">
                                 <Shield size={14} />
-                                Super Admin Only
+                                Admin Only
                               </span>
                             ) : (
                               <span className="visibility-tag all-users">
@@ -435,11 +471,11 @@ const FilePermissionsManager = ({ currentUser }) => {
                             {file.isRestricted ? (
                               <>
                                 <Eye size={16} />
-                                <span>Make Visible</span>
+                                <span>Unrestrict</span>
                               </>
                             ) : (
                               <>
-                                <EyeOff size={16} />
+                                <Lock size={16} />
                                 <span>Restrict</span>
                               </>
                             )}

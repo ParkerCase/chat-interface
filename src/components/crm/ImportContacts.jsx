@@ -620,15 +620,15 @@ const ImportContacts = ({ onClose, onSuccess, centers = [] }) => {
             </div>
 
             <div className="upload-actions">
-              <button className="cancel-button" onClick={onClose}>
-                Cancel
-              </button>
               <button
                 className="next-button"
                 disabled={!file}
                 onClick={() => setStep(2)}
               >
                 Next: Map Fields
+              </button>
+              <button className="cancel-button" onClick={onClose}>
+                Cancel
               </button>
             </div>
           </div>
