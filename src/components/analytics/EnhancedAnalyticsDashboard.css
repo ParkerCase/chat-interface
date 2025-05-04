@@ -286,7 +286,7 @@
 
 .searches-stat .stat-icon {
   background-color: #f0f9ff;
-  color: #0284c7;
+  color: #6366f1;
 }
 
 .documents-stat .stat-icon {
@@ -849,7 +849,7 @@
 
 .alert-status.completed {
   background-color: #f0f9ff;
-  color: #0284c7;
+  color: #6366f1;
 }
 
 .alert-info {

@@ -1224,7 +1224,6 @@ const ImprovedReportsSection = ({
             disabled={isLoading || !connectionStatus?.connected}
           >
             <RefreshCw size={16} className={isLoading ? "rpt-spinning" : ""} />
-            <span>Refresh</span>
           </button>
         </div>
       </div>

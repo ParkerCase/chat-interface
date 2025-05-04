@@ -92,6 +92,7 @@
 .appointments-content,
 .purchases-content {
   padding: 20px;
+  overflow-y: auto;
 }
 
 .info-section {

@@ -116,6 +116,23 @@
   color: #94a3b8;
 }
 
+.zp-schedule-button {
+  padding: 0.875rem 1.25rem;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.zp-schedule-button:hover {
+  background-color: #2563eb;
+  transform: translateY(-2px);
+}
+
 .zp-filter-button {
   display: flex;
   align-items: center;
