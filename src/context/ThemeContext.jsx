@@ -1,107 +1,256 @@
-// src/context/ThemeContext.jsx
-import React, { createContext, useContext, useState, useEffect } from "react";
-import apiService from "../services/apiService";
+import React, { createContext, useState, useEffect, useContext } from "react";
+import { supabase } from "../lib/supabase";
+import { useAuth } from "./AuthContext";
 
 const ThemeContext = createContext();
 
-export function useTheme() {
-  return useContext(ThemeContext);
-}
-
 export function ThemeProvider({ children }) {
-  const [currentTheme, setCurrentTheme] = useState("default");
-  const [themeList, setThemeList] = useState([]);
+  const { currentUser } = useAuth();
+  const [currentTheme, setCurrentTheme] = useState(null);
+  const [availableThemes, setAvailableThemes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [enterpriseEnabled, setEnterpriseEnabled] = useState(false);
 
-  // Load themes and user preference
+  // Load available themes from Supabase
+  // In ThemeContext.jsx, update the loadThemes function:
+  // In ThemeContext.jsx, update the loadThemes useEffect:
   useEffect(() => {
-    async function loadThemes() {
+    const loadThemes = async () => {
       try {
         setLoading(true);
-        // Fetch available themes
-        const themesResponse = await apiService.themes.getAll();
+        console.log("=== LOADING THEMES ===");
 
-        if (themesResponse.data?.success) {
-          setThemeList(themesResponse.data.themes);
+        const { data, error } = await supabase
+          .from("themes")
+          .select("*")
+          .order("created_at", { ascending: true });
 
-          // Check for enterprise themes
-          const hasEnterpriseThemes = themesResponse.data.themes.some(
-            (theme) => theme.isEnterprise
-          );
-          setEnterpriseEnabled(hasEnterpriseThemes);
+        console.log("Database query result:", { data, error });
+
+        if (error) {
+          console.error("Database error:", error);
+          throw error;
         }
 
-        // Get user preference
-        const prefResponse = await apiService.themes.getPreference();
+        console.log("Raw themes data:", data);
 
-        if (prefResponse.data?.success) {
-          setCurrentTheme(prefResponse.data.themeId);
+        if (data && data.length > 0) {
+          console.log("Setting availableThemes to:", data);
+          setAvailableThemes(data);
+
+          // Check the state after setting
+          console.log("Theme state after setting:", data);
+        } else {
+          console.warn("No themes found in database");
+          setAvailableThemes([]);
         }
       } catch (error) {
         console.error("Error loading themes:", error);
-        setError("Failed to load themes");
+        setAvailableThemes([]);
       } finally {
         setLoading(false);
+        console.log("=== THEMES LOADING COMPLETE ===");
       }
-    }
+    };
 
     loadThemes();
   }, []);
 
-  // Update theme when currentTheme changes
+  // In ThemeContext.jsx, add more logging to track when availableThemes changes
   useEffect(() => {
-    async function applyTheme() {
-      if (!currentTheme) return;
+    console.log("=== availableThemes CHANGED ===");
+    console.log("Previous value:", availableThemes);
+    console.log("New value:", availableThemes);
+  }, [availableThemes]);
+
+  // Add a check to ensure themes don't become undefined
+  const safeMergedAvailableThemes = availableThemes || [];
+  console.log("Safe themes for context:", safeMergedAvailableThemes);
+
+  // Load user's theme preference
+  useEffect(() => {
+    const loadUserTheme = async () => {
+      if (!currentUser?.id) return;
 
       try {
-        // Get theme CSS
-        const cssResponse = await fetch(`/api/themes/${currentTheme}/css`);
-        if (cssResponse.ok) {
-          const css = await cssResponse.text();
+        // Get user's theme preference
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("theme_id")
+          .eq("id", currentUser.id)
+          .maybeSingle();
 
-          // Apply CSS
-          const styleEl =
-            document.getElementById("theme-stylesheet") ||
-            document.createElement("style");
-          styleEl.id = "theme-stylesheet";
-          styleEl.textContent = css;
+        if (error) throw error;
 
-          if (!document.getElementById("theme-stylesheet")) {
-            document.head.appendChild(styleEl);
-          }
+        if (profile?.theme_id) {
+          // Get the specific theme
+          const { data: theme, error: themeError } = await supabase
+            .from("themes")
+            .select("*")
+            .eq("id", profile.theme_id)
+            .single();
 
-          // Save preference if user is logged in
-          if (apiService.auth.isAuthenticated()) {
-            apiService.themes.setPreference(currentTheme);
-          } else {
-            localStorage.setItem("preferredTheme", currentTheme);
+          if (!themeError && theme) {
+            setCurrentTheme(theme);
+            applyTheme(theme);
           }
         }
       } catch (error) {
-        console.error("Error applying theme:", error);
+        console.error("Error loading user theme:", error);
       }
+    };
+
+    if (availableThemes.length > 0) {
+      loadUserTheme();
+    }
+  }, [currentUser, availableThemes]);
+
+  // Apply theme to CSS variables
+  // In ThemeContext.jsx, update the applyTheme function:
+  // In ThemeContext.jsx, update the applyTheme function with debug logs:
+  const applyTheme = (theme) => {
+    console.log("=== APPLYING THEME ===");
+    console.log("Theme to apply:", theme);
+
+    if (!theme?.content) {
+      console.error("No theme content to apply");
+      return;
     }
 
-    applyTheme();
-  }, [currentTheme]);
+    const root = document.documentElement;
+    console.log("Root element:", root);
 
-  // Set theme function
-  const setTheme = (themeId) => {
-    setCurrentTheme(themeId);
+    Object.entries(theme.content).forEach(([key, value]) => {
+      console.log(`Setting --color-${key}: ${value}`);
+      root.style.setProperty(`--color-${key}`, value);
+    });
+
+    localStorage.setItem("currentTheme", JSON.stringify(theme));
+    console.log("=== THEME APPLIED ===");
   };
+
+  // Change theme
+  // In ThemeContext.jsx, update the changeTheme function:
+  const changeTheme = async (themeId) => {
+    console.log("=== CHANGE THEME CALLED ===");
+    console.log("Theme ID:", themeId);
+    console.log("Current user:", currentUser?.id);
+
+    if (!currentUser?.id) {
+      console.log("No user ID - applying theme directly");
+      const theme = availableThemes.find((t) => t.id === themeId);
+      if (theme) {
+        console.log("Found theme, applying:", theme);
+        setCurrentTheme(theme);
+        applyTheme(theme);
+      }
+      return;
+    }
+
+    try {
+      console.log("Finding theme...");
+      const theme = availableThemes.find((t) => t.id === themeId);
+      if (!theme) {
+        console.error("Theme not found:", themeId);
+        throw new Error("Theme not found");
+      }
+
+      console.log("Theme found:", theme);
+      console.log("Updating user preference...");
+
+      // Update user's preference
+      const { error } = await supabase
+        .from("profiles")
+        .update({ theme_id: themeId })
+        .eq("id", currentUser.id);
+
+      if (error) {
+        console.error("Error updating profile:", error);
+        throw error;
+      }
+
+      console.log("Profile updated successfully");
+
+      // Apply the theme
+      console.log("Setting current theme...");
+      setCurrentTheme(theme);
+      console.log("Calling applyTheme...");
+      applyTheme(theme);
+      console.log("=== CHANGE THEME COMPLETE ===");
+    } catch (error) {
+      console.error("Error changing theme:", error);
+      throw error;
+    }
+  };
+  // Create custom theme
+  const createCustomTheme = async (name, description, content) => {
+    try {
+      // Generate a unique ID
+      const id = `custom-${Date.now()}`;
+
+      const { data, error } = await supabase
+        .from("themes")
+        .insert([
+          {
+            id,
+            name,
+            description,
+            content,
+            author: currentUser?.email || "user",
+            created_at: new Date().toISOString(),
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update available themes
+      setAvailableThemes((prev) => [...prev, data]);
+
+      // Apply the new theme immediately
+      await changeTheme(data.id);
+
+      return data;
+    } catch (error) {
+      console.error("Error creating custom theme:", error);
+      throw error;
+    }
+  };
+
+  // Initialize from localStorage if user not logged in or loading
+  useEffect(() => {
+    if (!currentUser && !loading) {
+      const savedTheme = localStorage.getItem("currentTheme");
+      if (savedTheme) {
+        try {
+          const theme = JSON.parse(savedTheme);
+          setCurrentTheme(theme);
+          applyTheme(theme);
+        } catch (e) {
+          console.error("Error parsing saved theme:", e);
+        }
+      }
+    }
+  }, [currentUser, loading]);
 
   const value = {
     currentTheme,
-    themeList,
+    availableThemes,
     loading,
-    error,
-    setTheme,
-    enterpriseEnabled,
+    changeTheme,
+    createCustomTheme,
+    applyTheme,
   };
 
   return (
     <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
   );
 }
+
+export const useTheme = () => {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error("useTheme must be used within a ThemeProvider");
+  }
+  return context;
+};

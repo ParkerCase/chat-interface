@@ -1,0 +1,56 @@
+:root {
+  /* Default theme colors (will be overridden by theme context) */
+  --color-primary: #2563eb;
+  --color-secondary: #6b7280;
+  --color-background: #ffffff;
+  --color-surface: #f8fafc;
+  --color-text: #1f2937;
+  --color-text-secondary: #6b7280;
+  --color-border: #e5e7eb;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-accent: #8b5cf6;
+}
+
+/* Add this test style to see if variables are working */
+.test-theme-variable {
+  background-color: var(--color-primary);
+  color: var(--color-text);
+  padding: 10px;
+  margin: 10px 0;
+}
+
+/* Override any !important styles that might be blocking theme application */
+body {
+  background-color: var(--color-background) !important;
+  color: var(--color-text) !important;
+}
+
+/* Global color replacements - these will override any specific colors */
+body,
+.app {
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+/* Override specific colors globally */
+[style*="background-color: #ffffff"],
+[style*="background-color: white"],
+.bg-white {
+  background-color: var(--color-background) !important;
+}
+
+[style*="color: #1f2937"],
+[style*="color: #000000"],
+[style*="color: black"],
+.text-black {
+  color: var(--color-text) !important;
+}
+
+[style*="border-color: #e5e7eb"],
+.border-gray-200 {
+  border-color: var(--color-border) !important;
+}
+
+/* Add more global overrides as needed */

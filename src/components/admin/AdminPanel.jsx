@@ -10,7 +10,9 @@ import EnhancedUserManagement from "./EnhancedUserManagement";
 import EnhancedSystemSettings from "./EnhancedSystemSettings";
 import FilePermissionsManager from "./FilePermissionsManager"; // New component we'll create
 import EnhancedAnalyticsDashboard from "../analytics/EnhancedAnalyticsDashboard";
-import ThemeCustomizer from "../ThemeCustomizer";
+import ThemeSettings from "./ThemeSettings";
+import { useTheme } from "../../context/ThemeContext";
+
 import { supabase } from "../../lib/supabase";
 import "./Admin.css";
 import "./CRMTab.css";
@@ -1560,66 +1562,11 @@ const AdminPanel = () => {
           )}
 
           {/* Themes Tab */}
+          {/* Themes Tab */}
           {activeTab === "themes" && (
-            <div className="admin-themes">
-              <div className="admin-section">
-                <h2 className="admin-section-title">Theme Management</h2>
-
-                <div className="crm-section">
-                  <h3>Select Theme</h3>
-                  <p>Choose a theme for your Tatt2Away AI interface.</p>
-
-                  <div className="themes-grid">
-                    {availableThemes.map((theme) => (
-                      <div
-                        key={theme.id}
-                        className={`theme-card ${
-                          theme.id === currentTheme ? "active" : ""
-                        }`}
-                        onClick={() => handleThemeChange(theme.id)}
-                      >
-                        <div className="theme-info">
-                          <h4>{theme.name}</h4>
-                          <p>{theme.description}</p>
-                          {theme.id === currentTheme && (
-                            <span className="current-theme-badge">Current</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {isFeatureEnabled("custom_branding") && (
-                  <div className="crm-section">
-                    <h3>Custom Branding</h3>
-                    <p>
-                      Customize your theme colors and branding (available on
-                      Professional and Enterprise tiers).
-                    </p>
-
-                    <div className="form-group">
-                      <label>Primary Color</label>
-                      <input
-                        type="color"
-                        defaultValue="#4f46e5"
-                        className="form-input"
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label>Secondary Color</label>
-                      <input
-                        type="color"
-                        defaultValue="#10b981"
-                        className="form-input"
-                      />
-                    </div>
-
-                    <button className="save-button">Save Theme</button>
-                  </div>
-                )}
-              </div>
+            <div className="admin-section">
+              <h2 className="admin-section-title">Theme Management</h2>
+              <ThemeSettings />
             </div>
           )}
 
