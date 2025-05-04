@@ -23,9 +23,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 1.5rem 2rem;
-  background: linear-gradient(to right, #3b82f6, #6366f1);
+  background: linear-gradient(to right, #6366f1, #6366f1);
   color: white;
-  border-radius: 12px 12px 0 0;
+  border-radius: 0 0;
 }
 
 .crm-dashboard-header h3 {
@@ -33,6 +33,7 @@
   font-weight: 700;
   margin: 0;
   letter-spacing: -0.025em;
+  color: white;
 }
 
 .crm-dashboard-content {
@@ -61,7 +62,7 @@
 
 /* Professional buttons */
 .crm-dashboard .crm-button-primary {
-  background: linear-gradient(to right, #3b82f6, #6366f1);
+  background: linear-gradient(to right, #6366f1, #6366f1);
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;

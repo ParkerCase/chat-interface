@@ -16,6 +16,7 @@
   align-items: center;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
+  border-radius: 12px;
   border-bottom: 2px solid #e2e8f0;
 }
 
@@ -167,7 +168,7 @@
 }
 
 .rpt-report-type-button.active {
-  background: linear-gradient(to right, #3b82f6, #6366f1);
+  background: linear-gradient(to right, #6366f1, #6366f1);
   border-color: transparent;
   color: white;
   font-weight: 600;
@@ -383,7 +384,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 1rem 2rem;
-  background: linear-gradient(to right, #3b82f6, #6366f1);
+  background: linear-gradient(to right, #6366f1, #6366f1);
   border: none;
   border-radius: 12px;
   font-size: 0.875rem;

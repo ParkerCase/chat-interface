@@ -813,7 +813,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
     <div className="crm-dashboard">
       {/* Error message */}
       {error && (
-        <div className="error-message">
+        <div className="crm-error-message">
           <AlertCircle size={16} />
           <span>{error}</span>
           <button onClick={() => setError(null)}>Dismiss</button>
@@ -822,7 +822,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
 
       {/* Success message */}
       {successMessage && (
-        <div className="success-message">
+        <div className="crm-success-message">
           <CheckCircle size={16} />
           <span>{successMessage}</span>
           <button onClick={() => setSuccessMessage(null)}>Dismiss</button>
@@ -831,8 +831,8 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
 
       {/* Loading indicator */}
       {isLoading && (
-        <div className="loading-overlay">
-          <div className="loading-spinner"></div>
+        <div className="crm-loading-overlay">
+          <div className="crm-loading-spinner"></div>
           <span>{loadingMessage || "Loading..."}</span>
         </div>
       )}
@@ -920,7 +920,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
 
           <div className="sidebar-footer">
             <button
-              className="create-contact-btn"
+              className="crm-create-contact-btn"
               onClick={() => setShowCreateContact(true)}
               disabled={!connectionStatus?.connected}
             >
@@ -929,7 +929,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
             </button>
 
             <button
-              className="import-contacts-btn"
+              className="crm-import-contacts-btn"
               onClick={() => setShowImportModal(true)}
               disabled={!connectionStatus?.connected}
             >
@@ -943,7 +943,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
         <div className="crm-main">
           {/* Search bar */}
           <div
-            className="search-input-group"
+            className="crm-search-input-group"
             style={{ maxHeight: "fit-content;" }}
           >
             <input
@@ -1035,13 +1035,13 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                   </p>
                 </div>
               ) : isLoading ? (
-                <div className="loading-message">Loading contacts...</div>
+                <div className="crm-loading-message">Loading contacts...</div>
               ) : activeContactView === "search" ? (
                 contacts.length === 0 ? (
-                  <div className="empty-state">
+                  <div className="crm-empty-state">
                     <p>No contacts found matching "{searchTerm}".</p>
                     <button
-                      className="create-contact-btn"
+                      className="crm-create-contact-btn"
                       onClick={() => setShowCreateContact(true)}
                     >
                       <UserPlus size={16} />
@@ -1049,7 +1049,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                     </button>
                   </div>
                 ) : (
-                  <div className="contacts-table">
+                  <div className="crm-contacts-table">
                     <table>
                       <thead>
                         <tr>
@@ -1068,16 +1068,16 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                             <td>{contact.phone || "—"}</td>
                             <td>{formatDate(contact.lastContact)}</td>
                             <td>
-                              <div className="action-buttons">
+                              <div className="crm-action-buttons">
                                 <button
-                                  className="action-button view-button"
+                                  className="crm-action-button view-button"
                                   onClick={() => handleContactSelect(contact)}
                                   title="View Contact"
                                 >
                                   View
                                 </button>
                                 <button
-                                  className="action-button delete-button"
+                                  className="crm-action-button crm-delete-button"
                                   onClick={() => {
                                     setContactToDelete(contact);
                                     setShowDeleteConfirm(true);
@@ -1095,10 +1095,10 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                   </div>
                 )
               ) : recentContacts.length === 0 ? (
-                <div className="empty-state">
+                <div className="crm-empty-state">
                   <p>No {activeContactView} contacts found.</p>
                   <button
-                    className="create-contact-btn"
+                    className="crm-create-contact-btn"
                     onClick={() => setShowCreateContact(true)}
                   >
                     <UserPlus size={16} />
@@ -1106,7 +1106,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                   </button>
                 </div>
               ) : (
-                <div className="contacts-table">
+                <div className="crm-contacts-table">
                   <table>
                     <thead>
                       <tr>
@@ -1132,9 +1132,9 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                             </div>
                           </td>
                           <td>
-                            <div className="action-buttons">
+                            <div className="crm-action-buttons">
                               <button
-                                className="action-button view-button"
+                                className="crm-action-button view-button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleContactSelect(contact);
@@ -1144,7 +1144,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                                 View
                               </button>
                               <button
-                                className="action-button delete-button"
+                                className="crm-action-button crm-delete-button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setContactToDelete(contact);
@@ -1166,12 +1166,12 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
           )}
 
           {activeSection === "appointments" && (
-            <div className="appointments-section">
-              <div className="section-header">
+            <div className="apt-appointments-section">
+              <div className="crm-section-header">
                 <h3>Appointments</h3>
-                <div className="appointment-actions">
+                <div className="apt-appointment-actions">
                   <button
-                    className="create-appointment-btn"
+                    className="crm-create-appointment-btn"
                     onClick={() => setShowCreateAppointment(true)}
                     disabled={!connectionStatus?.connected}
                   >
@@ -1198,8 +1198,8 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
               </div>
 
               {/* Date range selector for appointments */}
-              <div className="date-range-selector">
-                <div className="date-field">
+              <div className="apt-date-range-selector">
+                <div className="apt-date-field">
                   <label htmlFor="appointmentStartDate">Start Date:</label>
                   <input
                     type="date"
@@ -1210,7 +1210,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                     }
                   />
                 </div>
-                <div className="date-field">
+                <div className="apt-date-field">
                   <label htmlFor="appointmentEndDate">End Date:</label>
                   <input
                     type="date"
@@ -1221,7 +1221,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                     }
                   />
                 </div>
-                <div className="filter-field">
+                <div className="apt-filter-field">
                   <label htmlFor="appointmentFilter">Status:</label>
                   <select
                     id="appointmentFilter"
@@ -1238,7 +1238,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                   </select>
                 </div>
                 <button
-                  className="apply-date-btn"
+                  className="apt-apply-date-btn"
                   onClick={loadAppointments}
                   disabled={
                     !connectionStatus?.connected ||
@@ -1259,14 +1259,16 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                   </p>
                 </div>
               ) : isLoading ? (
-                <div className="loading-message">Loading appointments...</div>
+                <div className="crm-loading-message">
+                  Loading appointments...
+                </div>
               ) : appointments.length === 0 ? (
-                <div className="empty-state">
+                <div className="crm-empty-state">
                   <p>
                     No upcoming appointments found for the selected date range.
                   </p>
                   <button
-                    className="create-appointment-btn"
+                    className="crm-create-appointment-btn"
                     onClick={() => setShowCreateAppointment(true)}
                   >
                     <Calendar size={16} />
@@ -1274,14 +1276,14 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                   </button>
                 </div>
               ) : (
-                <div className="appointments-list">
+                <div className="apt-appointments-list">
                   {appointments.map((appointment, index) => (
                     <div
                       key={appointment.id || index}
-                      className="appointment-card"
+                      className="apt-appointment-card"
                     >
-                      <div className="appointment-header">
-                        <div className="appointment-date">
+                      <div className="apt-appointment-header">
+                        <div className="apt-appointment-date">
                           <Calendar size={16} />
                           <span>
                             {new Date(
@@ -1289,11 +1291,11 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                             ).toLocaleDateString()}
                           </span>
                         </div>
-                        <div className="appointment-time">
+                        <div className="apt-appointment-time">
                           <span>{formatTime(appointment.start_time)}</span>
                         </div>
                         <div
-                          className={`appointment-status ${
+                          className={`apt-appointment-status ${
                             typeof appointment.status === "string"
                               ? appointment.status.toLowerCase()
                               : "booked"
@@ -1302,7 +1304,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                           {appointment.status || "Booked"}
                         </div>
                       </div>
-                      <div className="appointment-details">
+                      <div className="apt-appointment-details">
                         <h4>{appointment.service_name}</h4>
                         <p className="client-name">{appointment.client_name}</p>
                         {appointment.therapist &&
@@ -1312,7 +1314,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                             </p>
                           )}
                         {appointment.notes && (
-                          <p className="appointment-notes small-text">
+                          <p className="apt-appointment-notes small-text">
                             {appointment.notes}
                           </p>
                         )}
@@ -1320,7 +1322,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                           {appointment.duration} minutes
                         </p>
                       </div>
-                      <div className="appointment-actions">
+                      <div className="apt-appointment-actions">
                         <button
                           className="view-details-btn"
                           onClick={() => {
@@ -1393,13 +1395,13 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
 
       {/* Create contact modal */}
       {showCreateContact && (
-        <div className="modal-overlay">
-          <div className="modal-container">
-            <div className="modal-header">
+        <div className="crm-modal-overlay">
+          <div className="crm-modal-container">
+            <div className="crm-modal-header">
               <h3>Create New Contact</h3>
               <button onClick={() => setShowCreateContact(false)}>×</button>
             </div>
-            <div className="modal-content">
+            <div className="crm-modal-content">
               <CreateContactForm
                 provider="zenoti"
                 onSuccess={handleContactCreated}
@@ -1412,9 +1414,9 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
 
       {/* Create or reschedule appointment modal */}
       {showCreateAppointment && (
-        <div className="modal-overlay">
-          <div className="modal-container">
-            <div className="modal-header">
+        <div className="crm-modal-overlay">
+          <div className="crm-modal-container">
+            <div className="crm-modal-header">
               <h3>
                 {selectedAppointment
                   ? "Reschedule Appointment"
@@ -1429,7 +1431,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                 ×
               </button>
             </div>
-            <div className="modal-content">
+            <div className="crm-modal-content">
               <AppointmentForm
                 onSuccess={handleAppointmentCreated}
                 onCancel={() => {
@@ -1448,9 +1450,9 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
 
       {/* Appointment details modal */}
       {showAppointmentDetails && selectedAppointment && (
-        <div className="modal-overlay">
-          <div className="modal-container">
-            <div className="modal-header">
+        <div className="crm-modal-overlay">
+          <div className="crm-modal-container">
+            <div className="crm-modal-header">
               <h3>Appointment Details</h3>
               <button
                 onClick={() => {
@@ -1461,7 +1463,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                 ×
               </button>
             </div>
-            <div className="modal-content">
+            <div className="crm-modal-content">
               <AppointmentDetails
                 appointment={selectedAppointment}
                 onClose={() => {
@@ -1482,8 +1484,8 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
 
       {/* Import contacts modal */}
       {showImportModal && (
-        <div className="modal-overlay">
-          <div className="modal-container import-modal">
+        <div className="crm-modal-overlay">
+          <div className="crm-modal-container import-modal">
             <ImportContacts
               onClose={() => setShowImportModal(false)}
               onSuccess={handleImportComplete}
@@ -1495,9 +1497,9 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
 
       {/* Delete confirmation modal */}
       {showDeleteConfirm && (
-        <div className="modal-overlay">
-          <div className="modal-container delete-modal">
-            <div className="modal-header">
+        <div className="crm-modal-overlay">
+          <div className="crm-modal-container crm-delete-modal">
+            <div className="crm-modal-header">
               <h3>Delete Contact</h3>
               <button
                 onClick={() => {
@@ -1508,7 +1510,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                 ×
               </button>
             </div>
-            <div className="modal-content">
+            <div className="crm-modal-content">
               <div className="confirmation-message">
                 <AlertCircle size={48} />
                 <h4>Are you sure you want to delete this contact?</h4>
@@ -1532,9 +1534,9 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                 )}
               </div>
             </div>
-            <div className="modal-footer">
+            <div className="crm-modal-footer">
               <button
-                className="cancel-button"
+                className="crm-cancel-button"
                 onClick={() => {
                   setShowDeleteConfirm(false);
                   setContactToDelete(null);
@@ -1543,7 +1545,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                 Cancel
               </button>
               <button
-                className="delete-button"
+                className="crm-delete-button"
                 onClick={handleDeleteContact}
                 disabled={isLoading}
               >

@@ -46,7 +46,9 @@ const ZenotiServicesSection = ({
   const [categories, setCategories] = useState([]);
   const [showStaffForService, setShowStaffForService] = useState(null);
   const [serviceStaff, setServiceStaff] = useState([]);
-  const [filterChangeTimestamp, setFilterChangeTimestamp] = useState(Date.now());
+  const [filterChangeTimestamp, setFilterChangeTimestamp] = useState(
+    Date.now()
+  );
 
   // Load services when component mounts or center changes
   useEffect(() => {
@@ -266,7 +268,7 @@ const ZenotiServicesSection = ({
   // Filter services by category and search term
   const filterServices = (services) => {
     if (!services) return [];
-    
+
     // This line ensures the component re-renders when filter changes
     console.log("Filtering with timestamp:", filterChangeTimestamp);
 
@@ -277,8 +279,12 @@ const ZenotiServicesSection = ({
       filtered = filtered.filter((service) => {
         return (
           (service.name ? service.name.toLowerCase().includes(term) : false) ||
-          (service.description ? service.description.toLowerCase().includes(term) : false) ||
-          (service.category ? service.category.toLowerCase().includes(term) : false)
+          (service.description
+            ? service.description.toLowerCase().includes(term)
+            : false) ||
+          (service.category
+            ? service.category.toLowerCase().includes(term)
+            : false)
         );
       });
     }
@@ -323,7 +329,7 @@ const ZenotiServicesSection = ({
       total: services.length,
       filtered: filtered.length,
       searchTerm: searchTerm,
-      category: filterCategory
+      category: filterCategory,
     });
 
     return filtered;
@@ -371,36 +377,36 @@ const ZenotiServicesSection = ({
   const filteredServices = filterServices(services);
 
   return (
-    <div className="zenoti-services-section">
-      <div className="services-header">
+    <div className="zp-services-section">
+      <div className="zp-services-header">
         <h3>
-          <Tag size={20} className="header-icon" />
+          <Tag size={20} className="zp-header-icon" />
           Zenoti Services
         </h3>
-        <div className="header-actions">
+        <div className="zp-header-actions">
           <button
-            className="refresh-button"
+            className="zp-refresh-button"
             onClick={loadServices}
             disabled={isLoading || !connectionStatus?.connected}
           >
-            <RefreshCw size={16} className={isLoading ? "spinning" : ""} />
+            <RefreshCw size={16} className={isLoading ? "zp-spinning" : ""} />
             <span>Refresh</span>
           </button>
         </div>
       </div>
 
       {!connectionStatus?.connected ? (
-        <div className="not-connected-message">
+        <div className="zp-not-connected-message">
           <Info size={48} />
           <h3>Not Connected to Zenoti</h3>
           <p>Please configure your Zenoti connection to access services.</p>
         </div>
       ) : (
         <>
-          <div className="services-toolbar">
-            <div className="search-container">
-              <div className="search-input-group">
-                <Search size={16} className="search-icon" />
+          <div className="zp-services-toolbar">
+            <div className="zp-search-container">
+              <div className="zp-search-input-group">
+                <Search size={16} className="zp-search-icon" />
                 <input
                   type="text"
                   placeholder="Search services..."
@@ -414,7 +420,7 @@ const ZenotiServicesSection = ({
                 />
               </div>
               <button
-                className="filter-button"
+                className="zp-filter-button"
                 onClick={() => setShowFilters(!showFilters)}
               >
                 <Filter size={16} />
@@ -428,8 +434,8 @@ const ZenotiServicesSection = ({
             </div>
 
             {showFilters && (
-              <div className="filters-panel">
-                <div className="filter-group">
+              <div className="zp-filters-panel">
+                <div className="zp-filter-group">
                   <label>Category</label>
                   <select
                     value={filterCategory}
@@ -447,9 +453,9 @@ const ZenotiServicesSection = ({
                   </select>
                 </div>
 
-                <div className="filter-group">
+                <div className="zp-filter-group">
                   <label>Sort By</label>
-                  <div className="sort-buttons">
+                  <div className="zp-sort-buttons">
                     <button
                       className={sortBy === "name" ? "active" : ""}
                       onClick={() => handleSortChange("name")}
@@ -482,7 +488,7 @@ const ZenotiServicesSection = ({
 
           {/* Error message */}
           {error && (
-            <div className="error-message">
+            <div className="zp-error-message">
               <AlertCircle size={16} />
               <span>{error}</span>
               <button onClick={() => setError(null)}>Dismiss</button>
@@ -491,7 +497,7 @@ const ZenotiServicesSection = ({
 
           {/* Success message */}
           {success && (
-            <div className="success-message">
+            <div className="zp-success-message">
               <CheckCircle size={16} />
               <span>{success}</span>
               <button onClick={() => setSuccess(null)}>Dismiss</button>
@@ -499,14 +505,14 @@ const ZenotiServicesSection = ({
           )}
 
           {/* Services display */}
-          <div className="services-content">
+          <div className="zp-services-content">
             {isLoading && !services.length ? (
-              <div className="loading-state">
-                <RefreshCw size={24} className="spinning" />
+              <div className="zp-loading-state">
+                <RefreshCw size={24} className="zp-spinning" />
                 <span>Loading services...</span>
               </div>
             ) : filteredServices.length === 0 ? (
-              <div className="empty-state">
+              <div className="zp-empty-state">
                 {searchTerm ? (
                   <p>No services found matching "{searchTerm}"</p>
                 ) : (
@@ -514,35 +520,35 @@ const ZenotiServicesSection = ({
                 )}
               </div>
             ) : (
-              <div className="services-grid">
+              <div className="zp-services-grid">
                 {filteredServices.map((service) => (
                   <div
                     key={service.id}
-                    className={`service-card ${
+                    className={`zp-service-card ${
                       selectedService?.id === service.id ? "selected" : ""
                     }`}
                     onClick={() => handleSelectService(service)}
                   >
-                    <div className="service-header">
-                      <h4 className="service-name">{service.name}</h4>
+                    <div className="zp-service-header">
+                      <h4 className="zp-service-name">{service.name}</h4>
                       {service.category && (
-                        <span className="service-category">
+                        <span className="zp-service-category">
                           {service.category}
                         </span>
                       )}
                     </div>
 
-                    <div className="service-details">
-                      <div className="service-detail">
+                    <div className="zp-service-details">
+                      <div className="zp-service-detail">
                         <Clock size={14} />
                         <span>{formatDuration(service.duration)}</span>
                       </div>
-                      <div className="service-detail">
+                      <div className="zp-service-detail">
                         <DollarSign size={14} />
                         <span>{formatCurrency(service.price || 0)}</span>
                       </div>
                       {/* Removed providers button as it was not working properly */}
-                      <div className="service-detail">
+                      <div className="zp-service-detail">
                         <User size={14} />
                         <span>Available to staff</span>
                       </div>
@@ -551,19 +557,19 @@ const ZenotiServicesSection = ({
                     {/* Service staff section removed */}
 
                     {service.description && (
-                      <div className="service-description">
+                      <div className="zp-service-description">
                         <p>{service.description}</p>
                       </div>
                     )}
 
                     <div
-                      className="service-actions"
+                      className="zp-service-actions"
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleServiceExpansion(service.id);
                       }}
                     >
-                      <button className="view-details-button">
+                      <button className="zp-view-details-button">
                         {expandedServiceId === service.id
                           ? "Hide Details"
                           : "View Details"}
@@ -576,31 +582,33 @@ const ZenotiServicesSection = ({
                     </div>
 
                     {expandedServiceId === service.id && (
-                      <div className="expanded-details">
+                      <div className="zp-expanded-details">
                         <h5>Service Details</h5>
-                        <div className="details-grid">
-                          <div className="detail-item">
-                            <div className="detail-label">Service Code</div>
-                            <div className="detail-value">
+                        <div className="zp-details-grid">
+                          <div className="zp-detail-item">
+                            <div className="zp-detail-label">Service Code</div>
+                            <div className="zp-detail-value">
                               {service.code || "N/A"}
                             </div>
                           </div>
-                          <div className="detail-item">
-                            <div className="detail-label">Gender Specific</div>
-                            <div className="detail-value">
+                          <div className="zp-detail-item">
+                            <div className="zp-detail-label">
+                              Gender Specific
+                            </div>
+                            <div className="zp-detail-value">
                               {service.gender_specific || "No"}
                             </div>
                           </div>
-                          <div className="detail-item">
-                            <div className="detail-label">Priority</div>
-                            <div className="detail-value">
+                          <div className="zp-detail-item">
+                            <div className="zp-detail-label">Priority</div>
+                            <div className="zp-detail-value">
                               {service.priority || "Standard"}
                             </div>
                           </div>
-                          <div className="detail-item">
-                            <div className="detail-label">Timing</div>
-                            <div className="detail-value">
-                              <div className="timing-breakdown">
+                          <div className="zp-detail-item">
+                            <div className="zp-detail-label">Timing</div>
+                            <div className="zp-detail-value">
+                              <div className="zp-timing-breakdown">
                                 <span>
                                   Process: {service.process_time || 0}m
                                 </span>
@@ -612,7 +620,7 @@ const ZenotiServicesSection = ({
                         </div>
 
                         {service.pre_appointment_notes && (
-                          <div className="notes-section">
+                          <div className="zp-notes-section">
                             <h6>Pre-Appointment Notes</h6>
                             <p>{service.pre_appointment_notes}</p>
                           </div>
@@ -627,57 +635,57 @@ const ZenotiServicesSection = ({
 
           {/* Selected service details */}
           {selectedService && (
-            <div className="selected-service-panel">
-              <div className="panel-header">
+            <div className="zp-selected-service-panel">
+              <div className="zp-panel-header">
                 <h3>Service Details</h3>
                 <button
-                  className="close-button"
+                  className="zp-close-button"
                   onClick={() => setSelectedService(null)}
                 >
                   <ChevronDown size={20} />
                 </button>
               </div>
 
-              <div className="panel-content">
+              <div className="zp-panel-content">
                 {isLoading ? (
-                  <div className="loading-state">
-                    <RefreshCw size={20} className="spinning" />
+                  <div className="zp-loading-state">
+                    <RefreshCw size={20} className="zp-spinning" />
                     <span>Loading details...</span>
                   </div>
                 ) : serviceDetails ? (
-                  <div className="service-full-details">
-                    <div className="detail-section">
+                  <div className="zp-service-full-details">
+                    <div className="zp-detail-section">
                       <h4>Basic Information</h4>
-                      <div className="details-grid">
-                        <div className="detail-item">
+                      <div className="zp-details-grid">
+                        <div className="zp-detail-item">
                           <span className="label">Name:</span>
                           <span className="value">{serviceDetails.name}</span>
                         </div>
-                        <div className="detail-item">
+                        <div className="zp-detail-item">
                           <span className="label">Duration:</span>
                           <span className="value">
                             {formatDuration(serviceDetails.duration)}
                           </span>
                         </div>
-                        <div className="detail-item">
+                        <div className="zp-detail-item">
                           <span className="label">Price:</span>
                           <span className="value">
                             {formatCurrency(serviceDetails.price || 0)}
                           </span>
                         </div>
-                        <div className="detail-item">
+                        <div className="zp-detail-item">
                           <span className="label">Category:</span>
                           <span className="value">
                             {serviceDetails.category || "Uncategorized"}
                           </span>
                         </div>
-                        <div className="detail-item">
+                        <div className="zp-detail-item">
                           <span className="label">Service Code:</span>
                           <span className="value">
                             {serviceDetails.code || "N/A"}
                           </span>
                         </div>
-                        <div className="detail-item">
+                        <div className="zp-detail-item">
                           <span className="label">Active:</span>
                           <span className="value">
                             {serviceDetails.is_active ? "Yes" : "No"}
@@ -687,64 +695,64 @@ const ZenotiServicesSection = ({
                     </div>
 
                     {serviceDetails.description && (
-                      <div className="detail-section">
+                      <div className="zp-detail-section">
                         <h4>Description</h4>
-                        <p className="description-text">
+                        <p className="zp-description-text">
                           {serviceDetails.description}
                         </p>
                       </div>
                     )}
 
-                    <div className="detail-section">
+                    <div className="zp-detail-section">
                       <h4>Timing Details</h4>
-                      <div className="timing-grid">
-                        <div className="timing-item">
-                          <div className="timing-label">Process Time</div>
-                          <div className="timing-value">
+                      <div className="zp-timing-grid">
+                        <div className="zp-timing-item">
+                          <div className="zp-timing-label">Process Time</div>
+                          <div className="zp-timing-value">
                             {serviceDetails.process_time || 0} min
                           </div>
                         </div>
-                        <div className="timing-item">
-                          <div className="timing-label">Setup Time</div>
-                          <div className="timing-value">
+                        <div className="zp-timing-item">
+                          <div className="zp-timing-label">Setup Time</div>
+                          <div className="zp-timing-value">
                             {serviceDetails.setup_time || 0} min
                           </div>
                         </div>
-                        <div className="timing-item">
-                          <div className="timing-label">Clean Time</div>
-                          <div className="timing-value">
+                        <div className="zp-timing-item">
+                          <div className="zp-timing-label">Clean Time</div>
+                          <div className="zp-timing-value">
                             {serviceDetails.clean_time || 0} min
                           </div>
                         </div>
-                        <div className="timing-item">
-                          <div className="timing-label">Total Duration</div>
-                          <div className="timing-value">
+                        <div className="zp-timing-item">
+                          <div className="zp-timing-label">Total Duration</div>
+                          <div className="zp-timing-value">
                             {serviceDetails.duration || 0} min
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="detail-section">
+                    <div className="zp-detail-section">
                       <h4>Booking Options</h4>
-                      <div className="booking-options">
-                        <div className="option-item">
-                          <div className="option-label">Online Booking</div>
-                          <div className="option-value">
+                      <div className="zp-booking-options">
+                        <div className="zp-option-item">
+                          <div className="zp-option-label">Online Booking</div>
+                          <div className="zp-option-value">
                             {serviceDetails.allow_online_booking
                               ? "Enabled"
                               : "Disabled"}
                           </div>
                         </div>
-                        <div className="option-item">
-                          <div className="option-label">Gender Specific</div>
-                          <div className="option-value">
+                        <div className="zp-option-item">
+                          <div className="zp-option-label">Gender Specific</div>
+                          <div className="zp-option-value">
                             {serviceDetails.gender_specific || "No"}
                           </div>
                         </div>
-                        <div className="option-item">
-                          <div className="option-label">Priority</div>
-                          <div className="option-value">
+                        <div className="zp-option-item">
+                          <div className="zp-option-label">Priority</div>
+                          <div className="zp-option-value">
                             {serviceDetails.priority || "Standard"}
                           </div>
                         </div>
@@ -752,25 +760,25 @@ const ZenotiServicesSection = ({
                     </div>
 
                     {serviceDetails.pre_appointment_notes && (
-                      <div className="detail-section">
+                      <div className="zp-detail-section">
                         <h4>Pre-Appointment Notes</h4>
-                        <div className="notes-content">
+                        <div className="zp-notes-content">
                           {serviceDetails.pre_appointment_notes}
                         </div>
                       </div>
                     )}
 
                     {serviceDetails.post_appointment_notes && (
-                      <div className="detail-section">
+                      <div className="zp-detail-section">
                         <h4>Post-Appointment Notes</h4>
-                        <div className="notes-content">
+                        <div className="zp-notes-content">
                           {serviceDetails.post_appointment_notes}
                         </div>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="no-details-message">
+                  <div className="zp-no-details-message">
                     <AlertCircle size={20} />
                     <p>Failed to load service details</p>
                     <button
@@ -782,9 +790,9 @@ const ZenotiServicesSection = ({
                 )}
               </div>
 
-              <div className="panel-actions">
+              <div className="zp-panel-actions">
                 <button
-                  className="schedule-button"
+                  className="zp-schedule-button"
                   onClick={() => {
                     // Open appointment scheduler if available
                     if (window.openAppointmentModal) {
