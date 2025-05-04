@@ -124,6 +124,7 @@ const ChatHistory = ({ onSelectThread, selectedThreadId }) => {
         <div className="search-container">
           <Search size={16} />
           <input
+            style={{ paddingLeft: "30px" }}
             type="text"
             placeholder="Search chats..."
             value={searchTerm}

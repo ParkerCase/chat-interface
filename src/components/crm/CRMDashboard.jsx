@@ -94,6 +94,9 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showAppointmentDetails, setShowAppointmentDetails] = useState(false);
+  const [contactOffset, setContactOffset] = useState(0);
+  const [hasMoreContacts, setHasMoreContacts] = useState(true);
+  const [loadingMoreContacts, setLoadingMoreContacts] = useState(false);
 
   // Refs for keeping track of loading state per section
   const loadingContactsRef = useRef(false);
@@ -301,18 +304,32 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
   ]);
 
   // Load recent contacts
-  const loadRecentContacts = async () => {
+  const loadRecentContacts = async (append = false) => {
     // Prevent duplicate loading
     if (loadingContactsRef.current) return;
 
     try {
       loadingContactsRef.current = true;
-      setIsLoading(true);
+      if (!append) {
+        setIsLoading(true);
+        setContactOffset(0);
+        setHasMoreContacts(true);
+      } else {
+        setLoadingMoreContacts(true);
+      }
 
-      console.log("Loading recent contacts...");
+      const offset = append ? contactOffset : 0;
+      const limit = 15;
+
+      console.log(
+        `Loading ${
+          append ? "more" : "recent"
+        } contacts with offset ${offset}...`
+      );
       const response = await zenotiService.searchClients({
         sort: "last_visit",
-        limit: 15,
+        limit: limit,
+        offset: offset,
         centerCode: selectedCenter,
       });
 
@@ -347,19 +364,45 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
         });
 
         console.log("Formatted contacts:", formattedContacts);
-        setRecentContacts(formattedContacts);
+
+        if (append) {
+          setRecentContacts((prev) => [...prev, ...formattedContacts]);
+        } else {
+          setRecentContacts(formattedContacts);
+        }
+
+        // Update pagination state
+        const newOffset = offset + limit;
+        setContactOffset(newOffset);
+
+        // Check if there are more contacts to load
+        if (formattedContacts.length < limit) {
+          setHasMoreContacts(false);
+        }
       } else {
         console.warn("No client data found in response", response);
-        setRecentContacts([]);
+        if (!append) {
+          setRecentContacts([]);
+        }
+        setHasMoreContacts(false);
       }
     } catch (err) {
       console.error("Error loading recent contacts:", err);
-      // Fallback to empty array
-      setRecentContacts([]);
+      // Fallback to empty array only if not appending
+      if (!append) {
+        setRecentContacts([]);
+      }
+      setHasMoreContacts(false);
     } finally {
       setIsLoading(false);
+      setLoadingMoreContacts(false);
       loadingContactsRef.current = false;
     }
+  };
+
+  // Add this new function to handle load more button click
+  const handleLoadMoreContacts = () => {
+    loadRecentContacts(true);
   };
 
   // Load appointments
@@ -1007,7 +1050,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                   )}
                 </div>
                 <button
-                  onClick={loadRecentContacts}
+                  onClick={() => loadRecentContacts()}
                   disabled={
                     !connectionStatus?.connected || loadingContactsRef.current
                   }
@@ -1100,61 +1143,88 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                   </button>
                 </div>
               ) : (
-                <div className="crm-contacts-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Phone</th>
-                        <th>Last Contact</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recentContacts.map((contact) => (
-                        <tr
-                          key={contact.id}
-                          onClick={() => handleContactSelect(contact)}
-                        >
-                          <td>{contact.name}</td>
-                          <td>{contact.email || "—"}</td>
-                          <td>{contact.phone || "—"}</td>
-                          <td>
-                            <div className="flex items-center gap-1">
-                              <span>{formatDate(contact.lastContact)}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <div className="crm-action-buttons">
-                              <button
-                                className="crm-action-button view-button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleContactSelect(contact);
-                                }}
-                                title="View Contact"
-                              >
-                                View
-                              </button>
-                              <button
-                                className="crm-action-button crm-delete-button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setContactToDelete(contact);
-                                  setShowDeleteConfirm(true);
-                                }}
-                                title="Delete Contact"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </td>
+                <>
+                  <div className="crm-contacts-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Phone</th>
+                          <th>Last Contact</th>
+                          <th>Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {recentContacts.map((contact) => (
+                          <tr
+                            key={contact.id}
+                            onClick={() => handleContactSelect(contact)}
+                          >
+                            <td>{contact.name}</td>
+                            <td>{contact.email || "—"}</td>
+                            <td>{contact.phone || "—"}</td>
+                            <td>
+                              <div className="flex items-center gap-1">
+                                <span>{formatDate(contact.lastContact)}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="crm-action-buttons">
+                                <button
+                                  className="crm-action-button view-button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleContactSelect(contact);
+                                  }}
+                                  title="View Contact"
+                                >
+                                  View
+                                </button>
+                                <button
+                                  className="crm-action-button crm-delete-button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setContactToDelete(contact);
+                                    setShowDeleteConfirm(true);
+                                  }}
+                                  title="Delete Contact"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Add Load More button */}
+                  {hasMoreContacts && (
+                    <div className="crm-load-more-container">
+                      <button
+                        className="crm-load-more-btn"
+                        onClick={handleLoadMoreContacts}
+                        disabled={
+                          loadingMoreContacts || !connectionStatus?.connected
+                        }
+                      >
+                        {loadingMoreContacts ? (
+                          <>
+                            <RefreshCw size={16} className="spinning" />
+                            Loading more...
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown size={16} />
+                            Load More Contacts
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
