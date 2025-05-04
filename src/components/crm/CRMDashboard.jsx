@@ -942,10 +942,8 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
         {/* Main content */}
         <div className="crm-main">
           {/* Search bar */}
-          <div
-            className="crm-search-input-group"
-            style={{ maxHeight: "fit-content;" }}
-          >
+          <div className="crm-search-input-group">
+            <Search size={20} className="crm-search-icon" />
             <input
               type="text"
               placeholder="Search contacts by name, email, or phone..."
@@ -965,8 +963,6 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
           {/* Content sections */}
           {activeSection === "contacts" && (
             <div className="contacts-section">
-              {/* Contact view tabs */}
-
               <h3 className="contact-options">
                 {activeContactView === "all"
                   ? "All Contacts"
@@ -977,11 +973,8 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                   : "Search Results"}
               </h3>
 
-              <div
-                style={{ display: "flex", marginBottom: "0px !important" }}
-                className="crm-section-header"
-              >
-                <div className="contacts-tabs" style={{ display: "flex" }}>
+              <div className="crm-section-header">
+                <div className="contacts-tabs">
                   <button
                     className={activeContactView === "all" ? "active" : ""}
                     onClick={() => {
