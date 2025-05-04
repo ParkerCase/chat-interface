@@ -216,36 +216,36 @@ const ZenotiPackagesSection = ({
   const filteredPackages = filterPackages(packages);
 
   return (
-    <div className="zenoti-packages-section">
-      <div className="packages-header">
+    <div className="zp-packages-section">
+      <div className="zp-packages-header">
         <h3>
-          <Package size={20} className="header-icon" />
+          <Package size={20} className="zp-header-icon" />
           Zenoti Packages
         </h3>
-        <div className="header-actions">
+        <div className="zp-header-actions">
           <button
-            className="refresh-button"
+            className="zp-refresh-button"
             onClick={loadPackages}
             disabled={isLoading || !connectionStatus?.connected}
           >
-            <RefreshCw size={16} className={isLoading ? "spinning" : ""} />
+            <RefreshCw size={16} className={isLoading ? "zp-spinning" : ""} />
             <span>Refresh</span>
           </button>
         </div>
       </div>
 
       {!connectionStatus?.connected ? (
-        <div className="not-connected-message">
+        <div className="zp-not-connected-message">
           <Info size={48} />
           <h3>Not Connected to Zenoti</h3>
           <p>Please configure your Zenoti connection to access packages.</p>
         </div>
       ) : (
         <>
-          <div className="packages-toolbar">
-            <div className="search-container">
-              <div className="search-input-group">
-                <Search size={16} className="search-icon" />
+          <div className="zp-packages-toolbar">
+            <div className="zp-search-container">
+              <div className="zp-search-input-group">
+                <Search size={16} className="zp-search-icon" />
                 <input
                   type="text"
                   placeholder="Search packages..."
@@ -254,7 +254,7 @@ const ZenotiPackagesSection = ({
                 />
               </div>
               <button
-                className="filter-button"
+                className="zp-filter-button"
                 onClick={() => setShowFilters(!showFilters)}
               >
                 <Filter size={16} />
@@ -268,8 +268,8 @@ const ZenotiPackagesSection = ({
             </div>
 
             {showFilters && (
-              <div className="filters-panel">
-                <div className="filter-group">
+              <div className="zp-filters-panel">
+                <div className="zp-filter-group">
                   <label>Package Type</label>
                   <select
                     value={filterType}
@@ -284,9 +284,9 @@ const ZenotiPackagesSection = ({
                   </select>
                 </div>
 
-                <div className="filter-group">
+                <div className="zp-filter-group">
                   <label>Sort By</label>
-                  <div className="sort-buttons">
+                  <div className="zp-sort-buttons">
                     <button
                       className={sortBy === "name" ? "active" : ""}
                       onClick={() => handleSortChange("name")}
@@ -319,7 +319,7 @@ const ZenotiPackagesSection = ({
 
           {/* Error message */}
           {error && (
-            <div className="error-message">
+            <div className="zp-error-message">
               <AlertCircle size={16} />
               <span>{error}</span>
               <button onClick={() => setError(null)}>Dismiss</button>
@@ -327,14 +327,14 @@ const ZenotiPackagesSection = ({
           )}
 
           {/* Packages display */}
-          <div className="packages-content">
+          <div className="zp-packages-content">
             {isLoading && !packages.length ? (
-              <div className="loading-state">
-                <RefreshCw size={24} className="spinning" />
+              <div className="zp-loading-state">
+                <RefreshCw size={24} className="zp-spinning" />
                 <span>Loading packages...</span>
               </div>
             ) : filteredPackages.length === 0 ? (
-              <div className="empty-state">
+              <div className="zp-empty-state">
                 {searchTerm ? (
                   <p>No packages found matching "{searchTerm}"</p>
                 ) : (
@@ -342,19 +342,19 @@ const ZenotiPackagesSection = ({
                 )}
               </div>
             ) : (
-              <div className="packages-grid">
+              <div className="zp-packages-grid">
                 {filteredPackages.map((pkg) => (
                   <div
                     key={pkg.id}
-                    className={`package-card ${
+                    className={`zp-package-card ${
                       selectedPackage?.id === pkg.id ? "selected" : ""
                     }`}
                     onClick={() => handleSelectPackage(pkg)}
                   >
-                    <div className="package-header">
-                      <h4 className="package-name">{pkg.name}</h4>
+                    <div className="zp-package-header">
+                      <h4 className="zp-package-name">{pkg.name}</h4>
                       <span
-                        className={`package-status ${(
+                        className={`zp-package-status ${(
                           pkg.status || "active"
                         ).toLowerCase()}`}
                       >
@@ -362,16 +362,16 @@ const ZenotiPackagesSection = ({
                       </span>
                     </div>
 
-                    <div className="package-details">
-                      <div className="package-detail">
+                    <div className="zp-package-details">
+                      <div className="zp-package-detail">
                         <Tag size={14} />
                         <span>{pkg.type || "Standard Package"}</span>
                       </div>
-                      <div className="package-detail">
+                      <div className="zp-package-detail">
                         <DollarSign size={14} />
                         <span>{formatCurrency(pkg.price || 0)}</span>
                       </div>
-                      <div className="package-detail">
+                      <div className="zp-package-detail">
                         <Calendar size={14} />
                         <span>
                           {pkg.validity_days || pkg.validity || "N/A"} days
@@ -380,19 +380,19 @@ const ZenotiPackagesSection = ({
                     </div>
 
                     {pkg.description && (
-                      <div className="package-description">
+                      <div className="zp-package-description">
                         <p>{pkg.description}</p>
                       </div>
                     )}
 
                     <div
-                      className="package-actions"
+                      className="zp-package-actions"
                       onClick={(e) => {
                         e.stopPropagation();
                         togglePackageExpansion(pkg.id);
                       }}
                     >
-                      <button className="view-details-button">
+                      <button className="zp-view-details-button">
                         {expandedPackageId === pkg.id
                           ? "Hide Details"
                           : "View Details"}
@@ -405,16 +405,16 @@ const ZenotiPackagesSection = ({
                     </div>
 
                     {expandedPackageId === pkg.id && (
-                      <div className="expanded-details">
+                      <div className="zp-expanded-details">
                         <h5>Package Contents</h5>
                         {pkg.services && pkg.services.length > 0 ? (
-                          <div className="services-list">
+                          <div className="zp-services-list">
                             {pkg.services.map((service, index) => (
-                              <div key={index} className="service-item">
-                                <div className="service-name">
+                              <div key={index} className="zp-service-item">
+                                <div className="zp-service-name">
                                   {service.name}
                                 </div>
-                                <div className="service-info">
+                                <div className="zp-service-info">
                                   <span>Qty: {service.quantity || 1}</span>
                                   <span>
                                     Value: {formatCurrency(service.value || 0)}
@@ -424,7 +424,7 @@ const ZenotiPackagesSection = ({
                             ))}
                           </div>
                         ) : (
-                          <p className="no-services-message">
+                          <p className="zp-no-services-message">
                             No services information available
                           </p>
                         )}
@@ -438,45 +438,45 @@ const ZenotiPackagesSection = ({
 
           {/* Selected package details */}
           {selectedPackage && (
-            <div className="selected-package-panel">
-              <div className="panel-header">
+            <div className="zp-selected-package-panel">
+              <div className="zp-panel-header">
                 <h3>Package Details</h3>
                 <button
-                  className="close-button"
+                  className="zp-close-button"
                   onClick={() => setSelectedPackage(null)}
                 >
                   <ChevronDown size={20} />
                 </button>
               </div>
 
-              <div className="panel-content">
+              <div className="zp-panel-content">
                 {isLoading ? (
-                  <div className="loading-state">
-                    <RefreshCw size={20} className="spinning" />
+                  <div className="zp-loading-state">
+                    <RefreshCw size={20} className="zp-spinning" />
                     <span>Loading details...</span>
                   </div>
                 ) : packageDetails ? (
-                  <div className="package-full-details">
-                    <div className="detail-section">
+                  <div className="zp-package-full-details">
+                    <div className="zp-detail-section">
                       <h4>Basic Information</h4>
-                      <div className="details-grid">
-                        <div className="detail-item">
+                      <div className="zp-details-grid">
+                        <div className="zp-detail-item">
                           <span className="label">Name:</span>
                           <span className="value">{packageDetails.name}</span>
                         </div>
-                        <div className="detail-item">
+                        <div className="zp-detail-item">
                           <span className="label">Price:</span>
                           <span className="value">
                             {formatCurrency(packageDetails.price || 0)}
                           </span>
                         </div>
-                        <div className="detail-item">
+                        <div className="zp-detail-item">
                           <span className="label">Type:</span>
                           <span className="value">
                             {packageDetails.type || "Standard"}
                           </span>
                         </div>
-                        <div className="detail-item">
+                        <div className="zp-detail-item">
                           <span className="label">Status:</span>
                           <span
                             className={`value status ${(
@@ -486,7 +486,7 @@ const ZenotiPackagesSection = ({
                             {packageDetails.status || "Active"}
                           </span>
                         </div>
-                        <div className="detail-item">
+                        <div className="zp-detail-item">
                           <span className="label">Validity:</span>
                           <span className="value">
                             {packageDetails.validity_days ||
@@ -495,7 +495,7 @@ const ZenotiPackagesSection = ({
                             days
                           </span>
                         </div>
-                        <div className="detail-item">
+                        <div className="zp-detail-item">
                           <span className="label">Start Date:</span>
                           <span className="value">
                             {packageDetails.start_date
@@ -505,7 +505,7 @@ const ZenotiPackagesSection = ({
                               : "N/A"}
                           </span>
                         </div>
-                        <div className="detail-item">
+                        <div className="zp-detail-item">
                           <span className="label">End Date:</span>
                           <span className="value">
                             {packageDetails.end_date
@@ -519,19 +519,19 @@ const ZenotiPackagesSection = ({
                     </div>
 
                     {packageDetails.description && (
-                      <div className="detail-section">
+                      <div className="zp-detail-section">
                         <h4>Description</h4>
-                        <p className="description-text">
+                        <p className="zp-description-text">
                           {packageDetails.description}
                         </p>
                       </div>
                     )}
 
-                    <div className="detail-section">
+                    <div className="zp-detail-section">
                       <h4>Included Services</h4>
                       {packageDetails.services &&
                       packageDetails.services.length > 0 ? (
-                        <table className="services-table">
+                        <table className="zp-services-table">
                           <thead>
                             <tr>
                               <th>Service Name</th>
@@ -550,27 +550,27 @@ const ZenotiPackagesSection = ({
                           </tbody>
                         </table>
                       ) : (
-                        <p className="no-data-message">
+                        <p className="zp-no-data-message">
                           No services information available
                         </p>
                       )}
                     </div>
 
-                    <div className="detail-section">
+                    <div className="zp-detail-section">
                       <h4>Terms & Conditions</h4>
                       {packageDetails.terms_and_conditions ? (
-                        <div className="terms-content">
+                        <div className="zp-terms-content">
                           <p>{packageDetails.terms_and_conditions}</p>
                         </div>
                       ) : (
-                        <p className="no-data-message">
+                        <p className="zp-no-data-message">
                           No terms and conditions available
                         </p>
                       )}
                     </div>
                   </div>
                 ) : (
-                  <div className="no-details-message">
+                  <div className="zp-no-details-message">
                     <AlertCircle size={20} />
                     <p>Failed to load package details</p>
                     <button

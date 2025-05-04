@@ -847,15 +847,15 @@ const ImprovedReportsSection = ({
     if (!showReportViewer || !processedReportData) return null;
 
     return (
-      <div className="report-viewer-modal">
-        <div className="report-viewer">
-          <div className="report-viewer-header">
-            <div className="report-title">
+      <div className="rpt-report-viewer-modal">
+        <div className="rpt-report-viewer">
+          <div className="rpt-report-viewer-header">
+            <div className="rpt-report-title">
               <File size={20} />
               <h2>{getReportTypeName(reportType)} Report</h2>
             </div>
 
-            <div className="report-date-range">
+            <div className="rpt-report-date-range">
               <Calendar size={16} />
               <span>
                 {formatDisplayDate(dateRange.startDate)} —{" "}
@@ -863,9 +863,9 @@ const ImprovedReportsSection = ({
               </span>
             </div>
 
-            <div className="report-actions">
+            <div className="rpt-report-actions">
               <button
-                className="action-button"
+                className="rpt-action-button"
                 onClick={() => handleExport("csv")}
                 disabled={isExporting}
                 title="Export to CSV"
@@ -875,7 +875,7 @@ const ImprovedReportsSection = ({
               </button>
 
               <button
-                className="action-button"
+                className="rpt-action-button"
                 onClick={() => handleExport("json")}
                 disabled={isExporting}
                 title="Export to JSON"
@@ -885,7 +885,7 @@ const ImprovedReportsSection = ({
               </button>
 
               <button
-                className="action-button"
+                className="rpt-action-button"
                 onClick={() => window.print()}
                 title="Print Report"
               >
@@ -894,7 +894,7 @@ const ImprovedReportsSection = ({
               </button>
 
               <button
-                className="close-button"
+                className="rpt-close-button"
                 onClick={() => setShowReportViewer(false)}
                 title="Close Report"
               >
@@ -903,7 +903,9 @@ const ImprovedReportsSection = ({
             </div>
           </div>
 
-          <div className="report-viewer-content">{renderReportContent()}</div>
+          <div className="rpt-report-viewer-content">
+            {renderReportContent()}
+          </div>
         </div>
       </div>
     );
@@ -912,7 +914,9 @@ const ImprovedReportsSection = ({
   // Render the appropriate report content based on type
   const renderReportContent = () => {
     if (!processedReportData) {
-      return <div className="no-data-message">No report data available</div>;
+      return (
+        <div className="rpt-no-data-message">No report data available</div>
+      );
     }
 
     switch (processedReportData.reportType) {
@@ -926,7 +930,7 @@ const ImprovedReportsSection = ({
         return renderServicesReport();
       default:
         return (
-          <div className="no-data-message">
+          <div className="rpt-no-data-message">
             Unsupported report type: {processedReportData.reportType}
           </div>
         );
@@ -938,28 +942,28 @@ const ImprovedReportsSection = ({
     const { summary, items, basis } = processedReportData;
 
     return (
-      <div className="report-content">
-        <div className="report-summary">
-          <div className="summary-card">
+      <div className="rpt-report-content">
+        <div className="rpt-report-summary">
+          <div className="rpt-summary-card">
             <h4>Total Sales</h4>
             <div className="value">
               {formatCurrency(summary.totalSales || 0)}
             </div>
           </div>
-          <div className="summary-card">
+          <div className="rpt-summary-card">
             <h4>Refunds</h4>
             <div className="value">
               {formatCurrency(summary.totalRefunds || 0)}
             </div>
           </div>
-          <div className="summary-card">
+          <div className="rpt-summary-card">
             <h4>Net Sales</h4>
             <div className="value">{formatCurrency(summary.netSales || 0)}</div>
           </div>
         </div>
 
-        <div className="report-section">
-          <div className="section-header">
+        <div className="rpt-report-section">
+          <div className="rpt-section-header">
             <h3>
               Sales by Item{" "}
               {basis
@@ -968,9 +972,9 @@ const ImprovedReportsSection = ({
             </h3>
           </div>
 
-          <div className="section-content">
+          <div className="rpt-section-content">
             {items && items.length > 0 ? (
-              <table className="data-table">
+              <table className="rpt-data-table">
                 <thead>
                   <tr>
                     <th>Item</th>
@@ -995,7 +999,7 @@ const ImprovedReportsSection = ({
                 </tbody>
               </table>
             ) : (
-              <div className="no-data-message">
+              <div className="rpt-no-data-message">
                 <p>No sales data available for the selected period</p>
               </div>
             )}
@@ -1010,30 +1014,30 @@ const ImprovedReportsSection = ({
     const { items, summary } = processedReportData;
 
     return (
-      <div className="report-content">
-        <div className="report-summary">
-          <div className="summary-card">
+      <div className="rpt-report-content">
+        <div className="rpt-report-summary">
+          <div className="rpt-summary-card">
             <h4>Total Appointments</h4>
             <div className="value">{summary.totalCount}</div>
           </div>
-          <div className="summary-card">
+          <div className="rpt-summary-card">
             <h4>Completed</h4>
             <div className="value">{summary.completed || 0}</div>
           </div>
-          <div className="summary-card">
+          <div className="rpt-summary-card">
             <h4>Cancelled</h4>
             <div className="value">{summary.cancelled || 0}</div>
           </div>
         </div>
 
-        <div className="report-section">
-          <div className="section-header">
+        <div className="rpt-report-section">
+          <div className="rpt-section-header">
             <h3>Appointment Details</h3>
           </div>
 
-          <div className="section-content">
+          <div className="rpt-section-content">
             {items && items.length > 0 ? (
-              <table className="data-table">
+              <table className="rpt-data-table">
                 <thead>
                   <tr>
                     <th>Date & Time</th>
@@ -1062,7 +1066,7 @@ const ImprovedReportsSection = ({
                       <td>{appt.therapistName}</td>
                       <td>
                         <span
-                          className={`status-badge ${appt.status.toLowerCase()}`}
+                          className={`rpt-status-badge ${appt.status.toLowerCase()}`}
                         >
                           {appt.status}
                         </span>
@@ -1072,7 +1076,7 @@ const ImprovedReportsSection = ({
                 </tbody>
               </table>
             ) : (
-              <div className="no-data-message">
+              <div className="rpt-no-data-message">
                 <p>No appointments found for the selected period</p>
               </div>
             )}
@@ -1087,26 +1091,26 @@ const ImprovedReportsSection = ({
     const { items, summary } = processedReportData;
 
     return (
-      <div className="report-content">
-        <div className="report-summary">
-          <div className="summary-card">
+      <div className="rpt-report-content">
+        <div className="rpt-report-summary">
+          <div className="rpt-summary-card">
             <h4>Total Packages</h4>
             <div className="value">{summary.totalCount}</div>
           </div>
-          <div className="summary-card">
+          <div className="rpt-summary-card">
             <h4>Active Packages</h4>
             <div className="value">{summary.activeCount}</div>
           </div>
         </div>
 
-        <div className="report-section">
-          <div className="section-header">
+        <div className="rpt-report-section">
+          <div className="rpt-section-header">
             <h3>Package Details</h3>
           </div>
 
-          <div className="section-content">
+          <div className="rpt-section-content">
             {items && items.length > 0 ? (
-              <table className="data-table">
+              <table className="rpt-data-table">
                 <thead>
                   <tr>
                     <th>Name</th>
@@ -1123,7 +1127,7 @@ const ImprovedReportsSection = ({
                       <td>{pkg.description || "N/A"}</td>
                       <td>
                         <span
-                          className={`status-badge ${
+                          className={`rpt-status-badge ${
                             pkg.active || pkg.status === "Active"
                               ? "active"
                               : "inactive"
@@ -1139,7 +1143,7 @@ const ImprovedReportsSection = ({
                 </tbody>
               </table>
             ) : (
-              <div className="no-data-message">
+              <div className="rpt-no-data-message">
                 <p>No packages available</p>
               </div>
             )}
@@ -1154,26 +1158,26 @@ const ImprovedReportsSection = ({
     const { items, summary } = processedReportData;
 
     return (
-      <div className="report-content">
-        <div className="report-summary">
-          <div className="summary-card">
+      <div className="rpt-report-content">
+        <div className="rpt-report-summary">
+          <div className="rpt-summary-card">
             <h4>Total Services</h4>
             <div className="value">{summary.totalCount}</div>
           </div>
-          <div className="summary-card">
+          <div className="rpt-summary-card">
             <h4>Average Price</h4>
             <div className="value">{formatCurrency(summary.averagePrice)}</div>
           </div>
         </div>
 
-        <div className="report-section">
-          <div className="section-header">
+        <div className="rpt-report-section">
+          <div className="rpt-section-header">
             <h3>Service Details</h3>
           </div>
 
-          <div className="section-content">
+          <div className="rpt-section-content">
             {items && items.length > 0 ? (
-              <table className="data-table">
+              <table className="rpt-data-table">
                 <thead>
                   <tr>
                     <th>Name</th>
@@ -1196,7 +1200,7 @@ const ImprovedReportsSection = ({
                 </tbody>
               </table>
             ) : (
-              <div className="no-data-message">
+              <div className="rpt-no-data-message">
                 <p>No services available</p>
               </div>
             )}
@@ -1207,50 +1211,50 @@ const ImprovedReportsSection = ({
   };
 
   return (
-    <div className="reports-section">
-      <div className="section-header">
-        <h2>
-          <BarChart2 className="header-icon" />
+    <div className="rpt-reports-section">
+      <div className="rpt-section-header">
+        <h2 style={{ marginBottom: "0" }}>
+          <BarChart2 className="rpt-header-icon" />
           Zenoti Reports
         </h2>
-        <div className="header-actions">
+        <div className="rpt-header-actions">
           <button
-            className="refresh-button"
+            className="rpt-refresh-button"
             onClick={loadCenters}
             disabled={isLoading || !connectionStatus?.connected}
           >
-            <RefreshCw size={16} className={isLoading ? "spinning" : ""} />
+            <RefreshCw size={16} className={isLoading ? "rpt-spinning" : ""} />
             <span>Refresh</span>
           </button>
         </div>
       </div>
 
       {!connectionStatus?.connected ? (
-        <div className="not-connected-message">
+        <div className="rpt-not-connected-message">
           <Info size={48} />
           <h3>Not Connected to Zenoti</h3>
           <p>Please configure your Zenoti connection to access reports.</p>
         </div>
       ) : (
-        <div className="reports-container">
+        <div className="rpt-reports-container">
           {/* Current Center Display */}
-          <div className="current-center">
+          <div className="rpt-current-center">
             <strong>Current Center:</strong> {selectedCenter}
             {CENTER_ID_MAP[selectedCenter] && (
-              <span className="center-id-debug">
+              <span className="rpt-center-id-debug">
                 (ID: {CENTER_ID_MAP[selectedCenter].substr(0, 8)}...)
               </span>
             )}
           </div>
 
           {/* Report Type Selection */}
-          <div className="report-type-selector">
+          <div className="rpt-report-type-selector">
             <h3>Select Report Type</h3>
-            <div className="report-type-buttons">
+            <div className="rpt-report-type-buttons">
               {REPORT_TYPES.map((report) => (
                 <button
                   key={report.id}
-                  className={`report-type-button ${
+                  className={`rpt-report-type-button ${
                     reportType === report.id ? "active" : ""
                   }`}
                   onClick={() => setReportType(report.id)}
@@ -1261,7 +1265,7 @@ const ImprovedReportsSection = ({
               ))}
             </div>
 
-            <div className="report-description">
+            <div className="rpt-report-description">
               <Info size={14} />
               <p>
                 {REPORT_TYPES.find((r) => r.id === reportType)?.description}
@@ -1270,14 +1274,14 @@ const ImprovedReportsSection = ({
           </div>
 
           {/* Date Range Selection */}
-          <div className="date-range-section">
+          <div className="rpt-date-range-section">
             <h3>Select Date Range</h3>
 
-            <div className="date-range-presets">
+            <div className="rpt-date-range-presets">
               {DATE_PRESETS.map((preset) => (
                 <button
                   key={preset.label}
-                  className="date-preset-button"
+                  className="rpt-date-preset-button"
                   onClick={() => handleDateRangePreset(preset)}
                 >
                   <Calendar size={14} />
@@ -1286,8 +1290,8 @@ const ImprovedReportsSection = ({
               ))}
             </div>
 
-            <div className="date-range-inputs">
-              <div className="date-field">
+            <div className="rpt-date-range-inputs">
+              <div className="rpt-date-field">
                 <label htmlFor="startDate">Start Date</label>
                 <input
                   type="date"
@@ -1301,7 +1305,7 @@ const ImprovedReportsSection = ({
                   }
                 />
               </div>
-              <div className="date-field">
+              <div className="rpt-date-field">
                 <label htmlFor="endDate">End Date</label>
                 <input
                   type="date"
@@ -1319,9 +1323,9 @@ const ImprovedReportsSection = ({
           </div>
 
           {/* Advanced Filters */}
-          <div className="filters-section">
+          <div className="rpt-filters-section">
             <button
-              className="filter-toggle-button"
+              className="rpt-filter-toggle-button"
               onClick={() => setShowFilters(!showFilters)}
             >
               <Filter size={16} />
@@ -1334,11 +1338,11 @@ const ImprovedReportsSection = ({
             </button>
 
             {showFilters && (
-              <div className="filter-controls">
+              <div className="rpt-filter-controls">
                 {/* Show different filters based on report type */}
                 {["sales_accrual", "sales_cash"].includes(reportType) && (
                   <>
-                    <div className="filter-group">
+                    <div className="rpt-filter-group">
                       <label htmlFor="itemType">Item Type</label>
                       <select
                         id="itemType"
@@ -1355,7 +1359,7 @@ const ImprovedReportsSection = ({
                       </select>
                     </div>
 
-                    <div className="filter-group">
+                    <div className="rpt-filter-group">
                       <label htmlFor="paymentMode">Payment Mode</label>
                       <select
                         id="paymentMode"
@@ -1372,7 +1376,7 @@ const ImprovedReportsSection = ({
                       </select>
                     </div>
 
-                    <div className="filter-group">
+                    <div className="rpt-filter-group">
                       <label htmlFor="status">
                         {reportType === "sales_cash" ? "Sale Type" : "Status"}
                       </label>
@@ -1407,7 +1411,7 @@ const ImprovedReportsSection = ({
                 )}
 
                 {["appointments"].includes(reportType) && (
-                  <div className="filter-group">
+                  <div className="rpt-filter-group">
                     <label htmlFor="status">Status</label>
                     <select
                       id="status"
@@ -1429,7 +1433,7 @@ const ImprovedReportsSection = ({
 
           {/* Error/Success Messages */}
           {error && (
-            <div className="error-message">
+            <div className="rpt-error-message">
               <AlertCircle size={16} />
               <span>{error}</span>
               <button onClick={() => setError(null)}>Dismiss</button>
@@ -1437,22 +1441,22 @@ const ImprovedReportsSection = ({
           )}
 
           {success && (
-            <div className="success-message">
+            <div className="rpt-success-message">
               <Info size={16} />
               <span>{success}</span>
             </div>
           )}
 
           {/* Action Buttons */}
-          <div className="reports-action-buttons">
+          <div className="rpt-reports-action-buttons">
             <button
-              className="generate-report-btn"
+              className="rpt-generate-report-btn"
               onClick={generateReport}
               disabled={isLoading}
             >
               {isLoading ? (
                 <>
-                  <RefreshCw size={16} className="spinning" />
+                  <RefreshCw size={16} className="rpt-spinning" />
                   <span>Generating...</span>
                 </>
               ) : (
@@ -1464,7 +1468,7 @@ const ImprovedReportsSection = ({
             </button>
 
             <button
-              className="export-btn"
+              className="rpt-export-btn"
               onClick={() => handleExport("csv")}
               disabled={isLoading || !reportData}
             >
