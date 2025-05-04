@@ -6,6 +6,7 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
+import { ThemeProvider } from "./context/ThemeContext";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
@@ -42,6 +43,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 
 import { supabase } from "./lib/supabase";
 import "./App.css";
+import "./styles/theme.css";
 
 // Add at the beginning of your App.jsx file, before calling ensureAuthState:
 if (typeof window !== "undefined") {
@@ -265,6 +267,11 @@ function AppContent() {
   const { isInitialized, loading, currentUser } = useAuth();
   const [outOfMemory, setOutOfMemory] = useState(false);
 
+  // In App.js (or wherever you import components):
+  useEffect(() => {
+    console.log("App mounted - ThemeProvider should be available");
+  }, []);
+
   useEffect(() => {
     // Handle out of memory errors
     const handleOutOfMemory = (e) => {
@@ -408,11 +415,13 @@ function AppContent() {
 
 function App() {
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </ErrorBoundary>
+    <ThemeProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </ErrorBoundary>
+    </ThemeProvider>
   );
 }
 
