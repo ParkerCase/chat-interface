@@ -229,7 +229,6 @@ const ZenotiPackagesSection = ({
             disabled={isLoading || !connectionStatus?.connected}
           >
             <RefreshCw size={16} className={isLoading ? "zp-spinning" : ""} />
-            <span>Refresh</span>
           </button>
         </div>
       </div>
@@ -247,6 +246,7 @@ const ZenotiPackagesSection = ({
               <div className="zp-search-input-group">
                 <Search size={16} className="zp-search-icon" />
                 <input
+                  style={{ paddingLeft: "40px" }}
                   type="text"
                   placeholder="Search packages..."
                   value={searchTerm}

@@ -945,6 +945,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
           <div className="crm-search-input-group">
             <Search size={20} className="crm-search-icon" />
             <input
+              style={{ paddingLeft: "40px" }}
               type="text"
               placeholder="Search contacts by name, email, or phone..."
               value={searchTerm}
@@ -1013,9 +1014,9 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                 >
                   <RefreshCw
                     size={14}
+                    style={{ marginBottom: "0px" }}
                     className={loadingContactsRef.current ? "spinning" : ""}
                   />
-                  <span>Refresh</span>
                 </button>
               </div>
 
@@ -1185,7 +1186,6 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                         loadingAppointmentsRef.current ? "spinning" : ""
                       }
                     />
-                    <span>Refresh</span>
                   </button>
                 </div>
               </div>
@@ -1317,7 +1317,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                       </div>
                       <div className="apt-appointment-actions">
                         <button
-                          className="view-details-btn"
+                          className="apt-view-details-btn"
                           onClick={() => {
                             setSelectedAppointment(appointment);
                             setShowAppointmentDetails(true);
@@ -1326,7 +1326,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                           View Details
                         </button>
                         <button
-                          className="reschedule-btn"
+                          className="apt-reschedule-btn"
                           onClick={() => {
                             // Open reschedule form with the selected appointment
                             setSelectedAppointment(appointment);
