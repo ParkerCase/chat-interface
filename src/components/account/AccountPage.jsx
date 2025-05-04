@@ -552,7 +552,11 @@ function SessionsSection({ setSuccess, setError }) {
           onClick={fetchSessions}
           disabled={isLoading}
         >
-          <RefreshCw className={isLoading ? "spinning" : ""} size={16} />
+          <RefreshCw
+            style={{ marginBottom: "0" }}
+            className={isLoading ? "spinning" : ""}
+            size={16}
+          />
           <span>{isLoading ? "Loading..." : "Refresh"}</span>
         </button>
 
