@@ -356,9 +356,9 @@ const EnhancedAppointmentDetails = ({
 
   if (isLoading && !appointmentDetails) {
     return (
-      <div className="apt-appointment-details-container">
-        <div className="apt-loading-state">
-          <RefreshCw className="apt-spinner" size={24} />
+      <div className="aptdt-container">
+        <div className="aptdt-loading-state">
+          <RefreshCw className="aptdt-spinner" size={24} />
           <p>Loading appointment details...</p>
         </div>
       </div>
@@ -367,17 +367,17 @@ const EnhancedAppointmentDetails = ({
 
   if (error && !appointmentDetails) {
     return (
-      <div className="apt-appointment-details-container">
-        <div className="apt-error-state">
+      <div className="aptdt-container">
+        <div className="aptdt-error-state">
           <AlertCircle size={32} />
           <h3>Error Loading Details</h3>
           <p>{error}</p>
-          <div className="apt-error-actions">
-            <button className="apt-refresh-button" onClick={handleRefresh}>
+          <div className="aptdt-error-actions">
+            <button className="aptdt-refresh-button" onClick={handleRefresh}>
               <RefreshCw size={16} />
               Try Again
             </button>
-            <button className="apt-close-button" onClick={onClose}>
+            <button className="aptdt-close-button" onClick={onClose}>
               <X size={16} />
               Close
             </button>
@@ -389,12 +389,12 @@ const EnhancedAppointmentDetails = ({
 
   if (!appointmentDetails) {
     return (
-      <div className="apt-appointment-details-container">
-        <div className="apt-not-found-state">
+      <div className="aptdt-container">
+        <div className="aptdt-not-found-state">
           <AlertCircle size={32} />
           <h3>Appointment Not Found</h3>
           <p>The requested appointment could not be found.</p>
-          <button className="apt-close-button" onClick={onClose}>
+          <button className="aptdt-close-button" onClick={onClose}>
             <X size={16} />
             Close
           </button>
@@ -432,12 +432,12 @@ const EnhancedAppointmentDetails = ({
     (appointmentDetails.status || "").toLowerCase() === "canceled";
 
   return (
-    <div className="apt-appointment-details-container">
-      <div className="apt-appointment-details-header">
-        <div className="apt-title-section">
+    <div className="aptdt-container">
+      <div className="aptdt-header">
+        <div className="aptdt-title-section">
           <h2>Appointment Details</h2>
           <div
-            className={`apt-status-badge ${(
+            className={`aptdt-status-badge ${(
               appointmentDetails.status || ""
             ).toLowerCase()}`}
           >
@@ -445,22 +445,26 @@ const EnhancedAppointmentDetails = ({
           </div>
         </div>
 
-        <div className="apt-header-actions">
+        <div className="aptdt-header-actions">
           <button
-            className="apt-action-button"
+            className="aptdt-action-button"
             onClick={handleRefresh}
             title="Refresh"
           >
             <RefreshCw size={16} />
           </button>
           <button
-            className="apt-action-button"
+            className="aptdt-action-button"
             onClick={handlePrint}
             title="Print Details"
           >
             <Printer size={16} />
           </button>
-          <button className="apt-close-button" onClick={onClose} title="Close">
+          <button
+            className="aptdt-close-button"
+            onClick={onClose}
+            title="Close"
+          >
             <X size={16} />
           </button>
         </div>
@@ -468,21 +472,21 @@ const EnhancedAppointmentDetails = ({
 
       {/* Success/Error messages */}
       {error && (
-        <div className="apt-error-message">
+        <div className="aptdt-error-message">
           <AlertCircle size={16} />
           <span>{error}</span>
         </div>
       )}
 
       {success && (
-        <div className="apt-success-message">
+        <div className="aptdt-success-message">
           <CheckCircle size={16} />
           <span>{success}</span>
         </div>
       )}
 
       {/* Tabs Navigation */}
-      <div className="apt-details-tabs">
+      <div className="aptdt-details-tabs">
         <button
           className={activeTab === "details" ? "active" : ""}
           onClick={() => setActiveTab("details")}
@@ -509,39 +513,39 @@ const EnhancedAppointmentDetails = ({
         </button>
       </div>
 
-      <div className="apt-appointment-details-content">
+      <div className="aptdt-content">
         {/* Details Tab */}
         {activeTab === "details" && (
-          <div className="apt-details-section apt-appointment-info">
+          <div className="aptdt-details-section aptdt-appointment-info">
             <h3>Appointment Information</h3>
 
-            <div className="apt-info-grid">
-              <div className="apt-info-item">
-                <div className="apt-info-label">
+            <div className="aptdt-info-grid">
+              <div className="aptdt-info-item">
+                <div className="aptdt-info-label">
                   <Calendar size={16} />
                   <span>Date</span>
                 </div>
-                <div className="apt-info-value">
+                <div className="aptdt-info-value">
                   {formatDate(appointmentDetails.start_time)}
                 </div>
               </div>
 
-              <div className="apt-info-item">
-                <div className="apt-info-label">
+              <div className="aptdt-info-item">
+                <div className="aptdt-info-label">
                   <Clock size={16} />
                   <span>Time</span>
                 </div>
-                <div className="apt-info-value">
+                <div className="aptdt-info-value">
                   {formatTime(appointmentDetails.start_time)}
                 </div>
               </div>
 
-              <div className="apt-info-item">
-                <div className="apt-info-label">
+              <div className="aptdt-info-item">
+                <div className="aptdt-info-label">
                   <Clock size={16} />
                   <span>End Time</span>
                 </div>
-                <div className="apt-info-value">
+                <div className="aptdt-info-value">
                   {appointmentDetails.end_time
                     ? formatTime(appointmentDetails.end_time)
                     : calculateEndTime(
@@ -551,20 +555,20 @@ const EnhancedAppointmentDetails = ({
                 </div>
               </div>
 
-              <div className="apt-info-item">
-                <div className="apt-info-label">
+              <div className="aptdt-info-item">
+                <div className="aptdt-info-label">
                   <Tag size={16} />
                   <span>Service</span>
                 </div>
-                <div className="apt-info-value">{serviceName}</div>
+                <div className="aptdt-info-value">{serviceName}</div>
               </div>
 
-              <div className="apt-info-item">
-                <div className="apt-info-label">
+              <div className="aptdt-info-item">
+                <div className="aptdt-info-label">
                   <Clock size={16} />
                   <span>Duration</span>
                 </div>
-                <div className="apt-info-value">
+                <div className="aptdt-info-value">
                   {appointmentDetails.duration ||
                     (appointmentDetails.service
                       ? appointmentDetails.service.duration
@@ -573,22 +577,22 @@ const EnhancedAppointmentDetails = ({
                 </div>
               </div>
 
-              <div className="apt-info-item">
-                <div className="apt-info-label">
+              <div className="aptdt-info-item">
+                <div className="aptdt-info-label">
                   <DollarSign size={16} />
                   <span>Price</span>
                 </div>
-                <div className="apt-info-value">
+                <div className="aptdt-info-value">
                   {formatCurrency(servicePrice)}
                 </div>
               </div>
 
-              <div className="apt-info-item">
-                <div className="apt-info-label">
+              <div className="aptdt-info-item">
+                <div className="aptdt-info-label">
                   <User size={16} />
                   <span>Provider</span>
                 </div>
-                <div className="apt-info-value">
+                <div className="aptdt-info-value">
                   {appointmentDetails.therapist ||
                     (appointmentDetails.provider
                       ? `${appointmentDetails.provider.first_name || ""} ${
@@ -602,12 +606,12 @@ const EnhancedAppointmentDetails = ({
                 </div>
               </div>
 
-              <div className="apt-info-item">
-                <div className="apt-info-label">
+              <div className="aptdt-info-item">
+                <div className="aptdt-info-label">
                   <MapPin size={16} />
                   <span>Center</span>
                 </div>
-                <div className="apt-info-value">
+                <div className="aptdt-info-value">
                   {appointmentDetails.center
                     ? appointmentDetails.center.name
                     : centerCode || "Unknown Center"}
@@ -615,16 +619,16 @@ const EnhancedAppointmentDetails = ({
               </div>
             </div>
 
-            <div className="apt-appointment-timeline">
+            <div className="aptdt-appointment-timeline">
               <h4>Appointment Timeline</h4>
-              <div className="apt-timeline-steps">
-                <div className="apt-timeline-step completed">
-                  <div className="apt-step-icon">
+              <div className="aptdt-timeline-steps">
+                <div className="aptdt-timeline-step completed">
+                  <div className="aptdt-step-icon">
                     <CheckCircle size={16} />
                   </div>
-                  <div className="apt-step-content">
-                    <div className="apt-step-title">Booked</div>
-                    <div className="apt-step-time">
+                  <div className="aptdt-step-content">
+                    <div className="aptdt-step-title">Booked</div>
+                    <div className="aptdt-step-time">
                       {appointmentDetails.created_date
                         ? formatDate(appointmentDetails.created_date) +
                           " at " +
@@ -635,13 +639,13 @@ const EnhancedAppointmentDetails = ({
                 </div>
 
                 {isCancelled ? (
-                  <div className="apt-timeline-step cancelled">
-                    <div className="apt-step-icon">
+                  <div className="aptdt-timeline-step cancelled">
+                    <div className="aptdt-step-icon">
                       <X size={16} />
                     </div>
-                    <div className="apt-step-content">
-                      <div className="apt-step-title">Cancelled</div>
-                      <div className="apt-step-time">
+                    <div className="aptdt-step-content">
+                      <div className="aptdt-step-title">Cancelled</div>
+                      <div className="aptdt-step-time">
                         {appointmentDetails.modified_date
                           ? formatDate(appointmentDetails.modified_date) +
                             " at " +
@@ -649,7 +653,7 @@ const EnhancedAppointmentDetails = ({
                           : "Date unknown"}
                       </div>
                       {appointmentDetails.cancel_reason && (
-                        <div className="apt-step-note">
+                        <div className="aptdt-step-note">
                           Reason: {appointmentDetails.cancel_reason}
                         </div>
                       )}
@@ -658,13 +662,13 @@ const EnhancedAppointmentDetails = ({
                 ) : isPastAppointment &&
                   (appointmentDetails.status || "").toLowerCase() ===
                     "completed" ? (
-                  <div className="apt-timeline-step completed">
-                    <div className="apt-step-icon">
+                  <div className="aptdt-timeline-step completed">
+                    <div className="aptdt-step-icon">
                       <CheckCircle size={16} />
                     </div>
-                    <div className="apt-step-content">
-                      <div className="apt-step-title">Completed</div>
-                      <div className="apt-step-time">
+                    <div className="aptdt-step-content">
+                      <div className="aptdt-step-title">Completed</div>
+                      <div className="aptdt-step-time">
                         {formatDate(
                           appointmentDetails.end_time ||
                             appointmentDetails.start_time
@@ -673,30 +677,30 @@ const EnhancedAppointmentDetails = ({
                     </div>
                   </div>
                 ) : isPastAppointment ? (
-                  <div className="apt-timeline-step">
-                    <div className="apt-step-icon">
+                  <div className="aptdt-timeline-step">
+                    <div className="aptdt-step-icon">
                       <Clock size={16} />
                     </div>
-                    <div className="apt-step-content">
-                      <div className="apt-step-title">
+                    <div className="aptdt-step-content">
+                      <div className="aptdt-step-title">
                         {(appointmentDetails.status || "").toLowerCase() ===
                         "noshow"
                           ? "No Show"
                           : "Appointment Time Passed"}
                       </div>
-                      <div className="apt-step-time">
+                      <div className="aptdt-step-time">
                         {formatDate(appointmentDetails.start_time)}
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="apt-timeline-step upcoming">
-                    <div className="apt-step-icon">
+                  <div className="aptdt-timeline-step upcoming">
+                    <div className="aptdt-step-icon">
                       <Clock size={16} />
                     </div>
-                    <div className="apt-step-content">
-                      <div className="apt-step-title">Upcoming</div>
-                      <div className="apt-step-time">
+                    <div className="aptdt-step-content">
+                      <div className="aptdt-step-title">Upcoming</div>
+                      <div className="aptdt-step-time">
                         {formatDate(appointmentDetails.start_time) +
                           " at " +
                           formatTime(appointmentDetails.start_time)}
@@ -711,13 +715,13 @@ const EnhancedAppointmentDetails = ({
 
         {/* Client Tab */}
         {activeTab === "client" && (
-          <div className="apt-details-section apt-client-info">
-            <div className="apt-section-header-with-action">
+          <div className="aptdt-details-section aptdt-client-info">
+            <div className="aptdt-section-header-with-action">
               <h3>Client Information</h3>
-              <div className="apt-section-actions">
+              <div className="aptdt-section-actions">
                 {client.id && !showClientHistory && (
                   <button
-                    className="apt-view-history-button"
+                    className="aptdt-view-history-button"
                     onClick={() => loadClientHistory(client.id)}
                     title="View Client History"
                   >
@@ -727,7 +731,7 @@ const EnhancedAppointmentDetails = ({
                 )}
                 {client.id && (
                   <button
-                    className="apt-view-client-button"
+                    className="aptdt-view-client-button"
                     onClick={handleViewClient}
                     title="View Client Details"
                   >
@@ -739,95 +743,95 @@ const EnhancedAppointmentDetails = ({
             </div>
 
             {!showClientHistory ? (
-              <div className="apt-info-grid">
-                <div className="apt-info-item">
-                  <div className="apt-info-label">
+              <div className="aptdt-info-grid">
+                <div className="aptdt-info-item">
+                  <div className="aptdt-info-label">
                     <User size={16} />
                     <span>Name</span>
                   </div>
-                  <div className="apt-info-value">{clientName}</div>
+                  <div className="aptdt-info-value">{clientName}</div>
                 </div>
 
                 {client.email && (
-                  <div className="apt-info-item">
-                    <div className="apt-info-label">
+                  <div className="aptdt-info-item">
+                    <div className="aptdt-info-label">
                       <Mail size={16} />
                       <span>Email</span>
                     </div>
-                    <div className="apt-info-value">{client.email}</div>
+                    <div className="aptdt-info-value">{client.email}</div>
                   </div>
                 )}
 
                 {(client.mobile || client.phone) && (
-                  <div className="apt-info-item">
-                    <div className="apt-info-label">
+                  <div className="aptdt-info-item">
+                    <div className="aptdt-info-label">
                       <Phone size={16} />
                       <span>Phone</span>
                     </div>
-                    <div className="apt-info-value">
+                    <div className="aptdt-info-value">
                       {client.mobile || client.phone}
                     </div>
                   </div>
                 )}
 
                 {client.gender && (
-                  <div className="apt-info-item">
-                    <div className="apt-info-label">
+                  <div className="aptdt-info-item">
+                    <div className="aptdt-info-label">
                       <User size={16} />
                       <span>Gender</span>
                     </div>
-                    <div className="apt-info-value">{client.gender}</div>
+                    <div className="aptdt-info-value">{client.gender}</div>
                   </div>
                 )}
 
                 {client.date_of_birth && (
-                  <div className="apt-info-item">
-                    <div className="apt-info-label">
+                  <div className="aptdt-info-item">
+                    <div className="aptdt-info-label">
                       <Calendar size={16} />
                       <span>Date of Birth</span>
                     </div>
-                    <div className="apt-info-value">
+                    <div className="aptdt-info-value">
                       {formatDate(client.date_of_birth)}
                     </div>
                   </div>
                 )}
 
                 {(client.membership || client.membership_id) && (
-                  <div className="apt-info-item">
-                    <div className="apt-info-label">
+                  <div className="aptdt-info-item">
+                    <div className="aptdt-info-label">
                       <Tag size={16} />
                       <span>Membership</span>
                     </div>
-                    <div className="apt-info-value">
+                    <div className="aptdt-info-value">
                       {client.membership?.name || "Active Membership"}
                     </div>
                   </div>
                 )}
               </div>
             ) : isLoading ? (
-              <div className="apt-loading-state">
-                <RefreshCw className="apt-spinner" size={20} />
+              <div className="aptdt-loading-state">
+                <RefreshCw className="aptdt-spinner" size={20} />
                 <p>Loading client history...</p>
               </div>
             ) : clientHistory && clientHistory.length > 0 ? (
-              <div className="apt-client-history">
+              <div className="aptdt-client-history">
                 <button
-                  className="apt-back-button"
+                  className="aptdt-back-button"
                   onClick={() => setShowClientHistory(false)}
                 >
-                  <ArrowRight size={14} className="apt-back-icon" />
+                  <ArrowRight size={14} className="aptdt-back-icon" />
                   Back to Client Details
                 </button>
 
                 <h4>Client History</h4>
-                <div className="apt-history-items">
+                <div className="aptdt-history-items">
                   {clientHistory.map((item, index) => (
-                    <div key={index} className="apt-history-item">
-                      <div className="apt-history-item-date">
+                    <div key={index} className="aptdt-history-item">
+                      <div className="aptdt-history-item-date">
                         <Calendar size={14} />
                         {formatDate(item.date)}
                       </div>
-                      <div className="apt-history-item-type">
+                      <div className="aptdt-history-item-type">
                         {item.type === "appointment" ? (
                           <Clock size={14} />
                         ) : item.type === "purchase" ? (
@@ -837,12 +841,12 @@ const EnhancedAppointmentDetails = ({
                         )}
                         {item.type || "Activity"}
                       </div>
-                      <div className="apt-history-item-details">
-                        <p className="apt-item-description">
+                      <div className="aptdt-history-item-details">
+                        <p className="aptdt-item-description">
                           {item.description || item.name || "Unknown activity"}
                         </p>
                         {item.amount && (
-                          <p className="apt-item-amount">
+                          <p className="aptdt-item-amount">
                             {formatCurrency(item.amount)}
                           </p>
                         )}
@@ -852,10 +856,10 @@ const EnhancedAppointmentDetails = ({
                 </div>
               </div>
             ) : (
-              <div className="apt-no-history">
+              <div className="aptdt-no-history">
                 <p>No history available for this client.</p>
                 <button
-                  className="apt-back-button"
+                  className="aptdt-back-button"
                   onClick={() => setShowClientHistory(false)}
                 >
                   Back to Client Details
@@ -867,52 +871,54 @@ const EnhancedAppointmentDetails = ({
 
         {/* Service Tab */}
         {activeTab === "service" && (
-          <div className="apt-details-section apt-service-info">
+          <div className="aptdt-details-section aptdt-service-info">
             <h3>Service Information</h3>
 
             {isLoading && !serviceDetails ? (
-              <div className="apt-loading-state">
-                <RefreshCw className="apt-spinner" size={20} />
+              <div className="aptdt-loading-state">
+                <RefreshCw className="aptdt-spinner" size={20} />
                 <p>Loading service details...</p>
               </div>
             ) : serviceDetails ? (
-              <div className="apt-service-details">
-                <div className="apt-info-grid">
-                  <div className="apt-info-item">
-                    <div className="apt-info-label">
+              <div className="aptdt-service-details">
+                <div className="aptdt-info-grid">
+                  <div className="aptdt-info-item">
+                    <div className="aptdt-info-label">
                       <Tag size={16} />
                       <span>Service Name</span>
                     </div>
-                    <div className="apt-info-value">{serviceDetails.name}</div>
+                    <div className="aptdt-info-value">
+                      {serviceDetails.name}
+                    </div>
                   </div>
 
-                  <div className="apt-info-item">
-                    <div className="apt-info-label">
+                  <div className="aptdt-info-item">
+                    <div className="aptdt-info-label">
                       <Clock size={16} />
                       <span>Duration</span>
                     </div>
-                    <div className="apt-info-value">
+                    <div className="aptdt-info-value">
                       {serviceDetails.duration || 60} minutes
                     </div>
                   </div>
 
-                  <div className="apt-info-item">
-                    <div className="apt-info-label">
+                  <div className="aptdt-info-item">
+                    <div className="aptdt-info-label">
                       <DollarSign size={16} />
                       <span>Price</span>
                     </div>
-                    <div className="apt-info-value">
+                    <div className="aptdt-info-value">
                       {formatCurrency(serviceDetails.price || 0)}
                     </div>
                   </div>
 
                   {serviceDetails.category && (
-                    <div className="apt-info-item">
-                      <div className="apt-info-label">
+                    <div className="aptdt-info-item">
+                      <div className="aptdt-info-label">
                         <Tag size={16} />
                         <span>Category</span>
                       </div>
-                      <div className="apt-info-value">
+                      <div className="aptdt-info-value">
                         {serviceDetails.category}
                       </div>
                     </div>
@@ -920,30 +926,30 @@ const EnhancedAppointmentDetails = ({
                 </div>
 
                 {serviceDetails.description && (
-                  <div className="apt-service-description">
+                  <div className="aptdt-service-description">
                     <h4>Description</h4>
                     <p>{serviceDetails.description}</p>
                   </div>
                 )}
 
                 {staffDetails && (
-                  <div className="apt-staff-details">
+                  <div className="aptdt-staff-details">
                     <h4>Service Provider</h4>
-                    <div className="apt-staff-card">
-                      <div className="apt-staff-avatar">
+                    <div className="aptdt-staff-card">
+                      <div className="aptdt-staff-avatar">
                         <User size={32} />
                       </div>
-                      <div className="apt-staff-info">
-                        <div className="apt-staff-name">
+                      <div className="aptdt-staff-info">
+                        <div className="aptdt-staff-name">
                           {staffDetails.first_name} {staffDetails.last_name}
                         </div>
-                        <div className="apt-staff-title">
+                        <div className="aptdt-staff-title">
                           {staffDetails.title ||
                             staffDetails.designation ||
                             "Service Provider"}
                         </div>
                         {staffDetails.expertise && (
-                          <div className="apt-staff-expertise">
+                          <div className="aptdt-staff-expertise">
                             {staffDetails.expertise}
                           </div>
                         )}
@@ -953,16 +959,16 @@ const EnhancedAppointmentDetails = ({
                 )}
               </div>
             ) : (
-              <div className="apt-no-service-details">
+              <div className="aptdt-no-service-details">
                 <p>No detailed service information available.</p>
-                <div className="apt-basic-service-info">
-                  <div className="apt-info-item">
-                    <div className="apt-info-label">Service:</div>
-                    <div className="apt-info-value">{serviceName}</div>
+                <div className="aptdt-basic-service-info">
+                  <div className="aptdt-info-item">
+                    <div className="aptdt-info-label">Service:</div>
+                    <div className="aptdt-info-value">{serviceName}</div>
                   </div>
-                  <div className="apt-info-item">
-                    <div className="apt-info-label">Duration:</div>
-                    <div className="apt-info-value">
+                  <div className="aptdt-info-item">
+                    <div className="aptdt-info-label">Duration:</div>
+                    <div className="aptdt-info-value">
                       {appointmentDetails.duration || "60"} minutes
                     </div>
                   </div>
@@ -974,21 +980,21 @@ const EnhancedAppointmentDetails = ({
 
         {/* Notes Tab */}
         {activeTab === "notes" && (
-          <div className="apt-details-section apt-notes-info">
+          <div className="aptdt-details-section aptdt-notes-info">
             <h3>Appointment Notes</h3>
 
             {/* Notes section */}
             {appointmentDetails.notes ? (
-              <div className="apt-notes-section">
-                <div className="apt-notes-content">
+              <div className="aptdt-notes-section">
+                <div className="aptdt-notes-content">
                   {appointmentDetails.notes}
                 </div>
               </div>
             ) : (
-              <div className="apt-no-notes">
+              <div className="aptdt-no-notes">
                 <p>No notes have been added to this appointment.</p>
                 {!isPastAppointment && !isCancelled && (
-                  <div className="apt-add-note-placeholder">
+                  <div className="aptdt-add-note-placeholder">
                     <Clipboard size={32} />
                     <p>You can add notes for this appointment.</p>
                     <textarea
@@ -997,7 +1003,7 @@ const EnhancedAppointmentDetails = ({
                       rows={4}
                     ></textarea>
                     <button
-                      className="apt-save-note-button"
+                      className="aptdt-save-note-button"
                       disabled={isLoading}
                     >
                       Save Notes
@@ -1009,18 +1015,18 @@ const EnhancedAppointmentDetails = ({
 
             {/* Special instructions or follow-up notes if available */}
             {appointmentDetails.special_instructions && (
-              <div className="apt-special-instructions">
+              <div className="aptdt-special-instructions">
                 <h4>Special Instructions</h4>
-                <div className="apt-instructions-content">
+                <div className="aptdt-instructions-content">
                   {appointmentDetails.special_instructions}
                 </div>
               </div>
             )}
 
             {appointmentDetails.follow_up_notes && (
-              <div className="apt-follow-up-notes">
+              <div className="aptdt-follow-up-notes">
                 <h4>Follow-up Notes</h4>
-                <div className="apt-follow-up-content">
+                <div className="aptdt-follow-up-content">
                   {appointmentDetails.follow_up_notes}
                 </div>
               </div>
@@ -1029,11 +1035,11 @@ const EnhancedAppointmentDetails = ({
         )}
 
         {/* Appointment actions */}
-        <div className="apt-appointment-actions">
+        <div className="aptdt-appointment-actions">
           {!isPastAppointment && !isCancelled && (
             <>
               <button
-                className="apt-reschedule-button"
+                className="aptdt-reschedule-button"
                 onClick={handleReschedule}
                 disabled={isLoading}
               >
@@ -1042,7 +1048,7 @@ const EnhancedAppointmentDetails = ({
               </button>
 
               <button
-                className="apt-cancel-button"
+                className="aptdt-cancel-button"
                 onClick={() => setShowCancelConfirm(true)}
                 disabled={isLoading}
               >
@@ -1053,7 +1059,7 @@ const EnhancedAppointmentDetails = ({
           )}
 
           <button
-            className="apt-message-button"
+            className="aptdt-message-button"
             onClick={() => {
               /* Would integrate with messaging system */
             }}
@@ -1067,25 +1073,25 @@ const EnhancedAppointmentDetails = ({
 
       {/* Cancel confirmation modal */}
       {showCancelConfirm && (
-        <div className="apt-modal-overlay">
-          <div className="apt-modal-container">
-            <div className="apt-modal-header">
+        <div className="aptdt-modal-overlay">
+          <div className="aptdt-modal-container">
+            <div className="aptdt-modal-header">
               <h3>Cancel Appointment</h3>
               <button
-                className="apt-close-modal-button"
+                className="aptdt-close-modal-button"
                 onClick={() => setShowCancelConfirm(false)}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="apt-modal-content">
-              <div className="apt-warning-message">
+            <div className="aptdt-modal-content">
+              <div className="aptdt-warning-message">
                 <AlertCircle size={24} />
                 <p>Are you sure you want to cancel this appointment?</p>
               </div>
 
-              <div className="apt-appointment-summary">
+              <div className="aptdt-appointment-summary">
                 <p>
                   <strong>Client:</strong> {clientName}
                 </p>
@@ -1099,7 +1105,7 @@ const EnhancedAppointmentDetails = ({
                 </p>
               </div>
 
-              <div className="apt-form-group">
+              <div className="aptdt-form-group">
                 <label htmlFor="cancelReason">Cancellation Reason</label>
                 <textarea
                   id="cancelReason"
@@ -1111,9 +1117,9 @@ const EnhancedAppointmentDetails = ({
               </div>
             </div>
 
-            <div className="apt-modal-footer">
+            <div className="aptdt-modal-footer">
               <button
-                className="apt-secondary-button"
+                className="aptdt-secondary-button"
                 onClick={() => setShowCancelConfirm(false)}
                 disabled={isLoading}
               >
@@ -1121,13 +1127,13 @@ const EnhancedAppointmentDetails = ({
               </button>
 
               <button
-                className="apt-primary-button apt-cancel-confirm-button"
+                className="aptdt-primary-button aptdt-cancel-confirm-button"
                 onClick={handleCancelAppointment}
                 disabled={isLoading}
               >
                 {isLoading ? (
                   <>
-                    <RefreshCw className="apt-spinner" size={16} />
+                    <RefreshCw className="aptdt-spinner" size={16} />
                     <span>Cancelling...</span>
                   </>
                 ) : (

@@ -271,31 +271,12 @@ const ImprovedReportsSection = ({
             start_date: formattedStartDate,
             end_date: formattedEndDate,
             center_ids: [centerId], // Use the retrieved center ID
+            page: 1,
+            size: 100,
             _t: timestamp,
           };
 
           console.log("Using center ID for sales report:", centerId);
-
-          // Add filters if they're not set to "All"
-          if (itemType !== "All") {
-            salesParams.item_types = [mapItemTypeToCode(itemType)];
-          } else {
-            salesParams.item_types = [-1]; // All item types
-          }
-
-          // Payment types filter
-          if (paymentMode !== "All") {
-            salesParams.payment_types = [mapPaymentTypeToCode(paymentMode)];
-          } else {
-            salesParams.payment_types = [-1]; // All payment types
-          }
-
-          // Invoice status filter
-          if (status !== "All") {
-            salesParams.invoice_statuses = [mapStatusToCode(status)];
-          } else {
-            salesParams.invoice_statuses = [-1]; // All statuses
-          }
 
           // Call the accrual basis report API
           console.log(
@@ -303,25 +284,10 @@ const ImprovedReportsSection = ({
             salesParams
           );
 
-          // If we still have issues with the API, let's try the fallback method
-          try {
-            response = await reportsApiService.getSalesAccrualBasisReport(
-              salesParams
-            );
-          } catch (err) {
-            console.warn(
-              "Sales accrual API failed, using fallback:",
-              err.message
-            );
-            // Use fallback method - getRegularSalesReport
-            response = await reportsApiService.getSalesReport({
-              startDate: dateRange.startDate,
-              endDate: dateRange.endDate,
-              centerCode: selectedCenter,
-              itemType: itemType !== "All" ? itemType : null,
-              _t: timestamp,
-            });
-          }
+          // Try the API call without falling back immediately
+          response = await reportsApiService.getSalesAccrualBasisReport(
+            salesParams
+          );
           break;
         }
         case "sales_cash": {

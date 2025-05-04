@@ -17,7 +17,7 @@ const AppointmentForm = ({
   initialContact = null,
   centerCode = null,
   initialAppointment = null, // For reschedule mode
-  rescheduleMode = false // Flag to indicate reschedule mode
+  rescheduleMode = false, // Flag to indicate reschedule mode
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -30,22 +30,41 @@ const AppointmentForm = ({
   // Form state - initialize with appointment data in reschedule mode
   const [formData, setFormData] = useState({
     contactId: initialContact?.id || initialAppointment?.guest_id || "",
-    contactName: initialContact?.name || (initialAppointment?.guest ? 
-      `${initialAppointment.guest.first_name || ""} ${initialAppointment.guest.last_name || ""}`.trim() : ""),
-    serviceId: rescheduleMode && initialAppointment?.service_id ? initialAppointment.service_id : "",
-    staffId: rescheduleMode && initialAppointment?.therapist_id ? initialAppointment.therapist_id : "",
-    date: rescheduleMode && initialAppointment?.start_time ? 
-      initialAppointment.start_time.split("T")[0] : 
-      new Date().toISOString().split("T")[0], // Today's date or appointment date
-    time: rescheduleMode && initialAppointment?.start_time ? 
-      initialAppointment.start_time.split("T")[1].substring(0, 5) : "",
-    notes: rescheduleMode && initialAppointment?.notes ? initialAppointment.notes : "",
+    contactName:
+      initialContact?.name ||
+      (initialAppointment?.guest
+        ? `${initialAppointment.guest.first_name || ""} ${
+            initialAppointment.guest.last_name || ""
+          }`.trim()
+        : ""),
+    serviceId:
+      rescheduleMode && initialAppointment?.service_id
+        ? initialAppointment.service_id
+        : "",
+    staffId:
+      rescheduleMode && initialAppointment?.therapist_id
+        ? initialAppointment.therapist_id
+        : "",
+    date:
+      rescheduleMode && initialAppointment?.start_time
+        ? initialAppointment.start_time.split("T")[0]
+        : new Date().toISOString().split("T")[0], // Today's date or appointment date
+    time:
+      rescheduleMode && initialAppointment?.start_time
+        ? initialAppointment.start_time.split("T")[1].substring(0, 5)
+        : "",
+    notes:
+      rescheduleMode && initialAppointment?.notes
+        ? initialAppointment.notes
+        : "",
   });
 
   // States for contact lookup
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
-  const [showContactSearch, setShowContactSearch] = useState(!initialContact && !rescheduleMode);
+  const [showContactSearch, setShowContactSearch] = useState(
+    !initialContact && !rescheduleMode
+  );
 
   // Fetch services for the selected center
   useEffect(() => {
@@ -329,28 +348,28 @@ const AppointmentForm = ({
       };
 
       let response;
-      
+
       if (rescheduleMode && initialAppointment?.id) {
         // Reschedule existing appointment
         console.log("Rescheduling appointment with ID:", initialAppointment.id);
         console.log("Reschedule data:", appointmentData);
-        
+
         response = await zenotiService.rescheduleAppointment(
           initialAppointment.id,
           appointmentData
         );
-        
+
         console.log("Appointment reschedule response:", response);
       } else {
         // Book new appointment
         console.log("Booking new appointment with data:", appointmentData);
         console.log("Using center code:", effectiveCenterCode);
-        
+
         response = await zenotiService.bookAppointment(
           appointmentData,
           effectiveCenterCode
         );
-        
+
         console.log("Appointment booking response:", response);
       }
 
@@ -364,12 +383,21 @@ const AppointmentForm = ({
           }
         }, 1500);
       } else {
-        setError(response.data?.error || `Failed to ${rescheduleMode ? "reschedule" : "create"} appointment.`);
+        setError(
+          response.data?.error ||
+            `Failed to ${rescheduleMode ? "reschedule" : "create"} appointment.`
+        );
       }
     } catch (err) {
-      console.error(`Error ${rescheduleMode ? "rescheduling" : "creating"} appointment:`, err);
+      console.error(
+        `Error ${rescheduleMode ? "rescheduling" : "creating"} appointment:`,
+        err
+      );
       setError(
-        err.message || `Failed to ${rescheduleMode ? "reschedule" : "create"} appointment. Please try again.`
+        err.message ||
+          `Failed to ${
+            rescheduleMode ? "reschedule" : "create"
+          } appointment. Please try again.`
       );
     } finally {
       setIsLoading(false);
@@ -377,12 +405,14 @@ const AppointmentForm = ({
   };
 
   return (
-    <div className="appointment-form-container">
-      <h3 className="form-title">{rescheduleMode ? "Reschedule Appointment" : "Schedule New Appointment"}</h3>
-      
+    <div className="aformx-container">
+      <h3 className="aformx-title">
+        {rescheduleMode ? "Reschedule Appointment" : "Schedule New Appointment"}
+      </h3>
+
       {/* Error message */}
       {error && (
-        <div className="form-error">
+        <div className="aformx-error">
           <AlertCircle size={16} />
           <span>{error}</span>
         </div>
@@ -390,22 +420,25 @@ const AppointmentForm = ({
 
       {/* Success message */}
       {success ? (
-        <div className="form-success">
+        <div className="aformx-success">
           <Check size={16} />
-          <span>Appointment successfully {rescheduleMode ? "rescheduled" : "scheduled"}!</span>
+          <span>
+            Appointment successfully{" "}
+            {rescheduleMode ? "rescheduled" : "scheduled"}!
+          </span>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="appointment-form">
+        <form onSubmit={handleSubmit} className="aformx-form">
           {/* Contact selection */}
-          <div className="form-section">
-            <h4 className="section-title">
+          <div className="aformx-section">
+            <h4 className="aformx-section-title">
               <User size={16} />
               Client Information
             </h4>
 
             {showContactSearch ? (
-              <div className="contact-search">
-                <div className="search-field">
+              <div className="aformx-contact-search">
+                <div className="aformx-search-field">
                   <input
                     type="text"
                     placeholder="Search by name, email, or phone..."
@@ -417,7 +450,7 @@ const AppointmentForm = ({
                   />
                   <button
                     type="button"
-                    className="search-button"
+                    className="aformx-search-button"
                     onClick={handleContactSearch}
                     disabled={isLoading || !searchTerm}
                   >
@@ -426,15 +459,17 @@ const AppointmentForm = ({
                 </div>
 
                 {searchResults.length > 0 && (
-                  <div className="search-results">
+                  <div className="aformx-search-results">
                     {searchResults.map((contact) => (
                       <div
                         key={contact.id}
-                        className="search-result-item"
+                        className="aformx-search-result-item"
                         onClick={() => handleSelectContact(contact)}
                       >
-                        <div className="contact-name">{contact.name}</div>
-                        <div className="contact-details">
+                        <div className="aformx-contact-name">
+                          {contact.name}
+                        </div>
+                        <div className="aformx-contact-details">
                           {contact.email && <span>{contact.email}</span>}
                           {contact.phone && <span>{contact.phone}</span>}
                         </div>
@@ -444,17 +479,19 @@ const AppointmentForm = ({
                 )}
 
                 {searchTerm && searchResults.length === 0 && !isLoading && (
-                  <div className="no-results">No contacts found</div>
+                  <div className="aformx-no-results">No contacts found</div>
                 )}
               </div>
             ) : (
-              <div className="selected-contact">
-                <div className="contact-info">
-                  <span className="contact-name">{formData.contactName}</span>
+              <div className="aformx-selected-contact">
+                <div className="aformx-contact-info">
+                  <span className="aformx-contact-name">
+                    {formData.contactName}
+                  </span>
                 </div>
                 <button
                   type="button"
-                  className="change-contact"
+                  className="aformx-change-contact"
                   onClick={() => setShowContactSearch(true)}
                 >
                   Change
@@ -464,13 +501,13 @@ const AppointmentForm = ({
           </div>
 
           {/* Service selection */}
-          <div className="form-section">
-            <h4 className="section-title">
+          <div className="aformx-section">
+            <h4 className="aformx-section-title">
               <Tag size={16} />
               Service Details
             </h4>
 
-            <div className="form-group">
+            <div className="aformx-form-group">
               <label htmlFor="serviceId">Service *</label>
               <select
                 id="serviceId"
@@ -491,7 +528,7 @@ const AppointmentForm = ({
             </div>
 
             {formData.serviceId && (
-              <div className="form-group">
+              <div className="aformx-form-group">
                 <label htmlFor="staffId">Staff *</label>
                 <select
                   id="staffId"
@@ -509,7 +546,7 @@ const AppointmentForm = ({
                   ))}
                 </select>
                 {staff.length === 0 && formData.serviceId && (
-                  <div className="help-text">
+                  <div className="aformx-help-text">
                     No staff members available for this service
                   </div>
                 )}
@@ -518,13 +555,13 @@ const AppointmentForm = ({
           </div>
 
           {/* Date and time selection */}
-          <div className="form-section">
-            <h4 className="section-title">
+          <div className="aformx-section">
+            <h4 className="aformx-section-title">
               <Calendar size={16} />
               Date & Time
             </h4>
 
-            <div className="form-group">
+            <div className="aformx-form-group">
               <label htmlFor="date">Date *</label>
               <input
                 type="date"
@@ -539,16 +576,16 @@ const AppointmentForm = ({
             </div>
 
             {formData.date && formData.serviceId && formData.staffId && (
-              <div className="form-group">
+              <div className="aformx-form-group">
                 <label htmlFor="time">Time *</label>
                 {slotsFetched && availableSlots.length === 0 ? (
-                  <div className="no-slots">
+                  <div className="aformx-no-slots">
                     No available slots for the selected date
                   </div>
                 ) : (
-                  <div className="time-slots">
+                  <div className="aformx-time-slots">
                     {isLoading ? (
-                      <div className="loading-slots">
+                      <div className="aformx-loading-slots">
                         Loading available times...
                       </div>
                     ) : (
@@ -565,7 +602,7 @@ const AppointmentForm = ({
                           return (
                             <div
                               key={index}
-                              className={`time-slot ${
+                              className={`aformx-time-slot ${
                                 formData.time === timeValue ? "selected" : ""
                               }`}
                               onClick={() =>
@@ -591,13 +628,13 @@ const AppointmentForm = ({
           </div>
 
           {/* Notes */}
-          <div className="form-section">
-            <h4 className="section-title">
+          <div className="aformx-section">
+            <h4 className="aformx-section-title">
               <AlignLeft size={16} />
               Additional Information
             </h4>
 
-            <div className="form-group">
+            <div className="aformx-form-group">
               <label htmlFor="notes">Notes (Optional)</label>
               <textarea
                 id="notes"
@@ -612,10 +649,10 @@ const AppointmentForm = ({
           </div>
 
           {/* Form actions */}
-          <div className="form-actions">
+          <div className="aformx-form-actions">
             <button
               type="button"
-              className="cancel-button"
+              className="aformx-cancel-button"
               onClick={onCancel}
               disabled={isLoading}
             >
@@ -623,7 +660,7 @@ const AppointmentForm = ({
             </button>
             <button
               type="submit"
-              className="submit-button"
+              className="aformx-submit-button"
               disabled={
                 isLoading ||
                 !formData.contactId ||
@@ -632,8 +669,13 @@ const AppointmentForm = ({
                 !formData.time
               }
             >
-              {isLoading ? (rescheduleMode ? "Rescheduling..." : "Scheduling...") : 
-                (rescheduleMode ? "Reschedule Appointment" : "Schedule Appointment")}
+              {isLoading
+                ? rescheduleMode
+                  ? "Rescheduling..."
+                  : "Scheduling..."
+                : rescheduleMode
+                ? "Reschedule Appointment"
+                : "Schedule Appointment"}
             </button>
           </div>
         </form>
