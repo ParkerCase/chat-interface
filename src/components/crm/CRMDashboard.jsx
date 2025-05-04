@@ -5,7 +5,6 @@ import {
   UserPlus,
   Filter,
   Calendar,
-  Clock,
   RefreshCw,
   Download,
   ChevronDown,
@@ -812,33 +811,6 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
 
   return (
     <div className="crm-dashboard">
-      {/* Header */}
-      <div className="crm-header">
-        <h2>Tatt2Away CRM Dashboard</h2>
-        {connectionStatus && (
-          <div
-            className={`connection-status ${
-              connectionStatus.connected ? "connected" : "disconnected"
-            }`}
-          >
-            {connectionStatus.connected ? (
-              <span>
-                <span className="status-dot"></span> Connected to Zenoti
-              </span>
-            ) : (
-              <span>
-                <span className="status-dot"></span> Not connected to Zenoti
-              </span>
-            )}
-          </div>
-        )}
-        {onClose && (
-          <button className="close-button" onClick={onClose}>
-            <X size={20} />
-          </button>
-        )}
-      </div>
-
       {/* Error message */}
       {error && (
         <div className="error-message">
@@ -970,69 +942,76 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
         {/* Main content */}
         <div className="crm-main">
           {/* Search bar */}
-          <div className="search-container">
-            <div className="search-input-group">
-              <input
-                type="text"
-                placeholder="Search contacts by name, email, or phone..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-                disabled={!connectionStatus?.connected}
-              />
-              <button
-                onClick={handleSearch}
-                disabled={!searchTerm || !connectionStatus?.connected}
-              >
-                <span>Search</span>
-              </button>
-            </div>
+          <div
+            className="search-input-group"
+            style={{ maxHeight: "fit-content;" }}
+          >
+            <input
+              type="text"
+              placeholder="Search contacts by name, email, or phone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+              disabled={!connectionStatus?.connected}
+            />
+            <button
+              onClick={handleSearch}
+              disabled={!searchTerm || !connectionStatus?.connected}
+            >
+              <span>Search</span>
+            </button>
           </div>
 
           {/* Content sections */}
           {activeSection === "contacts" && (
             <div className="contacts-section">
               {/* Contact view tabs */}
-              <div className="contacts-tabs">
-                <button
-                  className={activeContactView === "all" ? "active" : ""}
-                  onClick={() => {
-                    setActiveContactView("all");
-                    loadRecentContacts();
-                  }}
-                >
-                  All Contacts
-                </button>
-                <button
-                  className={activeContactView === "recent" ? "active" : ""}
-                  onClick={() => {
-                    setActiveContactView("recent");
-                    loadRecentContacts();
-                  }}
-                >
-                  Recent
-                </button>
-                <button
-                  className={activeContactView === "favorites" ? "active" : ""}
-                  onClick={() => setActiveContactView("favorites")}
-                >
-                  Favorites
-                </button>
-                {activeContactView === "search" && (
-                  <button className="active">Search Results</button>
-                )}
-              </div>
 
-              <div className="section-header">
-                <h3>
-                  {activeContactView === "all"
-                    ? "All Contacts"
-                    : activeContactView === "recent"
-                    ? "Recent Contacts"
-                    : activeContactView === "favorites"
-                    ? "Favorite Contacts"
-                    : "Search Results"}
-                </h3>
+              <h3 className="contact-options">
+                {activeContactView === "all"
+                  ? "All Contacts"
+                  : activeContactView === "recent"
+                  ? "Recent Contacts"
+                  : activeContactView === "favorites"
+                  ? "Favorite Contacts"
+                  : "Search Results"}
+              </h3>
+
+              <div
+                style={{ display: "flex", marginBottom: "0px !important" }}
+                className="crm-section-header"
+              >
+                <div className="contacts-tabs" style={{ display: "flex" }}>
+                  <button
+                    className={activeContactView === "all" ? "active" : ""}
+                    onClick={() => {
+                      setActiveContactView("all");
+                      loadRecentContacts();
+                    }}
+                  >
+                    All Contacts
+                  </button>
+                  <button
+                    className={activeContactView === "recent" ? "active" : ""}
+                    onClick={() => {
+                      setActiveContactView("recent");
+                      loadRecentContacts();
+                    }}
+                  >
+                    Recent
+                  </button>
+                  <button
+                    className={
+                      activeContactView === "favorites" ? "active" : ""
+                    }
+                    onClick={() => setActiveContactView("favorites")}
+                  >
+                    Favorites
+                  </button>
+                  {activeContactView === "search" && (
+                    <button className="active">Search Results</button>
+                  )}
+                </div>
                 <button
                   onClick={loadRecentContacts}
                   disabled={
@@ -1149,7 +1128,6 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                           <td>{contact.phone || "—"}</td>
                           <td>
                             <div className="flex items-center gap-1">
-                              <Clock size={14} />
                               <span>{formatDate(contact.lastContact)}</span>
                             </div>
                           </td>
@@ -1209,6 +1187,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                   >
                     <RefreshCw
                       size={14}
+                      style={{ marginBottom: "0px" }}
                       className={
                         loadingAppointmentsRef.current ? "spinning" : ""
                       }
@@ -1311,7 +1290,6 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                           </span>
                         </div>
                         <div className="appointment-time">
-                          <Clock size={16} />
                           <span>{formatTime(appointment.start_time)}</span>
                         </div>
                         <div

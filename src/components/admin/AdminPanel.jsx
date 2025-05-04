@@ -1530,17 +1530,26 @@ const AdminPanel = () => {
                   <h3>Security Settings</h3>
 
                   <div className="security-options">
-                    <button className="security-option">
+                    <button
+                      className="security-option"
+                      onClick={() => navigate("/security")}
+                    >
                       <Shield size={18} />
                       <span>Change Password</span>
                     </button>
 
-                    <button className="security-option">
+                    <button
+                      className="security-option"
+                      onClick={() => navigate("/sessions")}
+                    >
                       <Globe size={18} />
                       <span>Manage Active Sessions</span>
                     </button>
 
-                    <button className="security-option">
+                    <button
+                      className="security-option"
+                      onClick={() => navigate("/security")}
+                    >
                       <Smartphone size={18} />
                       <span>Two-Factor Authentication</span>
                     </button>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { User, RefreshCw, Database, Clock } from "lucide-react";
 import zenotiService from "../../services/zenotiService";
 import ImportContacts from "../crm/ImportContacts";
@@ -16,6 +16,9 @@ const CRMTabContent = () => {
   const [connectionStatus, setConnectionStatus] = useState(null);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [centers, setCenters] = useState([]);
+  const [selectedContact, setSelectedContact] = useState(null);
+
+  const navigate = useNavigate();
 
   // Improved connection status check
   // Modified checkConnectionStatus function
@@ -246,9 +249,10 @@ const CRMTabContent = () => {
 
   // Handle contact view
   const handleViewContact = (contactId, centerCode) => {
-    // Navigate to contact details or open modal
     console.log(`View contact ${contactId} from center ${centerCode}`);
-    // Implement your navigation logic here
+    // Pass the contact data to CRMDashboard
+    setSelectedContact({ id: contactId, centerCode });
+    setShowCRMDashboard(true);
   };
 
   return (
@@ -416,7 +420,11 @@ const CRMTabContent = () => {
           </div>
 
           <div className="crm-dashboard-content">
-            <CRMDashboard centers={centers} onRefresh={initializeTab} />
+            <CRMDashboard
+              centers={centers}
+              onRefresh={initializeTab}
+              selectedContact={selectedContact}
+            />
           </div>
         </div>
       )}

@@ -158,6 +158,15 @@
   border-top: 1px solid #e5e7eb;
 }
 
+.crm-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 0px !important;
+}
+
 .create-contact-btn {
   width: 100%;
   display: flex;
@@ -194,6 +203,10 @@
   overflow-y: scroll;
 }
 
+.contact-options {
+  padding: 16px;
+}
+
 /* Search container */
 .search-container {
   padding: 16px;
@@ -202,6 +215,7 @@
 
 .search-input-group {
   position: relative;
+  align-content: center;
   flex: 1;
 }
 

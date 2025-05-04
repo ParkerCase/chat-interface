@@ -1,6 +1,7 @@
 // src/components/admin/FilePermissionsManager.jsx
 import React, { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabase";
+import apiService from "@/services/apiService";
 import {
   Search,
   FileText,
@@ -21,6 +22,9 @@ import "./FilePermissionsManager.css";
 
 const FilePermissionsManager = ({ currentUser }) => {
   const [files, setFiles] = useState([]);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -31,6 +35,42 @@ const FilePermissionsManager = ({ currentUser }) => {
   // Load files on component mount
   useEffect(() => {
     fetchFiles();
+  }, []);
+
+  useEffect(() => {
+    const fetchFileCount = async () => {
+      try {
+        // Get actual file count from Supabase
+        const { count, error } = await supabase.storage
+          .from("documents")
+          .list("", {
+            limit: 1,
+            sortBy: { column: "name", order: "asc" },
+          });
+
+        if (error) throw error;
+
+        setTotalFiles(count || 0);
+      } catch (error) {
+        console.error("Error fetching file count:", error);
+        // Fallback to API call if storage direct access fails
+        try {
+          const response = await apiService.storage.searchFiles("", {
+            count: true,
+          });
+          if (response.data?.totalCount) {
+            setTotalFiles(response.data.totalCount);
+          }
+        } catch (apiError) {
+          console.error("API file count error:", apiError);
+          setTotalFiles(0);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchFileCount();
   }, []);
 
   // Clear success message after 5 seconds

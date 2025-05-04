@@ -28,6 +28,8 @@ import {
   Loader,
   X,
 } from "lucide-react";
+import apiService from "../../services/apiService";
+
 import Header from "../Header";
 import "./EnhancedSystemSettings.css";
 
@@ -44,6 +46,8 @@ const EnhancedSystemSettings = () => {
   const [activeSection, setActiveSection] = useState("general");
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState(null);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [backupStatus, setBackupStatus] = useState(null);
 
   // Settings state
   const [generalSettings, setGeneralSettings] = useState({
@@ -243,6 +247,53 @@ const EnhancedSystemSettings = () => {
       setError(`Failed to save ${category} settings: ${err.message}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleBackup = async () => {
+    setIsBackingUp(true);
+    setBackupStatus("Initiating backup...");
+
+    try {
+      // Call the backup endpoint
+      const response = await apiService.files?.triggerBackup();
+
+      if (response.data?.success) {
+        setBackupStatus(
+          "Backup initiated successfully. Files will be processed in the background."
+        );
+
+        // Monitor backup progress
+        const interval = setInterval(async () => {
+          const statusResponse = await apiService.files.getBackupStatus();
+
+          if (statusResponse.data?.status === "completed") {
+            setBackupStatus("Backup completed successfully!");
+            clearInterval(interval);
+            setIsBackingUp(false);
+          } else if (statusResponse.data?.status === "failed") {
+            setBackupStatus(`Backup failed: ${statusResponse.data?.error}`);
+            clearInterval(interval);
+            setIsBackingUp(false);
+          } else {
+            setBackupStatus(
+              `Backup in progress: ${statusResponse.data?.progress || 0}%`
+            );
+          }
+        }, 5000);
+
+        // Set timeout to stop polling after 30 minutes
+        setTimeout(() => {
+          clearInterval(interval);
+          setIsBackingUp(false);
+        }, 30 * 60 * 1000);
+      } else {
+        throw new Error(response.data?.error || "Failed to initiate backup");
+      }
+    } catch (error) {
+      console.error("Backup error:", error);
+      setBackupStatus(`Backup failed: ${error.message}`);
+      setIsBackingUp(false);
     }
   };
 
@@ -1636,7 +1687,7 @@ const EnhancedSystemSettings = () => {
                           ) : (
                             <>
                               <Cloud size={14} />
-                              Run Backup Now
+                              Run Backup & Sync Files
                             </>
                           )}
                         </button>
@@ -1659,6 +1710,17 @@ const EnhancedSystemSettings = () => {
                           )}
                         </button>
                       </div>
+
+                      {/* Add status display after the buttons */}
+                      {backupStatus && (
+                        <div
+                          className={`backup-status ${
+                            isBackingUp ? "in-progress" : "completed"
+                          }`}
+                        >
+                          {backupStatus}
+                        </div>
+                      )}
                     </form>
                   </div>
                 )}
