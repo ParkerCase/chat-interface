@@ -86,13 +86,24 @@ const reportsApiService = {
         throw new Error("A valid center ID is required for sales reports");
       }
 
+      // Transform parameters to match Zenoti's expected format
+      const zenotiParams = {
+        start_date: params.start_date,
+        end_date: params.end_date,
+        centers: {
+          ids: params.center_ids,
+        },
+      };
+
       console.log(
-        "Sending accrual basis request with params:",
-        JSON.stringify(params)
+        "Sending accrual basis request with Zenoti format:",
+        JSON.stringify(zenotiParams)
       );
+
+      // Use the correct endpoint path matching Zenoti's expected endpoint
       const response = await apiClient.post(
-        "/api/zenoti/reports/sales/accrual-basis",
-        params,
+        "/api/zenoti/reports/sales/accrual_basis/flat_file",
+        zenotiParams,
         {
           params: {
             page: params.page || 1,

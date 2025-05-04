@@ -304,6 +304,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
   ]);
 
   // Load recent contacts
+  // Fixed loadRecentContacts function - only set hasMoreContacts to false under specific conditions
   const loadRecentContacts = async (append = false) => {
     // Prevent duplicate loading
     if (loadingContactsRef.current) return;
@@ -319,7 +320,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
       }
 
       const offset = append ? contactOffset : 0;
-      const limit = 15;
+      const limit = 1000;
 
       console.log(
         `Loading ${
@@ -375,10 +376,23 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
         const newOffset = offset + limit;
         setContactOffset(newOffset);
 
-        // Check if there are more contacts to load
-        if (formattedContacts.length < limit) {
+        // Only set hasMoreContacts to false if we get 0 contacts or if it's explicitly told by the API
+        // Some APIs return less than the limit even when there are more results
+        if (formattedContacts.length === 0) {
           setHasMoreContacts(false);
         }
+        // If the API provides a total count or has a flag indicating end of results, use that
+        else if (response.data.hasMore !== undefined) {
+          setHasMoreContacts(response.data.hasMore);
+        } else if (response.data.totalCount !== undefined) {
+          setHasMoreContacts(newOffset < response.data.totalCount);
+        }
+        // Otherwise, keep trying to load more until we get 0 results
+        else {
+          setHasMoreContacts(true);
+        }
+
+        console.log("HasMoreContacts after update:", hasMoreContacts);
       } else {
         console.warn("No client data found in response", response);
         if (!append) {
@@ -706,6 +720,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
       const response = await zenotiService.searchClients({
         query: searchTerm,
         centerCode: selectedCenter,
+        limit: 1000, // Add a large limit for search results
       });
 
       if (response.data?.success) {
@@ -841,6 +856,10 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
       return date.toLocaleDateString();
     }
   };
+
+  // Add this console log right before the conditional render
+  console.log("hasMoreContacts:", hasMoreContacts);
+  console.log("recentContacts.length:", recentContacts.length);
 
   // Format time
   const formatTime = (dateTimeString) => {
@@ -1228,6 +1247,18 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
               )}
             </div>
           )}
+
+          {/* Debug div - add this after the load more button section */}
+          <div
+            style={{
+              padding: "10px",
+              backgroundColor: "#f0f0f0",
+              marginTop: "10px",
+            }}
+          >
+            DEBUG: hasMoreContacts = {hasMoreContacts.toString()},
+            recentContacts.length = {recentContacts.length}
+          </div>
 
           {activeSection === "appointments" && (
             <div className="apt-appointments-section">
