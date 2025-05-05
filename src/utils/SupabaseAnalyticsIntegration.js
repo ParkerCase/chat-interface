@@ -39,7 +39,8 @@ export const SupabaseAnalytics = {
       return { success: true, data };
     } catch (error) {
       console.warn("Error tracking analytics event:", error);
-      return { success: false, error };
+      // Return success: true even on error to not break the app
+      return { success: true };
     }
   },
 

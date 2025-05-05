@@ -153,17 +153,16 @@ const EnhancedUserManagement = ({
         // Fall back to profiles table
       }
 
-      // Get profiles with a longer timeout (more reliable)
-      const { data: profilesData, error: profilesError } = await supabase
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false });
+      // CHANGE THIS PART: Use the safe RPC function instead
+      const { data: profilesData, error: profilesError } = await supabase.rpc(
+        "get_all_profiles_safe"
+      );
 
       if (profilesError) {
         throw profilesError;
       }
 
-      // Process profiles with auth data when available
+      // The rest of your function remains the same
       let processedUsers = [];
 
       if (profilesData) {
@@ -776,10 +775,9 @@ const EnhancedUserManagement = ({
       setLoading(true);
 
       // Get user's current MFA settings from profile
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("mfa_methods")
-        .eq("id", user.id);
+      const { data, error } = await supabase.rpc("get_user_profile", {
+        user_id: user.id,
+      });
 
       if (error) {
         throw error;
