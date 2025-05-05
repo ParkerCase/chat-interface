@@ -205,22 +205,29 @@ const reportsApiService = {
         throw new Error("A valid center ID is required for sales reports");
       }
 
+      // Ensure all required fields are present
+      const requestParams = {
+        ...params,
+        // These fields are required by the API
+        sold_by_ids: params.sold_by_ids || [],
+        invoice_statuses: params.invoice_statuses || [-1],
+        item_types: params.item_types || [-1],
+        payment_types: params.payment_types || [-1],
+        sale_types: params.sale_types || [-1],
+      };
+
       console.log(
         "Sending cash basis request with params:",
-        JSON.stringify(params)
-      );
-      const response = await apiClient.post(
-        "/api/zenoti/reports/sales/cash-basis",
-        params,
-        {
-          params: {
-            page: params.page || 1,
-            size: params.size || 50,
-          },
-        }
+        JSON.stringify(requestParams)
       );
 
-      // Log the raw response and data with full details
+      const response = await apiClient.post(
+        `/api/zenoti/reports/sales/cash_basis/flat_file?page=${
+          params.page || 1
+        }&size=${params.size || 50}`,
+        requestParams
+      );
+
       console.log("Cash basis raw response status:", response.status);
       console.log(
         "Cash basis FULL response data:",
@@ -450,6 +457,9 @@ const reportsApiService = {
     }
   },
 
+  /**
+   * Get services report with proper handling of actual API response format
+   */
   /**
    * Get services report with proper handling of actual API response format
    */
