@@ -520,6 +520,82 @@
   cursor: not-allowed;
 }
 
+/* Enhanced table styles for more columns */
+.rpt-data-table {
+  min-width: 100%;
+  width: auto;
+  white-space: nowrap;
+}
+
+.rpt-data-table th {
+  background-color: #f1f5f9;
+  font-weight: 600;
+  padding: 0.75rem 0.5rem;
+  text-align: left;
+  white-space: nowrap;
+  font-size: 0.875rem;
+}
+
+.rpt-data-table td {
+  padding: 0.75rem 0.5rem;
+  vertical-align: middle;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.875rem;
+}
+
+/* Style for refund amounts */
+.text-red-600 {
+  color: #dc2626;
+}
+
+/* Better status badges */
+.rpt-status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.rpt-status-badge.open {
+  background-color: #e0f2fe;
+  color: #075985;
+}
+
+.rpt-status-badge.closed {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.rpt-status-badge.cancelled {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+/* Scrollable content for wide tables */
+.rpt-section-content {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Better search input styling */
+.crm-search-input-group input {
+  padding-left: 3rem;
+  background-color: white;
+  pointer-events: auto;
+  cursor: text;
+}
+
+/* Ensure search icon doesn't block input */
+.crm-search-icon {
+  pointer-events: none;
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
 .rpt-close-button {
   display: flex;
   align-items: center;
@@ -611,33 +687,6 @@
   color: #475569;
 }
 
-.rpt-section-content {
-  padding: 1.5rem;
-}
-
-.rpt-data-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-.rpt-data-table th {
-  text-align: left;
-  padding: 0.875rem 1rem;
-  background-color: #f8fafc;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #475569;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.rpt-data-table td {
-  padding: 0.875rem 1rem;
-  font-size: 0.875rem;
-  color: #334155;
-  border-bottom: 1px solid #e2e8f0;
-}
-
 .rpt-data-table tr:last-child td {
   border-bottom: none;
 }
@@ -656,15 +705,6 @@
   color: #64748b;
   background-color: #f8fafc;
   border-radius: 8px;
-}
-
-.rpt-status-badge {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  text-transform: capitalize;
 }
 
 .rpt-status-badge.booked,
@@ -743,5 +783,14 @@
 
   .rpt-summary-card {
     min-width: 100%;
+  }
+
+  .rpt-data-table {
+    font-size: 0.875rem;
+  }
+
+  .rpt-data-table th,
+  .rpt-data-table td {
+    padding: 0.5rem 0.25rem;
   }
 }

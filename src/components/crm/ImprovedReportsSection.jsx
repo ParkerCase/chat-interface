@@ -457,7 +457,6 @@ const ImprovedReportsSection = ({
 
   // Process report data based on type
   const processReportData = (data, type) => {
-    // If data is falsy, return empty data
     if (!data) return { items: [], summary: { totalCount: 0 } };
 
     switch (type) {
@@ -486,80 +485,78 @@ const ImprovedReportsSection = ({
         }
 
         if (reportItems && reportItems.length > 0) {
-          // Group by item name/type for summary
-          const itemsMap = {};
+          // Process each item with enhanced fields - all with safe defaults
+          items = reportItems.map((item, index) => {
+            // Extract values with extensive fallbacks
+            const saleDate = item.sale_date
+              ? new Date(item.sale_date).toLocaleDateString()
+              : "N/A";
+            const invoiceNo = item.invoice_no || "N/A";
+            const guestCode = item.guest_code || "N/A";
+            const guestName = item.guest_name || "Unknown";
+            const centerName = item.center_name || item.center_code || "N/A";
+            const itemName = item.item_name || "Unknown Item";
+            const itemType = item.item_type || "N/A";
+            const qty = item.qty || 0;
 
-          reportItems.forEach((item) => {
-            try {
-              // Extract values with extensive fallbacks
-              const itemName =
-                item.item_name ||
-                item.service_name ||
-                item.product_name ||
-                item.name ||
-                item["Item Name"] ||
-                "Unknown";
-              const itemType =
-                item.item_type || item.type || item["Item Type"] || "Unknown";
-
-              // Handle different price field names
-              let amount = 0;
-              if (item.final_sale_price !== undefined)
-                amount = parseFloat(item.final_sale_price);
-              else if (item.amount !== undefined)
-                amount = parseFloat(item.amount);
-              else if (item.price !== undefined)
-                amount = parseFloat(item.price);
-              else if (item["Sales(Inc. Tax)"] !== undefined)
-                amount = parseFloat(item["Sales(Inc. Tax)"]);
-              else if (item["Sales (Exc. Tax)"] !== undefined)
-                amount = parseFloat(item["Sales (Exc. Tax)"]);
-
-              // Parse refund status
-              const isRefund =
-                item.is_refund === true ||
-                item.is_refund === "true" ||
-                item.is_refund === 1 ||
-                item.is_refund === "1" ||
-                amount < 0 ||
-                (item.invoice_status &&
-                  (item.invoice_status.toLowerCase() === "refunded" ||
-                    item.invoice_status.toLowerCase().includes("refund")));
-
-              // Add to totals
-              if (isRefund) {
-                totalRefunds += Math.abs(amount);
-              } else {
-                totalSales += amount;
-              }
-
-              // Group items
-              const key = `${itemName}-${itemType}`;
-              if (!itemsMap[key]) {
-                itemsMap[key] = {
-                  name: itemName,
-                  type: itemType,
-                  quantity: 0,
-                  totalAmount: 0,
-                  refundAmount: 0,
-                  netAmount: 0,
-                };
-              }
-
-              itemsMap[key].quantity += 1;
-              if (isRefund) {
-                itemsMap[key].refundAmount += Math.abs(amount);
-              } else {
-                itemsMap[key].totalAmount += amount;
-              }
-              itemsMap[key].netAmount =
-                itemsMap[key].totalAmount - itemsMap[key].refundAmount;
-            } catch (itemError) {
-              console.error("Error processing sales item:", itemError, item);
+            // Handle different price field names
+            let totalAmount = 0;
+            if (isCashBasis) {
+              totalAmount = item.sales_collected_inc_tax || item.collected || 0;
+            } else {
+              totalAmount =
+                item.sales_inc_tax || item.sales_excluding_redemption || 0;
             }
-          });
 
-          items = Object.values(itemsMap);
+            const paymentType = item.payment_type
+              ? String(item.payment_type).trim()
+              : "N/A";
+            const soldBy = item.sold_by || item.serviced_by || "N/A";
+            const createdBy = item.created_by || "N/A";
+            const status = item.status || "N/A";
+            const member = item.member || "N/A";
+            const firstVisit = item.first_visit || "N/A";
+            const invoiceNotes = item.invoice_notes || "";
+
+            // Parse refund status
+            const isRefund = totalAmount < 0;
+
+            // Add to totals
+            if (isRefund) {
+              totalRefunds += Math.abs(totalAmount);
+            } else {
+              totalSales += totalAmount;
+            }
+
+            return {
+              id: index,
+              saleDate,
+              invoiceNo,
+              guestCode,
+              guestName,
+              centerName,
+              itemName,
+              itemType,
+              qty,
+              totalAmount,
+              paymentType,
+              soldBy,
+              createdBy,
+              status,
+              member,
+              firstVisit,
+              invoiceNotes,
+              isRefund,
+              // For accrual basis, add additional fields with safe defaults
+              ...(isCashBasis
+                ? {}
+                : {
+                    collected: item.collected || 0,
+                    redeemed: item.redeemed || 0,
+                    due: item.due || 0,
+                  }),
+            };
+          });
         }
 
         // Calculate net sales
@@ -870,6 +867,7 @@ const ImprovedReportsSection = ({
   };
 
   // Render sales report
+  // Fixed renderSalesReport function with proper null checks
   const renderSalesReport = () => {
     const { summary, items, basis } = processedReportData;
 
@@ -904,28 +902,76 @@ const ImprovedReportsSection = ({
             </h3>
           </div>
 
-          <div className="rpt-section-content">
+          <div className="rpt-section-content" style={{ overflowX: "auto" }}>
             {items && items.length > 0 ? (
               <table className="rpt-data-table">
                 <thead>
                   <tr>
+                    <th>Date</th>
+                    <th>Invoice #</th>
+                    <th>Guest Code</th>
+                    <th>Guest Name</th>
+                    <th>Center</th>
                     <th>Item</th>
                     <th>Type</th>
-                    <th>Quantity</th>
-                    <th>Total Amount</th>
-                    <th>Refunds</th>
-                    <th>Net Amount</th>
+                    <th>Qty</th>
+                    <th>Amount</th>
+                    {basis === "accrual" && <th>Collected</th>}
+                    {basis === "accrual" && <th>Redeemed</th>}
+                    {basis === "accrual" && <th>Due</th>}
+                    <th>Payment</th>
+                    <th>Sold By</th>
+                    <th>Created By</th>
+                    <th>Status</th>
+                    <th>Member</th>
+                    <th>First Visit</th>
+                    <th>Notes</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item, index) => (
                     <tr key={index}>
-                      <td>{item.name}</td>
-                      <td>{item.type}</td>
-                      <td>{item.quantity || 0}</td>
-                      <td>{formatCurrency(item.totalAmount || 0)}</td>
-                      <td>{formatCurrency(item.refundAmount || 0)}</td>
-                      <td>{formatCurrency(item.netAmount || 0)}</td>
+                      <td>{item.saleDate}</td>
+                      <td>{item.invoiceNo}</td>
+                      <td>{item.guestCode}</td>
+                      <td>{item.guestName}</td>
+                      <td>{item.centerName}</td>
+                      <td>{item.itemName}</td>
+                      <td>{item.itemType}</td>
+                      <td>{item.qty}</td>
+                      <td className={item.isRefund ? "text-red-600" : ""}>
+                        {formatCurrency(item.totalAmount)}
+                      </td>
+                      {basis === "accrual" && (
+                        <td>{formatCurrency(item.collected || 0)}</td>
+                      )}
+                      {basis === "accrual" && (
+                        <td>{formatCurrency(item.redeemed || 0)}</td>
+                      )}
+                      {basis === "accrual" && (
+                        <td>{formatCurrency(item.due || 0)}</td>
+                      )}
+                      <td>{item.paymentType}</td>
+                      <td>{item.soldBy}</td>
+                      <td>{item.createdBy}</td>
+                      <td>
+                        <span
+                          className={`rpt-status-badge ${
+                            item.status ? item.status.toLowerCase() : ""
+                          }`}
+                        >
+                          {item.status || "N/A"}
+                        </span>
+                      </td>
+                      <td>{item.member}</td>
+                      <td>{item.firstVisit}</td>
+                      <td title={item.invoiceNotes}>
+                        {item.invoiceNotes
+                          ? item.invoiceNotes.length > 30
+                            ? item.invoiceNotes.substring(0, 30) + "..."
+                            : item.invoiceNotes
+                          : ""}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

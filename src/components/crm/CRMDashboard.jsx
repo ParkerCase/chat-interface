@@ -704,58 +704,115 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
 
   // Handle search
   const handleSearch = async () => {
-    if (!searchTerm) return;
+    console.log("=== SEARCH DEBUG START ===");
+    console.log("Search term:", searchTerm);
+    console.log("Search term length:", searchTerm?.length);
+    console.log("Selected center:", selectedCenter);
+    console.log("Connection status:", connectionStatus);
+
+    if (!searchTerm || !searchTerm.trim()) {
+      console.log("Search term is empty, aborting");
+      return;
+    }
 
     try {
       setIsLoading(true);
+      setError(null);
+      setLoadingMessage("Searching contacts...");
 
-      const response = await zenotiService.searchClients({
-        query: searchTerm,
+      // Clear any existing contacts
+      setContacts([]);
+
+      console.log("Making search request with params:", {
+        query: searchTerm.trim(),
         centerCode: selectedCenter,
-        limit: 1000, // Add a large limit for search results
+        limit: 1000,
       });
 
+      const response = await zenotiService.searchClients({
+        query: searchTerm.trim(),
+        centerCode: selectedCenter,
+        limit: 1000,
+      });
+
+      console.log("Full search response:", JSON.stringify(response, null, 2));
+      console.log("Response data:", response.data);
+      console.log("Response success:", response.data?.success);
+      console.log("Response clients:", response.data?.clients);
+      console.log("Clients length:", response.data?.clients?.length);
+
       if (response.data?.success) {
-        // Format clients to match our contact structure
-        const formattedContacts = (response.data.clients || []).map(
-          (client) => {
-            const personalInfo = client.personal_info || client;
-            return {
-              id: client.id || client.guest_id,
-              name: `${personalInfo.first_name || ""} ${
-                personalInfo.last_name || ""
-              }`.trim(),
-              email: personalInfo.email || "",
-              phone:
-                personalInfo.mobile_phone?.number ||
-                personalInfo.mobile ||
-                personalInfo.phone ||
-                "",
-              lastContact: client.last_visit_date || null,
-              centerCode: client.center_id || client.center_code || "",
-              centerName: client.center_name || "",
-            };
-          }
-        );
+        const rawClients = response.data.clients || [];
+        console.log("Raw clients received:", rawClients.length);
+
+        // Format clients with debugging
+        const formattedContacts = rawClients.map((client, index) => {
+          console.log(`Client ${index}:`, client);
+
+          const personalInfo = client.personal_info || client;
+          console.log(`Personal info for client ${index}:`, personalInfo);
+
+          const firstName = personalInfo.first_name || "";
+          const lastName = personalInfo.last_name || "";
+          const fullName =
+            `${firstName} ${lastName}`.trim() || client.guest_code || "Unknown";
+
+          const formatted = {
+            id: client.id || client.guest_id,
+            name: fullName,
+            email: personalInfo.email || "",
+            phone:
+              personalInfo.mobile_phone?.number ||
+              personalInfo.mobile ||
+              personalInfo.phone ||
+              "",
+            lastContact: client.last_visit_date || null,
+            centerCode:
+              client.center_id || client.center_code || selectedCenter,
+            centerName: client.center_name || selectedCenter,
+          };
+
+          console.log(`Formatted contact ${index}:`, formatted);
+          return formatted;
+        });
+
+        console.log(`Formatted ${formattedContacts.length} contacts`);
+        console.log("Setting contacts:", formattedContacts);
 
         setContacts(formattedContacts);
         setActiveContactView("search");
 
-        // Track search for analytics
-        analyticsUtils.trackEvent(
-          analyticsUtils.EVENT_TYPES.CRM_CONTACT_SEARCH,
-          {
-            query: searchTerm,
-            resultCount: formattedContacts.length,
-          }
+        // Show success message with count
+        setSuccessMessage(
+          `Found ${formattedContacts.length} contacts matching "${searchTerm}"`
         );
+      } else {
+        console.log("Search was not successful");
+        console.log("Error in response:", response.data?.error);
+        setError(response.data?.error || "No results found");
+        setContacts([]);
+        setActiveContactView("search");
       }
     } catch (err) {
       console.error("Error searching contacts:", err);
-      setError("Failed to search contacts");
+      console.error("Error stack:", err.stack);
+      setError(`Failed to search contacts: ${err.message}`);
+      setContacts([]);
+      setActiveContactView("search");
     } finally {
       setIsLoading(false);
+      setLoadingMessage("");
+      console.log("=== SEARCH DEBUG END ===");
     }
+  };
+
+  // Modify the handleSearchInputChange to be more conservative
+  const handleSearchInputChange = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+
+    // Only trigger search on Enter key or when search button clicked
+    // Remove the automatic search after typing
   };
 
   // Handle date range change for appointments
@@ -999,17 +1056,29 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
           <div className="crm-search-input-group">
             <Search size={20} className="crm-search-icon" />
             <input
-              style={{ paddingLeft: "40px" }}
               type="text"
-              placeholder="Search contacts by name, email, or phone..."
+              placeholder="Search contacts by name, email, or phone (minimum 2 characters)..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+              onChange={handleSearchInputChange}
+              onKeyPress={(e) => {
+                if (e.key === "Enter" && searchTerm.trim().length >= 2) {
+                  handleSearch();
+                }
+              }}
               disabled={!connectionStatus?.connected}
+              style={{
+                pointerEvents: "auto",
+                paddingLeft: "40px",
+                zIndex: 1,
+              }}
             />
             <button
               onClick={handleSearch}
-              disabled={!searchTerm || !connectionStatus?.connected}
+              disabled={
+                !searchTerm ||
+                searchTerm.trim().length < 2 ||
+                !connectionStatus?.connected
+              }
             >
               <span>Search</span>
             </button>
