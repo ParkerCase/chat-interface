@@ -15,11 +15,13 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     let mounted = true;
 
+    // In ThemeContext.jsx, update loadThemes function:
     const loadThemes = async () => {
       try {
         setLoading(true);
         console.log("Loading themes from database...");
 
+        // Try getting themes with a simpler query first
         const { data, error } = await supabase
           .from("themes")
           .select("*")
@@ -27,6 +29,7 @@ export function ThemeProvider({ children }) {
 
         if (error) {
           console.error("Error loading themes:", error);
+          // Try fallback approach
           throw error;
         }
 
@@ -37,7 +40,29 @@ export function ThemeProvider({ children }) {
       } catch (error) {
         console.error("Error loading themes:", error);
         if (mounted) {
-          setAvailableThemes([]);
+          // Set default themes as fallback
+          setAvailableThemes([
+            {
+              id: "default",
+              name: "Default",
+              description: "Default system theme",
+              content: {
+                primary: "#1976D2",
+                background: "#FFFFFF",
+                text: "#212121",
+              },
+            },
+            {
+              id: "dark",
+              name: "Dark Mode",
+              description: "Dark interface theme",
+              content: {
+                primary: "#90CAF9",
+                background: "#121212",
+                text: "#FFFFFF",
+              },
+            },
+          ]);
         }
       } finally {
         if (mounted) {

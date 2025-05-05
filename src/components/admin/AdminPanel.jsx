@@ -137,91 +137,37 @@ const AdminPanel = () => {
     try {
       debugAdminPanel("Safely fetching profiles with error handling");
 
-      // APPROACH 1: Use the RLS-bypassing function we created
-      try {
-        debugAdminPanel("Trying RPC function get_all_profiles");
+      // First, check if current user is admin
+      const { data: isAdmin, error: adminError } = await supabase.rpc(
+        "is_admin_user"
+      );
 
-        const { data: rpcData, error: rpcError } = await supabase.rpc(
-          "get_all_profiles"
+      if (adminError) {
+        debugAdminPanel("Admin check failed:", adminError.message);
+      }
+
+      if (isAdmin) {
+        debugAdminPanel("User confirmed as admin, fetching profiles");
+
+        // Now safely fetch profiles using our admin function
+        const { data: profiles, error: profilesError } = await supabase.rpc(
+          "get_all_profiles_safe"
         );
 
-        if (!rpcError && rpcData && Array.isArray(rpcData)) {
-          debugAdminPanel("Successfully fetched profiles via RPC", {
-            count: rpcData.length,
+        if (!profilesError && profiles) {
+          debugAdminPanel("Successfully fetched profiles", {
+            count: profiles.length,
           });
-          return rpcData;
+          return profiles;
         }
 
-        if (rpcError) {
-          debugAdminPanel("RPC fetch failed:", rpcError.message);
+        if (profilesError) {
+          debugAdminPanel("Error fetching profiles:", profilesError.message);
         }
-      } catch (rpcErr) {
-        debugAdminPanel("RPC execution error:", rpcErr.message);
-      }
-
-      // APPROACH 2: Try direct admin check first, then query
-      try {
-        debugAdminPanel("Checking if user is admin");
-
-        const { data: isAdmin, error: adminCheckError } = await supabase.rpc(
-          "is_admin_user"
-        );
-
-        if (!adminCheckError && isAdmin === true) {
-          debugAdminPanel("User is admin, fetching profiles directly");
-
-          const { data, error } = await supabase.rpc("get_all_profiles_safe");
-
-          if (!profilesError && profiles) {
-            debugAdminPanel("Successfully fetched profiles directly", {
-              count: profiles.length,
-            });
-            return profiles;
-          }
-
-          if (profilesError) {
-            debugAdminPanel(
-              "Direct profiles query failed:",
-              profilesError.message
-            );
-          }
-        }
-      } catch (adminErr) {
-        debugAdminPanel("Admin check error:", adminErr.message);
-      }
-
-      // APPROACH 3: Fetch with admin emails hardcoded
-      try {
-        debugAdminPanel("Trying to get session user");
-
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (
-          user &&
-          (user.email === "itsus@tatt2away.com" ||
-            user.email === "parker@tatt2away.com")
-        ) {
-          debugAdminPanel("User is admin by email, fetching profiles");
-
-          const { data, error } = await supabase.rpc("get_all_profiles_safe");
-
-          if (!profilesError && profiles) {
-            debugAdminPanel("Successfully fetched profiles as admin user", {
-              count: profiles.length,
-            });
-            return profiles;
-          }
-        }
-      } catch (sessionErr) {
-        debugAdminPanel("Session check error:", sessionErr.message);
       }
 
       // FALLBACK: Return hardcoded admin users if all else fails
-      debugAdminPanel(
-        "All database methods failed, using hardcoded admin users"
-      );
+      debugAdminPanel("Using fallback hardcoded admin users");
       const currentTime = new Date().toISOString();
       return [
         {
