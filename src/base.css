@@ -1,4 +1,4 @@
-/* src/base.css - Complete theme variables */
+/* Improved base.css with comprehensive theme variables */
 :root {
   /* Primary theme colors */
   --primary: #4f46e5;
@@ -18,12 +18,14 @@
 
   /* Theme-specific color variables */
   --color-primary: #4f46e5;
-  --color-secondary: #424242;
+  --color-primary-hover: #4338ca;
+  --color-secondary: #64748b;
   --color-accent: #82b1ff;
-  --color-error: #ff5252;
-  --color-success: #4caf50;
+  --color-error: #ef4444;
+  --color-success: #10b981;
   --color-background: #f5f7fa;
   --color-surface: #fafafa;
+  --color-text: #212121;
   --color-text-primary: #212121;
   --color-text-secondary: #757575;
   --color-text-disabled: #bdbdbd;
@@ -84,12 +86,14 @@
 
   /* Theme-specific color variables - dark mode */
   --color-primary: #6366f1;
+  --color-primary-hover: #4f46e5;
   --color-secondary: #94a3b8;
   --color-accent: #82b1ff;
   --color-error: #ef4444;
   --color-success: #4caf50;
   --color-background: #121212;
   --color-surface: #1e1e1e;
+  --color-text: #ffffff;
   --color-text-primary: #ffffff;
   --color-text-secondary: #b0b0b0;
   --color-text-disabled: #6c6c6c;
@@ -124,6 +128,111 @@
     border-color 0.3s ease;
 }
 
+/* Application-specific component overrides */
+.admin-container {
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+.admin-section {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.admin-nav-item {
+  color: var(--color-text);
+  padding: 10px 15px;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+}
+
+.admin-nav-item.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-table th {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.stat-card {
+  background-color: var(--color-surface);
+  border-radius: var(--border-radius-md);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.modal-overlay {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-container {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border-radius: var(--border-radius-md);
+}
+
+input,
+select,
+textarea {
+  background-color: var(--color-background);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+}
+
+button,
+.btn,
+.button {
+  background-color: var(--color-primary);
+  color: var(--button-text);
+  border: none;
+  border-radius: var(--border-radius-md);
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+button:hover,
+.btn:hover,
+.button:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.theme-switcher {
+  padding: 10px;
+  background-color: var(--color-surface);
+  border-radius: var(--border-radius-md);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.error-message {
+  background-color: var(--alert-error-bg);
+  color: var(--alert-error-text);
+  border-left: 3px solid var(--alert-error-border);
+  padding: 10px 15px;
+  margin: 10px 0;
+  border-radius: var(--border-radius-md);
+}
+
 /* Base styles for common components */
 .btn {
   display: inline-flex;
@@ -137,19 +246,19 @@
 }
 
 .btn-default {
-  background-color: var(--primary) !important;
-  color: var(--button-text) !important;
+  background-color: var(--button-primary);
+  color: var(--button-text);
   border: none;
 }
 
 .btn-default:hover {
-  background-color: var(--primary-hover) !important;
+  background-color: var(--button-primary-hover);
 }
 
 .btn-outline {
   background-color: transparent;
   border: 1px solid var(--border);
-  color: var(--foreground) !important;
+  color: var(--foreground);
 }
 
 .btn-outline:hover {
@@ -166,8 +275,8 @@
 }
 
 .alert-error {
-  background-color: var(--alert-error-bg) !important;
-  color: var(--alert-error-text) !important;
+  background-color: var(--alert-error-bg);
+  color: var(--alert-error-text);
   border-left: 4px solid var(--alert-error-border);
 }
 
