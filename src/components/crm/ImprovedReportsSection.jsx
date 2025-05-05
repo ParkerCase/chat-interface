@@ -463,19 +463,13 @@ const ImprovedReportsSection = ({
     switch (type) {
       case "sales_accrual":
       case "sales_cash": {
-        // Process sales report data
-        console.log(`Processing ${type} report data:`, data);
-
-        // Check which format we're dealing with
-        const isCashBasis = type === "sales_cash";
-
-        // Handle the flat file format from the new API endpoints
         let totalSales = 0;
         let totalRefunds = 0;
         let items = [];
 
-        // Extract data from the report response with additional fallbacks
-        // for the specific Zenoti response format we're seeing
+        const isCashBasis = type === "sales_cash";
+
+        // Extract data from the report response
         let reportItems = [];
 
         // Try different data locations based on the API response structure
@@ -491,30 +485,24 @@ const ImprovedReportsSection = ({
           reportItems = data.items;
         }
 
-        console.log("Report items for processing:", reportItems);
-
         if (reportItems && reportItems.length > 0) {
           // Group by item name/type for summary
           const itemsMap = {};
 
           reportItems.forEach((item) => {
             try {
-              // Extract values with extensive fallbacks for all possible field names
+              // Extract values with extensive fallbacks
               const itemName =
                 item.item_name ||
                 item.service_name ||
                 item.product_name ||
                 item.name ||
-                item["Item Name"] || // CSV format
+                item["Item Name"] ||
                 "Unknown";
-
               const itemType =
-                item.item_type ||
-                item.type ||
-                item["Item Type"] || // CSV format
-                "Unknown";
+                item.item_type || item.type || item["Item Type"] || "Unknown";
 
-              // Handle different price field names and formats
+              // Handle different price field names
               let amount = 0;
               if (item.final_sale_price !== undefined)
                 amount = parseFloat(item.final_sale_price);
@@ -527,7 +515,7 @@ const ImprovedReportsSection = ({
               else if (item["Sales (Exc. Tax)"] !== undefined)
                 amount = parseFloat(item["Sales (Exc. Tax)"]);
 
-              // Parse refund status from various fields
+              // Parse refund status
               const isRefund =
                 item.is_refund === true ||
                 item.is_refund === "true" ||
@@ -558,7 +546,6 @@ const ImprovedReportsSection = ({
                 };
               }
 
-              // Update item data
               itemsMap[key].quantity += 1;
               if (isRefund) {
                 itemsMap[key].refundAmount += Math.abs(amount);
@@ -572,39 +559,13 @@ const ImprovedReportsSection = ({
             }
           });
 
-          // Convert map to array
           items = Object.values(itemsMap);
-        }
-
-        // If we already have summary data in the response, use it
-        // First check different possible summary locations
-        let existingSummary = null;
-        if (data.summary) {
-          existingSummary = data.summary;
-        } else if (data.report && data.report.total) {
-          existingSummary = {
-            total_sales: data.report.total.sales || 0,
-            total_refunds: data.report.total.refunds || 0,
-            net_sales:
-              (data.report.total.sales || 0) - (data.report.total.refunds || 0),
-          };
-        }
-
-        if (existingSummary) {
-          console.log("Using existing summary data:", existingSummary);
-          return {
-            summary: existingSummary,
-            items,
-            totalCount: items.length,
-            reportType: "sales",
-            basis: isCashBasis ? "cash" : "accrual",
-          };
         }
 
         // Calculate net sales
         const netSales = totalSales - totalRefunds;
 
-        // Create summary
+        // Create summary object that matches expected format
         const summary = {
           totalSales: totalSales,
           totalRefunds: totalRefunds,
@@ -612,9 +573,7 @@ const ImprovedReportsSection = ({
           reportType: isCashBasis ? "Cash Basis" : "Accrual Basis",
         };
 
-        console.log("Generated sales report summary:", summary);
-        console.log("Processed sales items:", items);
-
+        // Return processed data with correct structure
         return {
           summary,
           items,

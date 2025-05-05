@@ -320,6 +320,8 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
       }
 
       const offset = append ? contactOffset : 0;
+
+      // Let's explicitly set a large limit
       const limit = 1000;
 
       console.log(
@@ -327,11 +329,16 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
           append ? "more" : "recent"
         } contacts with offset ${offset}...`
       );
+
+      // Add the limit explicitly to the query parameters
       const response = await zenotiService.searchClients({
         sort: "last_visit",
         limit: limit,
         offset: offset,
         centerCode: selectedCenter,
+        // Add additional parameters to ensure we get all results
+        page: Math.floor(offset / limit) + 1,
+        size: limit,
       });
 
       console.log("Recent contacts response:", response);
@@ -376,29 +383,14 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
         const newOffset = offset + limit;
         setContactOffset(newOffset);
 
-        // Only set hasMoreContacts to false if we get 0 contacts or if it's explicitly told by the API
-        // Some APIs return less than the limit even when there are more results
-        if (formattedContacts.length === 0) {
+        // Better pagination check
+        const hasMore = formattedContacts.length === limit;
+        setHasMoreContacts(hasMore);
+
+        // If we got fewer than the limit, we've reached the end
+        if (formattedContacts.length < limit) {
           setHasMoreContacts(false);
         }
-        // If the API provides a total count or has a flag indicating end of results, use that
-        else if (response.data.hasMore !== undefined) {
-          setHasMoreContacts(response.data.hasMore);
-        } else if (response.data.totalCount !== undefined) {
-          setHasMoreContacts(newOffset < response.data.totalCount);
-        }
-        // Otherwise, keep trying to load more until we get 0 results
-        else {
-          setHasMoreContacts(true);
-        }
-
-        console.log("HasMoreContacts after update:", hasMoreContacts);
-      } else {
-        console.warn("No client data found in response", response);
-        if (!append) {
-          setRecentContacts([]);
-        }
-        setHasMoreContacts(false);
       }
     } catch (err) {
       console.error("Error loading recent contacts:", err);
