@@ -254,14 +254,29 @@ export function AuthProvider({ children }) {
 
   // Handle direct bypass for admin accounts
   const bypassAuthForAdmins = (email, password = "password") => {
+    // Only allow admin bypass in development or with specific environment variable
+    const allowBypass =
+      process.env.NODE_ENV === "development" ||
+      process.env.REACT_APP_ALLOW_ADMIN_BYPASS === "true";
+
+    // Restrict admin accounts to those defined in environment (with secure defaults)
+    const adminEmails = process.env.REACT_APP_ADMIN_EMAILS
+      ? process.env.REACT_APP_ADMIN_EMAILS.split(",")
+      : ["itsus@tatt2away.com", "parker@tatt2away.com"]; // Fallback only for dev
+
+    const adminPassword = process.env.REACT_APP_ADMIN_PASSWORD || "password";
+
+    // Log attempt for audit purposes
+    logAuth("Admin bypass attempted", { email, allowed: allowBypass });
+
     if (
-      (email === "itsus@tatt2away.com" || email === "parker@tatt2away.com") &&
-      password === "password"
+      allowBypass &&
+      adminEmails.includes(email) &&
+      password === adminPassword
     ) {
       logAuth("Bypassing auth for admin account:", email);
 
-      const adminName =
-        email === "itsus@tatt2away.com" ? "Tatt2Away Admin" : "Parker Admin";
+      const adminName = email.split("@")[0] || "Admin";
       const adminUser = {
         id: `admin-${Date.now()}`,
         email,
@@ -289,6 +304,8 @@ export function AuthProvider({ children }) {
 
       return true;
     }
+
+    // Always return false if conditions not met
     return false;
   };
 

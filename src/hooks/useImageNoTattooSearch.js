@@ -1,13 +1,11 @@
 // src/hooks/useImageNoTattooSearch.js
 import { useState } from "react";
-import { useSupabase } from "./useSupabase";
-
+import { supabase } from "../lib/supabase";
 /**
  * Hook for finding images without tattoos
  * @returns {Object} Search methods and state
  */
 export function useImageNoTattooSearch() {
-  const supabase = useSupabase();
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);

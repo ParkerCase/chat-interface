@@ -1,18 +1,24 @@
 // src/lib/supabase.js
 import { createClient } from "@supabase/supabase-js";
 
-// Get environment variables with fallbacks
-const SUPABASE_URL =
-  process.env.REACT_APP_SUPABASE_URL ||
-  "https://rfnglcfyzoyqenofmsev.supabase.co";
+// Get environment variables with strict requirement
+const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
-const SUPABASE_ANON_KEY =
-  process.env.REACT_APP_SUPABASE_ANON_KEY ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJmbmdsY2Z5em95cWVub2Ztc2V2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzA5NTE2OTIsImV4cCI6MjA0NjUyNzY5Mn0.kkCRc648CuROFmGqsQVjtZ_y6n4y4IX9YXswbt81dNg";
+// Ensure environment variables are defined
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error(
+    "Error: Supabase URL and Anon Key are required. Set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY in your environment."
+  );
 
-console.log(`Initializing Supabase client with URL: ${SUPABASE_URL}`);
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Supabase configuration missing - application cannot start"
+    );
+  }
+}
 
-// Create supabase client with enhanced options
+// Create a single Supabase client instance
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     autoRefreshToken: true,
@@ -20,9 +26,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     detectSessionInUrl: true,
     storage: window.localStorage,
     flowType: "pkce",
-    // Debug in development only
     debug: process.env.NODE_ENV === "development",
-    // Enhanced options for better reliability
     storageKey: "tatt2away_supabase_auth",
     cookieOptions: {
       name: "tatt2away_supabase_auth",
@@ -31,11 +35,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       path: "/",
       sameSite: "Lax",
     },
-    // Configure OAuth providers
     oauth: {
       redirectTo: `${window.location.origin}/auth/callback`,
       provider_redirect_url: `${window.location.origin}/auth/callback`,
-      // Handle provider errors
       providerRedirectErrorParams: {
         error: "error",
         error_description: "error_description",
@@ -47,7 +49,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       "X-Client-Info": "Tatt2Away Admin Panel",
     },
   },
-  // Enable realtime subscriptions for session monitoring
   realtime: {
     params: {
       eventsPerSecond: 10,
@@ -55,8 +56,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
-// Set up auth state change listener for debugging
+// Development debug helpers
 if (process.env.NODE_ENV === "development") {
+  window.supabase = supabase;
+
   supabase.auth.onAuthStateChange((event, session) => {
     console.log(
       `[Supabase Debug] Auth state changed: ${event}`,
@@ -65,33 +68,11 @@ if (process.env.NODE_ENV === "development") {
   });
 }
 
-// Test connection on startup (dev only)
-if (process.env.NODE_ENV === "development") {
-  supabase.auth.getSession().then(({ data, error }) => {
-    if (error) {
-      console.warn("Supabase connection test failed:", error);
-    } else {
-      console.log("Supabase connection test successful");
-      console.log("Session exists:", !!data.session);
-    }
-  });
-}
-
 // Helper to verify MFA code
 export const verifyMfaCode = async (email, code) => {
   try {
     console.log(`Verifying MFA code for ${email}`);
 
-    // Special case for test admin account
-    if (email === "itsus@tatt2away.com") {
-      console.log("Test admin account - auto-verifying");
-      return {
-        success: true,
-        data: { user: { email: "itsus@tatt2away.com" } },
-      };
-    }
-
-    // Try verifying as OTP
     const { data, error } = await supabase.auth.verifyOtp({
       email,
       token: code,
@@ -118,17 +99,14 @@ export const verifyMfaCode = async (email, code) => {
     }
 
     console.log("MFA verification successful");
-    return {
-      success: true,
-      data,
-    };
+    return { success: true, data };
   } catch (error) {
     console.error("MFA verification error:", error);
     return { success: false, error };
   }
 };
 
-// Helper to check if a user has admin rights
+// Helper to check admin rights
 export const checkAdminRights = async (userId) => {
   try {
     if (!userId) return false;
@@ -186,10 +164,5 @@ export const upsertUserProfile = async (userId, userData) => {
     return { success: false, error };
   }
 };
-
-// Make supabase available in window for debug purposes in dev mode
-if (process.env.NODE_ENV === "development") {
-  window.supabase = supabase;
-}
 
 export { supabase, SUPABASE_URL, SUPABASE_ANON_KEY };

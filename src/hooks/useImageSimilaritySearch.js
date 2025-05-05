@@ -1,13 +1,12 @@
 // src/hooks/useImageSimilaritySearch.js
 import { useState } from "react";
-import { useSupabase } from "./useSupabase";
+import { supabase } from "../lib/supabase";
 
 /**
  * Hook for searching similar images using vector embeddings
  * @returns {Object} Search methods and state
  */
 export function useImageSimilaritySearch() {
-  const supabase = useSupabase();
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);

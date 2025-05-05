@@ -1,23 +1,6 @@
 // src/services/zenotiService.js - Enhanced to support new endpoints
 import { apiClient } from "./apiService";
 
-// Hardcoded mapping of center codes to center IDs to prevent lookup failures
-const CENTER_ID_MAP = {
-  // Add all your center codes and IDs here
-  "CEN001": "12345",
-  "CEN002": "23456",
-  "CEN003": "34567",
-  "CEN004": "45678",
-  "CEN005": "56789",
-  "CEN006": "67890",
-  "CEN007": "78901",
-  "CEN008": "89012",
-  "CEN009": "90123",
-  "CEN010": "01234",
-  // Add more centers as needed
-  // This is a fallback mechanism - the system will still try to get actual IDs first
-};
-
 /**
  * Service to handle all Zenoti-related API calls with comprehensive error handling
  */
@@ -234,7 +217,7 @@ const zenotiService = {
         params.startDate = today.toISOString().split("T")[0];
         params.endDate = twoWeeksLater.toISOString().split("T")[0];
       }
-      
+
       // Handle status filter - make sure it's properly formatted for API
       if (params.status) {
         console.log(`Filtering appointments by status: "${params.status}"`);
@@ -248,7 +231,7 @@ const zenotiService = {
       const response = await apiClient.get("/api/zenoti/appointments", {
         params,
       });
-      
+
       console.log("Appointments API response:", response.data);
 
       return response;
@@ -479,7 +462,10 @@ const zenotiService = {
       }
 
       const params = centerCode ? { centerCode } : {};
-      const response = await apiClient.get(`/api/zenoti/services/${serviceId}`, { params });
+      const response = await apiClient.get(
+        `/api/zenoti/services/${serviceId}`,
+        { params }
+      );
 
       return response;
     } catch (error) {
@@ -512,15 +498,20 @@ const zenotiService = {
 
       // Check hardcoded mapping as fallback
       if (CENTER_ID_MAP[centerCode]) {
-        console.log(`Using hardcoded center ID for ${centerCode}: ${CENTER_ID_MAP[centerCode]}`);
-        
+        console.log(
+          `Using hardcoded center ID for ${centerCode}: ${CENTER_ID_MAP[centerCode]}`
+        );
+
         // Cache the hardcoded ID
-        localStorage.setItem(`zenoti_center_id_${centerCode}`, CENTER_ID_MAP[centerCode]);
-        
+        localStorage.setItem(
+          `zenoti_center_id_${centerCode}`,
+          CENTER_ID_MAP[centerCode]
+        );
+
         return {
           success: true,
           centerId: CENTER_ID_MAP[centerCode],
-          source: "hardcoded"
+          source: "hardcoded",
         };
       }
 
@@ -530,7 +521,7 @@ const zenotiService = {
       if (response.data?.success) {
         const centers = response.data.centers || [];
         console.log(`Found ${centers.length} centers in response`);
-        
+
         const center = centers.find((c) => c.code === centerCode);
 
         if (center) {
@@ -539,7 +530,9 @@ const zenotiService = {
           if (centerId) {
             // Cache the ID for future use
             localStorage.setItem(`zenoti_center_id_${centerCode}`, centerId);
-            console.log(`Found and cached center ID for ${centerCode}: ${centerId}`);
+            console.log(
+              `Found and cached center ID for ${centerCode}: ${centerId}`
+            );
 
             // Also add to our hardcoded map for future use in case localStorage is cleared
             if (!CENTER_ID_MAP[centerCode]) {
@@ -551,7 +544,7 @@ const zenotiService = {
             return {
               success: true,
               centerId: centerId,
-              source: "api"
+              source: "api",
             };
           } else {
             console.warn(`Center with code ${centerCode} found but has no ID`);
@@ -565,41 +558,48 @@ const zenotiService = {
           console.log(
             `Using default center ID: ${response.data.defaultCenterId}`
           );
-          
+
           // Cache this default ID too
-          localStorage.setItem(`zenoti_center_id_${centerCode}`, response.data.defaultCenterId);
-          
+          localStorage.setItem(
+            `zenoti_center_id_${centerCode}`,
+            response.data.defaultCenterId
+          );
+
           return {
             success: true,
             centerId: response.data.defaultCenterId,
-            source: "default"
+            source: "default",
           };
         }
       }
 
       // If we get here, use a generic center ID as last resort
       const genericCenterId = "999999"; // This is a last resort fallback ID
-      console.warn(`Using generic center ID ${genericCenterId} for ${centerCode} as last resort`);
+      console.warn(
+        `Using generic center ID ${genericCenterId} for ${centerCode} as last resort`
+      );
       localStorage.setItem(`zenoti_center_id_${centerCode}`, genericCenterId);
-      
+
       return {
         success: true,
         centerId: genericCenterId,
-        source: "fallback"
+        source: "fallback",
       };
     } catch (error) {
       console.error("Error getting center ID from code:", error);
-      
+
       // Absolute last resort - use a hardcoded fallback and pretend it succeeded
       const fallbackId = "999999";
-      console.warn(`Using emergency fallback ID ${fallbackId} for ${centerCode} after error`);
+      console.warn(
+        `Using emergency fallback ID ${fallbackId} for ${centerCode} after error`
+      );
       localStorage.setItem(`zenoti_center_id_${centerCode}`, fallbackId);
-      
+
       return {
         success: true,
         centerId: fallbackId,
         source: "emergency",
-        originalError: error.message
+        originalError: error.message,
       };
     }
   },
@@ -750,13 +750,13 @@ const zenotiService = {
       };
     }
   },
-  
+
   getStaffDetails: async (staffId) => {
     try {
       if (!staffId) {
         throw new Error("Staff ID is required");
       }
-      
+
       const response = await apiClient.get(`/api/zenoti/staff/${staffId}`);
       return response;
     } catch (error) {

@@ -1,5 +1,5 @@
 // src/services/ChatImageSearchService.js
-import supabase from "../hooks/useSupabase";
+import { supabase } from "../lib/supabase";
 
 /**
  * Service to handle image search requests from chat
