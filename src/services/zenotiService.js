@@ -1,6 +1,43 @@
 // src/services/zenotiService.js - Enhanced to support new endpoints
 import { apiClient } from "./apiService";
 
+// Define the center ID mapping
+const getCenterIdMap = () => {
+  // Default hardcoded values as fallback
+  const defaultMap = {
+    AUS: "ca3dc432-280b-4cdb-86ea-6e582f3182a9",
+    CHI: "c359afac-3210-49e5-a930-6676d8bb188a",
+    CW: "4fa12356-a891-4af1-8d75-2fe81e6dd8f7",
+    Draper: "5da78932-c7e1-48b2-a099-9c302c75d7e1",
+    HTN: "7bc45610-d832-4e9a-b6c3-48dfb90a3f12",
+    TRA: "ca3dc432-280b-4cdb-86ea-6e582f3182a9", // Same as AUS
+    TRC: "c359afac-3210-49e5-a930-6676d8bb188a", // Same as CHI
+    TRW: "4fa12356-a891-4af1-8d75-2fe81e6dd8f7", // Same as CW
+    TRD: "5da78932-c7e1-48b2-a099-9c302c75d7e1", // Same as Draper
+    TRH: "7bc45610-d832-4e9a-b6c3-48dfb90a3f12", // Same as HTN
+    Houston: "8ae56789-f213-4cd7-9e34-10a2bc45d678",
+    DEFAULT: "ca3dc432-280b-4cdb-86ea-6e582f3182a9",
+  };
+
+  // Check if environment variable is set
+  if (process.env.REACT_APP_CENTER_ID_MAP) {
+    try {
+      const envMap = JSON.parse(process.env.REACT_APP_CENTER_ID_MAP);
+      // Merge environment config with defaults, prioritizing environment
+      return { ...defaultMap, ...envMap };
+    } catch (e) {
+      console.error("Error parsing REACT_APP_CENTER_ID_MAP:", e);
+      // Fall back to hardcoded values on error
+      return defaultMap;
+    }
+  }
+
+  return defaultMap;
+};
+
+// Create the CENTER_ID_MAP constant
+const CENTER_ID_MAP = getCenterIdMap();
+
 /**
  * Service to handle all Zenoti-related API calls with comprehensive error handling
  */
