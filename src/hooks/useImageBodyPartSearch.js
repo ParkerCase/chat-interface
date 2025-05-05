@@ -1,13 +1,13 @@
 // src/hooks/useImageBodyPartSearch.js
 import { useState } from "react";
-import { useSupabase } from "./useSupabase";
+import { supabase } from "../lib/supabase"; // Updated import
 
 /**
  * Hook for searching images by body part
  * @returns {Object} Search methods and state
  */
 export function useImageBodyPartSearch() {
-  const supabase = useSupabase();
+  // Removed useSupabase() call - now using direct import
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);

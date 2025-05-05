@@ -1,13 +1,11 @@
 // src/hooks/useImageKeywordSearch.js
 import { useState } from "react";
-import { useSupabase } from "./useSupabase";
-
+import { supabase } from "../lib/supabase";
 /**
  * Hook for searching images by keyword in analysis data
  * @returns {Object} Search methods and state
  */
 export function useImageKeywordSearch() {
-  const supabase = useSupabase();
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
