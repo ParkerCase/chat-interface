@@ -1940,35 +1940,35 @@ const EnhancedUserManagement = ({
                   )}
                 </div>
               </div>
-            </div>
-            <div className="modal-footer">
-              <button
-                className="cancel-button"
-                onClick={() => {
-                  setShowMfaModal(false);
-                  setUserForMfa(null);
-                }}
-                disabled={loading}
-              >
-                Cancel
-              </button>
-              <button
-                className="save-button"
-                onClick={handleSaveMfaSettings}
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <Loader size={14} className="spinner" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save size={14} />
-                    Save Settings
-                  </>
-                )}
-              </button>
+              <div className="modal-footer">
+                <button
+                  className="save-button"
+                  onClick={handleSaveMfaSettings}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader size={14} className="spinner" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={14} />
+                      Save Settings
+                    </>
+                  )}
+                </button>
+                <button
+                  className="cancel-button"
+                  onClick={() => {
+                    setShowMfaModal(false);
+                    setUserForMfa(null);
+                  }}
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
