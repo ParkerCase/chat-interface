@@ -163,12 +163,9 @@ const authUtils = {
         const { data } = await supabase.auth.getUser();
 
         if (data?.user) {
-          // Get user profile
+          // Get user profile using safe RPC function
           const { data: profileData } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", data.user.id)
-            .single();
+            .rpc("get_user_profile", { user_id: data.user.id });
 
           // Sync current user
           if (

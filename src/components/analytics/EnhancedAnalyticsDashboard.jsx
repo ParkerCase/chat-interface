@@ -358,19 +358,22 @@ const EnhancedAnalyticsDashboard = () => {
       // In a real app, you would fetch from your Supabase tables
       // Here we're generating sample data for demonstration
 
-      // Get user counts from profiles table
+      // Get user counts from profiles table using safe RPC function
       const { data: userCountData, error: userCountError } = await supabase
-        .from("profiles")
-        .select("id, created_at", { count: "exact" });
+        .rpc("get_all_profiles_safe");
 
       if (userCountError) throw userCountError;
 
-      // Get recent users
+      // Get recent users using safe RPC function
       const { data: recentUsersData, error: recentUsersError } = await supabase
-        .from("profiles")
-        .select("id, full_name, created_at")
-        .order("created_at", { ascending: false })
-        .limit(5);
+        .rpc("get_all_profiles_safe");
+
+      // Process to get only recent users
+      const recentUsers = recentUsersData ? 
+        recentUsersData
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+          .slice(0, 5) 
+        : [];
 
       if (recentUsersError) throw recentUsersError;
 

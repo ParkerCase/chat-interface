@@ -139,7 +139,7 @@ const AdminPanel = () => {
 
       // First, check if current user is admin
       const { data: isAdmin, error: adminError } = await supabase.rpc(
-        "is_admin_user"
+        "is_admin_safe"
       );
 
       if (adminError) {
@@ -364,9 +364,7 @@ const AdminPanel = () => {
 
       try {
         // Try using RPC to avoid RLS issues
-        const { data: exists } = await supabase.rpc("is_admin", {
-          user_id: currentUser?.id,
-        });
+        const { data: exists } = await supabase.rpc("is_admin_safe");
 
         if (exists) {
           debugAdminPanel("Current user is admin according to RPC check");
@@ -388,26 +386,23 @@ const AdminPanel = () => {
             { user_email: email }
           );
 
-          if (!profileError && profileData && profileData.length > 0) {
-            const profile = profileData[0];
+          if (!profileError && profileData) {
             debugAdminPanel(`Found admin profile for ${email}`);
 
             // Ensure admin has super_admin role
-            if (!profile.roles?.includes("super_admin")) {
-              const { data: updatedProfile, error: updateError } =
-                await supabase.rpc("update_admin_roles", {
-                  profile_id: profile.id,
-                  new_roles: ["super_admin", "admin", "user"],
-                });
+            const { data: updatedProfile, error: updateError } =
+              await supabase.rpc("update_admin_roles", {
+                profile_id: profileData.id,
+                new_roles: ["super_admin", "admin", "user"],
+              });
 
-              if (updateError) {
-                debugAdminPanel(
-                  "Error updating admin roles:",
-                  updateError.message
-                );
-              } else {
-                debugAdminPanel("Admin roles updated successfully");
-              }
+            if (updateError) {
+              debugAdminPanel(
+                "Error updating admin roles:",
+                updateError.message
+              );
+            } else {
+              debugAdminPanel("Admin roles updated successfully");
             }
           } else {
             debugAdminPanel(

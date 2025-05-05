@@ -126,11 +126,10 @@ export function ThemeProvider({ children }) {
         // First check if user is logged in and has a preference
         if (currentUser?.id) {
           try {
-            const { data: profile, error } = await supabase
-              .from("profiles")
-              .select("theme_id")
-              .eq("id", currentUser.id)
-              .maybeSingle();
+            const { data: profile, error } = await supabase.rpc(
+              "get_user_profile",
+              { user_id: currentUser.id }
+            );
 
             if (!error && profile?.theme_id) {
               // Get the specific theme
@@ -315,10 +314,22 @@ export function ThemeProvider({ children }) {
       // If user is logged in, save preference to server
       if (currentUser?.id) {
         try {
-          await supabase
-            .from("profiles")
-            .update({ theme_id: themeId })
-            .eq("id", currentUser.id);
+          // Get existing user profile first to preserve roles
+          const { data: profile, error: profileError } = await supabase.rpc(
+            "get_user_profile",
+            { user_id: currentUser.id }
+          );
+          
+          if (profileError) throw profileError;
+          
+          // Update using the safe RPC function
+          await supabase.rpc(
+            "update_admin_roles",
+            {
+              profile_id: currentUser.id,
+              new_roles: profile.roles || ["user"]
+            }
+          );
         } catch (err) {
           // If not authenticated, just save to localStorage (already done in applyTheme)
           console.log("Theme preference saved locally only");

@@ -56,17 +56,15 @@ export const SupabaseAnalytics = {
         throw new Error("Date range is required");
       }
 
-      // Fetch user profiles for counts
+      // Fetch user profiles for counts using safe RPC function
       const { data: userCountData, error: userCountError } = await supabase
-        .from("profiles")
-        .select("id, created_at", { count: "exact" });
+        .rpc("get_all_profiles_safe", {}, { count: "exact" });
 
       if (userCountError) throw userCountError;
 
-      // Get recent users
+      // Get recent users using safe RPC function with limit
       const { data: recentUsersData, error: recentUsersError } = await supabase
-        .from("profiles")
-        .select("id, full_name, created_at")
+        .rpc("get_all_profiles_safe")
         .order("created_at", { ascending: false })
         .limit(5);
 

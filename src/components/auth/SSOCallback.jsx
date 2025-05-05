@@ -123,29 +123,29 @@ function SSOCallback() {
           try {
             logCallback("Fetching user profile");
 
+            // Use the safe RPC function to get user profile
             let { data: profileData, error: profileError } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", data.session.user.id)
-              .single();
+              .rpc("get_user_profile", { user_id: data.session.user.id });
 
-            if (
-              profileError &&
-              profileError.message.includes("No rows found")
-            ) {
+            // Check if profile exists
+            const { data: profileExists, error: checkError } = await supabase
+              .rpc("check_profile_exists", { user_email: email });
+              
+            if (checkError) {
+              logCallback("Error checking if profile exists:", checkError);
+            }
+
+            if (!profileExists || profileError) {
               logCallback("Creating new user profile");
 
-              // Create a new profile
+              // Create a new profile using safe RPC function
               const { data: newProfile, error: insertError } = await supabase
-                .from("profiles")
-                .insert({
-                  id: data.session.user.id,
-                  email: email,
-                  full_name: email,
-                  roles: ["user"],
-                  created_at: new Date().toISOString(),
-                })
-                .select();
+                .rpc("create_admin_profile", {
+                  profile_id: data.session.user.id,
+                  profile_email: email,
+                  profile_name: email,
+                  profile_roles: ["user"]
+                });
 
               if (insertError) {
                 logCallback("Error creating profile:", insertError);

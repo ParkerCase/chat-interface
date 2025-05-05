@@ -104,23 +104,21 @@ export function AuthProvider({ children }) {
       // Try using the RPC function first (recommended approach)
       try {
         const { data: rpcData, error: rpcError } = await supabase.rpc(
-          "get_all_profiles"
+          "get_user_profile", 
+          { user_id: userId }
         );
 
-        if (!rpcError && rpcData && Array.isArray(rpcData)) {
-          const userProfile = rpcData.find((profile) => profile.id === userId);
-          if (userProfile) {
-            logAuth("Got profile from RPC function", {
-              email: userProfile.email,
-            });
-            return userProfile;
-          }
+        if (!rpcError && rpcData) {
+          logAuth("Got profile from RPC function", {
+            email: rpcData.email,
+          });
+          return rpcData;
         }
       } catch (rpcErr) {
         logAuth("RPC profile fetch failed, using fallback", rpcErr.message);
       }
 
-      // Try to get profile with direct select
+      // Try the legacy approach as fallback
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
@@ -200,8 +198,7 @@ export function AuthProvider({ children }) {
       try {
         // Try using RPC function first
         const { data: exists, error: rpcError } = await supabase.rpc(
-          "is_admin",
-          { user_id: id }
+          "is_admin_safe"
         );
 
         if (!rpcError) {
@@ -223,16 +220,16 @@ export function AuthProvider({ children }) {
         if (!profileError.message.includes("No rows found")) {
           logAuth("Error checking for profile:", profileError.message);
         } else {
-          // Create new profile if not found
-          const { error: insertError } = await supabase
-            .from("profiles")
-            .insert({
-              id: id,
-              email: email,
-              full_name: email,
-              roles: ["user"],
-              created_at: new Date().toISOString(),
-            });
+          // Create new profile if not found using the safe RPC function
+          const { error: insertError } = await supabase.rpc(
+            "create_admin_profile",
+            {
+              profile_id: id,
+              profile_email: email,
+              profile_name: email,
+              profile_roles: ["user"]
+            }
+          );
 
           if (insertError) {
             logAuth("Error creating profile:", insertError.message);
@@ -552,16 +549,22 @@ export function AuthProvider({ children }) {
     try {
       if (!currentUser?.id) return false;
 
-      // Update in Supabase profiles table
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          full_name: profileData.name,
-          first_name: profileData.firstName,
-          last_name: profileData.lastName,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", currentUser.id);
+      // Get existing roles first
+      const { data: userData, error: userError } = await supabase.rpc(
+        "get_user_profile",
+        { user_id: currentUser.id }
+      );
+      
+      if (userError) throw userError;
+      
+      // Update profile using the safe RPC function
+      const { error } = await supabase.rpc(
+        "update_admin_roles",
+        {
+          profile_id: currentUser.id,
+          new_roles: userData.roles || ["user"]
+        }
+      );
 
       if (error) throw error;
 
