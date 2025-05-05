@@ -295,57 +295,41 @@ const ImprovedReportsSection = ({
           const salesParams = {
             start_date: formattedStartDate,
             end_date: formattedEndDate,
-            center_ids: [centerId], // Use the retrieved center ID
-            level_of_detail: "1", // Detailed level
+            // Try the same format as accrual basis
+            centers: {
+              ids: [centerId],
+            },
+            level_of_detail: "1",
             _t: timestamp,
           };
 
-          console.log("Using center ID for cash sales report:", centerId);
-
-          // Add filters if they're not set to "All"
+          // Add filters
           if (itemType !== "All") {
             salesParams.item_types = [mapItemTypeToCode(itemType)];
           } else {
-            salesParams.item_types = [-1]; // All item types
+            salesParams.item_types = [-1];
           }
 
-          // Payment types filter
           if (paymentMode !== "All") {
             salesParams.payment_types = [mapPaymentTypeToCode(paymentMode)];
           } else {
-            salesParams.payment_types = [-1]; // All payment types
+            salesParams.payment_types = [-1];
           }
 
-          // Sale types filter (for cash basis)
           if (status !== "All") {
             salesParams.sale_types = [mapSaleTypeToCode(status)];
           } else {
-            salesParams.sale_types = [-1]; // All sale types
+            salesParams.sale_types = [-1];
           }
 
-          // Set empty arrays for unused filters to avoid API issues
+          // Add missing required fields
           salesParams.sold_by_ids = [];
+          salesParams.invoice_statuses = [-1]; // Add this missing field!
 
-          // Call the cash basis report API
           console.log("Generating cash basis sales report with:", salesParams);
-
-          // If we still have issues with the API, let's try the fallback method
-          try {
-            response = await reportsApiService.getSalesCashBasisReport(
-              salesParams
-            );
-          } catch (err) {
-            console.warn("Sales cash API failed, using fallback:", err.message);
-            // Use fallback method - getRegularSalesReport
-            response = await reportsApiService.getSalesReport({
-              startDate: dateRange.startDate,
-              endDate: dateRange.endDate,
-              centerCode: selectedCenter,
-              itemType: itemType !== "All" ? itemType : null,
-              paymentMode: paymentMode !== "All" ? paymentMode : null,
-              _t: timestamp,
-            });
-          }
+          response = await reportsApiService.getSalesCashBasisReport(
+            salesParams
+          );
           break;
         }
         case "appointments":
@@ -720,41 +704,64 @@ const ImprovedReportsSection = ({
         };
       }
 
-      case "packages": {
-        // Process packages data
-        const packages = data.packages || Array.isArray(data) ? data : [];
+      // Add to processReportData function for services
+      case "services": {
+        // Add debugging
+        console.log("Processing services data:", data);
+
+        const services = data.services || (Array.isArray(data) ? data : []);
+        console.log("Formatted services:", services);
+
+        // Check for alternative data locations
+        const processedServices = services.map((service) => ({
+          ...service,
+          name: service.name || service.serviceName || "Unknown Service",
+          duration: service.duration || service.durationMinutes || 0,
+          price: service.price || service.servicePrice || service.amount || 0,
+        }));
 
         return {
-          items: packages,
-          totalCount: packages.length,
+          items: processedServices,
+          totalCount: processedServices.length,
           summary: {
-            totalCount: packages.length,
-            activeCount: packages.filter(
+            totalCount: processedServices.length,
+            averagePrice: processedServices.length
+              ? processedServices.reduce(
+                  (sum, svc) => sum + (svc.price || 0),
+                  0
+                ) / processedServices.length
+              : 0,
+          },
+          reportType: "services",
+        };
+      }
+
+      // Add to processReportData function for packages
+      case "packages": {
+        // Add debugging
+        console.log("Processing packages data:", data);
+
+        const packages = data.packages || (Array.isArray(data) ? data : []);
+        console.log("Formatted packages:", packages);
+
+        // Check for alternative data locations
+        const processedPackages = packages.map((pkg) => ({
+          ...pkg,
+          name: pkg.name || pkg.packageName || "Unknown Package",
+          type: pkg.type || pkg.packageType || "Standard",
+          status: pkg.status || (pkg.active ? "Active" : "Inactive"),
+        }));
+
+        return {
+          items: processedPackages,
+          totalCount: processedPackages.length,
+          summary: {
+            totalCount: processedPackages.length,
+            activeCount: processedPackages.filter(
               (p) => p.active || p.status === "Active"
             ).length,
           },
           reportType: "packages",
-        };
-      }
-
-      case "services": {
-        // Process services data
-        const services = data.services || Array.isArray(data) ? data : [];
-
-        return {
-          items: services,
-          totalCount: services.length,
-          summary: {
-            totalCount: services.length,
-            averagePrice: services.length
-              ? services.reduce(
-                  (sum, svc) =>
-                    sum + (svc.price_info?.sale_price || svc.price || 0),
-                  0
-                ) / services.length
-              : 0,
-          },
-          reportType: "services",
         };
       }
 

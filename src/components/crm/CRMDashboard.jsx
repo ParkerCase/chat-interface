@@ -1218,12 +1218,31 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                       </tbody>
                     </table>
                   </div>
-
                   {/* Add Load More button */}
+
                   {hasMoreContacts && (
-                    <div className="crm-load-more-container">
+                    <div
+                      className="crm-load-more-container"
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        margin: "20px 0",
+                        padding: "10px",
+                      }}
+                    >
                       <button
                         className="crm-load-more-btn"
+                        style={{
+                          padding: "10px 30px",
+                          backgroundColor: "#4f46e5",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "8px",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
                         onClick={handleLoadMoreContacts}
                         disabled={
                           loadingMoreContacts || !connectionStatus?.connected
@@ -1247,18 +1266,6 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
               )}
             </div>
           )}
-
-          {/* Debug div - add this after the load more button section */}
-          <div
-            style={{
-              padding: "10px",
-              backgroundColor: "#f0f0f0",
-              marginTop: "10px",
-            }}
-          >
-            DEBUG: hasMoreContacts = {hasMoreContacts.toString()},
-            recentContacts.length = {recentContacts.length}
-          </div>
 
           {activeSection === "appointments" && (
             <div className="apt-appointments-section">
