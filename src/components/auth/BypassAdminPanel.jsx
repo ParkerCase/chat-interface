@@ -55,12 +55,9 @@ function BypassAdminPanel() {
             return;
           }
 
-          // Check user role from profiles table
+          // Check user role using safe RPC function
           const { data: profileData, error: profileError } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", data.session.user.id)
-            .single();
+            .rpc("get_user_profile", { user_id: data.session.user.id });
 
           if (profileError) {
             console.log("BypassAdmin: No profile found, creating one");

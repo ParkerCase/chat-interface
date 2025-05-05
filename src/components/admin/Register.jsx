@@ -195,44 +195,32 @@ function Register() {
 
       // Signup errors should have been handled above
 
-      // First check if the profile already exists (could happen with user restores)
+      // Check if the profile already exists using safe RPC function
       const { data: existingProfile, error: checkError } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", data.user.id)
-        .single();
+        .rpc("check_profile_exists", { user_email: email });
 
       // If profile exists, update it, otherwise create it
       let profileError;
       if (existingProfile) {
         console.log("Profile already exists, updating...");
-        // Update the existing profile
+        // Update the existing profile using safe RPC function
         const { error: updateError } = await supabase
-          .from("profiles")
-          .update({
-            full_name: name,
-            roles: roles,
-            tier: "enterprise",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", data.user.id);
+          .rpc("update_admin_roles", {
+            profile_id: data.user.id,
+            new_roles: roles
+          });
 
         profileError = updateError;
       } else {
         console.log("Creating new profile...");
-        // Create new profile with properly structured data
+        // Create new profile using safe RPC function
         const { error: insertError } = await supabase
-          .from("profiles")
-          .insert([
-            {
-              id: data.user.id,
-              full_name: name,
-              roles: roles,
-              tier: "enterprise",
-              created_at: new Date().toISOString(),
-            },
-          ])
-          .select();
+          .rpc("create_admin_profile", {
+            profile_id: data.user.id,
+            profile_email: email,
+            profile_name: name,
+            profile_roles: roles
+          });
 
         profileError = insertError;
       }

@@ -140,11 +140,9 @@ export const authDiagnostics = {
           const { data: userData } = await supabase.auth.getUser();
 
           if (userData?.user) {
-            const { data: profileData } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", userData.user.id)
-              .single();
+            // Use the safe RPC function to get user profile
+          const { data: profileData } = await supabase
+              .rpc("get_user_profile", { user_id: userData.user.id });
 
             // Create a repaired user object
             const repairedUser = {

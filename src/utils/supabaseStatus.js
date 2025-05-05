@@ -14,10 +14,9 @@ export const supabaseStatus = {
       console.log("Testing Supabase connection...");
       const startTime = Date.now();
 
-      // Simple ping test - just query a small amount of data
+      // Simple ping test - use safe RPC function to get one profile
       const { data, error } = await supabase
-        .from("profiles")
-        .select("count")
+        .rpc("get_all_profiles_safe")
         .limit(1)
         .timeout(10000); // 10 second timeout
 
@@ -215,11 +214,9 @@ export const supabaseStatus = {
             await supabase.auth.getUser();
 
           if (!userError && userData?.user) {
+            // Use safe RPC function to get user profile
             const { data: profileData } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", userData.user.id)
-              .single();
+              .rpc("get_user_profile", { user_id: userData.user.id });
 
             // Create basic user object
             const userObject = {

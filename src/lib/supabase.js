@@ -111,11 +111,20 @@ export const checkAdminRights = async (userId) => {
   try {
     if (!userId) return false;
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("roles")
-      .eq("id", userId)
-      .single();
+    // Use is_admin_safe RPC function for the current user if no userId is provided
+    if (userId === 'current') {
+      const { data, error } = await supabase.rpc('is_admin_safe');
+      
+      if (error) {
+        console.error("Error checking admin rights with is_admin_safe:", error);
+        return false;
+      }
+      
+      return data || false;
+    }
+    
+    // For a specific user, get their profile using the safe RPC function
+    const { data, error } = await supabase.rpc('get_user_profile', { user_id: userId });
 
     if (error) {
       console.error("Error checking admin rights:", error);
@@ -137,28 +146,53 @@ export const checkAdminRights = async (userId) => {
 export const upsertUserProfile = async (userId, userData) => {
   try {
     if (!userId) return { success: false, error: "No user ID provided" };
-
-    const { data, error } = await supabase.from("profiles").upsert(
-      {
-        id: userId,
-        email: userData.email,
-        full_name: userData.fullName || userData.email,
-        roles: userData.roles || ["user"],
-        updated_at: new Date().toISOString(),
-        ...userData,
-      },
-      {
-        onConflict: "id",
-        returning: "minimal",
-      }
+    
+    // Check if profile exists
+    const { data: existsData, error: existsError } = await supabase.rpc(
+      'check_profile_exists', 
+      { user_email: userData.email }
     );
-
-    if (error) {
-      console.error("Error upserting profile:", error);
-      return { success: false, error };
+    
+    if (existsError) {
+      console.error("Error checking if profile exists:", existsError);
     }
-
-    return { success: true, data };
+    
+    // If profile exists, update roles
+    if (existsData) {
+      const { data, error } = await supabase.rpc(
+        'update_admin_roles',
+        { 
+          profile_id: userId, 
+          new_roles: userData.roles || ["user"]
+        }
+      );
+      
+      if (error) {
+        console.error("Error updating profile roles:", error);
+        return { success: false, error };
+      }
+      
+      return { success: true, data };
+    } 
+    // Otherwise create new profile
+    else {
+      const { data, error } = await supabase.rpc(
+        'create_admin_profile',
+        {
+          profile_id: userId,
+          profile_email: userData.email,
+          profile_name: userData.fullName || userData.email,
+          profile_roles: userData.roles || ["user"]
+        }
+      );
+      
+      if (error) {
+        console.error("Error creating profile:", error);
+        return { success: false, error };
+      }
+      
+      return { success: true, data };
+    }
   } catch (error) {
     console.error("Error upserting profile:", error);
     return { success: false, error };

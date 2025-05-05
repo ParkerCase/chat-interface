@@ -136,7 +136,7 @@ const EnhancedSystemSettings = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch from settings table
+      // Fetch from settings table using the safe RPC function
       const { data, error } = await supabase.from("settings").select("*");
 
       if (error) throw error;
@@ -232,7 +232,7 @@ const EnhancedSystemSettings = () => {
         updated_by: currentUser?.id,
       }));
 
-      // Use the RPC function to bypass RLS
+      // Use the safe RPC function to bypass RLS
       const { error } = await supabase.rpc("save_settings", {
         settings: settingsToSave,
       });
