@@ -195,39 +195,52 @@ const reportsApiService = {
     try {
       console.log("Making cash basis report request with params:", params);
 
+      // Extract center_ids from the centers object structure
+      let centerIds = params.center_ids;
+      if (!centerIds && params.centers?.ids) {
+        centerIds = params.centers.ids;
+      }
+
       // Validate center_ids parameter
-      if (
-        !params.center_ids ||
-        !params.center_ids.length ||
-        !params.center_ids[0]
-      ) {
-        console.error("Invalid center_ids parameter:", params.center_ids);
+      if (!centerIds || !centerIds.length || !centerIds[0]) {
+        console.error("Invalid center_ids parameter:", centerIds);
+        console.error(
+          "Original params structure:",
+          JSON.stringify(params, null, 2)
+        );
         throw new Error("A valid center ID is required for sales reports");
       }
 
-      // Ensure all required fields are present
+      // Prepare the request with the correct structure
       const requestParams = {
         ...params,
-        // These fields are required by the API
-        sold_by_ids: params.sold_by_ids || [],
-        invoice_statuses: params.invoice_statuses || [-1],
-        item_types: params.item_types || [-1],
-        payment_types: params.payment_types || [-1],
-        sale_types: params.sale_types || [-1],
+        // Remove center_ids from the top level since it should be in centers.ids
+        center_ids: undefined,
       };
+
+      // Ensure we have the correct centers structure
+      if (!requestParams.centers) {
+        requestParams.centers = { ids: centerIds };
+      }
 
       console.log(
         "Sending cash basis request with params:",
         JSON.stringify(requestParams)
       );
 
+      // Use the correct endpoint path matching your backend route
       const response = await apiClient.post(
-        `/api/zenoti/reports/sales/cash_basis/flat_file?page=${
-          params.page || 1
-        }&size=${params.size || 50}`,
-        requestParams
+        "/api/zenoti/reports/sales/cash_basis/flat_file",
+        requestParams,
+        {
+          params: {
+            page: params.page || 1,
+            size: params.size || 50,
+          },
+        }
       );
 
+      // Log the raw response
       console.log("Cash basis raw response status:", response.status);
       console.log(
         "Cash basis FULL response data:",
