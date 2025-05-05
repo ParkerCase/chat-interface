@@ -170,10 +170,7 @@ const AdminPanel = () => {
         if (!adminCheckError && isAdmin === true) {
           debugAdminPanel("User is admin, fetching profiles directly");
 
-          const { data: profiles, error: profilesError } = await supabase
-            .from("profiles")
-            .select("*")
-            .order("created_at", { ascending: false });
+          const { data, error } = await supabase.rpc("get_all_profiles_safe");
 
           if (!profilesError && profiles) {
             debugAdminPanel("Successfully fetched profiles directly", {
@@ -208,10 +205,7 @@ const AdminPanel = () => {
         ) {
           debugAdminPanel("User is admin by email, fetching profiles");
 
-          const { data: profiles, error: profilesError } = await supabase
-            .from("profiles")
-            .select("*")
-            .order("created_at", { ascending: false });
+          const { data, error } = await supabase.rpc("get_all_profiles_safe");
 
           if (!profilesError && profiles) {
             debugAdminPanel("Successfully fetched profiles as admin user", {
@@ -442,24 +436,23 @@ const AdminPanel = () => {
       // Try to fetch admin profiles one by one
       for (const email of adminEmails) {
         try {
-          const { data: profileData, error: profileError } = await supabase
-            .from("profiles")
-            .select("id, roles")
-            .eq("email", email)
-            .maybeSingle();
+          // Use safe RPC function to check profile
+          const { data: profileData, error: profileError } = await supabase.rpc(
+            "check_profile_exists",
+            { user_email: email }
+          );
 
-          if (!profileError && profileData) {
+          if (!profileError && profileData && profileData.length > 0) {
+            const profile = profileData[0];
             debugAdminPanel(`Found admin profile for ${email}`);
 
             // Ensure admin has super_admin role
-            if (!profileData.roles?.includes("super_admin")) {
-              const { error: updateError } = await supabase
-                .from("profiles")
-                .update({
-                  roles: ["super_admin", "admin", "user"],
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("id", profileData.id);
+            if (!profile.roles?.includes("super_admin")) {
+              const { data: updatedProfile, error: updateError } =
+                await supabase.rpc("update_admin_roles", {
+                  profile_id: profile.id,
+                  new_roles: ["super_admin", "admin", "user"],
+                });
 
               if (updateError) {
                 debugAdminPanel(
@@ -482,20 +475,19 @@ const AdminPanel = () => {
                   .toString(36)
                   .substring(2, 15)}`;
 
-            // Try to create profile
-            const { error: insertError } = await supabase
-              .from("profiles")
-              .insert({
-                id: adminUUID,
-                email: email,
-                full_name:
+            // Try to create profile using safe RPC
+            const { data: newProfile, error: insertError } = await supabase.rpc(
+              "create_admin_profile",
+              {
+                profile_id: adminUUID,
+                profile_email: email,
+                profile_name:
                   email === "itsus@tatt2away.com"
                     ? "Tatt2Away Admin"
                     : "Parker Admin",
-                roles: ["super_admin", "admin", "user"],
-                tier: "enterprise",
-                created_at: new Date().toISOString(),
-              });
+                profile_roles: ["super_admin", "admin", "user"],
+              }
+            );
 
             if (insertError) {
               debugAdminPanel(
@@ -606,17 +598,17 @@ const AdminPanel = () => {
           roles = ["super_admin", "admin", "user"];
         }
 
-        // Create profile in profiles table
-        const { error: profileError } = await supabase.from("profiles").insert({
-          id: data.user.id,
-          email: newUserForm.email,
-          full_name: `${newUserForm.firstName} ${newUserForm.lastName}`.trim(),
-          first_name: newUserForm.firstName,
-          last_name: newUserForm.lastName,
-          roles: roles,
-          tier: "enterprise",
-          created_at: new Date().toISOString(),
-        });
+        // Create profile using safe RPC function
+        const { data: newProfile, error: profileError } = await supabase.rpc(
+          "create_admin_profile",
+          {
+            profile_id: data.user.id,
+            profile_email: newUserForm.email,
+            profile_name:
+              `${newUserForm.firstName} ${newUserForm.lastName}`.trim(),
+            profile_roles: roles,
+          }
+        );
 
         if (profileError) throw profileError;
 
