@@ -1,9 +1,9 @@
-// src/components/ChatImageResults.jsx
+// Enhanced ChatImageResults.jsx with better error handling and pagination
 import React, { useState, useEffect, useRef } from "react";
-import "./ChatImageResults.css"; // Make sure to create this CSS file
+import "./ChatImageResults.css";
 
 /**
- * Production-ready ChatImageResults component
+ * Production-ready ChatImageResults component with improved reliability
  * Displays image search results in chat messages
  */
 const ChatImageResults = ({
@@ -11,30 +11,39 @@ const ChatImageResults = ({
   responseText = "",
   searchParams = {},
   onImageClick,
-  onSearchWithImage = null, // Add this prop with default value
-  onCopyPath = null, // Add this prop with default value
-  onGetMore = null, // Add this new prop
+  onSearchWithImage = null,
+  onCopyPath = null,
+  onGetMore = null,
 }) => {
   const [expanded, setExpanded] = useState(true);
   const [selectedImage, setSelectedImage] = useState(null);
   const [errorStates, setErrorStates] = useState({});
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Add an image cache ref to avoid reloading images
   const imageCache = useRef({});
+  const retryTimeouts = useRef({});
 
   // Reset states when images change
   useEffect(() => {
     setErrorStates({});
   }, [images]);
 
+  // Clear retry timeouts on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(retryTimeouts.current).forEach((timeout) =>
+        clearTimeout(timeout)
+      );
+    };
+  }, []);
+
   // Display settings
   const maxImagesToShow = images.length > 8 ? 6 : images.length;
   const hasMoreImages = images.length > maxImagesToShow;
 
   /**
-   * Enhanced function to generate image URL with direct backend access
-   * @param {string|Object} imagePath - Path to the image or image object
-   * @returns {string} URL for the image
+   * Enhanced function to generate image URL with improved error handling
    */
   const getImageUrl = (imagePath) => {
     if (!imagePath) return "/placeholder-image.jpg";
@@ -48,45 +57,55 @@ const ChatImageResults = ({
     // Handle different input formats
     if (typeof imagePath === "string") {
       normalizedPath = imagePath.trim();
+
+      // Remove leading slash for consistency if it exists
+      if (normalizedPath.startsWith("/")) {
+        normalizedPath = normalizedPath.substring(1);
+      }
+
+      // Add dropbox: prefix if not present and not already prefixed
+      if (
+        !normalizedPath.includes("://") &&
+        !normalizedPath.startsWith("dropbox:")
+      ) {
+        normalizedPath = `dropbox:${normalizedPath}`;
+      }
     } else if (typeof imagePath === "object" && imagePath.path) {
-      normalizedPath = imagePath.path.trim();
+      return getImageUrl(imagePath.path);
     } else {
       console.warn("Invalid image path format:", imagePath);
       return "/placeholder-image.jpg";
     }
 
-    // Ensure path has the proper prefix format
-    if (!normalizedPath.includes("://")) {
-      // Remove any leading slashes for consistency
-      if (normalizedPath.startsWith("/")) {
-        normalizedPath = normalizedPath.substring(1);
-      }
-
-      // Add dropbox: prefix if not present
-      if (!normalizedPath.startsWith("dropbox:")) {
-        normalizedPath = `dropbox:${normalizedPath}`;
-      }
-    }
-
-    // Use the DIRECT backend URL instead of relying on proxy
-    return `http://147.182.247.128:4000/api/image-proxy?path=${encodeURIComponent(
+    // Use the direct backend URL
+    return `/api/image-proxy?path=${encodeURIComponent(
       normalizedPath
     )}&${cacheBuster}`;
   };
 
+  /**
+   * Handle getting more images
+   */
   const handleGetMore = async () => {
-    if (!searchParams || !onGetMore) return;
+    if (!searchParams || !onGetMore || loadingMore) return;
 
-    // Call the parent component's onGetMore handler
-    onGetMore(searchParams);
+    try {
+      setLoadingMore(true);
+      await onGetMore(searchParams);
+    } catch (error) {
+      console.error("Error getting more images:", error);
+    } finally {
+      setLoadingMore(false);
+    }
   };
 
   /**
-   * Custom hook to safely load cross-origin images
+   * Custom hook to safely load cross-origin images with retry logic
    */
   function useImageLoader(src, cacheKey) {
     const [status, setStatus] = useState("loading");
     const [dataUrl, setDataUrl] = useState(null);
+    const retryCount = useRef(0);
 
     useEffect(() => {
       // Skip if no src
@@ -102,54 +121,121 @@ const ChatImageResults = ({
         return;
       }
 
+      // Reset retry count when src changes
+      retryCount.current = 0;
+
       // Show loading state
       setStatus("loading");
 
-      // Create an image element to load the image
-      const img = new Image();
+      // Function to attempt loading with retry logic
+      const attemptLoad = () => {
+        // Create an image element to load the image
+        const img = new Image();
 
-      // Set up event handlers
-      img.onload = () => {
-        try {
-          // Create a canvas to convert the image to a data URL
-          const canvas = document.createElement("canvas");
-          canvas.width = img.width;
-          canvas.height = img.height;
+        // Set up event handlers
+        img.onload = () => {
+          try {
+            // Create a canvas to convert the image to a data URL
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
 
-          // Draw the image to the canvas
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0);
+            // Draw the image to the canvas
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0);
 
-          // Convert to data URL
-          const dataUrl = canvas.toDataURL("image/jpeg");
+            // Convert to data URL
+            const dataUrl = canvas.toDataURL("image/jpeg");
 
-          // Cache the result
-          imageCache.current[cacheKey] = dataUrl;
+            // Cache the result
+            imageCache.current[cacheKey] = dataUrl;
 
-          // Update state
-          setDataUrl(dataUrl);
-          setStatus("loaded");
-        } catch (error) {
-          console.error("Error converting image to data URL:", error);
-          setStatus("error");
-        }
+            // Update state
+            setDataUrl(dataUrl);
+            setStatus("loaded");
+          } catch (error) {
+            console.error("Error converting image to data URL:", error);
+            setStatus("error");
+          }
+        };
+
+        img.onerror = () => {
+          console.error(
+            `Failed to load image (attempt ${retryCount.current + 1}): ${src}`
+          );
+
+          // Attempt retry with different approach if we haven't exceeded max retries
+          if (retryCount.current < 2) {
+            retryCount.current += 1;
+
+            // Clear any existing timeout
+            if (retryTimeouts.current[cacheKey]) {
+              clearTimeout(retryTimeouts.current[cacheKey]);
+            }
+
+            // Different retry strategy based on retry count
+            let retrySrc = src;
+
+            if (retryCount.current === 1) {
+              // First retry: Try with a different path format
+              if (typeof src === "string") {
+                // Try without dropbox: prefix if it has one, or add it if it doesn't
+                if (src.includes("dropbox:")) {
+                  retrySrc = src.replace("dropbox:", "");
+                } else {
+                  const parts = new URL(src, window.location.origin);
+                  const path = new URLSearchParams(parts.search).get("path");
+                  if (path) {
+                    const modifiedPath = path.startsWith("dropbox:")
+                      ? path.substring(7)
+                      : `dropbox:${path}`;
+                    retrySrc = `/api/image-proxy?path=${encodeURIComponent(
+                      modifiedPath
+                    )}&t=${Date.now()}`;
+                  }
+                }
+              }
+
+              // Try immediately with the modified URL
+              setTimeout(attemptLoad, 100);
+            } else {
+              // Second retry: Try direct API URL with delay
+              retryTimeouts.current[cacheKey] = setTimeout(() => {
+                // Try direct URL with cache buster
+                const directUrl = `/api/direct-image?path=${encodeURIComponent(
+                  typeof src === "string" && src.includes("?path=")
+                    ? new URL(src, window.location.origin).searchParams.get(
+                        "path"
+                      )
+                    : src
+                )}&t=${Date.now()}`;
+
+                img.src = directUrl;
+              }, 2000);
+            }
+          } else {
+            // Max retries exceeded
+            setStatus("error");
+          }
+        };
+
+        // Set crossOrigin to anonymous to prevent CORS issues when using canvas
+        img.crossOrigin = "anonymous";
+
+        // Begin image loading
+        img.src = src;
       };
 
-      img.onerror = () => {
-        console.error(`Failed to load image: ${src}`);
-        setStatus("error");
-      };
-
-      // Set crossOrigin to anonymous to prevent CORS issues when using canvas
-      img.crossOrigin = "anonymous";
-
-      // Begin image loading
-      img.src = src;
+      // Start first attempt
+      attemptLoad();
 
       // Cleanup function
       return () => {
-        img.onload = null;
-        img.onerror = null;
+        // Clear any pending retry timeouts for this image
+        if (retryTimeouts.current[cacheKey]) {
+          clearTimeout(retryTimeouts.current[cacheKey]);
+          delete retryTimeouts.current[cacheKey];
+        }
       };
     }, [src, cacheKey]);
 
@@ -185,21 +271,12 @@ const ChatImageResults = ({
 
   /**
    * Handle clicking an image
-   * @param {Object} image - Image data
    */
   const handleImageClick = (image) => {
     setSelectedImage(image);
     if (onImageClick) {
       onImageClick(image);
     }
-  };
-
-  /**
-   * Handle clicking "Show more" button
-   */
-  const handleShowMore = () => {
-    console.log("Show more clicked", searchParams);
-    // Implementation for showing more results
   };
 
   // If no images, just show the response text
@@ -274,18 +351,20 @@ const ChatImageResults = ({
         </div>
       )}
 
+      {/* "Get more images" button */}
       {searchParams?.hasMore && (
-        <div style={{ marginTop: "1rem", textAlign: "center" }}>
+        <div className="chat-results-footer">
           <button
             className="get-more-btn"
-            onClick={() => onGetMore(searchParams)}
+            onClick={handleGetMore}
+            disabled={loadingMore}
           >
-            Get more images
+            {loadingMore ? "Loading more..." : "Get more images"}
           </button>
         </div>
       )}
 
-      {/* Image detail modal - Enhanced Version */}
+      {/* Image detail modal */}
       {selectedImage && (
         <div className="image-detail-modal">
           <div className="modal-content">
@@ -367,13 +446,6 @@ const ChatImageResults = ({
                   <span className="action-icon">🔍</span>
                   Use in Search
                 </button>
-                {expanded && hasMoreImages && (
-                  <div className="chat-results-footer">
-                    <button className="get-more-btn" onClick={handleGetMore}>
-                      Get More Images
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           </div>

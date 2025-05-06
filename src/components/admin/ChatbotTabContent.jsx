@@ -176,10 +176,22 @@ const ChatbotTabContent = () => {
     try {
       setIsLoading(true);
 
-      const response = await apiService.chat.getThreadMessages(threadId);
+      const response = await apiService.chat.getThreadMessages(threadId, {
+        limit: 100,
+      }); // Increase limit
 
       if (response.data?.success) {
-        setCurrentMessages(response.data.messages || []);
+        // Ensure we're getting all messages by sorting them correctly
+        const allMessages = response.data.messages || [];
+
+        // Sort messages by timestamp to ensure proper order
+        allMessages.sort((a, b) => {
+          const timeA = new Date(a.created_at).getTime();
+          const timeB = new Date(b.created_at).getTime();
+          return timeA - timeB;
+        });
+
+        setCurrentMessages(allMessages);
       } else {
         throw new Error(
           response.data?.error || "Failed to load thread messages"
@@ -219,22 +231,22 @@ const ChatbotTabContent = () => {
       setShowSearchModal(false);
       setShowImageViewerModal(false);
 
-      // Force UI update immediately to show a blank chat
-      setTimeout(() => {
-        // Get a fresh list of threads after clearing
-        const userId = currentUser?.id || "default-user";
+      // Force immediate UI update to prevent any race conditions
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
-        // We don't need to explicitly create a thread - it will be created
-        // automatically when the user sends their first message
-        apiService.chat.getHistory(userId).then((response) => {
-          if (response.data?.success) {
-            const processedThreads = apiService.chat.processChatHistory(
-              response.data.messages
-            );
-            setThreads(processedThreads);
-          }
-        });
-      }, 100);
+      // Get a fresh list of threads after clearing
+      const userId = currentUser?.id || "default-user";
+
+      // We don't need to explicitly create a thread - it will be created
+      // automatically when the user sends their first message
+      apiService.chat.getHistory(userId).then((response) => {
+        if (response.data?.success) {
+          const processedThreads = apiService.chat.processChatHistory(
+            response.data.messages
+          );
+          setThreads(processedThreads);
+        }
+      });
     } catch (err) {
       console.error("Error creating new thread:", err);
       setError("Failed to create new thread. Please try again.");
@@ -352,50 +364,192 @@ const ChatbotTabContent = () => {
       };
 
       setCurrentMessages((prev) => [...prev, systemMessage]);
+      setUploadProgress(20);
 
-      // Prepare form data for the file upload
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("userId", currentUser?.id || "default-user");
-      formData.append(
-        "message",
-        inputText || `Analyze this document: ${file.name}`
-      );
+      // Instead of sending the entire file to the backend at once, try to extract content on the client side
+      let documentContent = "";
 
-      // Upload document
-      const response = await axios.post(
-        `${apiService.utils.getBaseUrl()}/api/chat/upload-document`,
-        formData,
-        {
-          onUploadProgress: (progressEvent) => {
-            const progress = Math.round(
-              (progressEvent.loaded / progressEvent.total) * 100
-            );
-            setUploadProgress(progress);
-          },
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
+      // Read the file content based on type
+      if (file.type === "application/pdf") {
+        // For PDF files, we'll need to use the backend since PDF parsing in the browser is limited
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("userId", currentUser?.id || "default-user");
+        formData.append(
+          "message",
+          inputText || `Analyze this document: ${file.name}`
+        );
+
+        try {
+          // Use a more specific endpoint for PDFs
+          const response = await axios.post(
+            `${apiService.utils.getBaseUrl()}/api/chat/process-pdf`,
+            formData,
+            {
+              onUploadProgress: (progressEvent) => {
+                const progress = Math.round(
+                  (progressEvent.loaded / progressEvent.total) * 100
+                );
+                setUploadProgress(progress);
+              },
+              headers: {
+                "Content-Type": "multipart/form-data",
+              },
+              timeout: 60000, // Extend timeout for large files
+            }
+          );
+
+          // Add assistant response
+          const assistantMessage = {
+            sender: "assistant",
+            message_type: "assistant",
+            content: response.data.response,
+            created_at: new Date().toISOString(),
+            thread_id: response.data.threadId,
+          };
+
+          setCurrentMessages((prev) => [...prev, assistantMessage]);
+
+          // Update selected thread ID if this is a new thread
+          if (response.data.threadId && !selectedThreadId) {
+            setSelectedThreadId(response.data.threadId);
+            // Turn off new chat mode once we have a thread ID
+            setIsNewChat(false);
+          }
+
+          setUploadProgress(100);
+          return;
+        } catch (pdfError) {
+          console.warn(
+            "PDF processing error, trying alternative approach:",
+            pdfError
+          );
+          // Fall through to try client-side processing
         }
-      );
-
-      // Add assistant response
-      const assistantMessage = {
-        sender: "assistant",
-        message_type: "assistant",
-        content: response.data.response,
-        created_at: new Date().toISOString(),
-        thread_id: response.data.threadId,
-      };
-
-      setCurrentMessages((prev) => [...prev, assistantMessage]);
-
-      // Update selected thread ID if this is a new thread
-      if (response.data.threadId && !selectedThreadId) {
-        setSelectedThreadId(response.data.threadId);
-        // Turn off new chat mode once we have a thread ID
-        setIsNewChat(false);
       }
+
+      // For text files, CSV, etc., try to read them directly in the browser
+      try {
+        setUploadProgress(30);
+        documentContent = await readFileContent(file);
+        setUploadProgress(60);
+      } catch (readError) {
+        console.warn("File reading error:", readError);
+
+        // Fall back to backend processing
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("userId", currentUser?.id || "default-user");
+        formData.append(
+          "message",
+          inputText || `Analyze this document: ${file.name}`
+        );
+
+        try {
+          // Fall back to the standard endpoint
+          const response = await axios.post(
+            `${apiService.utils.getBaseUrl()}/api/chat/upload-document`,
+            formData,
+            {
+              onUploadProgress: (progressEvent) => {
+                const progress = Math.round(
+                  (progressEvent.loaded / progressEvent.total) * 100
+                );
+                setUploadProgress(progress);
+              },
+              headers: {
+                "Content-Type": "multipart/form-data",
+              },
+            }
+          );
+
+          // Add assistant response
+          const assistantMessage = {
+            sender: "assistant",
+            message_type: "assistant",
+            content: response.data.response,
+            created_at: new Date().toISOString(),
+            thread_id: response.data.threadId,
+          };
+
+          setCurrentMessages((prev) => [...prev, assistantMessage]);
+
+          // Update selected thread ID if this is a new thread
+          if (response.data.threadId && !selectedThreadId) {
+            setSelectedThreadId(response.data.threadId);
+            // Turn off new chat mode once we have a thread ID
+            setIsNewChat(false);
+          }
+
+          setUploadProgress(100);
+          return;
+        } catch (backendError) {
+          console.error("Backend document processing error:", backendError);
+          throw new Error(
+            "Failed to process document with both client and server approaches"
+          );
+        }
+      }
+
+      setUploadProgress(70);
+
+      // If we successfully extracted content, send it to the chat API
+      if (documentContent) {
+        const prompt = `The following is content from a document called "${
+          file.name
+        }". Please analyze it and respond as if responding to the document upload.
+        
+  DOCUMENT CONTENT:
+  ${documentContent}
+  
+  ${
+    inputText ||
+    "Please analyze this document and provide a summary of the key points."
+  }`;
+
+        // Use regular chat endpoint with the document content as context
+        const chatResponse = await fetch(
+          `${apiService.utils.getBaseUrl()}/api/chat`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              message: prompt,
+              userId: currentUser?.id || "default-user",
+            }),
+          }
+        );
+
+        if (!chatResponse.ok) {
+          throw new Error(`Chat request failed: ${chatResponse.status}`);
+        }
+
+        const response = { data: await chatResponse.json() };
+
+        // Add assistant response
+        const assistantMessage = {
+          sender: "assistant",
+          message_type: "assistant",
+          content: response.data.response,
+          created_at: new Date().toISOString(),
+          thread_id: response.data.threadId,
+        };
+
+        setCurrentMessages((prev) => [...prev, assistantMessage]);
+
+        // Update selected thread ID if this is a new thread
+        if (response.data.threadId && !selectedThreadId) {
+          setSelectedThreadId(response.data.threadId);
+          // Turn off new chat mode once we have a thread ID
+          setIsNewChat(false);
+        }
+      } else {
+        throw new Error("Could not extract document content");
+      }
+
+      setUploadProgress(100);
 
       // Clear input and file after sending
       setInputText("");
@@ -407,21 +561,99 @@ const ChatbotTabContent = () => {
       const errorMessage = {
         sender: "system",
         message_type: "error",
-        content: `Error uploading document: ${err.message || "Unknown error"}`,
+        content: `Error processing document: ${
+          err.message || "Unknown error"
+        }. ${err.cause || ""}`,
         created_at: new Date().toISOString(),
       };
 
       setCurrentMessages((prev) => [...prev, errorMessage]);
-      setError(err.message || "Failed to upload document");
+      setError(err.message || "Failed to process document");
     } finally {
       setIsLoading(false);
       setUploadProgress(0);
     }
   };
 
-  // Production-ready handleImageSearch function for ChatbotTabContent.jsx
-  // Minimal fix for handleImageSearch - using your existing Supabase functions
-  // Fix for handleImageSearch function
+  const readFileContent = async (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        try {
+          const content = e.target.result;
+
+          // For CSV files, try to parse them nicely
+          if (file.type === "text/csv" || file.name.endsWith(".csv")) {
+            try {
+              // Use PapaParse for CSV parsing
+              window.Papa.parse(content, {
+                header: true,
+                complete: (results) => {
+                  // Format as a nice table
+                  let formattedContent = "";
+
+                  // Add headers
+                  if (results.meta && results.meta.fields) {
+                    formattedContent += results.meta.fields.join(", ") + "\n";
+                  }
+
+                  // Add data rows
+                  if (results.data && results.data.length) {
+                    results.data.forEach((row) => {
+                      const values = Object.values(row).map((v) =>
+                        String(v || "")
+                      );
+                      formattedContent += values.join(", ") + "\n";
+                    });
+                  }
+
+                  resolve(formattedContent);
+                },
+                error: (error) => {
+                  console.warn("CSV parsing error:", error);
+                  // Fall back to raw content
+                  resolve(content);
+                },
+              });
+            } catch (csvError) {
+              console.warn("CSV processing error:", csvError);
+              resolve(content);
+            }
+          } else {
+            // For other text files, just return the content
+            resolve(content);
+          }
+        } catch (error) {
+          reject(new Error(`Error processing file content: ${error.message}`));
+        }
+      };
+
+      reader.onerror = () => {
+        reject(new Error("Error reading file"));
+      };
+
+      if (
+        file.type.startsWith("text/") ||
+        file.type === "application/json" ||
+        file.type === "text/csv" ||
+        file.name.endsWith(".csv") ||
+        file.name.endsWith(".txt") ||
+        file.name.endsWith(".json")
+      ) {
+        reader.readAsText(file);
+      } else {
+        reject(
+          new Error(
+            `Unsupported file type for client-side processing: ${file.type}`
+          )
+        );
+      }
+    });
+  };
+
+  // HandleImageSearch function
+  // Modified handleImageSearch function to work with existing Supabase setup
   const handleImageSearch = async () => {
     if (!file) return;
 
@@ -462,87 +694,63 @@ const ChatbotTabContent = () => {
       setCurrentMessages((prev) => [...prev, systemMessage]);
       setUploadProgress(20);
 
-      // First, upload the image to get its embedding
-      // We'll use FormData for the file upload
+      // Instead of using supabase directly, use the chat/search/visual endpoint
+      // which is designed to handle the image search properly
       const formData = new FormData();
       formData.append("image", file);
+      formData.append("mode", searchMode); // 'tensor' or 'partial'
+      formData.append("limit", "20");
+      formData.append("threshold", searchMode === "tensor" ? "0.65" : "0.4");
 
-      // For image display, we still need to use the backend API to proxy images
-      const imageProxyBase = apiService.utils.getBaseUrl()
-        ? `${apiService.utils.getBaseUrl()}/api/image-proxy`
-        : "/api/image-proxy";
+      const baseUrl = apiService.utils.getBaseUrl();
+      const searchEndpoint = `${baseUrl}/api/chat/search/visual`;
 
-      setUploadProgress(30);
+      // Call the backend visual search endpoint
+      const searchResponse = await fetch(searchEndpoint, {
+        method: "POST",
+        body: formData,
+      });
 
-      // Extract embedding from the image using backend API
-      // Keep this part since we need the embedding vector
-      const embeddingResponse = await fetch(
-        `${apiService.utils.getBaseUrl()}/api/embedding/generate`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      if (!embeddingResponse.ok) {
+      if (!searchResponse.ok) {
+        const errorData = await searchResponse.json();
         throw new Error(
-          `Failed to generate embedding: ${embeddingResponse.status}`
-        );
-      }
-
-      const embeddingData = await embeddingResponse.json();
-      if (!embeddingData.success || !embeddingData.embedding) {
-        throw new Error(
-          "Failed to generate embedding: " +
-            (embeddingData.error || "Unknown error")
+          `Search failed: ${
+            errorData.error || errorData.details || "Unknown error"
+          }`
         );
       }
 
       setUploadProgress(60);
 
-      // Get the vector from the response
-      const embedding = embeddingData.embedding;
+      // Parse the response
+      const searchData = await searchResponse.json();
 
-      // Get embedding type based on search mode
-      const embeddingType = searchMode === "tensor" ? "full" : "partial";
-
-      console.log(
-        `Using ${embeddingType} search with threshold 0.65 and limit ${20}`
-      );
-
-      // Call Supabase function WITH THE CORRECT PARAMETER ORDER
-      // Based on your SQL, the order is: query_embedding, match_threshold, match_count, embedding_type
-      const { data: searchResults, error: searchError } = await supabase.rpc(
-        "search_images_by_embedding",
-        {
-          query_embedding: embedding,
-          match_threshold: 0.65,
-          match_limit: 20,
-          embedding_type: embeddingType,
-        }
-      );
-
-      if (searchError) {
-        console.error("Supabase search error:", searchError);
-        throw new Error(`Search failed: ${searchError.message}`);
+      if (!searchData.success) {
+        throw new Error(
+          `Search failed: ${searchData.error || "Unknown error"}`
+        );
       }
 
       setUploadProgress(80);
 
       // Process the search results
-      const matches = searchResults || [];
-      console.log(
-        `Found ${matches.length} matches with ${embeddingType} search`
-      );
+      const matches = searchData.matches || [];
+      console.log(`Found ${matches.length} matches with ${searchMode} search`);
 
       // Format the matches for display
+      const imageProxyBase = apiService.utils.getBaseUrl()
+        ? `${apiService.utils.getBaseUrl()}/api/image-proxy`
+        : "/api/image-proxy";
+
       const processedMatches = matches.map((match) => ({
-        id: match.id,
-        path: match.image_path,
-        score: match.similarity,
-        filename: match.image_path.split("/").pop(),
+        id:
+          match.id ||
+          `match-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+        path: match.path,
+        similarity: parseFloat(match.score) || match.similarity || 0.5,
+        filename: match.path.split("/").pop(),
         // For image URLs, use the image proxy endpoint
-        url: `${imageProxyBase}?path=${encodeURIComponent(match.image_path)}`,
+        url: `${imageProxyBase}?path=${encodeURIComponent(match.path)}`,
       }));
 
       setUploadProgress(90);
@@ -552,8 +760,16 @@ const ChatbotTabContent = () => {
         processedMatches.length === 1 ? "" : "s"
       } similar to the uploaded image.`;
 
-      // Store total possible results for pagination
-      const totalResults = Math.min(100, processedMatches.length * 2); // Estimate more available
+      // If no results found, give a helpful message
+      if (processedMatches.length === 0) {
+        if (searchMode === "partial") {
+          searchResultsText =
+            "I couldn't find any partial matches. Try using Full Image Match mode instead.";
+        } else {
+          searchResultsText =
+            "I couldn't find any similar images. Try using Partial Image Match mode or a different image.";
+        }
+      }
 
       // Add the analysis and search results to the chat
       const assistantMessage = {
@@ -566,10 +782,9 @@ const ChatbotTabContent = () => {
         images: processedMatches,
         searchParams: {
           type: "similarity",
-          mode: embeddingType,
-          embedding: embedding, // Store embedding for "Get more" functionality
+          mode: searchMode,
           currentPage: 0,
-          totalResults: totalResults,
+          totalResults: processedMatches.length,
           hasMore: processedMatches.length >= 20, // Assume more if we hit the limit
         },
       };
@@ -584,16 +799,26 @@ const ChatbotTabContent = () => {
     } catch (err) {
       console.error("Image search error:", err);
 
-      const errorMessage = {
+      // Handle specific errors more gracefully
+      let errorMessage = `Error searching for similar images: ${
+        err.message || "Unknown error"
+      }`;
+
+      if (err.message?.includes("operator does not exist: integer - vector")) {
+        errorMessage = `This type of image search is currently having technical difficulties. 
+        Please try the other search mode (${
+          searchMode === "tensor" ? "Partial" : "Full"
+        } Image Match) instead.`;
+      }
+
+      const errorSystemMessage = {
         sender: "system",
         message_type: "error",
-        content: `Error searching for similar images: ${
-          err.message || "Unknown error"
-        }`,
+        content: errorMessage,
         created_at: new Date().toISOString(),
       };
 
-      setCurrentMessages((prev) => [...prev, errorMessage]);
+      setCurrentMessages((prev) => [...prev, errorSystemMessage]);
       setError(err.message || "Failed to search for similar images");
     } finally {
       setIsLoading(false);
@@ -871,22 +1096,66 @@ const ChatbotTabContent = () => {
     // Normalize query
     const normalizedQuery = query.toLowerCase().trim();
 
-    // Extract search type
+    // Check for folder/path search first as it's most specific
     if (
-      normalizedQuery.includes("similar") ||
-      normalizedQuery.includes("like") ||
-      normalizedQuery.includes("resembles")
+      normalizedQuery.includes("folder") ||
+      normalizedQuery.includes("directory") ||
+      normalizedQuery.includes("path") ||
+      normalizedQuery.match(/\b(in|from|with)\s+[\w\/-]+/i) ||
+      normalizedQuery.match(/images?\s+\w+\s+[\w\/-]+/i)
     ) {
-      params.type = "similarity";
+      params.type = "path";
 
-      // Try to find a path reference
-      const pathMatch =
-        normalizedQuery.match(/similar to ([\w\/.-]+)/i) ||
-        normalizedQuery.match(/like ([\w\/.-]+)/i);
+      // Try various patterns to extract path
+      let pathMatch =
+        normalizedQuery.match(/\b(?:in|from)\s+([\w\/-]+)/i) ||
+        normalizedQuery.match(/folder\s+([\w\/-]+)/i) ||
+        normalizedQuery.match(/path\s+([\w\/-]+)/i) ||
+        normalizedQuery.match(/directory\s+([\w\/-]+)/i) ||
+        normalizedQuery.match(/with\s+([\w\/-]+)/i) ||
+        normalizedQuery.match(/images?\s+(?:in|from)\s+([\w\/-]+)/i) ||
+        normalizedQuery.match(/images?\s+\w+\s+([\w\/-]+)/i); // catch "images containing xyz"
+
+      // If we found a match, extract the path
       if (pathMatch && pathMatch[1]) {
-        params.similarityPath = pathMatch[1];
+        params.path = pathMatch[1];
+        console.log("Found path in query:", params.path);
+      } else {
+        // No explicit path found, extract potential folder names from the query
+        // by looking for words that could be folder names (2+ chars, alphanumeric/dash)
+        const words = normalizedQuery.split(/\s+/);
+        const potentialFolders = words.filter(
+          (word) =>
+            word.length >= 2 &&
+            /^[\w\/-]+$/.test(word) &&
+            ![
+              "find",
+              "show",
+              "get",
+              "search",
+              "images",
+              "pics",
+              "photos",
+              "with",
+              "from",
+              "for",
+              "containing",
+              "folder",
+              "path",
+              "directory",
+            ].includes(word)
+        );
+
+        if (potentialFolders.length > 0) {
+          // Use the longest word as it's more likely to be a specific folder name
+          potentialFolders.sort((a, b) => b.length - a.length);
+          params.path = potentialFolders[0];
+          console.log("Extracted potential folder name:", params.path);
+        }
       }
-    } else if (
+    }
+    // Extract body part search
+    else if (
       normalizedQuery.includes("body part") ||
       normalizedQuery.match(
         /\b(arm|leg|back|chest|face|neck|shoulder|hand|foot|ankle|thigh|calf|forearm|wrist)\b/i
@@ -896,38 +1165,60 @@ const ChatbotTabContent = () => {
 
       // Find body part mentioned
       const bodyPartMatch = normalizedQuery.match(
-        /\b(arm|leg|back|chest|face|neck|shoulder|hand|foot|ankle|thigh|calf|forearm|wrist)\b/i
+        /\b(arm|arms|leg|legs|back|chest|face|neck|shoulder|shoulders|hand|hands|foot|feet|ankle|ankles|thigh|thighs|calf|calves|forearm|forearms|wrist|wrists)\b/i
       );
 
       if (bodyPartMatch && bodyPartMatch[1]) {
-        params.bodyPart = bodyPartMatch[1].toLowerCase();
+        // Normalize plural forms to singular
+        let bodyPart = bodyPartMatch[1].toLowerCase();
+        const pluralMap = {
+          arms: "arm",
+          legs: "leg",
+          shoulders: "shoulder",
+          hands: "hand",
+          feet: "foot",
+          ankles: "ankle",
+          thighs: "thigh",
+          calves: "calf",
+          forearms: "forearm",
+          wrists: "wrist",
+        };
+
+        params.bodyPart = pluralMap[bodyPart] || bodyPart;
       }
-    } else if (
+    }
+    // Check for no-tattoo search
+    else if (
       normalizedQuery.includes("no tattoo") ||
       normalizedQuery.includes("without tattoo") ||
       normalizedQuery.includes("non-tattoo") ||
-      normalizedQuery.includes("clean skin")
+      normalizedQuery.includes("clean skin") ||
+      normalizedQuery.includes("no tat") ||
+      normalizedQuery.includes("not tattooed")
     ) {
       params.type = "noTattoo";
       params.noTattoo = true;
-    } else if (
-      normalizedQuery.includes("folder") ||
-      normalizedQuery.includes("directory") ||
-      normalizedQuery.includes("path") ||
-      normalizedQuery.match(/in ([\w\/.-]+)/i)
+    }
+    // Check for similarity search
+    else if (
+      normalizedQuery.includes("similar") ||
+      normalizedQuery.includes("like") ||
+      normalizedQuery.includes("resembles") ||
+      normalizedQuery.match(/similar\s+to\s+[\w\/-]+/i)
     ) {
-      params.type = "path";
+      params.type = "similarity";
 
       // Try to find a path reference
       const pathMatch =
-        normalizedQuery.match(/in ([\w\/.-]+)/i) ||
-        normalizedQuery.match(/folder ([\w\/.-]+)/i) ||
-        normalizedQuery.match(/path ([\w\/.-]+)/i);
-
+        normalizedQuery.match(/similar\s+to\s+([\w\/.-]+)/i) ||
+        normalizedQuery.match(/like\s+([\w\/.-]+)/i) ||
+        normalizedQuery.match(/resembles\s+([\w\/.-]+)/i);
       if (pathMatch && pathMatch[1]) {
-        params.path = pathMatch[1];
+        params.similarityPath = pathMatch[1];
       }
-    } else {
+    }
+    // Default to keyword search
+    else {
       // Default to keyword search
       params.type = "keyword";
       params.keyword = normalizedQuery
@@ -939,13 +1230,16 @@ const ChatbotTabContent = () => {
     }
 
     // Extract limit if specified
-    const limitMatch = normalizedQuery.match(/\b(limit|show|find|get) (\d+)\b/);
+    const limitMatch = normalizedQuery.match(
+      /\b(limit|show|find|get)\s+(\d+)\b/
+    );
     if (limitMatch && limitMatch[2]) {
       const requestedLimit = parseInt(limitMatch[2]);
       params.limit =
         requestedLimit > 0 && requestedLimit <= 50 ? requestedLimit : 12;
     }
 
+    console.log("Parsed search parameters:", params);
     return params;
   };
 
@@ -1773,6 +2067,7 @@ const ChatbotTabContent = () => {
             <>
               <div className="history-header">
                 <h3>Chat History</h3>
+                {/* Always show New Chat button, not conditionally rendered */}
                 <button className="new-chat-btn" onClick={createNewThread}>
                   <PlusCircle size={14} />
                   New Chat
@@ -1956,18 +2251,20 @@ const ChatbotTabContent = () => {
               </button>
             )}
 
-            {/* Zenoti integration toggle */}
-            <button
-              className={`zenoti-toggle ${useZenoti ? "active" : ""}`}
-              onClick={toggleZenoti}
-              title={
-                useZenoti
-                  ? "Zenoti integration enabled"
-                  : "Enable Zenoti integration"
-              }
-            >
-              <Calendar size={18} />
-            </button>
+            {/* Zenoti integration toggle - only show if enabled in settings */}
+            {chatSettings.showZenotiIntegration && (
+              <button
+                className={`zenoti-toggle ${useZenoti ? "active" : ""}`}
+                onClick={toggleZenoti}
+                title={
+                  useZenoti
+                    ? "Zenoti integration enabled"
+                    : "Enable Zenoti integration"
+                }
+              >
+                <Calendar size={18} />
+              </button>
+            )}
 
             {/* Text input */}
             <div className="input-wrapper">
