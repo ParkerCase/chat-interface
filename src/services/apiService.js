@@ -780,17 +780,28 @@ const chatApi = {
   },
 
   // Get messages for a specific thread
-  getThreadMessages: async (threadId) => {
+  getThreadMessages: async (threadId, options = {}) => {
     try {
-      const response = await apiClient.get(`/api/chat/thread/${threadId}`);
+      const limit = options.limit || 100; // Default to 100 messages
+      const page = options.page || 0;
+
+      const response = await axios.get(
+        `${API_CONFIG.baseUrl}/api/chat/thread/${threadId}`,
+        {
+          params: {
+            limit,
+            offset: page * limit,
+          },
+        }
+      );
+
       return response;
     } catch (error) {
-      console.error("Error fetching thread messages:", error);
+      console.error("Error getting thread messages:", error);
       return {
         data: {
           success: false,
-          error: error.message || "Failed to retrieve thread messages",
-          messages: [],
+          error: error.message || "Failed to get thread messages",
         },
       };
     }

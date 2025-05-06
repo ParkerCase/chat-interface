@@ -1,15 +1,10 @@
-// src/components/ImageGrid.jsx
-import React, { useState } from "react";
+// Enhanced ImageGrid component for improved rendering reliability
+// Update src/components/ImageGrid.jsx
+
+import React, { useState, useEffect, useRef } from "react";
 
 /**
- * Enhanced ImageGrid component that works with the StorageManager format
- * @param {Object} props - Component props
- * @param {Array} props.images - Array of image objects
- * @param {Function} props.onImageClick - Function to call when an image is clicked
- * @param {boolean} props.showDetails - Whether to show image details
- * @param {string} props.emptyMessage - Message to show when no images
- * @param {number} props.columns - Number of columns in the grid
- * @returns {JSX.Element} ImageGrid component
+ * Enhanced ImageGrid component with better error handling and rendering
  */
 const ImageGrid = ({
   images = [],
@@ -20,6 +15,23 @@ const ImageGrid = ({
 }) => {
   const [loadingImages, setLoadingImages] = useState({});
   const [failedImages, setFailedImages] = useState({});
+  const [imageCache, setImageCache] = useState({});
+  const retryTimeouts = useRef({});
+
+  // Clear retry timeouts on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(retryTimeouts.current).forEach((timeout) =>
+        clearTimeout(timeout)
+      );
+    };
+  }, []);
+
+  // Reset states when images change
+  useEffect(() => {
+    setFailedImages({});
+    setLoadingImages({});
+  }, [images]);
 
   // If no images, show empty state
   if (!images || images.length === 0) {
@@ -32,9 +44,7 @@ const ImageGrid = ({
 
   /**
    * Enhanced function to generate image URL based on storage provider
-   * This works with the unified path format from StorageManager
-   * @param {string} imagePath - Path to the image
-   * @returns {string} URL for the image
+   * This works with the unified path format
    */
   const getImageUrl = (imagePath) => {
     if (!imagePath) return "/placeholder-image.jpg";
@@ -42,15 +52,30 @@ const ImageGrid = ({
     // Add cache busting parameter for better development experience
     const cacheBuster = `t=${Date.now()}`;
 
+    // Handle different path formats
+    let normalizedPath = imagePath;
+
+    // Remove 'dropbox:' prefix if present
+    if (
+      typeof normalizedPath === "string" &&
+      normalizedPath.startsWith("dropbox:")
+    ) {
+      normalizedPath = normalizedPath.substring(7);
+    }
+
+    // Ensure path starts with '/' for proper URL construction
+    if (typeof normalizedPath === "string" && !normalizedPath.startsWith("/")) {
+      normalizedPath = "/" + normalizedPath;
+    }
+
     // Always proxy through our backend API to handle any storage provider
     return `/api/image-proxy?path=${encodeURIComponent(
-      imagePath
+      normalizedPath
     )}&${cacheBuster}`;
   };
 
   /**
    * Handle image load start
-   * @param {string} imageId - ID of the image
    */
   const handleImageLoadStart = (imageId) => {
     setLoadingImages((prev) => ({
@@ -61,7 +86,6 @@ const ImageGrid = ({
 
   /**
    * Handle image load success
-   * @param {string} imageId - ID of the image
    */
   const handleImageLoadSuccess = (imageId) => {
     setLoadingImages((prev) => {
@@ -77,28 +101,97 @@ const ImageGrid = ({
       delete newState[imageId];
       return newState;
     });
+
+    // Clear any retry timeouts
+    if (retryTimeouts.current[imageId]) {
+      clearTimeout(retryTimeouts.current[imageId]);
+      delete retryTimeouts.current[imageId];
+    }
   };
 
   /**
-   * Handle image load error
-   * @param {string} imageId - ID of the image
-   * @param {Object} image - Image object
+   * Handle image load error with retry logic
    */
-  const handleImageLoadError = (imageId, image) => {
-    console.warn(`Failed to load image: ${image.path}`);
+  const handleImageLoadError = (imageId, image, imgElement, retryCount = 0) => {
+    console.warn(
+      `Failed to load image (attempt ${retryCount + 1}): ${image.path}`
+    );
 
-    // Mark image as failed
-    setFailedImages((prev) => ({
-      ...prev,
-      [imageId]: true,
-    }));
+    // Mark image as failed if we've exceeded retries
+    if (retryCount >= 2) {
+      setFailedImages((prev) => ({
+        ...prev,
+        [imageId]: true,
+      }));
 
-    // Clear loading state
-    setLoadingImages((prev) => {
-      const newState = { ...prev };
-      delete newState[imageId];
-      return newState;
-    });
+      // Clear loading state
+      setLoadingImages((prev) => {
+        const newState = { ...prev };
+        delete newState[imageId];
+        return newState;
+      });
+
+      return;
+    }
+
+    // Try with a different error handling approach based on retry count
+    if (retryCount === 0) {
+      // First retry: Try with a different path format
+      let altPath = image.path;
+
+      // Try alternative path format (add/remove dropbox prefix)
+      if (typeof altPath === "string") {
+        if (altPath.startsWith("dropbox:")) {
+          altPath = altPath.substring(7);
+        } else {
+          altPath = "dropbox:" + altPath;
+        }
+      }
+
+      const altUrl = `/api/image-proxy?path=${encodeURIComponent(
+        altPath
+      )}&t=${Date.now()}`;
+
+      // Clear previous error handler to avoid loops
+      imgElement.onerror = null;
+
+      // Set new error handler for this retry
+      imgElement.onerror = () => {
+        handleImageLoadError(imageId, image, imgElement, retryCount + 1);
+      };
+
+      // Try with the alternative URL
+      imgElement.src = altUrl;
+    } else {
+      // Second retry: Try with a timeout and direct API URL
+      // Clear any existing timeouts
+      if (retryTimeouts.current[imageId]) {
+        clearTimeout(retryTimeouts.current[imageId]);
+      }
+
+      // Set a timeout to retry loading after a delay
+      retryTimeouts.current[imageId] = setTimeout(() => {
+        // Try with a direct API URL if available
+        const apiBaseUrl = window.location.origin;
+        const directUrl = `${apiBaseUrl}/api/direct-image?path=${encodeURIComponent(
+          image.path
+        )}&t=${Date.now()}`;
+
+        // Clear previous error handler
+        imgElement.onerror = null;
+
+        // Set final error handler
+        imgElement.onerror = () => {
+          // Final failure - set to placeholder
+          imgElement.onerror = null;
+          imgElement.src = "/placeholder-image.jpg";
+          handleImageLoadError(imageId, image, imgElement, retryCount + 1);
+        };
+
+        // Try with direct URL
+        imgElement.src = directUrl;
+      }, 1000);
+    }
   };
 
   return (
@@ -115,20 +208,8 @@ const ImageGrid = ({
         const isLoading = !!loadingImages[imageId];
         const hasFailed = !!failedImages[imageId];
 
-        // Handle different path formats to ensure they work with our image proxy
-        let imagePath = image.path;
-
-        // If the image has a provider explicitly set, use provider:// format
-        if (image.provider && !imagePath.startsWith(`${image.provider}://`)) {
-          // Remove leading slash if present
-          const normalizedPath = imagePath.startsWith("/")
-            ? imagePath.substring(1)
-            : imagePath;
-          imagePath = `${image.provider}://${normalizedPath}`;
-        }
-
-        // Get the final image URL for display
-        const imageUrl = getImageUrl(imagePath);
+        // Get the image URL
+        const imageUrl = imageCache[imageId] || getImageUrl(image.path);
 
         return (
           <div
@@ -136,7 +217,7 @@ const ImageGrid = ({
             className={`image-card ${isLoading ? "loading" : ""} ${
               hasFailed ? "failed" : ""
             }`}
-            onClick={() => onImageClick && onImageClick(image)}
+            onClick={() => !isLoading && onImageClick && onImageClick(image)}
           >
             <div className="image-container">
               {isLoading && (
@@ -150,9 +231,7 @@ const ImageGrid = ({
                 alt={image.filename || image.name || "Image"}
                 onLoad={() => handleImageLoadSuccess(imageId)}
                 onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "/placeholder-image.jpg";
-                  handleImageLoadError(imageId, image);
+                  handleImageLoadError(imageId, image, e.target);
                 }}
                 style={{ opacity: isLoading ? 0.3 : 1 }}
                 onLoadStart={() => handleImageLoadStart(imageId)}
@@ -181,7 +260,8 @@ const ImageGrid = ({
                 <p className="image-filename">
                   {image.filename ||
                     image.name ||
-                    image.path?.split("/").pop() ||
+                    (typeof image.path === "string" &&
+                      image.path.split("/").pop()) ||
                     "Unknown"}
                 </p>
 
