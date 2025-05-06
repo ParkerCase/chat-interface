@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useFeatureFlags } from "../../utils/featureFlags";
+import * as XLSX from "xlsx";
+import Papa from "papaparse";
 import apiService from "../../services/apiService";
 import axios from "axios";
 import ChatHistory from "../chat/ChatHistory";
@@ -336,6 +338,277 @@ const ChatbotTabContent = () => {
   };
 
   // Handle file upload for documents
+  // Replace the readFileContent and handleDocumentUpload functions in ChatbotTabContent.jsx
+
+  const readFileContent = async (file) => {
+    return new Promise((resolve, reject) => {
+      if (!file) {
+        reject(new Error("No file provided"));
+        return;
+      }
+
+      // Check for file size limits to prevent browser crashes
+      const MAX_SIZE_MB = 15;
+      if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+        reject(new Error(`File too large (max ${MAX_SIZE_MB}MB)`));
+        return;
+      }
+
+      console.log(`Reading file: ${file.name} (${file.type})`);
+
+      // Handle different file types appropriately
+      if (file.type === "application/pdf") {
+        // For PDFs, we typically need specialized libraries
+        // We'll just return basic info since browser PDF parsing is limited
+        resolve(
+          `[PDF Document: ${file.name}, Size: ${(file.size / 1024).toFixed(
+            1
+          )} KB]`
+        );
+        return;
+      }
+
+      // For Excel files
+      if (
+        file.type === "application/vnd.ms-excel" ||
+        file.type ===
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        file.name.endsWith(".xls") ||
+        file.name.endsWith(".xlsx")
+      ) {
+        try {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              // Convert array buffer to binary string for XLSX.js
+              const data = new Uint8Array(e.target.result);
+
+              // Check if XLSX library is available
+              if (typeof XLSX !== "undefined") {
+                try {
+                  const workbook = XLSX.read(data, { type: "array" });
+                  const firstSheetName = workbook.SheetNames[0];
+                  const worksheet = workbook.Sheets[firstSheetName];
+                  const json = XLSX.utils.sheet_to_json(worksheet, {
+                    header: 1,
+                  });
+
+                  // Format as a nice CSV-like string
+                  let formattedContent = "";
+
+                  // Limit rows to prevent overwhelming the chat
+                  const maxRows = Math.min(json.length, 100);
+
+                  for (let i = 0; i < maxRows; i++) {
+                    if (json[i] && json[i].length > 0) {
+                      formattedContent += json[i].join(", ") + "\n";
+                    }
+                  }
+
+                  if (json.length > maxRows) {
+                    formattedContent += `\n[Note: Showing first ${maxRows} rows of ${json.length} total rows]`;
+                  }
+
+                  resolve(formattedContent);
+                } catch (xlsxError) {
+                  console.warn("XLSX parsing error:", xlsxError);
+                  resolve(
+                    `[Excel Document: ${file.name}, Size: ${(
+                      file.size / 1024
+                    ).toFixed(1)} KB]`
+                  );
+                }
+              } else {
+                console.warn("XLSX library not available");
+                resolve(
+                  `[Excel Document: ${file.name}, Size: ${(
+                    file.size / 1024
+                  ).toFixed(1)} KB]`
+                );
+              }
+            } catch (error) {
+              console.warn("Excel processing error:", error);
+              resolve(
+                `[Excel Document: ${file.name}, Size: ${(
+                  file.size / 1024
+                ).toFixed(1)} KB]`
+              );
+            }
+          };
+
+          reader.onerror = () => {
+            reject(new Error("Error reading Excel file"));
+          };
+
+          reader.readAsArrayBuffer(file);
+        } catch (excelError) {
+          console.warn("Excel file handling error:", excelError);
+          resolve(
+            `[Excel Document: ${file.name}, Size: ${(file.size / 1024).toFixed(
+              1
+            )} KB]`
+          );
+        }
+        return;
+      }
+
+      // For CSV files, try to parse them nicely
+      if (file.type === "text/csv" || file.name.endsWith(".csv")) {
+        try {
+          const reader = new FileReader();
+
+          reader.onload = (e) => {
+            try {
+              const content = e.target.result;
+
+              // Check if Papa Parse is available
+              if (typeof Papa !== "undefined") {
+                Papa.parse(content, {
+                  header: true,
+                  dynamicTyping: true,
+                  skipEmptyLines: true,
+                  complete: (results) => {
+                    try {
+                      // Format as a nice table
+                      let formattedContent = "";
+
+                      // Check if we have data and fields
+                      if (
+                        !results.data ||
+                        !results.data.length ||
+                        !results.meta ||
+                        !results.meta.fields
+                      ) {
+                        resolve(content); // Fallback to raw content
+                        return;
+                      }
+
+                      // Add headers
+                      formattedContent += results.meta.fields.join(", ") + "\n";
+
+                      // Add data rows (limit to prevent overwhelming the chat)
+                      const maxRows = Math.min(results.data.length, 100);
+
+                      for (let i = 0; i < maxRows; i++) {
+                        if (results.data[i]) {
+                          const values = Object.values(results.data[i]).map(
+                            (v) => String(v || "")
+                          );
+                          formattedContent += values.join(", ") + "\n";
+                        }
+                      }
+
+                      if (results.data.length > maxRows) {
+                        formattedContent += `\n[Note: Showing first ${maxRows} rows of ${results.data.length} total rows]`;
+                      }
+
+                      resolve(formattedContent);
+                    } catch (formatError) {
+                      console.warn("CSV formatting error:", formatError);
+                      resolve(content); // Fallback to raw content
+                    }
+                  },
+                  error: (error) => {
+                    console.warn("CSV parsing error:", error);
+                    resolve(content); // Fallback to raw content
+                  },
+                });
+              } else {
+                console.warn("Papa Parse not available, using raw content");
+                resolve(content);
+              }
+            } catch (csvError) {
+              console.warn("CSV processing error:", csvError);
+              reader.readAsText(file); // Try reading as plain text instead
+            }
+          };
+
+          reader.onerror = () => {
+            reject(new Error("Error reading CSV file"));
+          };
+
+          reader.readAsText(file);
+        } catch (csvError) {
+          console.warn("CSV file handling error:", csvError);
+          resolve(
+            `[CSV Document: ${file.name}, Size: ${(file.size / 1024).toFixed(
+              1
+            )} KB]`
+          );
+        }
+        return;
+      }
+
+      // For Microsoft Word documents
+      if (
+        file.type === "application/msword" ||
+        file.type ===
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        file.name.endsWith(".doc") ||
+        file.name.endsWith(".docx")
+      ) {
+        // We can't parse these in the browser without specialized libraries
+        resolve(
+          `[Word Document: ${file.name}, Size: ${(file.size / 1024).toFixed(
+            1
+          )} KB]`
+        );
+        return;
+      }
+
+      // Default: Try to read as text for all other file types
+      try {
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+          try {
+            const content = e.target.result;
+
+            // Check if the content looks like binary data
+            const isBinary = /[\x00-\x08\x0E-\x1F\x80-\xFF]/.test(
+              content.substring(0, 1000)
+            );
+
+            if (isBinary) {
+              resolve(
+                `[Binary file: ${file.name}, Size: ${(file.size / 1024).toFixed(
+                  1
+                )} KB]`
+              );
+            } else {
+              // For large text files, truncate to avoid overwhelming the chat
+              if (content.length > 50000) {
+                resolve(
+                  content.substring(0, 50000) +
+                    `\n\n[Note: File truncated, showing first ~50KB of ${(
+                      file.size / 1024
+                    ).toFixed(1)} KB total]`
+                );
+              } else {
+                resolve(content);
+              }
+            }
+          } catch (error) {
+            console.warn("File content processing error:", error);
+            resolve(
+              `[File: ${file.name}, Size: ${(file.size / 1024).toFixed(1)} KB]`
+            );
+          }
+        };
+
+        reader.onerror = () => {
+          reject(new Error(`Error reading file: ${file.name}`));
+        };
+
+        reader.readAsText(file);
+      } catch (error) {
+        console.warn("General file handling error:", error);
+        reject(new Error(`Cannot process this file type: ${file.type}`));
+      }
+    });
+  };
+
+  // Enhanced handleDocumentUpload function
   const handleDocumentUpload = async () => {
     if (!file) return;
 
@@ -366,30 +639,54 @@ const ChatbotTabContent = () => {
       setCurrentMessages((prev) => [...prev, systemMessage]);
       setUploadProgress(20);
 
-      // Instead of sending the entire file to the backend at once, try to extract content on the client side
-      let documentContent = "";
+      // Strategy: Try multiple methods in sequence, using the first one that succeeds
+      let documentContent = null;
+      let processingMethod = "unknown";
+      let response = null;
 
-      // Read the file content based on type
-      if (file.type === "application/pdf") {
-        // For PDF files, we'll need to use the backend since PDF parsing in the browser is limited
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("userId", currentUser?.id || "default-user");
-        formData.append(
-          "message",
-          inputText || `Analyze this document: ${file.name}`
-        );
-
+      // Method 1: Try client-side processing for smaller files and specific formats
+      if (
+        file.size < 5 * 1024 * 1024 &&
+        (file.type === "text/plain" ||
+          file.type === "text/csv" ||
+          file.name.endsWith(".txt") ||
+          file.name.endsWith(".csv"))
+      ) {
         try {
-          // Use a more specific endpoint for PDFs
-          const response = await axios.post(
+          console.log("Trying client-side document processing...");
+          documentContent = await readFileContent(file);
+          processingMethod = "client";
+          setUploadProgress(50);
+        } catch (readError) {
+          console.warn("Client-side file reading error:", readError);
+          documentContent = null;
+        }
+      }
+
+      // Method 2: For PDFs, try specialized PDF endpoint
+      if (
+        !documentContent &&
+        (file.type === "application/pdf" || file.name.endsWith(".pdf"))
+      ) {
+        try {
+          console.log("Trying PDF-specific endpoint...");
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("userId", currentUser?.id || "default-user");
+          formData.append(
+            "message",
+            inputText || `Analyze this PDF: ${file.name}`
+          );
+
+          response = await axios.post(
             `${apiService.utils.getBaseUrl()}/api/chat/process-pdf`,
             formData,
             {
               onUploadProgress: (progressEvent) => {
-                const progress = Math.round(
-                  (progressEvent.loaded / progressEvent.total) * 100
-                );
+                const progress =
+                  Math.round(
+                    (progressEvent.loaded / progressEvent.total) * 50
+                  ) + 30; // Start from 30%
                 setUploadProgress(progress);
               },
               headers: {
@@ -399,115 +696,117 @@ const ChatbotTabContent = () => {
             }
           );
 
-          // Add assistant response
-          const assistantMessage = {
-            sender: "assistant",
-            message_type: "assistant",
-            content: response.data.response,
-            created_at: new Date().toISOString(),
-            thread_id: response.data.threadId,
-          };
-
-          setCurrentMessages((prev) => [...prev, assistantMessage]);
-
-          // Update selected thread ID if this is a new thread
-          if (response.data.threadId && !selectedThreadId) {
-            setSelectedThreadId(response.data.threadId);
-            // Turn off new chat mode once we have a thread ID
-            setIsNewChat(false);
-          }
-
-          setUploadProgress(100);
-          return;
+          processingMethod = "pdf-endpoint";
+          setUploadProgress(70);
         } catch (pdfError) {
-          console.warn(
-            "PDF processing error, trying alternative approach:",
-            pdfError
-          );
-          // Fall through to try client-side processing
+          console.warn("PDF processing error:", pdfError);
+          response = null;
         }
       }
 
-      // For text files, CSV, etc., try to read them directly in the browser
-      try {
-        setUploadProgress(30);
-        documentContent = await readFileContent(file);
-        setUploadProgress(60);
-      } catch (readError) {
-        console.warn("File reading error:", readError);
-
-        // Fall back to backend processing
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("userId", currentUser?.id || "default-user");
-        formData.append(
-          "message",
-          inputText || `Analyze this document: ${file.name}`
-        );
-
+      // Method 3: Try generic document upload endpoint
+      if (!documentContent && !response) {
         try {
-          // Fall back to the standard endpoint
-          const response = await axios.post(
+          console.log("Trying generic document upload endpoint...");
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("userId", currentUser?.id || "default-user");
+          formData.append(
+            "message",
+            inputText || `Analyze this document: ${file.name}`
+          );
+
+          response = await axios.post(
             `${apiService.utils.getBaseUrl()}/api/chat/upload-document`,
             formData,
             {
               onUploadProgress: (progressEvent) => {
-                const progress = Math.round(
-                  (progressEvent.loaded / progressEvent.total) * 100
-                );
+                const progress =
+                  Math.round(
+                    (progressEvent.loaded / progressEvent.total) * 50
+                  ) + 30; // Start from 30%
                 setUploadProgress(progress);
               },
               headers: {
                 "Content-Type": "multipart/form-data",
               },
+              timeout: 60000,
             }
           );
 
-          // Add assistant response
-          const assistantMessage = {
-            sender: "assistant",
-            message_type: "assistant",
-            content: response.data.response,
-            created_at: new Date().toISOString(),
-            thread_id: response.data.threadId,
-          };
-
-          setCurrentMessages((prev) => [...prev, assistantMessage]);
-
-          // Update selected thread ID if this is a new thread
-          if (response.data.threadId && !selectedThreadId) {
-            setSelectedThreadId(response.data.threadId);
-            // Turn off new chat mode once we have a thread ID
-            setIsNewChat(false);
-          }
-
-          setUploadProgress(100);
-          return;
-        } catch (backendError) {
-          console.error("Backend document processing error:", backendError);
-          throw new Error(
-            "Failed to process document with both client and server approaches"
-          );
+          processingMethod = "standard-endpoint";
+          setUploadProgress(70);
+        } catch (uploadError) {
+          console.warn("Document upload error:", uploadError);
+          response = null;
         }
       }
 
-      setUploadProgress(70);
+      // Method 4: Use chat API with extracted content or file metadata
+      if (!response && !documentContent) {
+        try {
+          console.log("Trying to extract basic file info...");
+          // Get basic file metadata if we couldn't get content
+          documentContent = `[File: ${file.name}
+Type: ${file.type || "Unknown"}
+Size: ${(file.size / 1024).toFixed(2)} KB
+Last Modified: ${new Date(file.lastModified).toLocaleString()}]`;
 
-      // If we successfully extracted content, send it to the chat API
-      if (documentContent) {
+          processingMethod = "metadata-only";
+          setUploadProgress(50);
+        } catch (metadataError) {
+          console.warn("Metadata extraction error:", metadataError);
+          // Final fallback - just use a generic message
+          documentContent = `[Document: ${file.name}]`;
+          processingMethod = "fallback";
+        }
+      }
+
+      // Process based on what method succeeded
+      setUploadProgress(80);
+
+      // Option 1: We got a response directly from a specialized endpoint
+      if (response && response.data) {
+        console.log(`Document processed with ${processingMethod}`);
+
+        // Add assistant response
+        const assistantMessage = {
+          sender: "assistant",
+          message_type: "assistant",
+          content:
+            response.data.response ||
+            "I've reviewed the document but couldn't extract any meaningful information.",
+          created_at: new Date().toISOString(),
+          thread_id: response.data.threadId,
+        };
+
+        setCurrentMessages((prev) => [...prev, assistantMessage]);
+
+        // Update selected thread ID if this is a new thread
+        if (response.data.threadId && !selectedThreadId) {
+          setSelectedThreadId(response.data.threadId);
+          // Turn off new chat mode once we have a thread ID
+          setIsNewChat(false);
+        }
+      }
+      // Option 2: We extracted document content and need to call the chat API
+      else if (documentContent) {
+        console.log(`Document content extracted with ${processingMethod}`);
+
+        // Prepare a prompt that includes the document content
         const prompt = `The following is content from a document called "${
           file.name
         }". Please analyze it and respond as if responding to the document upload.
-        
-  DOCUMENT CONTENT:
-  ${documentContent}
-  
-  ${
-    inputText ||
-    "Please analyze this document and provide a summary of the key points."
-  }`;
+      
+DOCUMENT CONTENT:
+${documentContent}
 
-        // Use regular chat endpoint with the document content as context
+${
+  inputText ||
+  "Please analyze this document and provide a summary of the key points."
+}`;
+
+        // Call the chat API with the document content
         const chatResponse = await fetch(
           `${apiService.utils.getBaseUrl()}/api/chat`,
           {
@@ -526,27 +825,30 @@ const ChatbotTabContent = () => {
           throw new Error(`Chat request failed: ${chatResponse.status}`);
         }
 
-        const response = { data: await chatResponse.json() };
+        const chatData = await chatResponse.json();
 
         // Add assistant response
         const assistantMessage = {
           sender: "assistant",
           message_type: "assistant",
-          content: response.data.response,
+          content:
+            chatData.response ||
+            "I've reviewed the document but couldn't extract any meaningful information.",
           created_at: new Date().toISOString(),
-          thread_id: response.data.threadId,
+          thread_id: chatData.threadId,
         };
 
         setCurrentMessages((prev) => [...prev, assistantMessage]);
 
         // Update selected thread ID if this is a new thread
-        if (response.data.threadId && !selectedThreadId) {
-          setSelectedThreadId(response.data.threadId);
+        if (chatData.threadId && !selectedThreadId) {
+          setSelectedThreadId(chatData.threadId);
           // Turn off new chat mode once we have a thread ID
           setIsNewChat(false);
         }
       } else {
-        throw new Error("Could not extract document content");
+        // Nothing worked - throw an error
+        throw new Error("All document processing methods failed");
       }
 
       setUploadProgress(100);
@@ -558,102 +860,44 @@ const ChatbotTabContent = () => {
     } catch (err) {
       console.error("Document upload error:", err);
 
+      // Create a more user-friendly error message
+      let errorMsg = "I couldn't process this document. ";
+
+      if (err.message.includes("CORS")) {
+        errorMsg += "There was a cross-origin resource issue.";
+      } else if (err.message.includes("network")) {
+        errorMsg +=
+          "There was a network issue. Please check your connection and try again.";
+      } else if (err.message.includes("timeout")) {
+        errorMsg +=
+          "The request timed out. The file might be too large or complex.";
+      } else if (file.size > 10 * 1024 * 1024) {
+        errorMsg += "The file might be too large (over 10MB).";
+      } else {
+        errorMsg +=
+          err.message ||
+          "Please try a different file format or a smaller file.";
+      }
+
       const errorMessage = {
         sender: "system",
         message_type: "error",
-        content: `Error processing document: ${
-          err.message || "Unknown error"
-        }. ${err.cause || ""}`,
+        content: errorMsg,
         created_at: new Date().toISOString(),
       };
 
       setCurrentMessages((prev) => [...prev, errorMessage]);
-      setError(err.message || "Failed to process document");
+      setError(errorMsg);
     } finally {
       setIsLoading(false);
       setUploadProgress(0);
     }
   };
 
-  const readFileContent = async (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.onload = (e) => {
-        try {
-          const content = e.target.result;
-
-          // For CSV files, try to parse them nicely
-          if (file.type === "text/csv" || file.name.endsWith(".csv")) {
-            try {
-              // Use PapaParse for CSV parsing
-              window.Papa.parse(content, {
-                header: true,
-                complete: (results) => {
-                  // Format as a nice table
-                  let formattedContent = "";
-
-                  // Add headers
-                  if (results.meta && results.meta.fields) {
-                    formattedContent += results.meta.fields.join(", ") + "\n";
-                  }
-
-                  // Add data rows
-                  if (results.data && results.data.length) {
-                    results.data.forEach((row) => {
-                      const values = Object.values(row).map((v) =>
-                        String(v || "")
-                      );
-                      formattedContent += values.join(", ") + "\n";
-                    });
-                  }
-
-                  resolve(formattedContent);
-                },
-                error: (error) => {
-                  console.warn("CSV parsing error:", error);
-                  // Fall back to raw content
-                  resolve(content);
-                },
-              });
-            } catch (csvError) {
-              console.warn("CSV processing error:", csvError);
-              resolve(content);
-            }
-          } else {
-            // For other text files, just return the content
-            resolve(content);
-          }
-        } catch (error) {
-          reject(new Error(`Error processing file content: ${error.message}`));
-        }
-      };
-
-      reader.onerror = () => {
-        reject(new Error("Error reading file"));
-      };
-
-      if (
-        file.type.startsWith("text/") ||
-        file.type === "application/json" ||
-        file.type === "text/csv" ||
-        file.name.endsWith(".csv") ||
-        file.name.endsWith(".txt") ||
-        file.name.endsWith(".json")
-      ) {
-        reader.readAsText(file);
-      } else {
-        reject(
-          new Error(
-            `Unsupported file type for client-side processing: ${file.type}`
-          )
-        );
-      }
-    });
-  };
-
   // HandleImageSearch function
   // Modified handleImageSearch function to work with existing Supabase setup
+  // Replace the handleImageSearch function in ChatbotTabContent.jsx with this improved version
+
   const handleImageSearch = async () => {
     if (!file) return;
 
@@ -694,8 +938,7 @@ const ChatbotTabContent = () => {
       setCurrentMessages((prev) => [...prev, systemMessage]);
       setUploadProgress(20);
 
-      // Instead of using supabase directly, use the chat/search/visual endpoint
-      // which is designed to handle the image search properly
+      // Create form data for the request
       const formData = new FormData();
       formData.append("image", file);
       formData.append("mode", searchMode); // 'tensor' or 'partial'
@@ -703,94 +946,379 @@ const ChatbotTabContent = () => {
       formData.append("threshold", searchMode === "tensor" ? "0.65" : "0.4");
 
       const baseUrl = apiService.utils.getBaseUrl();
-      const searchEndpoint = `${baseUrl}/api/chat/search/visual`;
+      let searchEndpoint = `${baseUrl}/api/chat/search/visual`;
 
-      // Call the backend visual search endpoint
-      const searchResponse = await fetch(searchEndpoint, {
-        method: "POST",
-        body: formData,
-      });
+      // For partial search mode, add fallback option if the main approach fails
+      if (searchMode === "partial") {
+        try {
+          // First try the standard endpoint
+          const searchResponse = await fetch(searchEndpoint, {
+            method: "POST",
+            body: formData,
+          });
 
-      if (!searchResponse.ok) {
-        const errorData = await searchResponse.json();
-        throw new Error(
-          `Search failed: ${
-            errorData.error || errorData.details || "Unknown error"
-          }`
-        );
-      }
+          if (!searchResponse.ok) {
+            const errorData = await searchResponse.json();
+            console.warn("Primary search endpoint failed:", errorData);
 
-      setUploadProgress(60);
+            // If we get the specific vector operator error, use the fallback endpoint
+            if (
+              errorData.error &&
+              errorData.error.includes(
+                "operator does not exist: integer - vector"
+              )
+            ) {
+              console.log("Using fallback search method for partial matching");
 
-      // Parse the response
-      const searchData = await searchResponse.json();
+              // Use alternative endpoint that doesn't rely on vector operations
+              searchEndpoint = `${baseUrl}/api/chat/search/visual-fallback`;
 
-      if (!searchData.success) {
-        throw new Error(
-          `Search failed: ${searchData.error || "Unknown error"}`
-        );
-      }
+              // Try the fallback approach
+              const fallbackResponse = await fetch(searchEndpoint, {
+                method: "POST",
+                body: formData,
+              });
 
-      setUploadProgress(80);
+              if (!fallbackResponse.ok) {
+                throw new Error(
+                  `Fallback search failed: ${fallbackResponse.status}`
+                );
+              }
 
-      // Process the search results
-      const matches = searchData.matches || [];
-      console.log(`Found ${matches.length} matches with ${searchMode} search`);
+              const searchData = await fallbackResponse.json();
 
-      // Format the matches for display
-      const imageProxyBase = apiService.utils.getBaseUrl()
-        ? `${apiService.utils.getBaseUrl()}/api/image-proxy`
-        : "/api/image-proxy";
+              if (!searchData.success) {
+                throw new Error(
+                  `Fallback search failed: ${
+                    searchData.error || "Unknown error"
+                  }`
+                );
+              }
 
-      const processedMatches = matches.map((match) => ({
-        id:
-          match.id ||
-          `match-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
-        path: match.path,
-        similarity: parseFloat(match.score) || match.similarity || 0.5,
-        filename: match.path.split("/").pop(),
-        // For image URLs, use the image proxy endpoint
-        url: `${imageProxyBase}?path=${encodeURIComponent(match.path)}`,
-      }));
+              setUploadProgress(80);
 
-      setUploadProgress(90);
+              // Process the fallback search results
+              const matches = searchData.matches || [];
+              console.log(
+                `Found ${matches.length} matches with fallback ${searchMode} search`
+              );
 
-      // Format search results for display
-      let searchResultsText = `I found ${processedMatches.length} image${
-        processedMatches.length === 1 ? "" : "s"
-      } similar to the uploaded image.`;
+              // Format the matches for display
+              const imageProxyBase = apiService.utils.getBaseUrl()
+                ? `${apiService.utils.getBaseUrl()}/api/image-proxy`
+                : "/api/image-proxy";
 
-      // If no results found, give a helpful message
-      if (processedMatches.length === 0) {
-        if (searchMode === "partial") {
-          searchResultsText =
-            "I couldn't find any partial matches. Try using Full Image Match mode instead.";
-        } else {
-          searchResultsText =
-            "I couldn't find any similar images. Try using Partial Image Match mode or a different image.";
+              const processedMatches = matches.map((match) => ({
+                id:
+                  match.id ||
+                  `match-${Date.now()}-${Math.random()
+                    .toString(36)
+                    .substring(2, 10)}`,
+                path: match.path,
+                similarity: parseFloat(match.score) || match.similarity || 0.5,
+                filename: match.path.split("/").pop(),
+                // For image URLs, use the image proxy endpoint
+                url: `${imageProxyBase}?path=${encodeURIComponent(match.path)}`,
+              }));
+
+              setUploadProgress(90);
+
+              // Format search results for display
+              let searchResultsText = `I found ${
+                processedMatches.length
+              } image${
+                processedMatches.length === 1 ? "" : "s"
+              } similar to the uploaded image using the fallback search method.`;
+
+              // If no results found, give a helpful message
+              if (processedMatches.length === 0) {
+                searchResultsText =
+                  "I couldn't find any partial matches. Try using Full Image Match mode instead.";
+              }
+
+              // Add the analysis and search results to the chat
+              const assistantMessage = {
+                sender: "assistant",
+                message_type: "assistant",
+                content: searchResultsText,
+                created_at: new Date().toISOString(),
+                thread_id: selectedThreadId || null,
+                isImageSearch: true,
+                images: processedMatches,
+                searchParams: {
+                  type: "similarity",
+                  mode: searchMode,
+                  currentPage: 0,
+                  totalResults: processedMatches.length,
+                  hasMore: processedMatches.length >= 20, // Assume more if we hit the limit
+                },
+              };
+
+              setCurrentMessages((prev) => [...prev, assistantMessage]);
+              setUploadProgress(100);
+
+              // Clear input and file after sending
+              setInputText("");
+              setFile(null);
+              setFilePreview(null);
+              setIsLoading(false);
+              setUploadProgress(0);
+              return;
+            } else {
+              // If it's not the specific vector error, rethrow the error
+              throw new Error(
+                `Search failed: ${
+                  errorData.error || errorData.details || "Unknown error"
+                }`
+              );
+            }
+          }
+
+          // If the original request succeeded, process the results
+          const searchData = await searchResponse.json();
+
+          if (!searchData.success) {
+            throw new Error(
+              `Search failed: ${searchData.error || "Unknown error"}`
+            );
+          }
+
+          setUploadProgress(60);
+
+          // Process the search results
+          const matches = searchData.matches || [];
+          console.log(
+            `Found ${matches.length} matches with ${searchMode} search`
+          );
+
+          // Format the matches for display
+          const imageProxyBase = apiService.utils.getBaseUrl()
+            ? `${apiService.utils.getBaseUrl()}/api/image-proxy`
+            : "/api/image-proxy";
+
+          const processedMatches = matches.map((match) => ({
+            id:
+              match.id ||
+              `match-${Date.now()}-${Math.random()
+                .toString(36)
+                .substring(2, 10)}`,
+            path: match.path,
+            similarity: parseFloat(match.score) || match.similarity || 0.5,
+            filename: match.path.split("/").pop(),
+            // For image URLs, use the image proxy endpoint
+            url: `${imageProxyBase}?path=${encodeURIComponent(match.path)}`,
+          }));
+
+          setUploadProgress(90);
+
+          // Format search results for display
+          let searchResultsText = `I found ${processedMatches.length} image${
+            processedMatches.length === 1 ? "" : "s"
+          } similar to the uploaded image.`;
+
+          // If no results found, give a helpful message
+          if (processedMatches.length === 0) {
+            if (searchMode === "partial") {
+              searchResultsText =
+                "I couldn't find any partial matches. Try using Full Image Match mode instead.";
+            } else {
+              searchResultsText =
+                "I couldn't find any similar images. Try using Partial Image Match mode or a different image.";
+            }
+          }
+
+          // Add the analysis and search results to the chat
+          const assistantMessage = {
+            sender: "assistant",
+            message_type: "assistant",
+            content: searchResultsText,
+            created_at: new Date().toISOString(),
+            thread_id: selectedThreadId || null,
+            isImageSearch: true,
+            images: processedMatches,
+            searchParams: {
+              type: "similarity",
+              mode: searchMode,
+              currentPage: 0,
+              totalResults: processedMatches.length,
+              hasMore: processedMatches.length >= 20, // Assume more if we hit the limit
+            },
+          };
+
+          setCurrentMessages((prev) => [...prev, assistantMessage]);
+          setUploadProgress(100);
+
+          // Clear input and file after sending
+          setInputText("");
+          setFile(null);
+          setFilePreview(null);
+        } catch (searchErr) {
+          console.error("Search error:", searchErr);
+
+          // For partial search, if all approaches failed, try keyword-based fallback
+          const fallbackText =
+            "Since the image similarity search is currently unavailable, I'll try to analyze this image and find related images instead.";
+
+          // Add fallback message
+          const fallbackMessage = {
+            sender: "system",
+            message_type: "system",
+            content: fallbackText,
+            created_at: new Date().toISOString(),
+          };
+
+          setCurrentMessages((prev) => [...prev, fallbackMessage]);
+
+          try {
+            // Analyze the image using a different endpoint for content-based search
+            const analyzeFormData = new FormData();
+            analyzeFormData.append("image", file);
+
+            const analyzeResponse = await fetch(
+              `${baseUrl}/api/analyze-image`,
+              {
+                method: "POST",
+                body: analyzeFormData,
+              }
+            );
+
+            if (!analyzeResponse.ok) {
+              throw new Error(
+                `Image analysis failed: ${analyzeResponse.status}`
+              );
+            }
+
+            const analyzeData = await analyzeResponse.json();
+
+            // Extract keywords from the analysis
+            const keywords = analyzeData.labels
+              ?.slice(0, 5)
+              .map((l) => l.description) || ["tattoo", "design"];
+
+            // Use these keywords for a text-based search instead
+            const keywordResult = await processImageSearch(
+              `Find images with ${keywords.join(", ")}`
+            );
+
+            const assistantMessage = {
+              sender: "assistant",
+              message_type: "assistant",
+              content: `I analyzed your image and found these related images based on the content: ${keywords.join(
+                ", "
+              )}`,
+              created_at: new Date().toISOString(),
+              thread_id: selectedThreadId || null,
+              isImageSearch: true,
+              images: keywordResult.results || [],
+              searchParams: keywordResult.searchParams || {
+                type: "keyword",
+                keyword: keywords.join(" "),
+                currentPage: 0,
+                hasMore: (keywordResult.results || []).length >= 20,
+              },
+            };
+
+            setCurrentMessages((prev) => [...prev, assistantMessage]);
+          } catch (fallbackErr) {
+            // If even the fallback fails, show a clear error message
+            console.error("Fallback approach also failed:", fallbackErr);
+            throw new Error(
+              "The image search functionality is currently experiencing technical difficulties. Please try again later."
+            );
+          }
         }
+      } else {
+        // For tensor mode, use the standard flow without the complex fallback
+        const searchResponse = await fetch(searchEndpoint, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!searchResponse.ok) {
+          const errorData = await searchResponse.json();
+          throw new Error(
+            `Search failed: ${
+              errorData.error || errorData.details || "Unknown error"
+            }`
+          );
+        }
+
+        setUploadProgress(60);
+
+        // Parse the response
+        const searchData = await searchResponse.json();
+
+        if (!searchData.success) {
+          throw new Error(
+            `Search failed: ${searchData.error || "Unknown error"}`
+          );
+        }
+
+        setUploadProgress(80);
+
+        // Process the search results
+        const matches = searchData.matches || [];
+        console.log(
+          `Found ${matches.length} matches with ${searchMode} search`
+        );
+
+        // Format the matches for display
+        const imageProxyBase = apiService.utils.getBaseUrl()
+          ? `${apiService.utils.getBaseUrl()}/api/image-proxy`
+          : "/api/image-proxy";
+
+        const processedMatches = matches.map((match) => ({
+          id:
+            match.id ||
+            `match-${Date.now()}-${Math.random()
+              .toString(36)
+              .substring(2, 10)}`,
+          path: match.path,
+          similarity: parseFloat(match.score) || match.similarity || 0.5,
+          filename: match.path.split("/").pop(),
+          // For image URLs, use the image proxy endpoint
+          url: `${imageProxyBase}?path=${encodeURIComponent(match.path)}`,
+        }));
+
+        setUploadProgress(90);
+
+        // Format search results for display
+        let searchResultsText = `I found ${processedMatches.length} image${
+          processedMatches.length === 1 ? "" : "s"
+        } similar to the uploaded image.`;
+
+        // If no results found, give a helpful message
+        if (processedMatches.length === 0) {
+          if (searchMode === "partial") {
+            searchResultsText =
+              "I couldn't find any partial matches. Try using Full Image Match mode instead.";
+          } else {
+            searchResultsText =
+              "I couldn't find any similar images. Try using Partial Image Match mode or a different image.";
+          }
+        }
+
+        // Add the analysis and search results to the chat
+        const assistantMessage = {
+          sender: "assistant",
+          message_type: "assistant",
+          content: searchResultsText,
+          created_at: new Date().toISOString(),
+          thread_id: selectedThreadId || null,
+          isImageSearch: true,
+          images: processedMatches,
+          searchParams: {
+            type: "similarity",
+            mode: searchMode,
+            currentPage: 0,
+            totalResults: processedMatches.length,
+            hasMore: processedMatches.length >= 20, // Assume more if we hit the limit
+          },
+        };
+
+        setCurrentMessages((prev) => [...prev, assistantMessage]);
+        setUploadProgress(100);
       }
-
-      // Add the analysis and search results to the chat
-      const assistantMessage = {
-        sender: "assistant",
-        message_type: "assistant",
-        content: searchResultsText,
-        created_at: new Date().toISOString(),
-        thread_id: selectedThreadId || null,
-        isImageSearch: true,
-        images: processedMatches,
-        searchParams: {
-          type: "similarity",
-          mode: searchMode,
-          currentPage: 0,
-          totalResults: processedMatches.length,
-          hasMore: processedMatches.length >= 20, // Assume more if we hit the limit
-        },
-      };
-
-      setCurrentMessages((prev) => [...prev, assistantMessage]);
-      setUploadProgress(100);
 
       // Clear input and file after sending
       setInputText("");
@@ -806,9 +1334,9 @@ const ChatbotTabContent = () => {
 
       if (err.message?.includes("operator does not exist: integer - vector")) {
         errorMessage = `This type of image search is currently having technical difficulties. 
-        Please try the other search mode (${
-          searchMode === "tensor" ? "Partial" : "Full"
-        } Image Match) instead.`;
+      Please try the other search mode (${
+        searchMode === "tensor" ? "Partial" : "Full"
+      } Image Match) instead.`;
       }
 
       const errorSystemMessage = {
@@ -925,34 +1453,191 @@ const ChatbotTabContent = () => {
           responseText = `Here are ${results.length} more images with tattoos on the ${searchParams.bodyPart}.`;
           break;
 
+        // Updated "path" case for processImageSearch function
+        // Replace the existing case "path" in the switch statement of processImageSearch
+
         case "path":
-          // For path search
-          const { data: morePathResults, error: pathError } = await supabase
-            .from("image_embeddings")
-            .select("id, image_path, embedding_type, created_at")
-            .ilike("image_path", `%${searchParams.path}%`)
-            .range(offset, offset + 19);
+          console.log("Searching for images by path:", searchParams.path);
 
-          if (pathError) throw pathError;
+          try {
+            // Normalize search term to improve match likelihood
+            const searchTerm = searchParams.path.trim().toLowerCase();
 
-          // Remove duplicates by path
-          const uniquePaths = {};
-          results = (morePathResults || [])
-            .filter((item) => {
-              if (!uniquePaths[item.image_path]) {
-                uniquePaths[item.image_path] = true;
-                return true;
+            // First try the standard approach
+            const { data: pathData, error: pathError } = await supabase
+              .from("image_embeddings")
+              .select("id, image_path, embedding_type, created_at")
+              .ilike("image_path", `%${searchTerm}%`)
+              .limit(searchParams.limit);
+
+            if (pathError) {
+              throw pathError;
+            }
+
+            // If the first approach returned no results, try a different table or approach
+            if (!pathData || pathData.length === 0) {
+              console.log(
+                "No results with standard search, trying alternative approach"
+              );
+
+              // Try using a custom RPC function if available
+              try {
+                const { data: rpcData, error: rpcError } = await supabase.rpc(
+                  "search_images_by_path",
+                  {
+                    path_pattern: searchTerm,
+                    match_limit: searchParams.limit,
+                  }
+                );
+
+                if (!rpcError && rpcData && rpcData.length > 0) {
+                  console.log(
+                    `Found ${rpcData.length} results with RPC function`
+                  );
+
+                  // Map results to the expected format
+                  results = rpcData.map((item) => ({
+                    id:
+                      item.id ||
+                      `path-${Date.now()}-${Math.random()
+                        .toString(36)
+                        .substring(2, 8)}`,
+                    path: item.image_path || item.path,
+                    filename: (item.image_path || item.path).split("/").pop(),
+                    type: item.embedding_type || "path_search",
+                  }));
+
+                  responseText = `I found ${results.length} image${
+                    results.length === 1 ? "" : "s"
+                  } in the path containing "${searchParams.path}".`;
+
+                  break;
+                }
+              } catch (rpcErr) {
+                console.warn(
+                  "RPC search failed, continuing with direct query fallback:",
+                  rpcErr
+                );
               }
-              return false;
-            })
-            .map((item) => ({
-              id: item.id,
-              path: item.image_path,
-              filename: item.image_path.split("/").pop(),
-              type: item.embedding_type,
-            }));
 
-          responseText = `Here are ${results.length} more images from the path containing "${searchParams.path}".`;
+              // If RPC failed or returned no results, try a more basic approach with raw SQL if available
+              try {
+                const { data: rawData, error: rawError } = await supabase.rpc(
+                  "search_images_by_path_fallback",
+                  {
+                    search_term: searchTerm,
+                    limit_val: searchParams.limit,
+                  }
+                );
+
+                if (!rawError && rawData && rawData.length > 0) {
+                  console.log(
+                    `Found ${rawData.length} results with fallback search`
+                  );
+
+                  // Map results to the expected format
+                  results = rawData.map((item) => ({
+                    id:
+                      item.id ||
+                      `path-${Date.now()}-${Math.random()
+                        .toString(36)
+                        .substring(2, 8)}`,
+                    path: item.image_path || item.path,
+                    filename: (item.image_path || item.path).split("/").pop(),
+                    type: item.embedding_type || "fallback_search",
+                  }));
+
+                  responseText = `I found ${results.length} image${
+                    results.length === 1 ? "" : "s"
+                  } in the path containing "${searchParams.path}".`;
+
+                  break;
+                }
+              } catch (rawErr) {
+                console.warn("Fallback search failed:", rawErr);
+              }
+
+              // If we get here, none of the specialized searches worked - last attempt with a simpler direct query
+              const { data: lastResortData, error: lastResortError } =
+                await supabase
+                  .from("image_embeddings")
+                  .select("id, image_path")
+                  .not("image_path", "is", null)
+                  .limit(searchParams.limit);
+
+              if (
+                !lastResortError &&
+                lastResortData &&
+                lastResortData.length > 0
+              ) {
+                // Filter client-side
+                const filteredResults = lastResortData.filter(
+                  (item) =>
+                    item.image_path &&
+                    item.image_path.toLowerCase().includes(searchTerm)
+                );
+
+                if (filteredResults.length > 0) {
+                  console.log(
+                    `Found ${filteredResults.length} results with client-side filtering`
+                  );
+
+                  results = filteredResults.map((item) => ({
+                    id:
+                      item.id ||
+                      `path-${Date.now()}-${Math.random()
+                        .toString(36)
+                        .substring(2, 8)}`,
+                    path: item.image_path,
+                    filename: item.image_path.split("/").pop(),
+                    type: "client_filtered",
+                  }));
+
+                  responseText = `I found ${results.length} image${
+                    results.length === 1 ? "" : "s"
+                  } in the path containing "${searchParams.path}".`;
+
+                  break;
+                }
+              }
+
+              // No results from any approach
+              responseText = `I couldn't find any images in the path containing "${searchParams.path}". Try a different folder name.`;
+              results = [];
+              break;
+            }
+
+            // Process results from the standard approach
+            // Remove duplicates by path
+            const uniquePaths = {};
+            results = pathData
+              .filter((item) => {
+                if (!uniquePaths[item.image_path]) {
+                  uniquePaths[item.image_path] = true;
+                  return true;
+                }
+                return false;
+              })
+              .map((item) => ({
+                id:
+                  item.id ||
+                  `path-${Date.now()}-${Math.random()
+                    .toString(36)
+                    .substring(2, 8)}`,
+                path: item.image_path,
+                filename: item.image_path.split("/").pop(),
+                type: item.embedding_type,
+                created: item.created_at,
+              }));
+
+            responseText = `I found ${results.length} image${
+              results.length === 1 ? "" : "s"
+            } in the path containing "${searchParams.path}".`;
+          } catch (pathSearchError) {
+            console.error("Path search error:", pathSearchError);
+            responseText = `I encountered an error searching for images by path: ${pathSearchError.message}. Try a different search method.`;
+            results = [];
+          }
           break;
 
         case "noTattoo":
