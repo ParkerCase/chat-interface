@@ -352,7 +352,7 @@ const ChatImageResults = ({
       )}
 
       {/* "Get more images" button */}
-      {searchParams?.hasMore && (
+      {expanded && searchParams?.hasMore && (
         <div className="chat-results-footer">
           <button
             className="get-more-btn"
