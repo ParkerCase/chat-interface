@@ -895,9 +895,6 @@ ${
   };
 
   // HandleImageSearch function
-  // Modified handleImageSearch function to work with existing Supabase setup
-  // Replace the handleImageSearch function in ChatbotTabContent.jsx with this improved version
-
   const handleImageSearch = async () => {
     if (!file) return;
 
@@ -938,387 +935,143 @@ ${
       setCurrentMessages((prev) => [...prev, systemMessage]);
       setUploadProgress(20);
 
-      // Create form data for the request
+      // First, upload the image to get its embedding
+      // We'll use FormData for the file upload
       const formData = new FormData();
-      formData.append("image", file);
-      formData.append("mode", searchMode); // 'tensor' or 'partial'
-      formData.append("limit", "20");
-      formData.append("threshold", searchMode === "tensor" ? "0.65" : "0.4");
+      formData.append("image", file, file.name); // Add filename explicitly
 
-      const baseUrl = apiService.utils.getBaseUrl();
-      let searchEndpoint = `${baseUrl}/api/chat/search/visual`;
+      // For image display, we still need to use the backend API to proxy images
+      const imageProxyBase = apiService.utils.getBaseUrl()
+        ? `${apiService.utils.getBaseUrl()}/api/image-proxy`
+        : "/api/image-proxy";
 
-      // For partial search mode, add fallback option if the main approach fails
-      if (searchMode === "partial") {
-        try {
-          // First try the standard endpoint
-          const searchResponse = await fetch(searchEndpoint, {
-            method: "POST",
-            body: formData,
-          });
+      setUploadProgress(30);
 
-          if (!searchResponse.ok) {
-            const errorData = await searchResponse.json();
-            console.warn("Primary search endpoint failed:", errorData);
-
-            // If we get the specific vector operator error, use the fallback endpoint
-            if (
-              errorData.error &&
-              errorData.error.includes(
-                "operator does not exist: integer - vector"
-              )
-            ) {
-              console.log("Using fallback search method for partial matching");
-
-              // Use alternative endpoint that doesn't rely on vector operations
-              searchEndpoint = `${baseUrl}/api/chat/search/visual-fallback`;
-
-              // Try the fallback approach
-              const fallbackResponse = await fetch(searchEndpoint, {
-                method: "POST",
-                body: formData,
-              });
-
-              if (!fallbackResponse.ok) {
-                throw new Error(
-                  `Fallback search failed: ${fallbackResponse.status}`
-                );
-              }
-
-              const searchData = await fallbackResponse.json();
-
-              if (!searchData.success) {
-                throw new Error(
-                  `Fallback search failed: ${
-                    searchData.error || "Unknown error"
-                  }`
-                );
-              }
-
-              setUploadProgress(80);
-
-              // Process the fallback search results
-              const matches = searchData.matches || [];
-              console.log(
-                `Found ${matches.length} matches with fallback ${searchMode} search`
-              );
-
-              // Format the matches for display
-              const imageProxyBase = apiService.utils.getBaseUrl()
-                ? `${apiService.utils.getBaseUrl()}/api/image-proxy`
-                : "/api/image-proxy";
-
-              const processedMatches = matches.map((match) => ({
-                id:
-                  match.id ||
-                  `match-${Date.now()}-${Math.random()
-                    .toString(36)
-                    .substring(2, 10)}`,
-                path: match.path,
-                similarity: parseFloat(match.score) || match.similarity || 0.5,
-                filename: match.path.split("/").pop(),
-                // For image URLs, use the image proxy endpoint
-                url: `${imageProxyBase}?path=${encodeURIComponent(match.path)}`,
-              }));
-
-              setUploadProgress(90);
-
-              // Format search results for display
-              let searchResultsText = `I found ${
-                processedMatches.length
-              } image${
-                processedMatches.length === 1 ? "" : "s"
-              } similar to the uploaded image using the fallback search method.`;
-
-              // If no results found, give a helpful message
-              if (processedMatches.length === 0) {
-                searchResultsText =
-                  "I couldn't find any partial matches. Try using Full Image Match mode instead.";
-              }
-
-              // Add the analysis and search results to the chat
-              const assistantMessage = {
-                sender: "assistant",
-                message_type: "assistant",
-                content: searchResultsText,
-                created_at: new Date().toISOString(),
-                thread_id: selectedThreadId || null,
-                isImageSearch: true,
-                images: processedMatches,
-                searchParams: {
-                  type: "similarity",
-                  mode: searchMode,
-                  currentPage: 0,
-                  totalResults: processedMatches.length,
-                  hasMore: processedMatches.length >= 20, // Assume more if we hit the limit
-                },
-              };
-
-              setCurrentMessages((prev) => [...prev, assistantMessage]);
-              setUploadProgress(100);
-
-              // Clear input and file after sending
-              setInputText("");
-              setFile(null);
-              setFilePreview(null);
-              setIsLoading(false);
-              setUploadProgress(0);
-              return;
-            } else {
-              // If it's not the specific vector error, rethrow the error
-              throw new Error(
-                `Search failed: ${
-                  errorData.error || errorData.details || "Unknown error"
-                }`
-              );
-            }
-          }
-
-          // If the original request succeeded, process the results
-          const searchData = await searchResponse.json();
-
-          if (!searchData.success) {
-            throw new Error(
-              `Search failed: ${searchData.error || "Unknown error"}`
-            );
-          }
-
-          setUploadProgress(60);
-
-          // Process the search results
-          const matches = searchData.matches || [];
-          console.log(
-            `Found ${matches.length} matches with ${searchMode} search`
-          );
-
-          // Format the matches for display
-          const imageProxyBase = apiService.utils.getBaseUrl()
-            ? `${apiService.utils.getBaseUrl()}/api/image-proxy`
-            : "/api/image-proxy";
-
-          const processedMatches = matches.map((match) => ({
-            id:
-              match.id ||
-              `match-${Date.now()}-${Math.random()
-                .toString(36)
-                .substring(2, 10)}`,
-            path: match.path,
-            similarity: parseFloat(match.score) || match.similarity || 0.5,
-            filename: match.path.split("/").pop(),
-            // For image URLs, use the image proxy endpoint
-            url: `${imageProxyBase}?path=${encodeURIComponent(match.path)}`,
-          }));
-
-          setUploadProgress(90);
-
-          // Format search results for display
-          let searchResultsText = `I found ${processedMatches.length} image${
-            processedMatches.length === 1 ? "" : "s"
-          } similar to the uploaded image.`;
-
-          // If no results found, give a helpful message
-          if (processedMatches.length === 0) {
-            if (searchMode === "partial") {
-              searchResultsText =
-                "I couldn't find any partial matches. Try using Full Image Match mode instead.";
-            } else {
-              searchResultsText =
-                "I couldn't find any similar images. Try using Partial Image Match mode or a different image.";
-            }
-          }
-
-          // Add the analysis and search results to the chat
-          const assistantMessage = {
-            sender: "assistant",
-            message_type: "assistant",
-            content: searchResultsText,
-            created_at: new Date().toISOString(),
-            thread_id: selectedThreadId || null,
-            isImageSearch: true,
-            images: processedMatches,
-            searchParams: {
-              type: "similarity",
-              mode: searchMode,
-              currentPage: 0,
-              totalResults: processedMatches.length,
-              hasMore: processedMatches.length >= 20, // Assume more if we hit the limit
-            },
-          };
-
-          setCurrentMessages((prev) => [...prev, assistantMessage]);
-          setUploadProgress(100);
-
-          // Clear input and file after sending
-          setInputText("");
-          setFile(null);
-          setFilePreview(null);
-        } catch (searchErr) {
-          console.error("Search error:", searchErr);
-
-          // For partial search, if all approaches failed, try keyword-based fallback
-          const fallbackText =
-            "Since the image similarity search is currently unavailable, I'll try to analyze this image and find related images instead.";
-
-          // Add fallback message
-          const fallbackMessage = {
-            sender: "system",
-            message_type: "system",
-            content: fallbackText,
-            created_at: new Date().toISOString(),
-          };
-
-          setCurrentMessages((prev) => [...prev, fallbackMessage]);
-
-          try {
-            // Analyze the image using a different endpoint for content-based search
-            const analyzeFormData = new FormData();
-            analyzeFormData.append("image", file);
-
-            const analyzeResponse = await fetch(
-              `${baseUrl}/api/analyze-image`,
-              {
-                method: "POST",
-                body: analyzeFormData,
-              }
-            );
-
-            if (!analyzeResponse.ok) {
-              throw new Error(
-                `Image analysis failed: ${analyzeResponse.status}`
-              );
-            }
-
-            const analyzeData = await analyzeResponse.json();
-
-            // Extract keywords from the analysis
-            const keywords = analyzeData.labels
-              ?.slice(0, 5)
-              .map((l) => l.description) || ["tattoo", "design"];
-
-            // Use these keywords for a text-based search instead
-            const keywordResult = await processImageSearch(
-              `Find images with ${keywords.join(", ")}`
-            );
-
-            const assistantMessage = {
-              sender: "assistant",
-              message_type: "assistant",
-              content: `I analyzed your image and found these related images based on the content: ${keywords.join(
-                ", "
-              )}`,
-              created_at: new Date().toISOString(),
-              thread_id: selectedThreadId || null,
-              isImageSearch: true,
-              images: keywordResult.results || [],
-              searchParams: keywordResult.searchParams || {
-                type: "keyword",
-                keyword: keywords.join(" "),
-                currentPage: 0,
-                hasMore: (keywordResult.results || []).length >= 20,
-              },
-            };
-
-            setCurrentMessages((prev) => [...prev, assistantMessage]);
-          } catch (fallbackErr) {
-            // If even the fallback fails, show a clear error message
-            console.error("Fallback approach also failed:", fallbackErr);
-            throw new Error(
-              "The image search functionality is currently experiencing technical difficulties. Please try again later."
-            );
-          }
-        }
-      } else {
-        // For tensor mode, use the standard flow without the complex fallback
-        const searchResponse = await fetch(searchEndpoint, {
+      // Extract embedding from the image using backend API
+      console.log(
+        `Generating embedding for ${file.name} using ${searchMode} mode`
+      );
+      const embeddingResponse = await fetch(
+        `${apiService.utils.getBaseUrl()}/api/embedding/generate`,
+        {
           method: "POST",
           body: formData,
-        });
-
-        if (!searchResponse.ok) {
-          const errorData = await searchResponse.json();
-          throw new Error(
-            `Search failed: ${
-              errorData.error || errorData.details || "Unknown error"
-            }`
-          );
         }
+      );
 
-        setUploadProgress(60);
-
-        // Parse the response
-        const searchData = await searchResponse.json();
-
-        if (!searchData.success) {
-          throw new Error(
-            `Search failed: ${searchData.error || "Unknown error"}`
-          );
-        }
-
-        setUploadProgress(80);
-
-        // Process the search results
-        const matches = searchData.matches || [];
-        console.log(
-          `Found ${matches.length} matches with ${searchMode} search`
+      if (!embeddingResponse.ok) {
+        const errorText = await embeddingResponse.text();
+        throw new Error(
+          `Failed to generate embedding: ${embeddingResponse.status} - ${errorText}`
         );
-
-        // Format the matches for display
-        const imageProxyBase = apiService.utils.getBaseUrl()
-          ? `${apiService.utils.getBaseUrl()}/api/image-proxy`
-          : "/api/image-proxy";
-
-        const processedMatches = matches.map((match) => ({
-          id:
-            match.id ||
-            `match-${Date.now()}-${Math.random()
-              .toString(36)
-              .substring(2, 10)}`,
-          path: match.path,
-          similarity: parseFloat(match.score) || match.similarity || 0.5,
-          filename: match.path.split("/").pop(),
-          // For image URLs, use the image proxy endpoint
-          url: `${imageProxyBase}?path=${encodeURIComponent(match.path)}`,
-        }));
-
-        setUploadProgress(90);
-
-        // Format search results for display
-        let searchResultsText = `I found ${processedMatches.length} image${
-          processedMatches.length === 1 ? "" : "s"
-        } similar to the uploaded image.`;
-
-        // If no results found, give a helpful message
-        if (processedMatches.length === 0) {
-          if (searchMode === "partial") {
-            searchResultsText =
-              "I couldn't find any partial matches. Try using Full Image Match mode instead.";
-          } else {
-            searchResultsText =
-              "I couldn't find any similar images. Try using Partial Image Match mode or a different image.";
-          }
-        }
-
-        // Add the analysis and search results to the chat
-        const assistantMessage = {
-          sender: "assistant",
-          message_type: "assistant",
-          content: searchResultsText,
-          created_at: new Date().toISOString(),
-          thread_id: selectedThreadId || null,
-          isImageSearch: true,
-          images: processedMatches,
-          searchParams: {
-            type: "similarity",
-            mode: searchMode,
-            currentPage: 0,
-            totalResults: processedMatches.length,
-            hasMore: processedMatches.length >= 20, // Assume more if we hit the limit
-          },
-        };
-
-        setCurrentMessages((prev) => [...prev, assistantMessage]);
-        setUploadProgress(100);
       }
+
+      const embeddingData = await embeddingResponse.json();
+      if (!embeddingData.success || !embeddingData.embedding) {
+        throw new Error(
+          "Failed to generate embedding: " +
+            (embeddingData.error || "Unknown error")
+        );
+      }
+
+      setUploadProgress(60);
+
+      // Get the vector from the response
+      const embedding = embeddingData.embedding;
+
+      // Get embedding type based on search mode
+      const embeddingType = searchMode === "tensor" ? "full" : "partial";
+
+      console.log(
+        `Using smart_image_search with ${embeddingType} mode, threshold 0.5, limit 20`
+      );
+
+      // Call the smart_image_search function directly with a raw SQL query
+      // This avoids the ambiguity issues with the RPC function
+      const { data: searchResults, error: searchError } = await supabase.rpc(
+        "smart_image_search",
+        {
+          query_embedding: embedding,
+          match_threshold: 0.5,
+          match_limit: 20,
+          emb_type: embeddingType,
+          offset_value: 0,
+        }
+      );
+
+      if (searchError) {
+        console.error("Search error:", searchError);
+        throw new Error(`Search failed: ${searchError.message}`);
+      }
+
+      setUploadProgress(80);
+
+      // Process the search results
+      const matches = searchResults || [];
+      console.log(
+        `Found ${matches.length} matches with ${embeddingType} search:`,
+        matches
+      );
+
+      // Format the matches for display
+      const processedMatches = matches.map((match) => ({
+        id: match.id,
+        path: match.image_path,
+        similarity: match.similarity,
+        filename: match.image_path.split("/").pop(),
+        // For image URLs, use the image proxy endpoint
+        url: `${imageProxyBase}?path=${encodeURIComponent(match.image_path)}`,
+        // Add patch information if available (for partial search)
+        ...(match.patch_index !== null
+          ? {
+              patchIndex: match.patch_index,
+              patchX: match.patch_x,
+              patchY: match.patch_y,
+              patchWidth: match.patch_width,
+              patchHeight: match.patch_height,
+            }
+          : {}),
+      }));
+
+      setUploadProgress(90);
+
+      // Format search results for display
+      let searchResultsText = `I found ${processedMatches.length} image${
+        processedMatches.length === 1 ? "" : "s"
+      } similar to the uploaded image.`;
+
+      // If no results found, give a helpful message
+      if (processedMatches.length === 0) {
+        if (searchMode === "partial") {
+          searchResultsText =
+            "I couldn't find any partial matches. Try using Full Image Match mode instead.";
+        } else {
+          searchResultsText =
+            "I couldn't find any similar images. Try using Partial Image Match mode or a different image.";
+        }
+      }
+
+      // Add the analysis and search results to the chat
+      const assistantMessage = {
+        sender: "assistant",
+        message_type: "assistant",
+        content: searchResultsText,
+        created_at: new Date().toISOString(),
+        thread_id: selectedThreadId || null,
+        isImageSearch: true,
+        images: processedMatches,
+        searchParams: {
+          type: "similarity",
+          mode: embeddingType,
+          embedding: embedding, // Store embedding for "Get more" functionality
+          currentPage: 0,
+          totalResults: processedMatches.length,
+          hasMore: processedMatches.length >= 20, // Assume more if we hit the limit
+        },
+      };
+
+      setCurrentMessages((prev) => [...prev, assistantMessage]);
+      setUploadProgress(100);
 
       // Clear input and file after sending
       setInputText("");
@@ -1332,11 +1085,12 @@ ${
         err.message || "Unknown error"
       }`;
 
-      if (err.message?.includes("operator does not exist: integer - vector")) {
-        errorMessage = `This type of image search is currently having technical difficulties. 
-      Please try the other search mode (${
-        searchMode === "tensor" ? "Partial" : "Full"
-      } Image Match) instead.`;
+      if (
+        err.message?.includes("function") &&
+        err.message?.includes("does not exist")
+      ) {
+        errorMessage =
+          "The image search function is not available in the database. Please contact your administrator.";
       }
 
       const errorSystemMessage = {
