@@ -1162,8 +1162,8 @@ const EnhancedUserManagement = ({
           ) : (
             <table className="users-table">
               <thead className="user-filters">
-                <tr>
-                  <th className="checkbox-cell">
+                <tr className="user-filters-selector">
+                  <th className="checkbox-cell" style={{ width: "50px" }}>
                     <label className="checkbox-container">
                       <input
                         type="checkbox"
@@ -1173,84 +1173,82 @@ const EnhancedUserManagement = ({
                       <span className="checkbox-checkmark"></span>
                     </label>
                   </th>
-                  <div className="user-filters-selector">
-                    <th className="sortable" onClick={() => handleSort("name")}>
-                      <div className="th-content">
-                        <span>Name</span>
-                        {sortField === "name" && (
-                          <ArrowUpDown
-                            size={14}
-                            className={
-                              sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                            }
-                          />
-                        )}
-                      </div>
-                    </th>
-                    <th
-                      className="sortable"
-                      onClick={() => handleSort("email")}
-                    >
-                      <div className="th-content">
-                        <span>Email</span>
-                        {sortField === "email" && (
-                          <ArrowUpDown
-                            size={14}
-                            className={
-                              sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                            }
-                          />
-                        )}
-                      </div>
-                    </th>
-                    <th className="sortable" onClick={() => handleSort("role")}>
-                      <div className="th-content">
-                        <span>Role</span>
-                        {sortField === "role" && (
-                          <ArrowUpDown
-                            size={14}
-                            className={
-                              sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                            }
-                          />
-                        )}
-                      </div>
-                    </th>
-                    <th
-                      className="sortable"
-                      onClick={() => handleSort("status")}
-                    >
-                      <div className="th-content">
-                        <span>Status</span>
-                        {sortField === "status" && (
-                          <ArrowUpDown
-                            size={14}
-                            className={
-                              sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                            }
-                          />
-                        )}
-                      </div>
-                    </th>
-                    <th
-                      className="sortable"
-                      onClick={() => handleSort("lastActive")}
-                    >
-                      <div className="th-content">
-                        <span>Last Active</span>
-                        {sortField === "lastActive" && (
-                          <ArrowUpDown
-                            size={14}
-                            className={
-                              sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                            }
-                          />
-                        )}
-                      </div>
-                    </th>
-                  </div>
+
+                  <th className="sortable" onClick={() => handleSort("name")}>
+                    <div className="th-content">
+                      <span>Name</span>
+                      {sortField === "name" && (
+                        <ArrowUpDown
+                          size={14}
+                          className={
+                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
+                          }
+                        />
+                      )}
+                    </div>
+                  </th>
+
+                  <th className="sortable" onClick={() => handleSort("email")}>
+                    <div className="th-content">
+                      <span>Email</span>
+                      {sortField === "email" && (
+                        <ArrowUpDown
+                          size={14}
+                          className={
+                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
+                          }
+                        />
+                      )}
+                    </div>
+                  </th>
+
+                  <th className="sortable" onClick={() => handleSort("role")}>
+                    <div className="th-content">
+                      <span>Role</span>
+                      {sortField === "role" && (
+                        <ArrowUpDown
+                          size={14}
+                          className={
+                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
+                          }
+                        />
+                      )}
+                    </div>
+                  </th>
+
+                  <th className="sortable" onClick={() => handleSort("status")}>
+                    <div className="th-content">
+                      <span>Status</span>
+                      {sortField === "status" && (
+                        <ArrowUpDown
+                          size={14}
+                          className={
+                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
+                          }
+                        />
+                      )}
+                    </div>
+                  </th>
+
+                  <th
+                    className="sortable"
+                    onClick={() => handleSort("lastActive")}
+                  >
+                    <div className="th-content">
+                      <span>Last Active</span>
+                      {sortField === "lastActive" && (
+                        <ArrowUpDown
+                          size={14}
+                          className={
+                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
+                          }
+                        />
+                      )}
+                    </div>
+                  </th>
                 </tr>
               </thead>
+
               <tbody>
                 {filteredUsers.map((user) => (
                   <tr
@@ -1260,7 +1258,7 @@ const EnhancedUserManagement = ({
                     }
                   >
                     <td className="checkbox-cell">
-                      <label className="checkbox-container">
+                      <label className="checkbox-container ">
                         <input
                           type="checkbox"
                           checked={selectedUsers.includes(user.id)}
