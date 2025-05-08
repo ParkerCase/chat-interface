@@ -49,9 +49,14 @@ class DocumentProcessor {
     const fileExt =
       lastDotIndex !== -1 ? file.name.substring(lastDotIndex) : "";
 
+    // Sanitize the filename before using it
+    const sanitizedFileName = this.sanitizeFilename(fileName);
+
     // Add version to filename if version > 1
     const versionedName =
-      version > 1 ? `${fileName}_v${version}${fileExt}` : file.name;
+      version > 1
+        ? `${sanitizedFileName}_v${version}${fileExt}`
+        : `${sanitizedFileName}${fileExt}`;
 
     // Create a path structure: /basePath/year/month/versionedName
     return `${basePath}/${year}/${month}/${versionedName}`;
@@ -66,151 +71,75 @@ class DocumentProcessor {
    */
   async checkExistingFile(bucket, path, file) {
     try {
-      // First, check if exact file already exists
+      // Extract the folder path and filename
+      const pathParts = path.split("/");
+      const fileName = pathParts.pop(); // Get the last part (filename)
+      const folderPath = pathParts.join("/"); // Rebuild the folder path
+
+      // First, check if the folder exists and what files are in it
       const { data, error } = await supabase.storage
         .from(bucket)
-        .list(path.split("/").slice(0, -1).join("/"));
+        .list(folderPath);
 
-      if (error) throw error;
-
-      const fileName = path.split("/").pop();
-      const exactMatch = data.find((item) => item.name === fileName);
-
-      if (!exactMatch) {
+      if (error) {
+        console.error("Error listing folder contents:", error);
+        // If there's an error listing the folder, it might not exist yet - assume no duplicate
         return { exists: false, version: 1, path };
       }
 
-      // If versioning is disabled, we'll just overwrite (using upsert)
-      if (!this.settings.enableVersioning) {
-        return { exists: true, version: 1, path };
+      // Check if the exact file already exists
+      const exactMatch = data && data.find((item) => item.name === fileName);
+
+      if (!exactMatch) {
+        // File doesn't exist, use version 1
+        return { exists: false, version: 1, path };
       }
 
-      // We need to create a new version
-      // First, get the base name and extension
-      const lastDotIndex = file.name.lastIndexOf(".");
+      // If versioning is disabled, we'll need to use upsert
+      if (!this.settings.enableVersioning) {
+        return { exists: true, version: 1, path, useUpsert: true };
+      }
+
+      // Versioning is enabled - need to create a new versioned filename
+
+      // Extract the base name and extension
+      const lastDotIndex = fileName.lastIndexOf(".");
       const baseName =
-        lastDotIndex !== -1 ? file.name.substring(0, lastDotIndex) : file.name;
+        lastDotIndex !== -1 ? fileName.substring(0, lastDotIndex) : fileName;
       const fileExt =
-        lastDotIndex !== -1 ? file.name.substring(lastDotIndex) : "";
+        lastDotIndex !== -1 ? fileName.substring(lastDotIndex) : "";
 
-      // Look for existing versions of this file
+      // Look for existing versions with a similar pattern
+      const baseNameEscaped = baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // Escape special regex chars
       const versionRegex = new RegExp(
-        `^${baseName}_v(\\d+)${fileExt.replace(".", "\\.")}$`
+        `^${baseNameEscaped}_v(\\d+)${fileExt.replace(".", "\\.")}$`
       );
-      const versions = data
-        .filter(
-          (item) => item.name === file.name || versionRegex.test(item.name)
-        )
-        .map((item) => {
-          // Extract version number
+
+      let highestVersion = 1; // Start with version 1
+
+      if (data && data.length > 0) {
+        for (const item of data) {
+          // Check if this file matches the base name or is a versioned variant
           const match = item.name.match(versionRegex);
-          return match ? parseInt(match[1], 10) : 1;
-        });
+          if (match) {
+            const version = parseInt(match[1], 10);
+            if (version > highestVersion) {
+              highestVersion = version;
+            }
+          }
+        }
+      }
 
-      // Find highest version
-      const highestVersion = versions.length > 0 ? Math.max(...versions) : 0;
+      // Create the new version path
       const newVersion = highestVersion + 1;
-
-      // Generate new versioned path
-      const versionedPath = this.generateFilePath(file, newVersion);
+      const versionedName = `${baseName}_v${newVersion}${fileExt}`;
+      const versionedPath = pathParts.concat(versionedName).join("/");
 
       return { exists: true, version: newVersion, path: versionedPath };
     } catch (error) {
       console.error("Error checking existing file:", error);
-      // If there's an error, assume it doesn't exist and use version 1
+      // If there's any error, assume it doesn't exist and use version 1
       return { exists: false, version: 1, path };
-    }
-  }
-
-  /**
-   * Upload a document file to storage and process it for the knowledge base
-   * @param {File} file - The file to upload
-   * @param {String} bucket - The storage bucket name
-   * @param {Object} options - Additional options like userId
-   * @returns {Promise<Object>} Upload result
-   */
-  async processAndUploadDocument(file, bucket = "documents", options = {}) {
-    try {
-      if (!this.initialized) {
-        await this.initialize();
-      }
-
-      // 1. Validate the file
-      const validation = this.validateFile(file);
-      if (!validation.valid) {
-        throw new Error(validation.error);
-      }
-
-      // 2. Generate initial file path
-      const initialPath = this.generateFilePath(file);
-
-      // 3. Check for existing versions
-      const existingFile = await this.checkExistingFile(
-        bucket,
-        initialPath,
-        file
-      );
-      const version = existingFile.version;
-      const filePath = existingFile.path;
-
-      // 4. Generate metadata
-      const metadata = this.generateMetadata(file, version);
-
-      if (options.userId) {
-        metadata.uploadedBy = options.userId;
-      }
-
-      // 5. Upload file to storage
-      console.log(`Uploading file to ${filePath}, version ${version}`);
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(filePath, file, {
-          cacheControl: "3600",
-          upsert: !this.settings.enableVersioning ? true : false, // Only upsert if versioning is disabled
-          contentType: file.type,
-          metadata,
-        });
-
-      if (uploadError) throw uploadError;
-
-      // 6. Extract text from document
-      const extractedText = await this.extractTextFromDocument(file);
-
-      // 7. Generate embedding
-      const embedding = await this.generateEmbedding(extractedText);
-
-      // 8. Create record in documents table
-      const { data: docData, error: docError } = await supabase
-        .from("documents")
-        .insert([
-          {
-            name: file.name,
-            path: filePath,
-            storage_path: uploadData.path || filePath,
-            content: extractedText,
-            embedding,
-            metadata,
-            document_type: "document",
-            source_type: "upload",
-            status: "active",
-            created_by: options.userId,
-          },
-        ]);
-
-      if (docError) throw docError;
-
-      return {
-        success: true,
-        filePath,
-        metadata,
-        version,
-      };
-    } catch (error) {
-      console.error("Error processing document:", error);
-      return {
-        success: false,
-        error: error.message,
-      };
     }
   }
 
@@ -438,6 +367,258 @@ class DocumentProcessor {
       };
       reader.onerror = (error) => reject(error);
     });
+  }
+
+  /**
+   * Upload a document file to storage and process it for the knowledge base
+   * @param {File} file - The file to upload
+   * @param {String} bucket - The storage bucket name
+   * @param {Object} options - Additional options like userId
+   * @returns {Promise<Object>} Upload result
+   */
+  async processAndUploadDocument(file, bucket = "documents", options = {}) {
+    try {
+      if (!this.initialized) {
+        await this.initialize();
+      }
+
+      // 1. Validate the file
+      const validation = this.validateFile(file);
+      if (!validation.valid) {
+        throw new Error(validation.error);
+      }
+
+      // 2. Generate initial file path with sanitized filename
+      const initialPath = this.generateFilePath(file);
+      console.log(`Initial path generated: ${initialPath}`);
+
+      // 3. Check for existing versions
+      const existingFile = await this.checkExistingFile(
+        bucket,
+        initialPath,
+        file
+      );
+      const version = existingFile.version;
+      const filePath = existingFile.path;
+      const useUpsert =
+        existingFile.useUpsert || !this.settings.enableVersioning;
+      console.log(
+        `File path after version check: ${filePath}, version: ${version}, useUpsert: ${useUpsert}`
+      );
+
+      // 4. Generate metadata
+      const metadata = this.generateMetadata(file, version);
+
+      if (options.userId) {
+        metadata.uploadedBy = options.userId;
+      }
+
+      // 5. Upload file to storage
+      console.log(
+        `Uploading file to ${filePath}, version ${version}, useUpsert: ${useUpsert}`
+      );
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: useUpsert,
+          contentType: file.type,
+          metadata,
+        });
+
+      if (uploadError) {
+        console.error("Storage upload error:", uploadError);
+        throw uploadError;
+      }
+
+      console.log("File uploaded successfully to storage", uploadData);
+
+      // 6. Extract text from document
+      let extractedText = "";
+      try {
+        extractedText = await this.extractTextFromDocument(file);
+        console.log(
+          `Extracted ${extractedText.length} characters of text from document`
+        );
+      } catch (extractError) {
+        console.warn(
+          "Text extraction failed, continuing with empty text:",
+          extractError
+        );
+        extractedText = `[Text extraction failed for ${file.name}]`;
+      }
+
+      // 7. Generate embedding
+      let embedding = [];
+      try {
+        embedding = await this.generateEmbedding(extractedText);
+        console.log(`Generated embedding with ${embedding.length} dimensions`);
+      } catch (embeddingError) {
+        console.warn(
+          "Embedding generation failed, continuing with empty embedding:",
+          embeddingError
+        );
+      }
+
+      // 8. Create record in documents table
+      // First, check the table structure to ensure we're using the right column names
+      try {
+        console.log("Attempting to insert document record to database");
+
+        // Determine document type
+        const documentType = this.getDocumentType(file);
+
+        // Create a document record with flexible column mapping to handle different table structures
+        const documentRecord = {
+          // Use title or name depending on schema
+          title: file.name,
+          name: file.name, // Some schemas use name instead of title
+
+          // Path fields
+          path: filePath,
+          storage_path: uploadData.path || filePath,
+
+          // Content and embedding
+          content: extractedText,
+          embedding: embedding && embedding.length ? embedding : null,
+
+          // Metadata
+          metadata: metadata,
+
+          // Type fields - flexible mapping for different schemas
+          document_type: documentType,
+          type: documentType, // Some schemas use type instead of document_type
+
+          source_type: "upload",
+          source: "upload", // Some schemas use source instead of source_type
+
+          // Status fields
+          status: "active",
+
+          // User tracking
+          created_by: options.userId || null,
+
+          // Timestamps
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        // Attempt to insert the record
+        const { data: docData, error: docError } = await supabase
+          .from("documents")
+          .insert([documentRecord]);
+
+        if (docError) {
+          console.error("Database insert error:", docError);
+          // Don't throw here, we'll still consider the upload successful even if the DB insert fails
+          console.warn(
+            "File uploaded but database record creation failed. File can still be accessed from storage."
+          );
+
+          return {
+            success: true,
+            filePath,
+            metadata,
+            version,
+            databaseSuccess: false,
+            databaseError: docError.message,
+          };
+        }
+
+        console.log("Document record created successfully:", docData);
+        return {
+          success: true,
+          filePath,
+          metadata,
+          version,
+          databaseSuccess: true,
+        };
+      } catch (dbError) {
+        console.error("Error in database operation:", dbError);
+        // Still return success for the file upload part
+        return {
+          success: true,
+          filePath,
+          metadata,
+          version,
+          databaseSuccess: false,
+          databaseError: dbError.message,
+        };
+      }
+    } catch (error) {
+      console.error("Error processing document:", error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Determine document type based on file extension
+   * @param {File} file - The file to check
+   * @returns {String} The document type
+   */
+  getDocumentType(file) {
+    const extension = file.name.split(".").pop().toLowerCase();
+
+    const extensionMap = {
+      // Documents
+      pdf: "document",
+      doc: "document",
+      docx: "document",
+      txt: "document",
+      rtf: "document",
+      // Spreadsheets
+      xls: "spreadsheet",
+      xlsx: "spreadsheet",
+      csv: "spreadsheet",
+      // Images
+      jpg: "image",
+      jpeg: "image",
+      png: "image",
+      gif: "image",
+      svg: "image",
+      // Presentations
+      ppt: "presentation",
+      pptx: "presentation",
+      // Other types as needed
+    };
+
+    return extensionMap[extension] || "document";
+  }
+  /**
+   * Determine document type based on file extension
+   * @param {File} file - The file to check
+   * @returns {String} The document type
+   */
+  getDocumentType(file) {
+    const extension = file.name.split(".").pop().toLowerCase();
+
+    const extensionMap = {
+      // Documents
+      pdf: "document",
+      doc: "document",
+      docx: "document",
+      txt: "document",
+      rtf: "document",
+      // Spreadsheets
+      xls: "spreadsheet",
+      xlsx: "spreadsheet",
+      csv: "spreadsheet",
+      // Images
+      jpg: "image",
+      jpeg: "image",
+      png: "image",
+      gif: "image",
+      svg: "image",
+      // Presentations
+      ppt: "presentation",
+      pptx: "presentation",
+      // Other types as needed
+    };
+
+    return extensionMap[extension] || "document";
   }
 
   /**

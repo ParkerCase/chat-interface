@@ -269,7 +269,17 @@ const EnhancedSystemSettings = () => {
 
   const handleUploadComplete = (files) => {
     setSuccess(`Successfully uploaded ${files.length} document(s)`);
-    setUploadedFiles((prev) => [...files, ...prev].slice(0, 5)); // Keep last 5 uploads
+
+    // Normalize the file objects to ensure they have expected properties
+    const normalizedFiles = files.map((file) => ({
+      name: file.name || file.path?.split("/").pop() || "File",
+      size: file.size || 0,
+      type: file.type || "application/octet-stream",
+      // Add any other needed properties
+      ...file,
+    }));
+
+    setUploadedFiles((prev) => [...normalizedFiles, ...prev].slice(0, 5)); // Keep last 5 uploads
   };
 
   // Add this function to your component
@@ -1275,7 +1285,6 @@ const EnhancedSystemSettings = () => {
                           </div>
                         )}
 
-                        {/* Recent Uploads List */}
                         {uploadedFiles.length > 0 && (
                           <div className="recent-uploads">
                             <h4>Recent Uploads</h4>
@@ -1283,24 +1292,33 @@ const EnhancedSystemSettings = () => {
                               {uploadedFiles.map((file, index) => (
                                 <li key={index} className="upload-item">
                                   <div className="upload-icon">
-                                    {file.name.endsWith(".pdf")
-                                      ? "📄"
-                                      : file.name.endsWith(".doc") ||
-                                        file.name.endsWith(".docx")
-                                      ? "📝"
-                                      : file.name.endsWith(".csv") ||
-                                        file.name.endsWith(".xls") ||
-                                        file.name.endsWith(".xlsx")
-                                      ? "📊"
-                                      : "📁"}
+                                    {
+                                      file && file.name
+                                        ? file.name.endsWith(".pdf")
+                                          ? "📄"
+                                          : file.name.endsWith(".doc") ||
+                                            file.name.endsWith(".docx")
+                                          ? "📝"
+                                          : file.name.endsWith(".csv") ||
+                                            file.name.endsWith(".xls") ||
+                                            file.name.endsWith(".xlsx")
+                                          ? "📊"
+                                          : "📁"
+                                        : "📁" // Default icon if filename is missing
+                                    }
                                   </div>
                                   <div className="upload-details">
                                     <span className="upload-name">
-                                      {file.name}
+                                      {file && file.name
+                                        ? file.name
+                                        : "Unknown file"}
                                     </span>
                                     <span className="upload-meta">
                                       {new Date().toLocaleString()} •{" "}
-                                      {(file.size / 1024).toFixed(2)} KB
+                                      {file && file.size
+                                        ? (file.size / 1024).toFixed(2)
+                                        : "?"}{" "}
+                                      KB
                                     </span>
                                   </div>
                                   <div className="upload-status">

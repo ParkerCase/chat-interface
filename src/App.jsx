@@ -19,6 +19,7 @@ import SSOCallback from "./components/auth/SSOCallback";
 import EnhancedPasswordReset from "./components/auth/EnhancedPasswordReset";
 import ResetPasswordPage from "./components/auth/ResetPasswordPage";
 import AccountPage from "./components/account/AccountPage";
+import SlackMessages from "./components/messages/SlackMessages";
 
 // Route protection
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -374,6 +375,7 @@ function AppContent() {
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<Navigate to="/admin" replace />} />
               <Route path="/profile" element={<AccountPage tab="profile" />} />
+              <Route path="/messages" element={<SlackMessages />} />
               <Route
                 path="/security"
                 element={<AccountPage tab="security" />}
