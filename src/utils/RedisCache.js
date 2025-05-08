@@ -2,6 +2,41 @@
 import { supabase } from "../lib/supabase";
 
 /**
+ * Helper function to store in localStorage with TTL
+ * @param {string} key - The cache key
+ * @param {any} value - The value to store
+ * @param {number} expiry - Expiry time in seconds
+ */
+const localStorageSet = (key, value, expiry) => {
+  const item = {
+    value,
+    expiry: Date.now() + expiry * 1000,
+  };
+  localStorage.setItem(`cache:${key}`, JSON.stringify(item));
+};
+
+/**
+ * Helper function to get from localStorage with TTL check
+ * @param {string} key - The cache key
+ * @returns {any} - The stored value or null if expired/not found
+ */
+const localStorageGet = (key) => {
+  const item = localStorage.getItem(`cache:${key}`);
+  if (!item) return null;
+
+  try {
+    const parsed = JSON.parse(item);
+    if (parsed.expiry && Date.now() > parsed.expiry) {
+      localStorage.removeItem(`cache:${key}`);
+      return null;
+    }
+    return parsed.value;
+  } catch (e) {
+    return null;
+  }
+};
+
+/**
  * Redis Cache utility for intelligent caching
  */
 export const RedisCache = {
@@ -19,11 +54,17 @@ export const RedisCache = {
         expiry,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Fallback to localStorage if Redis function fails
+        localStorageSet(key, value, expiry);
+        return true;
+      }
       return data;
     } catch (error) {
-      console.error("Redis cache set error:", error);
-      return null;
+      console.warn("Redis cache set error:", error);
+      // Fallback to localStorage
+      localStorageSet(key, value, expiry);
+      return true;
     }
   },
 
@@ -36,7 +77,10 @@ export const RedisCache = {
     try {
       const { data, error } = await supabase.rpc("redis_get", { key });
 
-      if (error) throw error;
+      if (error) {
+        // Fallback to localStorage if Redis function fails
+        return localStorageGet(key);
+      }
 
       if (data) {
         try {
@@ -47,10 +91,12 @@ export const RedisCache = {
         }
       }
 
-      return null;
+      // If not in Redis, try localStorage
+      return localStorageGet(key);
     } catch (error) {
-      console.error("Redis cache get error:", error);
-      return null;
+      console.warn("Redis cache get error:", error);
+      // Fallback to localStorage
+      return localStorageGet(key);
     }
   },
 
@@ -61,11 +107,19 @@ export const RedisCache = {
   async delete(key) {
     try {
       const { error } = await supabase.rpc("redis_del", { key });
-      if (error) throw error;
+
+      // Always also remove from localStorage as a cleanup
+      localStorage.removeItem(`cache:${key}`);
+
+      if (error) {
+        return true; // Already removed from localStorage
+      }
       return true;
     } catch (error) {
-      console.error("Redis cache delete error:", error);
-      return false;
+      console.warn("Redis cache delete error:", error);
+      // At least remove from localStorage
+      localStorage.removeItem(`cache:${key}`);
+      return true;
     }
   },
 
@@ -100,7 +154,24 @@ export const RedisCache = {
     try {
       const { data, error } = await supabase.rpc("redis_keys", { pattern });
 
-      if (error) throw error;
+      if (error) {
+        // Fallback: try to match localStorage keys with this pattern
+        const results = {};
+        const regex = new RegExp(`^cache:${pattern.replace(/\*/g, ".*")}$`);
+
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key?.startsWith("cache:") && regex.test(key)) {
+            const actualKey = key.substring(6); // Remove 'cache:' prefix
+            const value = localStorageGet(actualKey);
+            if (value !== null) {
+              results[actualKey] = value;
+            }
+          }
+        }
+
+        return results;
+      }
 
       if (!data || !Array.isArray(data) || data.length === 0) {
         return {};
@@ -123,8 +194,23 @@ export const RedisCache = {
 
       return results;
     } catch (error) {
-      console.error("Redis pattern search error:", error);
-      return {};
+      console.warn("Redis pattern search error:", error);
+      // Fallback: try to match localStorage keys
+      const results = {};
+      const regex = new RegExp(`^cache:${pattern.replace(/\*/g, ".*")}$`);
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith("cache:") && regex.test(key)) {
+          const actualKey = key.substring(6); // Remove 'cache:' prefix
+          const value = localStorageGet(actualKey);
+          if (value !== null) {
+            results[actualKey] = value;
+          }
+        }
+      }
+
+      return results;
     }
   },
 
@@ -139,11 +225,39 @@ export const RedisCache = {
         pattern,
       });
 
-      if (error) throw error;
-      return data || 0;
+      // Also try to delete from localStorage
+      let localCount = 0;
+      const regex = new RegExp(`^cache:${pattern.replace(/\*/g, ".*")}$`);
+
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key?.startsWith("cache:") && regex.test(key)) {
+          localStorage.removeItem(key);
+          localCount++;
+        }
+      }
+
+      if (error) {
+        return localCount;
+      }
+
+      return (data || 0) + localCount;
     } catch (error) {
-      console.error("Redis pattern delete error:", error);
-      return 0;
+      console.warn("Redis pattern delete error:", error);
+
+      // Fallback: Delete matching keys from localStorage
+      let count = 0;
+      const regex = new RegExp(`^cache:${pattern.replace(/\*/g, ".*")}$`);
+
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key?.startsWith("cache:") && regex.test(key)) {
+          localStorage.removeItem(key);
+          count++;
+        }
+      }
+
+      return count;
     }
   },
 
@@ -160,23 +274,33 @@ export const RedisCache = {
         increment_by: increment,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Fallback: implement counter in localStorage
+        const current = localStorageGet(key) || 0;
+        const newValue = current + increment;
+        localStorageSet(key, newValue, 86400); // 24h expiry for counters
+        return newValue;
+      }
+
       return data || 0;
     } catch (error) {
-      console.error("Redis increment error:", error);
-      return 0;
+      console.warn("Redis increment error:", error);
+
+      // Fallback: implement counter in localStorage
+      const current = localStorageGet(key) || 0;
+      const newValue = current + increment;
+      localStorageSet(key, newValue, 86400); // 24h expiry for counters
+      return newValue;
     }
   },
 };
 
+// The rest of your cache implementations can remain unchanged
+// since they call the base RedisCache methods that now have fallbacks
+
 // Document-specific cache helpers
 export const DocumentCache = {
-  /**
-   * Get document by ID with intelligent caching
-   * @param {string} id - Document ID
-   * @param {Object} options - Options like forceFresh
-   * @returns {Promise<Object>} - Document data
-   */
+  // Your existing implementation
   async getDocument(id, options = {}) {
     const cacheKey = `doc:${id}:data`;
 
@@ -203,11 +327,7 @@ export const DocumentCache = {
     );
   },
 
-  /**
-   * Get documents by folder with caching
-   * @param {string} folderId - Folder ID
-   * @returns {Promise<Array>} - Documents in folder
-   */
+  // Rest of your DocumentCache implementation...
   async getDocumentsByFolder(folderId) {
     const cacheKey = `folder:${folderId}:docs`;
 
@@ -225,11 +345,6 @@ export const DocumentCache = {
     );
   },
 
-  /**
-   * Get document permissions with caching
-   * @param {string} id - Document ID
-   * @returns {Promise<Object>} - Permission data
-   */
   async getDocumentPermissions(id) {
     const cacheKey = `doc:${id}:permissions`;
 
@@ -247,11 +362,6 @@ export const DocumentCache = {
     );
   },
 
-  /**
-   * Invalidate document cache
-   * @param {string} id - Document ID
-   * @returns {Promise<boolean>} Success flag
-   */
   async invalidateDocument(id) {
     try {
       // Delete main document cache
@@ -278,12 +388,6 @@ export const DocumentCache = {
     }
   },
 
-  /**
-   * Determine intelligent TTL based on document activity
-   * @private
-   * @param {string} id - Document ID
-   * @returns {Promise<number>} TTL in seconds
-   */
   async _getDocumentTTL(id) {
     try {
       // Get last access information
@@ -319,38 +423,19 @@ export const DocumentCache = {
 
 // Analytics cache helpers
 export const AnalyticsCache = {
-  /**
-   * Cache analytics dashboard data
-   * @param {string} dashboardId - Dashboard ID or 'default'
-   * @param {Object} data - Dashboard data
-   * @param {number} ttl - Cache TTL in seconds
-   */
+  // Your existing implementation
   async cacheDashboardData(dashboardId = "default", data, ttl = 300) {
     return RedisCache.set(`analytics:dashboard:${dashboardId}`, data, ttl);
   },
 
-  /**
-   * Get cached dashboard data
-   * @param {string} dashboardId - Dashboard ID or 'default'
-   * @returns {Promise<Object>} Dashboard data
-   */
   async getDashboardData(dashboardId = "default") {
     return RedisCache.get(`analytics:dashboard:${dashboardId}`);
   },
 
-  /**
-   * Cache user metrics data
-   * @param {string} timeframe - Time period (day, week, month)
-   * @param {Object} data - Metrics data
-   */
   async cacheUserMetrics(timeframe, data) {
     return RedisCache.set(`analytics:users:${timeframe}`, data, 900); // 15 minutes
   },
 
-  /**
-   * Get cached user metrics
-   * @param {string} timeframe - Time period
-   */
   async getUserMetrics(timeframe) {
     return RedisCache.get(`analytics:users:${timeframe}`);
   },
@@ -358,38 +443,21 @@ export const AnalyticsCache = {
 
 // Chat and Search cache helpers
 export const ChatCache = {
-  /**
-   * Cache chat thread messages
-   * @param {string} threadId - Thread ID
-   * @param {Array} messages - Thread messages
-   */
+  // Your existing implementation
   async cacheThreadMessages(threadId, messages) {
     return RedisCache.set(`chat:thread:${threadId}:messages`, messages, 300); // 5 minutes
   },
 
-  /**
-   * Get cached thread messages
-   * @param {string} threadId - Thread ID
-   */
   async getThreadMessages(threadId) {
     return RedisCache.get(`chat:thread:${threadId}:messages`);
   },
 
-  /**
-   * Cache search results
-   * @param {string} query - Search query hash
-   * @param {Object} results - Search results
-   */
   async cacheSearchResults(query, results) {
     // Hash the query to create a safe key
     const queryHash = btoa(query).replace(/[^a-zA-Z0-9]/g, "");
     return RedisCache.set(`chat:search:${queryHash}`, results, 600); // 10 minutes
   },
 
-  /**
-   * Get cached search results
-   * @param {string} query - Search query
-   */
   async getSearchResults(query) {
     const queryHash = btoa(query).replace(/[^a-zA-Z0-9]/g, "");
     return RedisCache.get(`chat:search:${queryHash}`);
