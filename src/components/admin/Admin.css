@@ -115,6 +115,27 @@
   gap: 16px;
 }
 
+/* Add to your header CSS */
+.message-icon {
+  position: relative;
+  margin-right: 15px;
+}
+
+.unread-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: #ff4d4f;
+  color: white;
+  font-size: 0.7rem;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;

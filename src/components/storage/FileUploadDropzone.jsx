@@ -120,6 +120,34 @@ const FileUploadDropzone = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
+  /**
+   * Normalize file object to ensure consistent structure
+   * @param {Object} file - File object to normalize
+   * @returns {Object} - Normalized file object
+   */
+  const normalizeFileObject = (file, additionalData = {}) => {
+    return {
+      // Ensure core properties are always present
+      name:
+        file.name || additionalData.path?.split("/").pop() || "Unknown File",
+      size: file.size || 0,
+      type:
+        file.type ||
+        additionalData.metadata?.fileType ||
+        "application/octet-stream",
+
+      // Add path information if available
+      path: additionalData.path || file.path || null,
+
+      // Add any additional properties from the original file and extra data
+      ...file,
+      ...additionalData,
+
+      // Add timestamp for display purposes
+      uploadedAt: new Date().toISOString(),
+    };
+  };
+
   // Get the actual accepted file types to display
   const getAcceptedFileTypesForDisplay = () => {
     if (acceptedTypes) {
@@ -244,10 +272,6 @@ const FileUploadDropzone = ({
   };
 
   // Upload files to Supabase Storage
-  // Find the uploadFiles function in your FileUploadDropzone.jsx
-  // Replace it with this updated version that properly handles versioning
-
-  // Upload files to Supabase Storage
   const uploadFiles = async () => {
     if (files.length === 0) return;
 
@@ -291,15 +315,29 @@ const FileUploadDropzone = ({
             throw new Error(uploadResult.error || "Failed to process document");
           }
 
-          // Update progress to 100%
+          // Update progress to 100% - consider it a success even if DB insert fails
           setUploadProgress((prev) => ({ ...prev, [i]: 100 }));
           setUploadStatus((prev) => ({ ...prev, [i]: "success" }));
-          successfulFiles.push({
-            ...file,
-            path: uploadResult.filePath,
-            metadata: uploadResult.metadata,
-            version: uploadResult.version,
-          });
+
+          // Add the file to successful files list even if DB had issues
+          successfulFiles.push(
+            normalizeFileObject(file, {
+              path: uploadResult.filePath,
+              metadata: uploadResult.metadata,
+              version: uploadResult.version,
+            })
+          );
+
+          // Log warning if database insert failed but file upload succeeded
+          if (uploadResult.databaseSuccess === false) {
+            console.warn(
+              `File ${
+                file.name
+              } was uploaded successfully but database record creation failed. Error: ${
+                uploadResult.databaseError || "Unknown database error"
+              }`
+            );
+          }
 
           // Track successful upload event
           SupabaseAnalytics.trackEvent("document_processed", {
@@ -311,6 +349,7 @@ const FileUploadDropzone = ({
             version: uploadResult.version,
           });
         } else {
+          // Regular file upload logic (not changed)
           // For regular uploads (not using DocumentProcessor)
           // We need to handle versioning manually
 
@@ -364,12 +403,13 @@ const FileUploadDropzone = ({
           }
 
           setUploadStatus((prev) => ({ ...prev, [i]: "success" }));
-          successfulFiles.push({
-            ...file,
-            path: filePath,
-            url: supabase.storage.from(bucket).getPublicUrl(filePath).data
-              .publicUrl,
-          });
+          successfulFiles.push(
+            normalizeFileObject(file, {
+              path: filePath,
+              url: supabase.storage.from(bucket).getPublicUrl(filePath).data
+                .publicUrl,
+            })
+          );
 
           // Track successful upload event
           SupabaseAnalytics.trackEvent("file_upload", {

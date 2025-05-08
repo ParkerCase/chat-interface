@@ -11,6 +11,7 @@ import EnhancedSystemSettings from "./EnhancedSystemSettings";
 import FilePermissionsManager from "./FilePermissionsManager"; // New component we'll create
 import EnhancedAnalyticsDashboard from "../analytics/EnhancedAnalyticsDashboard";
 import ThemeSettings from "./ThemeSettings";
+import SlackMessaging from "../../utils/SlackMessaging";
 import { useTheme } from "../../context/ThemeContext";
 
 import { supabase } from "../../lib/supabase";
@@ -24,6 +25,7 @@ import {
   Users,
   Settings,
   MessageSquare,
+  MessageCircle,
   Sliders,
   CreditCard,
   Shield,
@@ -85,6 +87,8 @@ const AdminPanel = () => {
     },
   ]);
   const [currentTheme, setCurrentTheme] = useState("default");
+  const [unreadCount, setUnreadCount] = useState(0);
+
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [newUserForm, setNewUserForm] = useState({
     email: "",
@@ -572,6 +576,19 @@ const AdminPanel = () => {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      const count = await SlackMessaging.getUnreadCount();
+      setUnreadCount(count);
+    };
+
+    fetchUnreadCount();
+
+    // Set up polling every minute
+    const interval = setInterval(fetchUnreadCount, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Load admin data
   useEffect(() => {
@@ -1121,7 +1138,14 @@ const AdminPanel = () => {
   return (
     <div className="admin-container">
       <h1>Admin Panel</h1>
-
+      <div className="message-icon">
+        <Link to="/messages" title="Messages">
+          <MessageCircle size={24} />
+          {unreadCount > 0 && (
+            <span className="unread-badge">{unreadCount}</span>
+          )}
+        </Link>
+      </div>
       {/* Admin navigation */}
       <nav className="admin-nav">
         <div
