@@ -26,9 +26,13 @@ import {
   AlertTriangle,
   HelpCircle,
   Loader,
+  Upload,
   X,
 } from "lucide-react";
 import apiService from "../../services/apiService";
+import documentProcessor from "../../utils/DocumentProcessor";
+
+import FileUploadDropzone from "../storage/FileUploadDropzone";
 
 import Header from "../Header";
 import "./EnhancedSystemSettings.css";
@@ -48,6 +52,9 @@ const EnhancedSystemSettings = () => {
   const [connectionStatus, setConnectionStatus] = useState(null);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null);
+  const [isProcessorInitialized, setIsProcessorInitialized] = useState(false);
+  const [showUploadZone, setShowUploadZone] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
 
   // Settings state
   const [generalSettings, setGeneralSettings] = useState({
@@ -82,16 +89,16 @@ const EnhancedSystemSettings = () => {
     ssoProvider: "none",
   });
 
-  const [notificationSettings, setNotificationSettings] = useState({
-    emailNotifications: true,
-    slackNotifications: false,
-    slackWebhookUrl: "",
-    notifyOnNewUsers: true,
-    notifyOnErrors: true,
-    notifyOnStorageLimit: true,
-    digestFrequency: "daily",
-    adminAlerts: true,
-  });
+  // const [notificationSettings, setNotificationSettings] = useState({
+  //   emailNotifications: true,
+  //   slackNotifications: false,
+  //   slackWebhookUrl: "",
+  //   notifyOnNewUsers: true,
+  //   notifyOnErrors: true,
+  //   notifyOnStorageLimit: true,
+  //   digestFrequency: "daily",
+  //   adminAlerts: true,
+  // });
 
   const [apiSettings, setApiSettings] = useState({
     apiEnabled: true,
@@ -117,6 +124,49 @@ const EnhancedSystemSettings = () => {
   // Fetch settings on component mount
   useEffect(() => {
     fetchSettings();
+  }, []);
+
+  useEffect(() => {
+    const initProcessor = async () => {
+      try {
+        await documentProcessor.initialize();
+        setIsProcessorInitialized(true);
+
+        // Load settings from processor
+        const processorSettings = documentProcessor.settings;
+        if (processorSettings) {
+          setStorageSettings((prev) => ({
+            ...prev,
+            storagePath: processorSettings.storagePath || prev.storagePath,
+            maxFileSize: processorSettings.maxFileSize || prev.maxFileSize,
+            acceptedFileTypes:
+              processorSettings.acceptedFileTypes || prev.acceptedFileTypes,
+            storageQuota: processorSettings.storageQuota || prev.storageQuota,
+            enableVersioning:
+              processorSettings.enableVersioning !== undefined
+                ? processorSettings.enableVersioning
+                : prev.enableVersioning,
+            autoDeleteOldVersions:
+              processorSettings.autoDeleteOldVersions !== undefined
+                ? processorSettings.autoDeleteOldVersions
+                : prev.autoDeleteOldVersions,
+            retentionDays:
+              processorSettings.retentionDays || prev.retentionDays,
+            compressionEnabled:
+              processorSettings.compressionEnabled !== undefined
+                ? processorSettings.compressionEnabled
+                : prev.compressionEnabled,
+          }));
+        }
+      } catch (error) {
+        console.error("Error initializing document processor:", error);
+        setError(
+          "Failed to initialize document processor. Using default settings."
+        );
+      }
+    };
+
+    initProcessor();
   }, []);
 
   // Clear success message after 5 seconds
@@ -163,12 +213,12 @@ const EnhancedSystemSettings = () => {
                 [setting.key]: setting.value,
               }));
               break;
-            case "notifications":
-              setNotificationSettings((prev) => ({
-                ...prev,
-                [setting.key]: setting.value,
-              }));
-              break;
+            // case "notifications":
+            //   setNotificationSettings((prev) => ({
+            //     ...prev,
+            //     [setting.key]: setting.value,
+            //   }));
+            //   break;
             case "api":
               setApiSettings((prev) => ({
                 ...prev,
@@ -217,6 +267,16 @@ const EnhancedSystemSettings = () => {
     }
   };
 
+  const handleUploadComplete = (files) => {
+    setSuccess(`Successfully uploaded ${files.length} document(s)`);
+    setUploadedFiles((prev) => [...files, ...prev].slice(0, 5)); // Keep last 5 uploads
+  };
+
+  // Add this function to your component
+  const handleUploadError = (error, file) => {
+    setError(`Error uploading ${file.name}: ${error.message}`);
+  };
+
   // Save settings to Supabase
   const saveSettings = async (category, settings) => {
     try {
@@ -245,6 +305,95 @@ const EnhancedSystemSettings = () => {
     } catch (err) {
       console.error(`Error saving ${category} settings:`, err);
       setError(`Failed to save ${category} settings: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const validateStorageSettings = () => {
+    const {
+      maxFileSize,
+      acceptedFileTypes,
+      retentionDays,
+      autoDeleteOldVersions,
+      storageQuota,
+    } = storageSettings;
+
+    let hasError = false;
+
+    // Validate file size is reasonable
+    if (maxFileSize <= 0 || maxFileSize > 100) {
+      setError("Max file size must be between 1 and 100 MB");
+      hasError = true;
+    }
+
+    // Validate storage quota
+    if (storageQuota <= 0 || storageQuota > 1000) {
+      setError("Storage quota must be between 1 and 1000 GB");
+      hasError = true;
+    }
+
+    // Validate retention days if auto-delete is enabled
+    if (autoDeleteOldVersions && (retentionDays < 1 || retentionDays > 365)) {
+      setError(
+        "Retention days must be between 1 and 365 when auto-delete is enabled"
+      );
+      hasError = true;
+    }
+
+    // Validate accepted file types format
+    if (!acceptedFileTypes || acceptedFileTypes.trim() === "") {
+      setError("Accepted file types cannot be empty");
+      hasError = true;
+    }
+
+    return !hasError;
+  };
+
+  const handleStorageSubmit = async (e) => {
+    e.preventDefault();
+
+    // Validate settings before saving
+    if (!validateStorageSettings()) {
+      return; // Stop if validation fails
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+
+      // Prepare settings for saving
+      const settingsToSave = Object.entries(storageSettings).map(
+        ([key, value]) => ({
+          category: "storage",
+          key,
+          value: typeof value === "boolean" ? value.toString() : value,
+          updated_at: new Date().toISOString(),
+          updated_by: currentUser?.id,
+        })
+      );
+
+      // Use the RPC function to save settings
+      const { data, error } = await supabase.rpc("save_settings", {
+        settings: settingsToSave,
+      });
+
+      if (error) throw error;
+
+      setSuccess("Storage settings saved successfully");
+
+      // Reinitialize the document processor to load new settings
+      setTimeout(async () => {
+        try {
+          await documentProcessor.initialize();
+          console.log("Document processor reinitialized with new settings");
+        } catch (err) {
+          console.error("Error reinitializing document processor:", err);
+        }
+      }, 1000);
+    } catch (err) {
+      console.error("Error saving storage settings:", err);
+      setError(`Failed to save storage settings: ${err.message}`);
     } finally {
       setSaving(false);
     }
@@ -301,6 +450,14 @@ const EnhancedSystemSettings = () => {
   const handleSubmit = async (e, category) => {
     e.preventDefault();
 
+    // Special validation for storage settings
+    if (category === "storage") {
+      // Validate settings before saving
+      if (!validateStorageSettings()) {
+        return; // Stop if validation fails
+      }
+    }
+
     let settingsToSave;
 
     switch (category) {
@@ -313,9 +470,9 @@ const EnhancedSystemSettings = () => {
       case "security":
         settingsToSave = securitySettings;
         break;
-      case "notifications":
-        settingsToSave = notificationSettings;
-        break;
+      // case "notifications":
+      //   settingsToSave = notificationSettings;
+      //   break;
       case "api":
         settingsToSave = apiSettings;
         break;
@@ -327,6 +484,18 @@ const EnhancedSystemSettings = () => {
     }
 
     await saveSettings(category, settingsToSave);
+
+    // Reinitialize document processor if storage settings were saved
+    if (category === "storage") {
+      setTimeout(async () => {
+        try {
+          await documentProcessor.initialize();
+          console.log("Document processor reinitialized with new settings");
+        } catch (err) {
+          console.error("Error reinitializing document processor:", err);
+        }
+      }, 1000);
+    }
   };
 
   // Handle input change
@@ -347,6 +516,116 @@ const EnhancedSystemSettings = () => {
         }));
         break;
       case "storage":
+        // Convert values to appropriate types
+        let inputValue;
+        if (type === "checkbox") {
+          inputValue = checked;
+        } else if (
+          ["maxFileSize", "storageQuota", "retentionDays"].includes(name)
+        ) {
+          // Convert numeric fields to numbers
+          inputValue = parseFloat(value) || 0;
+
+          // Add validation for maxFileSize (e.g., cap at 100MB)
+          if (name === "maxFileSize" && inputValue > 100) {
+            inputValue = 100;
+            setError("Maximum file size capped at 100MB");
+            setTimeout(() => setError(null), 3000);
+          } else if (name === "maxFileSize" && inputValue <= 0) {
+            inputValue = 1;
+            setError("Minimum file size is 1MB");
+            setTimeout(() => setError(null), 3000);
+          }
+
+          // Add validation for storageQuota
+          if (name === "storageQuota" && inputValue > 1000) {
+            inputValue = 1000;
+            setError("Storage quota capped at 1000GB (1TB)");
+            setTimeout(() => setError(null), 3000);
+          } else if (name === "storageQuota" && inputValue <= 0) {
+            inputValue = 1;
+            setError("Minimum storage quota is 1GB");
+            setTimeout(() => setError(null), 3000);
+          }
+
+          // Add validation for retentionDays
+          if (name === "retentionDays" && inputValue > 365) {
+            inputValue = 365;
+            setError("Maximum retention period is 365 days");
+            setTimeout(() => setError(null), 3000);
+          } else if (name === "retentionDays" && inputValue < 1) {
+            inputValue = 1;
+            setError("Minimum retention period is 1 day");
+            setTimeout(() => setError(null), 3000);
+          }
+        } else if (name === "acceptedFileTypes") {
+          // Validate accepted file types format (comma-separated list)
+          // Remove any spaces after commas and trim individual extensions
+          const cleanedTypes = value
+            .split(",")
+            .map((type) => type.trim())
+            .join(",");
+          inputValue = cleanedTypes;
+
+          // Check if the format is valid
+          const validExtensions = cleanedTypes
+            .split(",")
+            .every((ext) => /^[a-zA-Z0-9]+$/.test(ext.trim()));
+
+          if (!validExtensions && cleanedTypes.trim() !== "") {
+            setError(
+              "File extensions should be comma-separated without dots or spaces (e.g., pdf,doc,docx)"
+            );
+            setTimeout(() => setError(null), 5000);
+          }
+        } else {
+          inputValue = value;
+        }
+
+        const validateStorageSettings = () => {
+          const {
+            maxFileSize,
+            acceptedFileTypes,
+            retentionDays,
+            autoDeleteOldVersions,
+            storageQuota,
+          } = storageSettings;
+
+          let hasError = false;
+
+          // Validate file size is reasonable
+          if (maxFileSize <= 0 || maxFileSize > 100) {
+            setError("Max file size must be between 1 and 100 MB");
+            hasError = true;
+          }
+
+          // Validate storage quota
+          if (storageQuota <= 0 || storageQuota > 1000) {
+            setError("Storage quota must be between 1 and 1000 GB");
+            hasError = true;
+          }
+
+          // Validate retention days if auto-delete is enabled
+          if (
+            autoDeleteOldVersions &&
+            (retentionDays < 1 || retentionDays > 365)
+          ) {
+            setError(
+              "Retention days must be between 1 and 365 when auto-delete is enabled"
+            );
+            hasError = true;
+          }
+
+          // Validate accepted file types format
+          if (!acceptedFileTypes || acceptedFileTypes.trim() === "") {
+            setError("Accepted file types cannot be empty");
+            hasError = true;
+          }
+
+          return !hasError;
+        };
+
+        // Update storage settings state
         setStorageSettings((prev) => ({
           ...prev,
           [name]: inputValue,
@@ -358,12 +637,12 @@ const EnhancedSystemSettings = () => {
           [name]: inputValue,
         }));
         break;
-      case "notifications":
-        setNotificationSettings((prev) => ({
-          ...prev,
-          [name]: inputValue,
-        }));
-        break;
+      // case "notifications":
+      //   setNotificationSettings((prev) => ({
+      //     ...prev,
+      //     [name]: inputValue,
+      //   }));
+      //   break;
       case "api":
         setApiSettings((prev) => ({
           ...prev,
@@ -605,7 +884,7 @@ const EnhancedSystemSettings = () => {
               <Shield size={20} />
               <span>Security</span>
             </button>
-            <button
+            {/* <button
               className={`nav-item ${
                 activeSection === "notifications" ? "active" : ""
               }`}
@@ -613,7 +892,7 @@ const EnhancedSystemSettings = () => {
             >
               <BellRing size={20} />
               <span>Notifications</span>
-            </button>
+            </button> */}
             <button
               className={`nav-item ${activeSection === "api" ? "active" : ""}`}
               onClick={() => setActiveSection("api")}
@@ -774,7 +1053,6 @@ const EnhancedSystemSettings = () => {
                     </form>
                   </div>
                 )}
-
                 {/* Storage Settings */}
                 {activeSection === "storage" && (
                   <div className="settings-section">
@@ -937,10 +1215,106 @@ const EnhancedSystemSettings = () => {
                           )}
                         </button>
                       </div>
+
+                      <div className="upload-section-container">
+                        <div className="upload-divider">
+                          <div className="divider-line"></div>
+                          <span>Upload Files</span>
+                          <div className="divider-line"></div>
+                        </div>
+
+                        <p className="upload-instructions">
+                          Upload documents to be processed with your current
+                          settings and added to the knowledge base.
+                        </p>
+
+                        <button
+                          type="button"
+                          className="toggle-upload-button"
+                          onClick={() => setShowUploadZone(!showUploadZone)}
+                        >
+                          {showUploadZone ? (
+                            <>
+                              <X size={16} />
+                              Hide Upload Zone
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={16} />
+                              Show Upload Zone
+                            </>
+                          )}
+                        </button>
+
+                        {showUploadZone && (
+                          <div className="upload-zone-wrapper">
+                            <FileUploadDropzone
+                              bucket="documents"
+                              folder={
+                                storageSettings?.storagePath?.replace(
+                                  /^\//,
+                                  ""
+                                ) || "data/uploads"
+                              }
+                              maxSize={
+                                storageSettings?.maxFileSize
+                                  ? storageSettings.maxFileSize * 1024 * 1024
+                                  : undefined
+                              }
+                              acceptedFileTypes={storageSettings?.acceptedFileTypes
+                                ?.split(",")
+                                .map((ext) => `.${ext.trim()}`)
+                                .reduce(
+                                  (acc, ext) => ({ ...acc, [ext]: [] }),
+                                  {}
+                                )}
+                              processForKnowledgeBase={true}
+                              onUploadComplete={handleUploadComplete}
+                              onUploadError={handleUploadError}
+                            />
+                          </div>
+                        )}
+
+                        {/* Recent Uploads List */}
+                        {uploadedFiles.length > 0 && (
+                          <div className="recent-uploads">
+                            <h4>Recent Uploads</h4>
+                            <ul className="uploads-list">
+                              {uploadedFiles.map((file, index) => (
+                                <li key={index} className="upload-item">
+                                  <div className="upload-icon">
+                                    {file.name.endsWith(".pdf")
+                                      ? "📄"
+                                      : file.name.endsWith(".doc") ||
+                                        file.name.endsWith(".docx")
+                                      ? "📝"
+                                      : file.name.endsWith(".csv") ||
+                                        file.name.endsWith(".xls") ||
+                                        file.name.endsWith(".xlsx")
+                                      ? "📊"
+                                      : "📁"}
+                                  </div>
+                                  <div className="upload-details">
+                                    <span className="upload-name">
+                                      {file.name}
+                                    </span>
+                                    <span className="upload-meta">
+                                      {new Date().toLocaleString()} •{" "}
+                                      {(file.size / 1024).toFixed(2)} KB
+                                    </span>
+                                  </div>
+                                  <div className="upload-status">
+                                    ✓ Processed
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
                     </form>
                   </div>
                 )}
-
                 {/* Security Settings */}
                 {activeSection === "security" && (
                   <div className="settings-section">
@@ -1052,56 +1426,6 @@ const EnhancedSystemSettings = () => {
                         </div>
                       </div>
 
-                      <div className="form-group">
-                        <label htmlFor="allowedIpRanges">
-                          Allowed IP Ranges
-                        </label>
-                        <input
-                          type="text"
-                          id="allowedIpRanges"
-                          name="allowedIpRanges"
-                          value={securitySettings.allowedIpRanges}
-                          onChange={(e) => handleInputChange(e, "security")}
-                          className="form-input"
-                        />
-                        <p className="input-help">
-                          Comma-separated list of allowed IP addresses or CIDR
-                          ranges. Leave empty to allow all.
-                        </p>
-                      </div>
-
-                      <div className="form-group checkbox-group">
-                        <label className="checkbox-container">
-                          <input
-                            type="checkbox"
-                            name="ssoEnabled"
-                            checked={securitySettings.ssoEnabled}
-                            onChange={(e) => handleInputChange(e, "security")}
-                          />
-                          <span className="checkbox-label">
-                            Enable Single Sign-On (SSO)
-                          </span>
-                        </label>
-                      </div>
-
-                      <div className="form-group">
-                        <label htmlFor="ssoProvider">SSO Provider</label>
-                        <select
-                          id="ssoProvider"
-                          name="ssoProvider"
-                          value={securitySettings.ssoProvider}
-                          onChange={(e) => handleInputChange(e, "security")}
-                          className="form-select"
-                          disabled={!securitySettings.ssoEnabled}
-                        >
-                          <option value="none">None</option>
-                          <option value="google">Google Workspace</option>
-                          <option value="azure">Microsoft Azure AD</option>
-                          <option value="okta">Okta</option>
-                          <option value="custom">Custom SAML</option>
-                        </select>
-                      </div>
-
                       <div className="form-actions">
                         <button
                           type="submit"
@@ -1124,176 +1448,6 @@ const EnhancedSystemSettings = () => {
                     </form>
                   </div>
                 )}
-
-                {/* Notification Settings */}
-                {activeSection === "notifications" && (
-                  <div className="settings-section">
-                    <h3 className="settings-title">Notification Settings</h3>
-                    <p className="settings-description">
-                      Configure system notifications and alerts.
-                    </p>
-
-                    <form onSubmit={(e) => handleSubmit(e, "notifications")}>
-                      <div className="form-group checkbox-group">
-                        <label className="checkbox-container">
-                          <input
-                            type="checkbox"
-                            name="emailNotifications"
-                            checked={notificationSettings.emailNotifications}
-                            onChange={(e) =>
-                              handleInputChange(e, "notifications")
-                            }
-                          />
-                          <span className="checkbox-label">
-                            Enable email notifications
-                          </span>
-                        </label>
-                      </div>
-
-                      <div className="form-group checkbox-group">
-                        <label className="checkbox-container">
-                          <input
-                            type="checkbox"
-                            name="slackNotifications"
-                            checked={notificationSettings.slackNotifications}
-                            onChange={(e) =>
-                              handleInputChange(e, "notifications")
-                            }
-                          />
-                          <span className="checkbox-label">
-                            Enable Slack notifications
-                          </span>
-                        </label>
-                      </div>
-
-                      <div className="form-group">
-                        <label htmlFor="slackWebhookUrl">
-                          Slack Webhook URL
-                        </label>
-                        <input
-                          type="text"
-                          id="slackWebhookUrl"
-                          name="slackWebhookUrl"
-                          value={notificationSettings.slackWebhookUrl}
-                          onChange={(e) =>
-                            handleInputChange(e, "notifications")
-                          }
-                          className="form-input"
-                          disabled={!notificationSettings.slackNotifications}
-                        />
-                      </div>
-
-                      <div className="form-group checkbox-group">
-                        <h4 className="checkbox-group-title">
-                          Notification Triggers
-                        </h4>
-                        <label className="checkbox-container">
-                          <input
-                            type="checkbox"
-                            name="notifyOnNewUsers"
-                            checked={notificationSettings.notifyOnNewUsers}
-                            onChange={(e) =>
-                              handleInputChange(e, "notifications")
-                            }
-                          />
-                          <span className="checkbox-label">
-                            New user registrations
-                          </span>
-                        </label>
-
-                        <label className="checkbox-container">
-                          <input
-                            type="checkbox"
-                            name="notifyOnErrors"
-                            checked={notificationSettings.notifyOnErrors}
-                            onChange={(e) =>
-                              handleInputChange(e, "notifications")
-                            }
-                          />
-                          <span className="checkbox-label">System errors</span>
-                        </label>
-
-                        <label className="checkbox-container">
-                          <input
-                            type="checkbox"
-                            name="notifyOnStorageLimit"
-                            checked={notificationSettings.notifyOnStorageLimit}
-                            onChange={(e) =>
-                              handleInputChange(e, "notifications")
-                            }
-                          />
-                          <span className="checkbox-label">
-                            Storage limit warnings
-                          </span>
-                        </label>
-                      </div>
-
-                      <div className="form-group">
-                        <label htmlFor="digestFrequency">
-                          Digest Frequency
-                        </label>
-                        <select
-                          id="digestFrequency"
-                          name="digestFrequency"
-                          value={notificationSettings.digestFrequency}
-                          onChange={(e) =>
-                            handleInputChange(e, "notifications")
-                          }
-                          className="form-select"
-                        >
-                          <option value="realtime">Real-time</option>
-                          <option value="hourly">Hourly</option>
-                          <option value="daily">Daily</option>
-                          <option value="weekly">Weekly</option>
-                        </select>
-                        <p className="input-help">
-                          How often to send notification digests.
-                        </p>
-                      </div>
-
-                      <div className="form-group checkbox-group">
-                        <label className="checkbox-container">
-                          <input
-                            type="checkbox"
-                            name="adminAlerts"
-                            checked={notificationSettings.adminAlerts}
-                            onChange={(e) =>
-                              handleInputChange(e, "notifications")
-                            }
-                          />
-                          <span className="checkbox-label">
-                            Admin-only alerts
-                          </span>
-                        </label>
-                        <p className="input-help">
-                          Send certain alerts only to administrators.
-                        </p>
-                      </div>
-
-                      <div className="form-actions">
-                        <button
-                          type="submit"
-                          className="submit-button"
-                          disabled={saving}
-                        >
-                          {saving ? (
-                            <>
-                              <Loader size={14} className="spinner" />
-                              Saving...
-                            </>
-                          ) : (
-                            <>
-                              <Save size={14} />
-                              Save Settings
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                )}
-
-                {/* API Settings */}
                 {activeSection === "api" && (
                   <div className="settings-section">
                     <h3 className="settings-title">API Settings</h3>
@@ -1487,7 +1641,6 @@ const EnhancedSystemSettings = () => {
                     </div>
                   </div>
                 )}
-
                 {/* Backup Settings */}
                 {activeSection === "backup" && (
                   <div className="settings-section">

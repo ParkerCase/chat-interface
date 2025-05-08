@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "strict": true,
+    "lib": ["dom", "esnext"],
+    "types": ["./node_modules/deno-types"],
+    "allowJs": true,
+    "checkJs": false,
+    "skipLibCheck": true
+  },
+  "typeRoots": ["./node_modules/@types", "./node_modules/deno-types"]
+}

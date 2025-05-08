@@ -784,6 +784,128 @@ label {
   margin-bottom: 1rem;
 }
 
+/* Upload section container */
+.upload-section-container {
+  margin-top: 40px;
+  padding-top: 10px;
+}
+
+/* Upload divider */
+.upload-divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+}
+
+.divider-line {
+  flex: 1;
+  height: 1px;
+  background-color: #e2e8f0;
+}
+
+.upload-divider span {
+  padding: 0 15px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #475569;
+}
+
+/* Upload instructions */
+.upload-instructions {
+  margin-bottom: 20px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* Toggle upload button */
+.toggle-upload-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 10px 16px;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin: 0 auto 20px;
+}
+
+.toggle-upload-button:hover {
+  background-color: #e5e7eb;
+}
+
+/* Upload zone wrapper */
+.upload-zone-wrapper {
+  margin-bottom: 30px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+  background-color: #f8fafc;
+}
+
+/* Recent uploads */
+.recent-uploads {
+  margin-top: 30px;
+}
+
+.recent-uploads h4 {
+  font-size: 16px;
+  font-weight: 500;
+  color: #334155;
+  margin-bottom: 15px;
+}
+
+.uploads-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.upload-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.upload-item:last-child {
+  border-bottom: none;
+}
+
+.upload-icon {
+  font-size: 24px;
+  margin-right: 16px;
+}
+
+.upload-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.upload-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #334155;
+  margin-bottom: 4px;
+}
+
+.upload-meta {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.upload-status {
+  font-size: 14px;
+  color: #10b981;
+  font-weight: 500;
+}
+
 /* Form section spacing fixes */
 .form-row + .form-group,
 .form-group + .form-row {
@@ -1144,5 +1266,20 @@ label {
 
   .metrics-list {
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .upload-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .upload-icon {
+    margin-bottom: 8px;
+  }
+
+  .upload-status {
+    margin-top: 8px;
   }
 }

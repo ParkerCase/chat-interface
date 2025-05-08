@@ -3,6 +3,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { supabase } from "../../lib/supabase";
 import { SupabaseAnalytics } from "../../utils/SupabaseAnalyticsIntegration";
+import documentProcessor from "../../utils/DocumentProcessor";
 import {
   Upload,
   File,
@@ -28,12 +29,53 @@ const FileUploadDropzone = ({
   acceptedFileTypes = undefined,
   onUploadComplete = () => {},
   onUploadError = () => {},
+  processForKnowledgeBase = false, // New option to process documents
 }) => {
   const [files, setFiles] = useState([]);
   const [uploadProgress, setUploadProgress] = useState({});
   const [uploadStatus, setUploadStatus] = useState({});
   const [overallStatus, setOverallStatus] = useState("idle"); // idle, uploading, complete, error
   const [errorMessage, setErrorMessage] = useState("");
+  const [storageSettings, setStorageSettings] = useState(null);
+  const [isProcessorInitialized, setIsProcessorInitialized] = useState(false);
+
+  // Initialize document processor and get storage settings
+  useEffect(() => {
+    const initializeProcessor = async () => {
+      try {
+        await documentProcessor.initialize();
+        setStorageSettings(documentProcessor.settings);
+        setIsProcessorInitialized(true);
+      } catch (error) {
+        console.error("Failed to initialize document processor:", error);
+        setErrorMessage("Error loading storage settings. Using defaults.");
+      }
+    };
+
+    initializeProcessor();
+  }, []);
+
+  // Update maxSize and acceptedFileTypes based on storage settings if they're provided
+  useEffect(() => {
+    if (storageSettings) {
+      if (!maxSize) {
+        const settingsMaxSize = storageSettings.maxFileSize * 1024 * 1024; // Convert MB to bytes
+        setMaxFileSize(settingsMaxSize);
+      }
+      if (!acceptedFileTypes && storageSettings.acceptedFileTypes) {
+        setAcceptedTypes(
+          storageSettings.acceptedFileTypes
+            .split(",")
+            .map((type) => `.${type.trim()}`)
+        );
+      }
+    }
+  }, [storageSettings, maxSize, acceptedFileTypes]);
+
+  // Function to set max file size
+  const [maxFileSize, setMaxFileSize] = useState(maxSize);
+  // Function to set accepted file types
+  const [acceptedTypes, setAcceptedTypes] = useState(acceptedFileTypes);
 
   // Define file type icons mapping
   const fileTypeIcons = {
@@ -78,6 +120,20 @@ const FileUploadDropzone = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
+  // Get the actual accepted file types to display
+  const getAcceptedFileTypesForDisplay = () => {
+    if (acceptedTypes) {
+      if (typeof acceptedTypes === "string") {
+        return acceptedTypes;
+      } else if (Array.isArray(acceptedTypes)) {
+        return acceptedTypes.join(", ");
+      } else if (typeof acceptedTypes === "object") {
+        return Object.keys(acceptedTypes).join(", ");
+      }
+    }
+    return storageSettings?.acceptedFileTypes || "all files";
+  };
+
   // Handle file drops
   const onDrop = useCallback(
     (acceptedFiles) => {
@@ -85,16 +141,58 @@ const FileUploadDropzone = ({
       setErrorMessage("");
       setOverallStatus("idle");
 
+      const actualMaxSize = maxFileSize || maxSize;
+
       // Filter out files that exceed max size
-      const validFiles = acceptedFiles.filter((file) => file.size <= maxSize);
-      const invalidFiles = acceptedFiles.filter((file) => file.size > maxSize);
+      const validFiles = acceptedFiles.filter(
+        (file) => file.size <= actualMaxSize
+      );
+      const invalidFiles = acceptedFiles.filter(
+        (file) => file.size > actualMaxSize
+      );
 
       if (invalidFiles.length > 0) {
         setErrorMessage(
           `${
             invalidFiles.length
-          } file(s) exceed the maximum size limit of ${formatFileSize(maxSize)}`
+          } file(s) exceed the maximum size limit of ${formatFileSize(
+            actualMaxSize
+          )}`
         );
+      }
+
+      // Use DocumentProcessor to validate file types if we're processing for knowledge base
+      if (processForKnowledgeBase && isProcessorInitialized) {
+        const invalidTypeFiles = validFiles.filter((file) => {
+          const validation = documentProcessor.validateFile(file);
+          return !validation.valid;
+        });
+
+        if (invalidTypeFiles.length > 0) {
+          setErrorMessage(
+            (prev) =>
+              prev +
+              (prev ? " Also, " : "") +
+              `${invalidTypeFiles.length} file(s) have unsupported file types. Accepted types: ${storageSettings.acceptedFileTypes}`
+          );
+
+          // Remove invalid type files
+          const validTypeFiles = validFiles.filter((file) => {
+            const validation = documentProcessor.validateFile(file);
+            return validation.valid;
+          });
+
+          // Combine with existing files, but don't exceed maxFiles
+          setFiles((prevFiles) => {
+            const newFiles = [...prevFiles, ...validTypeFiles].slice(
+              0,
+              maxFiles
+            );
+            return newFiles;
+          });
+
+          return;
+        }
       }
 
       // Combine with existing files, but don't exceed maxFiles
@@ -103,7 +201,14 @@ const FileUploadDropzone = ({
         return newFiles;
       });
     },
-    [maxSize, maxFiles]
+    [
+      maxFileSize,
+      maxSize,
+      maxFiles,
+      processForKnowledgeBase,
+      isProcessorInitialized,
+      storageSettings,
+    ]
   );
 
   // Configure dropzone
@@ -116,8 +221,8 @@ const FileUploadDropzone = ({
   } = useDropzone({
     onDrop,
     maxFiles,
-    maxSize,
-    accept: acceptedFileTypes,
+    maxSize: maxFileSize || maxSize,
+    accept: acceptedTypes,
   });
 
   // Remove a file from the list
@@ -139,6 +244,10 @@ const FileUploadDropzone = ({
   };
 
   // Upload files to Supabase Storage
+  // Find the uploadFiles function in your FileUploadDropzone.jsx
+  // Replace it with this updated version that properly handles versioning
+
+  // Upload files to Supabase Storage
   const uploadFiles = async () => {
     if (files.length === 0) return;
 
@@ -156,35 +265,111 @@ const FileUploadDropzone = ({
 
       const file = files[i];
 
-      // Create file path - include folder if provided
-      const filePath = folder ? `${folder}/${file.name}` : file.name;
-
       try {
         // Start upload and track progress
         setUploadStatus((prev) => ({ ...prev, [i]: "uploading" }));
         setUploadProgress((prev) => ({ ...prev, [i]: 0 }));
 
-        const { data, error } = await supabase.storage
-          .from(bucket)
-          .upload(filePath, file, {
-            cacheControl: "3600",
-            upsert: true,
-            onUploadProgress: (progress) => {
-              const progressPercent = Math.round(
-                (progress.loaded / progress.total) * 100
-              );
-              setUploadProgress((prev) => ({ ...prev, [i]: progressPercent }));
-            },
+        // Get user ID for tracking uploads
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        const userId = user?.id;
+
+        if (processForKnowledgeBase && isProcessorInitialized) {
+          // Process and upload file using DocumentProcessor
+          setUploadProgress((prev) => ({ ...prev, [i]: 10 })); // Show some initial progress
+
+          // When using the DocumentProcessor, it already handles versioning correctly
+          const uploadResult = await documentProcessor.processAndUploadDocument(
+            file,
+            bucket,
+            { userId }
+          );
+
+          if (!uploadResult.success) {
+            throw new Error(uploadResult.error || "Failed to process document");
+          }
+
+          // Update progress to 100%
+          setUploadProgress((prev) => ({ ...prev, [i]: 100 }));
+          setUploadStatus((prev) => ({ ...prev, [i]: "success" }));
+          successfulFiles.push({
+            ...file,
+            path: uploadResult.filePath,
+            metadata: uploadResult.metadata,
+            version: uploadResult.version,
           });
 
-        if (error) {
-          console.error("Error uploading file:", error);
-          setUploadStatus((prev) => ({ ...prev, [i]: "error" }));
-          hasErrors = true;
-          onUploadError(error, file);
+          // Track successful upload event
+          SupabaseAnalytics.trackEvent("document_processed", {
+            filename: file.name,
+            filetype: file.name.split(".").pop() || "unknown",
+            filesize: file.size,
+            bucket: bucket,
+            folder: folder || "root",
+            version: uploadResult.version,
+          });
         } else {
+          // For regular uploads (not using DocumentProcessor)
+          // We need to handle versioning manually
+
+          let filePath = folder ? `${folder}/${file.name}` : file.name;
+
+          // Check if the file already exists and versioning is needed
+          if (storageSettings?.enableVersioning) {
+            try {
+              // Check if file exists by attempting to get its URL (will throw if not found)
+              const { data } = await supabase.storage
+                .from(bucket)
+                .getPublicUrl(filePath);
+
+              if (data) {
+                // File exists, need to create a versioned filename
+                const timestamp = Date.now();
+                const fileExt = file.name.split(".").pop();
+                const baseName = file.name.substring(
+                  0,
+                  file.name.length - fileExt.length - 1
+                );
+                filePath = folder
+                  ? `${folder}/${baseName}_v${timestamp}.${fileExt}`
+                  : `${baseName}_v${timestamp}.${fileExt}`;
+              }
+            } catch (err) {
+              // File doesn't exist, use the original path
+              console.log("File doesn't exist yet, using original path");
+            }
+          }
+
+          // Regular file upload to Supabase Storage
+          const { data, error } = await supabase.storage
+            .from(bucket)
+            .upload(filePath, file, {
+              cacheControl: "3600",
+              upsert: !storageSettings?.enableVersioning, // Only upsert if versioning is disabled
+              onUploadProgress: (progress) => {
+                const progressPercent = Math.round(
+                  (progress.loaded / progress.total) * 100
+                );
+                setUploadProgress((prev) => ({
+                  ...prev,
+                  [i]: progressPercent,
+                }));
+              },
+            });
+
+          if (error) {
+            throw error;
+          }
+
           setUploadStatus((prev) => ({ ...prev, [i]: "success" }));
-          successfulFiles.push(file);
+          successfulFiles.push({
+            ...file,
+            path: filePath,
+            url: supabase.storage.from(bucket).getPublicUrl(filePath).data
+              .publicUrl,
+          });
 
           // Track successful upload event
           SupabaseAnalytics.trackEvent("file_upload", {
@@ -193,22 +378,6 @@ const FileUploadDropzone = ({
             filesize: file.size,
             bucket: bucket,
             folder: folder || "root",
-          });
-
-          // Get public URL for the file if needed
-          const {
-            data: { publicUrl },
-          } = supabase.storage.from(bucket).getPublicUrl(filePath);
-
-          // Update file info with URL
-          setFiles((prevFiles) => {
-            const updatedFiles = [...prevFiles];
-            updatedFiles[i] = {
-              ...updatedFiles[i],
-              url: publicUrl,
-              path: filePath,
-            };
-            return updatedFiles;
           });
         }
       } catch (err) {
@@ -278,7 +447,10 @@ const FileUploadDropzone = ({
               : "Drag & drop files here, or click to select files"}
           </p>
           <p className="dropzone-hint">
-            Maximum {maxFiles} files, up to {formatFileSize(maxSize)} each
+            Maximum {maxFiles} files, up to{" "}
+            {formatFileSize(maxFileSize || maxSize)} each
+            <br />
+            Accepted types: {getAcceptedFileTypesForDisplay()}
           </p>
         </div>
       </div>
@@ -346,7 +518,11 @@ const FileUploadDropzone = ({
                         {uploadStatus[index] === "success" && (
                           <>
                             <CheckCircle size={14} className="success-icon" />
-                            <span>Complete</span>
+                            <span>
+                              {processForKnowledgeBase
+                                ? "Processed"
+                                : "Complete"}
+                            </span>
                           </>
                         )}
                         {uploadStatus[index] === "error" && (
@@ -375,21 +551,27 @@ const FileUploadDropzone = ({
               type="button"
             >
               <Upload size={16} />
-              Upload Files
+              {processForKnowledgeBase
+                ? "Process & Upload Files"
+                : "Upload Files"}
             </button>
           )}
 
           {overallStatus === "uploading" && (
             <button className="uploading-button" disabled type="button">
               <Loader size={16} className="spinning" />
-              Uploading...
+              {processForKnowledgeBase ? "Processing..." : "Uploading..."}
             </button>
           )}
 
           {overallStatus === "complete" && (
             <div className="upload-complete">
               <CheckCircle size={16} className="success-icon" />
-              <span>Upload Complete</span>
+              <span>
+                {processForKnowledgeBase
+                  ? "Processing Complete"
+                  : "Upload Complete"}
+              </span>
               <button
                 className="upload-more-button"
                 onClick={resetUploader}
@@ -403,7 +585,10 @@ const FileUploadDropzone = ({
           {overallStatus === "error" && (
             <div className="upload-error">
               <AlertCircle size={16} className="error-icon" />
-              <span>Some files failed to upload</span>
+              <span>
+                Some files failed to{" "}
+                {processForKnowledgeBase ? "process" : "upload"}
+              </span>
               <button
                 className="retry-button"
                 onClick={uploadFiles}

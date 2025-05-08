@@ -57,6 +57,7 @@
   "devDependencies": {
     "@craco/craco": "^7.1.0",
     "@shadcn/ui": "^0.0.4",
+    "deno-types": "^1.25.0",
     "http-proxy-middleware": "^3.0.5"
   }
 }
