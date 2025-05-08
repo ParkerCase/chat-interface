@@ -1137,14 +1137,24 @@ const AdminPanel = () => {
 
   return (
     <div className="admin-container">
-      <h1>Admin Panel</h1>
-      <div className="message-icon">
-        <Link to="/messages" title="Messages">
-          <MessageCircle size={24} />
-          {unreadCount > 0 && (
-            <span className="unread-badge">{unreadCount}</span>
-          )}
-        </Link>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingBottom: "2rem",
+        }}
+        className="admin-header"
+      >
+        <h1>Admin Panel</h1>
+        <div className="message-icon">
+          <Link to="/messages" title="Messages">
+            <MessageCircle size={24} />
+            {unreadCount > 0 && (
+              <span className="unread-badge">{unreadCount}</span>
+            )}
+          </Link>
+        </div>
       </div>
       {/* Admin navigation */}
       <nav className="admin-nav">

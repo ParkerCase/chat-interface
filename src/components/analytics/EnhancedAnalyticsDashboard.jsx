@@ -5,6 +5,8 @@ import { useAuth } from "../../context/AuthContext";
 import { useFeatureFlags } from "../../utils/featureFlags";
 import { supabase } from "../../lib/supabase";
 import { SupabaseAnalytics } from "../../utils/SupabaseAnalyticsIntegration";
+import { AnalyticsCache } from "../../utils/RedisCache";
+
 import analyticsUtils from "../../utils/analyticsUtils";
 import {
   BarChart as BarChartIcon,
@@ -242,7 +244,7 @@ const EnhancedAnalyticsDashboard = () => {
   // Main function to fetch all dashboard data
   const fetchDashboardData = async () => {
     try {
-      setLoading(true); // Use setLoading instead of setIsLoading
+      setLoading(true);
       setError(null);
 
       // Track analytics view event
@@ -252,22 +254,97 @@ const EnhancedAnalyticsDashboard = () => {
         preset: selectedPreset,
       });
 
+      // Create a cache key based on current settings
+      const cacheKey = `${activeTab}:${timeframe}:${selectedPreset}`;
+
       // We'll fetch different data based on the active tab
       switch (activeTab) {
         case "overview":
+          // Try to get from cache first
+          const cachedOverview = await AnalyticsCache.getDashboardData(
+            cacheKey
+          );
+          if (cachedOverview) {
+            setDashboardData(cachedOverview);
+            setLoading(false);
+
+            // Still fetch fresh data in background if cache is older than 5 minutes
+            if (
+              cachedOverview._cachedAt &&
+              Date.now() - cachedOverview._cachedAt > 5 * 60 * 1000
+            ) {
+              const freshData = await SupabaseAnalytics.getDashboardData(
+                timeframe,
+                dateRange
+              );
+
+              // Add timestamp for cache age tracking
+              freshData._cachedAt = Date.now();
+
+              // Update state and cache
+              setDashboardData(freshData);
+              AnalyticsCache.cacheDashboardData(cacheKey, freshData);
+            }
+
+            break;
+          }
+
+          // No cache, fetch fresh data
           const overviewData = await SupabaseAnalytics.getDashboardData(
             timeframe,
             dateRange
           );
+
+          // Add timestamp for cache age tracking
+          overviewData._cachedAt = Date.now();
+
           setDashboardData(overviewData);
+
+          // Cache data for 5 minutes
+          AnalyticsCache.cacheDashboardData(cacheKey, overviewData, 300);
           break;
+
         case "users":
+          // Try to get from cache first
+          const cachedUserMetrics = await AnalyticsCache.getUserMetrics(
+            timeframe
+          );
+          if (cachedUserMetrics) {
+            setUserMetrics(cachedUserMetrics);
+            setLoading(false);
+
+            // Refresh in background if needed
+            if (
+              cachedUserMetrics._cachedAt &&
+              Date.now() - cachedUserMetrics._cachedAt > 5 * 60 * 1000
+            ) {
+              const freshUserData = await SupabaseAnalytics.getUserMetrics(
+                timeframe,
+                dateRange
+              );
+
+              freshUserData._cachedAt = Date.now();
+              setUserMetrics(freshUserData);
+              AnalyticsCache.cacheUserMetrics(timeframe, freshUserData);
+            }
+
+            break;
+          }
+
+          // No cache, fetch fresh data
           const userMetricsData = await SupabaseAnalytics.getUserMetrics(
             timeframe,
             dateRange
           );
+
+          userMetricsData._cachedAt = Date.now();
           setUserMetrics(userMetricsData);
+
+          // Cache for 15 minutes
+          AnalyticsCache.cacheUserMetrics(timeframe, userMetricsData);
           break;
+
+        // Implement similar caching for other tabs...
         case "content":
           const contentMetricsData = await SupabaseAnalytics.getContentMetrics(
             timeframe,
@@ -275,6 +352,7 @@ const EnhancedAnalyticsDashboard = () => {
           );
           setContentMetrics(contentMetricsData);
           break;
+
         case "search":
           const searchMetricsData = await SupabaseAnalytics.getSearchMetrics(
             timeframe,
@@ -282,6 +360,7 @@ const EnhancedAnalyticsDashboard = () => {
           );
           setSearchMetrics(searchMetricsData);
           break;
+
         case "system":
           const systemMetricsData = await SupabaseAnalytics.getSystemMetrics(
             timeframe,
@@ -289,6 +368,7 @@ const EnhancedAnalyticsDashboard = () => {
           );
           setSystemMetrics(systemMetricsData);
           break;
+
         default:
           // Default to overview
           const defaultData = await SupabaseAnalytics.getDashboardData(
@@ -305,7 +385,7 @@ const EnhancedAnalyticsDashboard = () => {
       console.error("Error loading analytics:", err);
       setError(`Failed to load analytics data: ${err.message}`);
     } finally {
-      setLoading(false); // Use setLoading instead of setIsLoading
+      setLoading(false);
     }
   };
 
@@ -359,20 +439,21 @@ const EnhancedAnalyticsDashboard = () => {
       // Here we're generating sample data for demonstration
 
       // Get user counts from profiles table using safe RPC function
-      const { data: userCountData, error: userCountError } = await supabase
-        .rpc("get_all_profiles_safe");
+      const { data: userCountData, error: userCountError } = await supabase.rpc(
+        "get_all_profiles_safe"
+      );
 
       if (userCountError) throw userCountError;
 
       // Get recent users using safe RPC function
-      const { data: recentUsersData, error: recentUsersError } = await supabase
-        .rpc("get_all_profiles_safe");
+      const { data: recentUsersData, error: recentUsersError } =
+        await supabase.rpc("get_all_profiles_safe");
 
       // Process to get only recent users
-      const recentUsers = recentUsersData ? 
-        recentUsersData
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-          .slice(0, 5) 
+      const recentUsers = recentUsersData
+        ? recentUsersData
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .slice(0, 5)
         : [];
 
       if (recentUsersError) throw recentUsersError;
@@ -446,6 +527,20 @@ const EnhancedAnalyticsDashboard = () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Clear cache for current view
+      const cacheKey = `${activeTab}:${timeframe}:${selectedPreset}`;
+
+      // Clear specific caches based on active tab
+      switch (activeTab) {
+        case "overview":
+          await AnalyticsCache.cacheDashboardData(cacheKey, null, 1); // Expire immediately
+          break;
+        case "users":
+          await AnalyticsCache.cacheUserMetrics(timeframe, null, 1); // Expire immediately
+          break;
+        // Handle other tabs as needed
+      }
 
       await fetchDashboardData();
 

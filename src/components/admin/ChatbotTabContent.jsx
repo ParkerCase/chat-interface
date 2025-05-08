@@ -29,9 +29,12 @@ import apiService from "../../services/apiService";
 import axios from "axios";
 import ChatHistory from "../chat/ChatHistory";
 import AdvancedSearch from "../AdvancedSearch";
+import { ChatCache } from "../../utils/RedisCache";
+
 import ExportButton from "../ExportButton";
 import { useChatImageSearch } from "../../hooks/useChatImageSearch";
 import { supabase } from "../../lib/supabase";
+import analyticsUtils from "../../utils/analyticsUtils";
 import ChatImageResults from "../../components/ChatImageResults";
 import "./ChatbotTabContent.css";
 
@@ -62,6 +65,16 @@ const ChatbotTabContent = () => {
   const [uploadType, setUploadType] = useState("document"); // "document" or "image"
   const [searchResults, setSearchResults] = useState(null);
   const [useZenoti, setUseZenoti] = useState(false);
+  const [draftMessages, setDraftMessages] = useState(() => {
+    // Initialize from localStorage if available
+    try {
+      const savedDrafts = localStorage.getItem("slack_draft_messages");
+      return savedDrafts ? JSON.parse(savedDrafts) : {};
+    } catch (e) {
+      console.warn("Could not parse saved drafts:", e);
+      return {};
+    }
+  });
 
   // State for settings panel
   const [showSettings, setShowSettings] = useState(false);
@@ -174,13 +187,54 @@ const ChatbotTabContent = () => {
   }, [currentUser, selectedThreadId, isNewChat]);
 
   // Load messages for a specific thread
+  // Enhanced loadThreadMessages with caching
   const loadThreadMessages = async (threadId) => {
     try {
       setIsLoading(true);
 
+      // Try to get from cache first
+      const cachedMessages = await ChatCache.getThreadMessages(threadId);
+      if (cachedMessages) {
+        console.log(`Using cached messages for thread ${threadId}`);
+        setCurrentMessages(cachedMessages);
+        setIsLoading(false);
+
+        // Fetch fresh data in background
+        apiService.chat
+          .getThreadMessages(threadId, { limit: 100 })
+          .then((response) => {
+            if (response.data?.success) {
+              const allMessages = response.data.messages || [];
+
+              // Sort messages by timestamp
+              allMessages.sort((a, b) => {
+                const timeA = new Date(a.created_at).getTime();
+                const timeB = new Date(b.created_at).getTime();
+                return timeA - timeB;
+              });
+
+              // Only update if we have new data
+              if (
+                JSON.stringify(allMessages) !== JSON.stringify(cachedMessages)
+              ) {
+                setCurrentMessages(allMessages);
+
+                // Update cache
+                ChatCache.cacheThreadMessages(threadId, allMessages);
+              }
+            }
+          })
+          .catch((err) => {
+            console.warn("Background refresh error:", err);
+          });
+
+        return;
+      }
+
+      // No cache or expired, load from API
       const response = await apiService.chat.getThreadMessages(threadId, {
         limit: 100,
-      }); // Increase limit
+      });
 
       if (response.data?.success) {
         // Ensure we're getting all messages by sorting them correctly
@@ -194,6 +248,9 @@ const ChatbotTabContent = () => {
         });
 
         setCurrentMessages(allMessages);
+
+        // Cache for 5 minutes
+        ChatCache.cacheThreadMessages(threadId, allMessages);
       } else {
         throw new Error(
           response.data?.error || "Failed to load thread messages"
@@ -1523,11 +1580,21 @@ ${
     return params;
   };
 
-  // Function to process image search
-  // Improved processImageSearch with better keyword handling
+  // Enhanced processImageSearch with caching
   const processImageSearch = async (query) => {
     try {
       console.log("Processing image search query:", query);
+
+      // Generate cache key based on query
+      const queryHash = btoa(query).replace(/[^a-zA-Z0-9]/g, "");
+      const cacheKey = `imageSearch:${queryHash}`;
+
+      // Try to get from cache first
+      const cachedResults = await ChatCache.getSearchResults(query);
+      if (cachedResults) {
+        console.log("Using cached image search results");
+        return cachedResults;
+      }
 
       // Parse query
       const searchParams = parseSearchQuery(query);
@@ -1799,12 +1866,19 @@ ${
         hasMore: results.length >= searchParams.limit,
       };
 
-      return {
+      // Prepare result object
+      const searchResult = {
         success: true,
         results,
         response: responseText,
         searchParams: updatedSearchParams,
+        timestamp: Date.now(),
       };
+
+      // Cache result for 10 minutes
+      await ChatCache.cacheSearchResults(query, searchResult);
+
+      return searchResult;
     } catch (error) {
       console.error("Error processing image search:", error);
       return {
@@ -1816,31 +1890,82 @@ ${
     }
   };
 
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   // Handle sending text message
+  // Complete production-ready handleSendMessage implementation for ChatbotTabContent.jsx
+
   const handleSendMessage = async () => {
+    // Handle file uploads through separate function
     if (file) {
       return handleFileUpload();
     }
 
+    // Validate input content
     if (!inputText.trim()) return;
+
+    // Track analytics if available
+    try {
+      if (
+        typeof analyticsUtils !== "undefined" &&
+        analyticsUtils &&
+        analyticsUtils.trackEvent
+      ) {
+        analyticsUtils.trackEvent("send_message", {
+          type: "text",
+          length: inputText.length,
+          hasQuestion: inputText.includes("?"),
+        });
+      }
+    } catch (analyticsError) {
+      // Non-critical error, just log
+      console.warn("Analytics tracking error:", analyticsError);
+    }
 
     try {
       setIsLoading(true);
+      setError(null);
 
-      // Add user message
+      // Generate a temporary ID for optimistic updates
+      const tempId = `temp-${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2, 9)}`;
+
+      // Create optimistic user message to show immediately
       const userMessage = {
+        id: tempId,
         sender: "user",
         message_type: "user",
         content: inputText,
         created_at: new Date().toISOString(),
+        pending: true,
       };
 
+      // Add to UI immediately (optimistic update)
       setCurrentMessages((prev) => [...prev, userMessage]);
 
-      // Check if it's an image search request
+      // Auto-scroll to new message if the function exists
+      if (typeof scrollToBottom === "function") {
+        setTimeout(() => {
+          scrollToBottom();
+        }, 50);
+      } else {
+        // Fallback for scrolling if the function isn't defined
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }, 50);
+      }
+
+      // Check if it's an image search request for specialized handling
       if (isImageSearchRequest(inputText)) {
-        // First add a typing indicator
+        // Add typing/searching indicator
+        const typingId = `typing-${Date.now()}`;
         const typingMessage = {
+          id: typingId,
           sender: "system",
           message_type: "system",
           content: "Searching for images...",
@@ -1849,22 +1974,49 @@ ${
 
         setCurrentMessages((prev) => [...prev, typingMessage]);
 
-        // Process the image search
-        const result = await processImageSearch(inputText);
+        // Try to get cached search results first
+        let result;
+        try {
+          // Only use ChatCache if it's defined
+          if (
+            typeof ChatCache !== "undefined" &&
+            ChatCache &&
+            ChatCache.getSearchResults
+          ) {
+            const cachedResults = await ChatCache.getSearchResults(inputText);
+            if (
+              cachedResults &&
+              cachedResults.timestamp &&
+              Date.now() - cachedResults.timestamp < 5 * 60 * 1000
+            ) {
+              // Valid if less than 5 minutes old
+              console.log("Using cached image search results");
+              result = cachedResults;
+            } else {
+              // Process the image search
+              result = await processImageSearch(inputText);
+              // Cache the results if cache is available
+              if (ChatCache && ChatCache.cacheSearchResults) {
+                await ChatCache.cacheSearchResults(inputText, result);
+              }
+            }
+          } else {
+            // No cache available, perform direct search
+            result = await processImageSearch(inputText);
+          }
+        } catch (cacheError) {
+          console.warn("Cache error, performing fresh search:", cacheError);
+          // Fallback to direct search
+          result = await processImageSearch(inputText);
+        }
 
         // Remove the typing indicator
-        setCurrentMessages((prev) =>
-          prev.filter(
-            (msg) =>
-              !(
-                msg.sender === "system" &&
-                msg.content === "Searching for images..."
-              )
-          )
-        );
+        setCurrentMessages((prev) => prev.filter((msg) => msg.id !== typingId));
 
         // Add assistant response with images
+        const msgId = `img-search-${Date.now()}`;
         const assistantMessage = {
+          id: msgId,
           sender: "assistant",
           message_type: "assistant",
           content: result.response,
@@ -1875,7 +2027,62 @@ ${
           searchParams: result.searchParams,
         };
 
-        setCurrentMessages((prev) => [...prev, assistantMessage]);
+        // Replace temporary message with real response
+        setCurrentMessages((prev) => [
+          ...prev.filter((msg) => msg.id !== tempId && msg.id !== typingId),
+          assistantMessage,
+        ]);
+
+        // Save to server in background if we have a thread
+        if (selectedThreadId) {
+          // Persist message to server and update thread
+          try {
+            const persistResponse = await apiService.chat.saveMessage({
+              threadId: selectedThreadId,
+              content: inputText,
+              type: "user",
+              metadata: {
+                isImageSearch: true,
+                searchQuery: inputText,
+              },
+            });
+
+            // Update assistant message with server ID if available
+            if (persistResponse.data?.messageId) {
+              setCurrentMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === msgId
+                    ? {
+                        ...msg,
+                        serverId: persistResponse.data.messageId,
+                        pending: false,
+                      }
+                    : msg
+                )
+              );
+            }
+
+            // Update thread cache if available
+            if (
+              selectedThreadId &&
+              typeof ChatCache !== "undefined" &&
+              ChatCache &&
+              ChatCache.cacheThreadMessages
+            ) {
+              const updatedMessages = currentMessages.filter(
+                (msg) => !msg.pending
+              );
+              updatedMessages.push({
+                ...assistantMessage,
+                pending: false,
+              });
+              ChatCache.cacheThreadMessages(selectedThreadId, updatedMessages);
+            }
+          } catch (saveError) {
+            console.warn("Error saving message to server:", saveError);
+            // Non-critical error, message still displays to user
+          }
+        }
 
         // Update selected thread ID if this is a new thread
         if (result.threadId && !selectedThreadId) {
@@ -1884,110 +2091,279 @@ ${
           setIsNewChat(false);
         }
       } else {
+        // Regular chat message processing
+
+        // Track message in typing state
+        let typingStartTime = Date.now();
+        let typingIndicatorTimeout;
+
+        // Handle "typing" indicators for longer requests
+        typingIndicatorTimeout = setTimeout(() => {
+          // Only add typing indicator for requests taking more than 1s
+          if (Date.now() - typingStartTime > 1000) {
+            const typingId = `typing-${Date.now()}`;
+            const typingMessage = {
+              id: typingId,
+              sender: "system",
+              message_type: "system",
+              content: "Assistant is typing...",
+              created_at: new Date().toISOString(),
+            };
+            setCurrentMessages((prev) => [...prev, typingMessage]);
+          }
+        }, 1000);
+
         // Call API based on which mode is enabled
         let response;
+        let apiStartTime = Date.now();
 
-        if (useZenoti) {
-          // Zenoti-enhanced chat
-          console.log("Using Zenoti integration for message:", inputText);
+        try {
+          if (useZenoti && chatSettings.showZenotiIntegration) {
+            // Zenoti-enhanced chat
+            console.log("Using Zenoti integration for message:", inputText);
 
-          // First add a typing indicator
-          const typingMessage = {
+            // Make the API call
+            const chatResponse = await fetch(
+              `${apiService.utils.getBaseUrl()}/api/chat/zenoti`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${
+                    localStorage.getItem("authToken") || ""
+                  }`,
+                },
+                body: JSON.stringify({
+                  message: inputText,
+                  userId: currentUser?.id || "default-user",
+                  threadId: selectedThreadId,
+                }),
+              }
+            );
+
+            if (!chatResponse.ok) {
+              throw new Error(
+                `Zenoti chat request failed: ${chatResponse.status}`
+              );
+            }
+
+            response = { data: await chatResponse.json() };
+
+            // Track Zenoti-specific analytics if available
+            if (
+              typeof analyticsUtils !== "undefined" &&
+              analyticsUtils &&
+              analyticsUtils.trackEvent
+            ) {
+              analyticsUtils.trackEvent("zenoti_query", {
+                responseTime: Date.now() - apiStartTime,
+                success: true,
+              });
+            }
+          } else if (useInternet && chatSettings.showInternetSearch) {
+            // Advanced chat with web search
+            console.log("Using advanced chat with web search");
+
+            response = await apiService.chat.advanced(
+              inputText,
+              currentUser?.id,
+              { threadId: selectedThreadId }
+            );
+
+            // Track web search analytics if available
+            if (
+              typeof analyticsUtils !== "undefined" &&
+              analyticsUtils &&
+              analyticsUtils.trackEvent
+            ) {
+              analyticsUtils.trackEvent("web_search", {
+                responseTime: Date.now() - apiStartTime,
+                success: true,
+              });
+            }
+          } else {
+            // Regular chat
+            console.log("Using regular chat API");
+
+            const chatResponse = await fetch(
+              `${apiService.utils.getBaseUrl()}/api/chat`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${
+                    localStorage.getItem("authToken") || ""
+                  }`,
+                },
+                body: JSON.stringify({
+                  message: inputText,
+                  userId: currentUser?.id || "default-user",
+                  threadId: selectedThreadId,
+                }),
+              }
+            );
+
+            if (!chatResponse.ok) {
+              throw new Error(`Chat request failed: ${chatResponse.status}`);
+            }
+
+            response = { data: await chatResponse.json() };
+          }
+        } catch (apiError) {
+          // Clear typing indicator if shown
+          clearTimeout(typingIndicatorTimeout);
+
+          // Remove any typing indicators
+          setCurrentMessages((prev) =>
+            prev.filter((msg) => !msg.id.startsWith("typing-"))
+          );
+
+          console.error("API request failed:", apiError);
+
+          // Add error message
+          const errorMessage = {
+            id: `error-${Date.now()}`,
             sender: "system",
-            message_type: "system",
-            content: "Searching Zenoti data...",
+            message_type: "error",
+            content: `Error: ${
+              apiError.message || "Failed to send message. Please try again."
+            }`,
             created_at: new Date().toISOString(),
           };
 
-          setCurrentMessages((prev) => [...prev, typingMessage]);
+          setCurrentMessages((prev) => [
+            ...prev.filter((msg) => msg.id !== tempId),
+            errorMessage,
+          ]);
 
-          // Make the API call
-          const chatResponse = await fetch(
-            `${apiService.utils.getBaseUrl()}/api/chat/zenoti`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                message: inputText,
-                userId: currentUser?.id || "default-user",
-              }),
-            }
-          );
-
-          if (!chatResponse.ok) {
-            throw new Error(
-              `Zenoti chat request failed: ${chatResponse.status}`
-            );
-          }
-
-          response = { data: await chatResponse.json() };
-
-          // Remove the typing indicator
-          setCurrentMessages((prev) =>
-            prev.filter(
-              (msg) =>
-                !(
-                  msg.sender === "system" &&
-                  msg.content === "Searching Zenoti data..."
-                )
-            )
-          );
-        } else if (useInternet && chatSettings.showInternetSearch) {
-          // Advanced chat with web search
-          response = await apiService.chat.advanced(inputText, currentUser?.id);
-        } else {
-          // Regular chat
-          const chatResponse = await fetch(
-            `${apiService.utils.getBaseUrl()}/api/chat`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                message: inputText,
-                userId: currentUser?.id || "default-user",
-              }),
-            }
-          );
-
-          if (!chatResponse.ok) {
-            throw new Error(`Chat request failed: ${chatResponse.status}`);
-          }
-
-          response = { data: await chatResponse.json() };
+          setError(apiError.message || "Failed to send message");
+          setIsLoading(false);
+          return;
         }
 
-        // Add assistant response
+        // Clear typing indicator timeout
+        clearTimeout(typingIndicatorTimeout);
+
+        // Remove any typing indicators
+        setCurrentMessages((prev) =>
+          prev.filter((msg) => !msg.id.startsWith("typing-"))
+        );
+
+        if (!response || !response.data) {
+          throw new Error("Invalid response from chat API");
+        }
+
+        // Get thread ID from response
+        const threadId = response.data.threadId || selectedThreadId;
+
+        // Add assistant response with unique ID
+        const assistantId = `assistant-${Date.now()}`;
         const assistantMessage = {
+          id: assistantId,
           sender: "assistant",
           message_type: "assistant",
           content: response.data.response,
           created_at: new Date().toISOString(),
-          thread_id: response.data.threadId,
+          thread_id: threadId,
+          source_documents: response.data.sourceDocuments,
+          citations: response.data.citations,
+          metadata: response.data.metadata || {},
         };
 
-        setCurrentMessages((prev) => [...prev, assistantMessage]);
+        // Update messages - replace pending message and add assistant message
+        setCurrentMessages((prev) => [
+          ...prev.filter(
+            (msg) => msg.id !== tempId && !msg.id.startsWith("typing-")
+          ),
+          assistantMessage,
+        ]);
+
+        // Auto-scroll to the new message
+        if (typeof scrollToBottom === "function") {
+          setTimeout(() => {
+            scrollToBottom();
+          }, 50);
+        } else {
+          // Fallback for scrolling if the function isn't defined
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+          }, 50);
+        }
 
         // Update selected thread ID if this is a new thread
-        if (response.data.threadId && !selectedThreadId) {
-          setSelectedThreadId(response.data.threadId);
-          // Turn off new chat mode once we have a thread ID
+        if (threadId && !selectedThreadId) {
+          setSelectedThreadId(threadId);
           setIsNewChat(false);
+        }
+
+        // Update cache with the latest messages if available
+        if (
+          threadId &&
+          typeof ChatCache !== "undefined" &&
+          ChatCache &&
+          ChatCache.cacheThreadMessages
+        ) {
+          try {
+            // Get current messages for the thread
+            const cachedMessages =
+              (await ChatCache.getThreadMessages(threadId)) || [];
+
+            // Filter out any pending messages and add our new messages
+            const updatedMessages = [
+              ...cachedMessages.filter((msg) => !msg.pending),
+              {
+                ...userMessage,
+                pending: false,
+                thread_id: threadId,
+              },
+              assistantMessage,
+            ];
+
+            // Update the cache
+            await ChatCache.cacheThreadMessages(threadId, updatedMessages);
+
+            console.log(
+              `Cache updated for thread ${threadId} with ${updatedMessages.length} messages`
+            );
+          } catch (cacheError) {
+            console.warn("Error updating message cache:", cacheError);
+            // Non-critical error, continue without caching
+          }
         }
       }
 
-      // Reset input
+      // Reset input after successful message
       setInputText("");
+
+      // Clear any saved draft if draft functionality exists
+      const hasDraftFunctionality =
+        typeof draftMessages !== "undefined" &&
+        draftMessages &&
+        typeof setDraftMessages === "function";
+
+      if (
+        hasDraftFunctionality &&
+        selectedThreadId &&
+        draftMessages[selectedThreadId]
+      ) {
+        setDraftMessages((prev) => {
+          const updated = { ...prev };
+          delete updated[selectedThreadId];
+          localStorage.setItem("slack_draft_messages", JSON.stringify(updated));
+          return updated;
+        });
+      }
     } catch (err) {
       console.error("Send message error:", err);
 
+      // Add a user-friendly error message to the chat
       const errorMessage = {
+        id: `error-${Date.now()}`,
         sender: "system",
         message_type: "error",
-        content: `Error sending message: ${err.message || "Unknown error"}`,
+        content: `Error: ${
+          err.message || "Something went wrong. Please try again."
+        }`,
         created_at: new Date().toISOString(),
       };
 
