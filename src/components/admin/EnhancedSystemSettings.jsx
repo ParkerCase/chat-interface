@@ -1159,40 +1159,6 @@ const EnhancedSystemSettings = () => {
                         <label className="checkbox-container">
                           <input
                             type="checkbox"
-                            name="autoDeleteOldVersions"
-                            checked={storageSettings.autoDeleteOldVersions}
-                            onChange={(e) => handleInputChange(e, "storage")}
-                          />
-                          <span className="checkbox-label">
-                            Auto-delete old versions
-                          </span>
-                        </label>
-                      </div>
-
-                      <div className="form-group">
-                        <label htmlFor="retentionDays">
-                          File Retention (days)
-                        </label>
-                        <input
-                          type="number"
-                          id="retentionDays"
-                          name="retentionDays"
-                          min="1"
-                          value={storageSettings.retentionDays}
-                          onChange={(e) => handleInputChange(e, "storage")}
-                          className="form-input"
-                          disabled={!storageSettings.autoDeleteOldVersions}
-                        />
-                        <p className="input-help">
-                          Number of days to keep old file versions before
-                          deletion.
-                        </p>
-                      </div>
-
-                      <div className="form-group checkbox-group">
-                        <label className="checkbox-container">
-                          <input
-                            type="checkbox"
                             name="compressionEnabled"
                             checked={storageSettings.compressionEnabled}
                             onChange={(e) => handleInputChange(e, "storage")}

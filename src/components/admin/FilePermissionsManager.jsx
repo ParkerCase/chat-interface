@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabase";
 import apiService from "@/services/apiService";
+import { RedisCache } from "../../utils/RedisCache"; // Import Redis Cache
 import {
   Search,
   FileText,
@@ -20,6 +21,11 @@ import {
 } from "lucide-react";
 import "./FilePermissionsManager.css";
 
+// Cache key constants
+const FILES_CACHE_KEY = "files:permissions:list";
+const FILES_COUNT_CACHE_KEY = "files:permissions:count";
+const FILE_CACHE_PREFIX = "files:permissions:file:";
+
 const FilePermissionsManager = ({ currentUser }) => {
   const [files, setFiles] = useState([]);
   const [totalFiles, setTotalFiles] = useState(0);
@@ -31,14 +37,73 @@ const FilePermissionsManager = ({ currentUser }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [showOnlyRestricted, setShowOnlyRestricted] = useState(false);
+  const [cacheEnabled, setCacheEnabled] = useState(true); // Cache control
+
+  // Check if Redis cache is available
+  const checkCacheAvailability = async () => {
+    try {
+      // Only try to use cache if RedisCache utility is loaded
+      if (typeof RedisCache === "undefined" || !RedisCache || !RedisCache.get) {
+        console.log("Redis cache not available - disabling cache");
+        setCacheEnabled(false);
+        return false;
+      }
+
+      // Test Redis cache connection
+      const testResult = await RedisCache.get("cache_test");
+      console.log(
+        "Cache availability check:",
+        testResult !== null ? "Available" : "Unavailable"
+      );
+      return true;
+    } catch (e) {
+      console.log("Redis cache test failed - disabling cache", e);
+      setCacheEnabled(false);
+      return false;
+    }
+  };
 
   // Load files on component mount
   useEffect(() => {
-    fetchFiles();
+    // Check cache availability first
+    checkCacheAvailability().then((isAvailable) => {
+      setCacheEnabled(isAvailable);
+      fetchFiles(isAvailable);
+    });
   }, []);
 
   useEffect(() => {
     const fetchFileCount = async () => {
+      try {
+        // Try to get count from cache first if enabled
+        if (cacheEnabled) {
+          try {
+            const cachedCount = await RedisCache.get(FILES_COUNT_CACHE_KEY);
+            if (cachedCount !== null) {
+              console.log("Using cached file count:", cachedCount);
+              setTotalFiles(cachedCount);
+              setIsLoading(false);
+
+              // Still fetch fresh count in background
+              fetchFreshCount();
+              return;
+            }
+          } catch (cacheError) {
+            console.warn("Cache error getting file count:", cacheError);
+          }
+        }
+
+        // Fetch fresh count if no cache or cache disabled
+        fetchFreshCount();
+      } catch (error) {
+        console.error("Error in fetchFileCount:", error);
+        setTotalFiles(0);
+        setIsLoading(false);
+      }
+    };
+
+    // Function to fetch fresh count
+    const fetchFreshCount = async () => {
       try {
         // Get actual file count from Supabase
         const { count, error } = await supabase.storage
@@ -51,6 +116,15 @@ const FilePermissionsManager = ({ currentUser }) => {
         if (error) throw error;
 
         setTotalFiles(count || 0);
+
+        // Cache the count if caching is enabled
+        if (cacheEnabled) {
+          try {
+            await RedisCache.set(FILES_COUNT_CACHE_KEY, count || 0, 3600); // Cache for 1 hour
+          } catch (cacheError) {
+            console.warn("Error caching file count:", cacheError);
+          }
+        }
       } catch (error) {
         console.error("Error fetching file count:", error);
         // Fallback to API call if storage direct access fails
@@ -59,7 +133,17 @@ const FilePermissionsManager = ({ currentUser }) => {
             count: true,
           });
           if (response.data?.totalCount) {
-            setTotalFiles(response.data.totalCount);
+            const count = response.data.totalCount;
+            setTotalFiles(count);
+
+            // Cache the count if caching is enabled
+            if (cacheEnabled) {
+              try {
+                await RedisCache.set(FILES_COUNT_CACHE_KEY, count, 3600); // Cache for 1 hour
+              } catch (cacheError) {
+                console.warn("Error caching file count:", cacheError);
+              }
+            }
           }
         } catch (apiError) {
           console.error("API file count error:", apiError);
@@ -71,7 +155,7 @@ const FilePermissionsManager = ({ currentUser }) => {
     };
 
     fetchFileCount();
-  }, []);
+  }, [cacheEnabled]);
 
   // Clear success message after 5 seconds
   useEffect(() => {
@@ -84,12 +168,46 @@ const FilePermissionsManager = ({ currentUser }) => {
     return () => clearTimeout(timeout);
   }, [success]);
 
-  // Fetch files from Supabase
-  const fetchFiles = async () => {
+  // Fetch files from Supabase with caching
+  const fetchFiles = async (useCache = cacheEnabled) => {
     try {
       setLoading(true);
       setError(null);
 
+      // Try to get from cache first if caching is enabled
+      if (useCache) {
+        try {
+          const cachedFiles = await RedisCache.get(FILES_CACHE_KEY);
+          if (cachedFiles && Array.isArray(cachedFiles)) {
+            console.log(
+              "Using cached files list:",
+              cachedFiles.length,
+              "files"
+            );
+            setFiles(cachedFiles);
+            setLoading(false);
+
+            // Still fetch fresh data in background
+            fetchFreshFiles();
+            return;
+          }
+        } catch (cacheError) {
+          console.warn("Cache error getting files:", cacheError);
+        }
+      }
+
+      // Fetch fresh data if cache is disabled or empty
+      await fetchFreshFiles();
+    } catch (err) {
+      console.error("Error in fetchFiles:", err);
+      setError(`Failed to load files: ${err.message}`);
+      setLoading(false);
+    }
+  };
+
+  // Function to fetch fresh files data
+  const fetchFreshFiles = async () => {
+    try {
       // Get documents from the documents table
       const { data, error } = await supabase
         .from("documents")
@@ -186,15 +304,24 @@ const FilePermissionsManager = ({ currentUser }) => {
       });
 
       setFiles(processedFiles);
+
+      // Cache the processed files if caching is enabled
+      if (cacheEnabled) {
+        try {
+          await RedisCache.set(FILES_CACHE_KEY, processedFiles, 1800); // Cache for 30 minutes
+        } catch (cacheError) {
+          console.warn("Error caching files:", cacheError);
+        }
+      }
     } catch (err) {
-      console.error("Error fetching files:", err);
+      console.error("Error fetching fresh files:", err);
       setError(`Failed to load files: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Toggle file visibility
+  // Toggle file visibility with cache management
   const toggleFileVisibility = async (file) => {
     try {
       setLoading(true);
@@ -239,18 +366,38 @@ const FilePermissionsManager = ({ currentUser }) => {
       if (error) throw error;
 
       // Update the file in local state
-      setFiles((prevFiles) =>
-        prevFiles.map((f) =>
-          f.id === file.id
-            ? {
-                ...f,
-                visibleTo: newVisibleTo,
-                isRestricted: !f.isRestricted,
-                rawMetadata: updatedMetadata,
-              }
-            : f
-        )
+      const updatedFiles = files.map((f) =>
+        f.id === file.id
+          ? {
+              ...f,
+              visibleTo: newVisibleTo,
+              isRestricted: !f.isRestricted,
+              rawMetadata: updatedMetadata,
+            }
+          : f
       );
+
+      setFiles(updatedFiles);
+
+      // Update cache if enabled
+      if (cacheEnabled) {
+        try {
+          // Update the files cache
+          await RedisCache.set(FILES_CACHE_KEY, updatedFiles, 1800);
+
+          // Update the single file cache
+          const fileCacheKey = `${FILE_CACHE_PREFIX}${file.id}`;
+          const updatedFile = updatedFiles.find((f) => f.id === file.id);
+          if (updatedFile) {
+            await RedisCache.set(fileCacheKey, updatedFile, 1800);
+          }
+        } catch (cacheError) {
+          console.warn(
+            "Error updating cache after visibility toggle:",
+            cacheError
+          );
+        }
+      }
 
       setSuccess(`File visibility for "${file.title}" updated successfully`);
     } catch (err) {
@@ -307,6 +454,30 @@ const FilePermissionsManager = ({ currentUser }) => {
   const getFilteredCount = () => {
     const filteredFiles = getFilteredFiles();
     return filteredFiles.length;
+  };
+
+  // Force refresh - clear cache and fetch fresh data
+  const forceRefresh = async () => {
+    try {
+      setLoading(true);
+
+      // Clear caches if caching is enabled
+      if (cacheEnabled) {
+        try {
+          await RedisCache.delete(FILES_CACHE_KEY);
+          await RedisCache.delete(FILES_COUNT_CACHE_KEY);
+          console.log("Cache cleared for refresh");
+        } catch (cacheError) {
+          console.warn("Error clearing cache for refresh:", cacheError);
+        }
+      }
+
+      // Fetch fresh data without using cache
+      await fetchFiles(false);
+    } catch (err) {
+      console.error("Error refreshing data:", err);
+      setError(`Failed to refresh: ${err.message}`);
+    }
   };
 
   return (
@@ -387,7 +558,7 @@ const FilePermissionsManager = ({ currentUser }) => {
 
             <button
               className="refresh-button"
-              onClick={fetchFiles}
+              onClick={forceRefresh}
               disabled={loading}
               title="Refresh files"
             >

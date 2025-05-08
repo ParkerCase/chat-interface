@@ -1,14 +1,16 @@
-// src/utils/DocumentProcessor.js
+// src/utils/DocumentProcessor.js - Enhanced with Redis Caching
 import { supabase } from "../lib/supabase";
+import { DocumentCache, RedisCache } from "./RedisCache";
 
 /**
  * Utility class for processing documents based on storage settings
- * This handles validation, versioning, and metadata for uploaded documents
+ * Enhanced with Redis caching for improved performance
  */
 class DocumentProcessor {
   constructor() {
     this.settings = null;
     this.initialized = false;
+    this.settingsCacheKey = "global:document:settings";
   }
 
   /**
@@ -21,8 +23,6 @@ class DocumentProcessor {
     }
     return this;
   }
-
-  // Update these methods in your DocumentProcessor.js file
 
   /**
    * Generate file path based on settings and file info
@@ -63,7 +63,7 @@ class DocumentProcessor {
   }
 
   /**
-   * Check if a file already exists and handle versioning
+   * Check if a file already exists and handle versioning with caching
    * @param {String} bucket - Storage bucket name
    * @param {String} path - File path
    * @param {File} file - The original file object
@@ -71,6 +71,16 @@ class DocumentProcessor {
    */
   async checkExistingFile(bucket, path, file) {
     try {
+      // Cache key for path existence
+      const pathExistsCacheKey = `${bucket}:path:${path}:exists`;
+
+      // Try to get from cache first
+      const cachedResult = await RedisCache.get(pathExistsCacheKey);
+      if (cachedResult) {
+        console.log("Using cached path existence check:", cachedResult);
+        return cachedResult;
+      }
+
       // Extract the folder path and filename
       const pathParts = path.split("/");
       const fileName = pathParts.pop(); // Get the last part (filename)
@@ -92,12 +102,18 @@ class DocumentProcessor {
 
       if (!exactMatch) {
         // File doesn't exist, use version 1
-        return { exists: false, version: 1, path };
+        const result = { exists: false, version: 1, path };
+        // Cache the result for 5 minutes
+        await RedisCache.set(pathExistsCacheKey, result, 300);
+        return result;
       }
 
       // If versioning is disabled, we'll need to use upsert
       if (!this.settings.enableVersioning) {
-        return { exists: true, version: 1, path, useUpsert: true };
+        const result = { exists: true, version: 1, path, useUpsert: true };
+        // Cache the result for 5 minutes
+        await RedisCache.set(pathExistsCacheKey, result, 300);
+        return result;
       }
 
       // Versioning is enabled - need to create a new versioned filename
@@ -135,7 +151,12 @@ class DocumentProcessor {
       const versionedName = `${baseName}_v${newVersion}${fileExt}`;
       const versionedPath = pathParts.concat(versionedName).join("/");
 
-      return { exists: true, version: newVersion, path: versionedPath };
+      const result = { exists: true, version: newVersion, path: versionedPath };
+
+      // Cache the result for 5 minutes
+      await RedisCache.set(pathExistsCacheKey, result, 300);
+
+      return result;
     } catch (error) {
       console.error("Error checking existing file:", error);
       // If there's any error, assume it doesn't exist and use version 1
@@ -144,11 +165,19 @@ class DocumentProcessor {
   }
 
   /**
-   * Load storage settings from Supabase
+   * Load storage settings from Supabase with caching
    */
   async loadStorageSettings() {
     try {
-      // Fetch from settings table
+      // Try to get settings from cache first
+      const cachedSettings = await RedisCache.get(this.settingsCacheKey);
+      if (cachedSettings) {
+        console.log("Using cached storage settings");
+        this.settings = cachedSettings;
+        return this.settings;
+      }
+
+      // Fetch from settings table if not in cache
       const { data, error } = await supabase
         .from("settings")
         .select("*")
@@ -195,6 +224,9 @@ class DocumentProcessor {
             ? settings.compressionEnabled
             : true,
       };
+
+      // Cache the settings for 1 hour
+      await RedisCache.set(this.settingsCacheKey, this.settings, 3600);
 
       return this.settings;
     } catch (error) {
@@ -251,8 +283,6 @@ class DocumentProcessor {
     return { valid: true };
   }
 
-  // Add this method to your DocumentProcessor.js file
-
   /**
    * Sanitize filename to make it safe for storage
    * @param {string} filename - The original filename
@@ -306,12 +336,26 @@ class DocumentProcessor {
   }
 
   /**
-   * Extract text content from a document file
+   * Extract text content from a document file with caching
    * @param {File} file - The document file
    * @returns {Promise<String>} The extracted text content
    */
   async extractTextFromDocument(file) {
     try {
+      // Generate a unique key for this file based on name and size
+      const fileKey = `${file.name}-${file.size}-${file.lastModified}`;
+      const cacheKey = `extract:text:${btoa(fileKey).replace(
+        /[^a-zA-Z0-9]/g,
+        ""
+      )}`;
+
+      // Try to get from cache first
+      const cachedText = await RedisCache.get(cacheKey);
+      if (cachedText) {
+        console.log("Using cached text extraction for:", file.name);
+        return cachedText;
+      }
+
       const fileExtension = file.name.split(".").pop().toLowerCase();
 
       // Convert file to base64
@@ -332,18 +376,30 @@ class DocumentProcessor {
 
         if (error) throw error;
 
-        return data?.text || `Could not extract text from ${file.name}`;
+        const extractedText =
+          data?.text || `Could not extract text from ${file.name}`;
+
+        // Cache the extracted text for 24 hours
+        await RedisCache.set(cacheKey, extractedText, 86400);
+
+        return extractedText;
       } catch (e) {
         console.warn("Error using edge function for extraction:", e);
 
         // Fallback: Handle locally if edge function fails
+        let fallbackText;
         if (["txt", "csv"].includes(fileExtension)) {
           // For text files, just read as text
-          return await this.readFileAsText(file);
+          fallbackText = await this.readFileAsText(file);
         } else {
           // For other file types, return placeholder
-          return `Text from ${file.name} [Type: ${fileExtension}]. Extraction service is currently unavailable.`;
+          fallbackText = `Text from ${file.name} [Type: ${fileExtension}]. Extraction service is currently unavailable.`;
         }
+
+        // Cache the fallback text for 1 hour (shorter TTL for fallback)
+        await RedisCache.set(cacheKey, fallbackText, 3600);
+
+        return fallbackText;
       }
     } catch (error) {
       console.error("Error extracting text from document:", error);
@@ -370,7 +426,7 @@ class DocumentProcessor {
   }
 
   /**
-   * Upload a document file to storage and process it for the knowledge base
+   * Upload a document file to storage and process it for the knowledge base with caching
    * @param {File} file - The file to upload
    * @param {String} bucket - The storage bucket name
    * @param {Object} options - Additional options like userId
@@ -508,7 +564,15 @@ class DocumentProcessor {
           .from("documents")
           .insert([documentRecord]);
 
-        if (docError) {
+        // Cache document data for fast retrieval
+        if (!docError && docData && docData.length > 0) {
+          const docId = docData[0].id;
+          await DocumentCache.invalidateDocument(docId);
+          console.log(
+            "Document record created successfully and cached:",
+            docData
+          );
+        } else if (docError) {
           console.error("Database insert error:", docError);
           // Don't throw here, we'll still consider the upload successful even if the DB insert fails
           console.warn(
@@ -525,7 +589,11 @@ class DocumentProcessor {
           };
         }
 
-        console.log("Document record created successfully:", docData);
+        // Invalidate any folder cache that might contain this document
+        if (options.folderId) {
+          await RedisCache.delete(`folder:${options.folderId}:docs`);
+        }
+
         return {
           success: true,
           filePath,
@@ -587,39 +655,6 @@ class DocumentProcessor {
 
     return extensionMap[extension] || "document";
   }
-  /**
-   * Determine document type based on file extension
-   * @param {File} file - The file to check
-   * @returns {String} The document type
-   */
-  getDocumentType(file) {
-    const extension = file.name.split(".").pop().toLowerCase();
-
-    const extensionMap = {
-      // Documents
-      pdf: "document",
-      doc: "document",
-      docx: "document",
-      txt: "document",
-      rtf: "document",
-      // Spreadsheets
-      xls: "spreadsheet",
-      xlsx: "spreadsheet",
-      csv: "spreadsheet",
-      // Images
-      jpg: "image",
-      jpeg: "image",
-      png: "image",
-      gif: "image",
-      svg: "image",
-      // Presentations
-      ppt: "presentation",
-      pptx: "presentation",
-      // Other types as needed
-    };
-
-    return extensionMap[extension] || "document";
-  }
 
   /**
    * Read a file as text
@@ -636,12 +671,23 @@ class DocumentProcessor {
   }
 
   /**
-   * Generate embedding for document text
+   * Generate embedding for document text with caching
    * @param {String} text - The text to embed
    * @returns {Promise<Array<Number>>} The embedding vector
    */
   async generateEmbedding(text) {
     try {
+      // Create a hash of the text for caching
+      const textHash = this.hashString(text);
+      const cacheKey = `embedding:${textHash}`;
+
+      // Try to get from cache first
+      const cachedEmbedding = await RedisCache.get(cacheKey);
+      if (cachedEmbedding) {
+        console.log("Using cached embedding");
+        return cachedEmbedding;
+      }
+
       // Truncate text if very long to avoid processing delays
       const truncatedText = text.length > 8000 ? text.substring(0, 8000) : text;
 
@@ -656,7 +702,14 @@ class DocumentProcessor {
 
         if (error) throw error;
 
-        return data?.embedding || [];
+        const embedding = data?.embedding || [];
+
+        // Cache the embedding for 30 days (embeddings rarely change)
+        if (embedding.length > 0) {
+          await RedisCache.set(cacheKey, embedding, 30 * 86400);
+        }
+
+        return embedding;
       } catch (e) {
         console.warn(
           "Error using edge function for embedding, using fallback:",
@@ -669,6 +722,22 @@ class DocumentProcessor {
       console.error("Error generating embedding:", error);
       return []; // Return empty array as fallback
     }
+  }
+
+  /**
+   * Create a simple hash of a string for caching purposes
+   * @private
+   * @param {string} str - String to hash
+   * @returns {string} - Hashed string
+   */
+  hashString(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash |= 0; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(36);
   }
 }
 

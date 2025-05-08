@@ -119,6 +119,7 @@
 .message-icon {
   position: relative;
   margin-right: 15px;
+  cursor: pointer;
 }
 
 .unread-badge {
