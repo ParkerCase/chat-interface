@@ -10,6 +10,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
+import DocumentUploadDemo from "./components/admin/DocumentUploadDemo";
 
 // Auth components
 import AuthPage from "./components/AuthPage";
@@ -394,6 +395,11 @@ function AppContent() {
                 <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/admin/register" element={<Register />} />
                 <Route
+                  path="/admin/document-demo"
+                  element={<DocumentUploadDemo />}
+                />
+
+                <Route
                   path="/admin/users"
                   element={<EnhancedUserManagement />}
                 />
@@ -401,6 +407,7 @@ function AppContent() {
                   path="/admin/settings"
                   element={<EnhancedSystemSettings />}
                 />
+
                 <Route path="/admin/storage" element={<StorageManagement />} />
               </Route>
             </Route>

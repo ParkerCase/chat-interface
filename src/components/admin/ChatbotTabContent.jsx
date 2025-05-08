@@ -268,12 +268,12 @@ const ChatbotTabContent = () => {
     setShowUploadModal(false);
 
     if (type === "image") {
-      // For images, show the search modal after a slight delay
+      // For images, show the search modal after a longer delay
       setTimeout(() => {
         setShowSearchModal(true);
-      }, 100); // Small delay to ensure first modal closes properly
+      }, 300); // Increased delay
     } else {
-      // For documents, trigger file selection directly after a slight delay
+      // For documents, trigger file selection directly after a delay
       setTimeout(() => {
         if (fileInputRef.current) {
           fileInputRef.current.setAttribute(
@@ -282,23 +282,24 @@ const ChatbotTabContent = () => {
           );
           fileInputRef.current.click();
         }
-      }, 100);
+      }, 300); // Consistent delay
     }
   };
 
   // Handle search mode selection
   const handleSelectSearchMode = (mode) => {
     setSearchMode(mode);
+
     // Close the search modal first
     setShowSearchModal(false);
 
-    // Trigger file selection with appropriate accept attribute after a slight delay
+    // Add a slightly longer delay to ensure modal is fully closed
     setTimeout(() => {
       if (fileInputRef.current) {
         fileInputRef.current.setAttribute("accept", "image/*");
         fileInputRef.current.click();
       }
-    }, 100);
+    }, 300); // Increased from 100ms to 300ms for better user experience
   };
 
   // Handle file selection
@@ -1138,30 +1139,37 @@ ${
             throw new Error("Missing embedding for pagination");
           }
 
-          // Call search_images_by_embedding with offset
+          console.log("Getting more similar images with embedding...");
+
+          // Use the fixed function name and parameters
+          // The issue was likely that the function name changed or parameters were incorrect
           const { data: moreImages, error: searchError } = await supabase.rpc(
-            "search_images_by_embedding",
+            "smart_image_search", // Use the correct function name
             {
               query_embedding: searchParams.embedding,
-              match_threshold: 0.65,
+              match_threshold: 0.5,
               match_limit: 20,
-              embedding_type: searchParams.mode,
-              offset_value: offset, // Make sure your function supports this
+              emb_type: searchParams.mode || "full", // Make sure the parameter name matches backend
+              offset_value: offset,
             }
           );
 
-          if (searchError) throw searchError;
+          if (searchError) {
+            console.error("Search error details:", searchError);
+            throw searchError;
+          }
 
           results = (moreImages || []).map((match) => ({
             id: match.id,
             path: match.image_path,
-            score: match.similarity,
+            similarity: match.similarity,
             filename: match.image_path.split("/").pop(),
           }));
 
           responseText = `Here are ${results.length} more similar images.`;
           break;
 
+        // The rest of the cases remain the same...
         case "keyword":
           // For keyword search
           const keywords = searchParams.keyword?.split(/\s+/) || [];
@@ -1207,191 +1215,24 @@ ${
           responseText = `Here are ${results.length} more images with tattoos on the ${searchParams.bodyPart}.`;
           break;
 
-        // Updated "path" case for processImageSearch function
-        // Replace the existing case "path" in the switch statement of processImageSearch
-
         case "path":
-          console.log("Searching for images by path:", searchParams.path);
+          // Path search
+          const { data: morePathResults, error: pathError } = await supabase
+            .from("image_embeddings")
+            .select("id, image_path, embedding_type, created_at")
+            .ilike("image_path", `%${searchParams.path}%`)
+            .range(offset, offset + 19); // For pagination
 
-          try {
-            // Normalize search term to improve match likelihood
-            const searchTerm = searchParams.path.trim().toLowerCase();
+          if (pathError) throw pathError;
 
-            // First try the standard approach
-            const { data: pathData, error: pathError } = await supabase
-              .from("image_embeddings")
-              .select("id, image_path, embedding_type, created_at")
-              .ilike("image_path", `%${searchTerm}%`)
-              .limit(searchParams.limit);
+          results = morePathResults.map((item) => ({
+            id: item.id,
+            path: item.image_path,
+            filename: item.image_path.split("/").pop(),
+            type: item.embedding_type,
+          }));
 
-            if (pathError) {
-              throw pathError;
-            }
-
-            // If the first approach returned no results, try a different table or approach
-            if (!pathData || pathData.length === 0) {
-              console.log(
-                "No results with standard search, trying alternative approach"
-              );
-
-              // Try using a custom RPC function if available
-              try {
-                const { data: rpcData, error: rpcError } = await supabase.rpc(
-                  "search_images_by_path",
-                  {
-                    path_pattern: searchTerm,
-                    match_limit: searchParams.limit,
-                  }
-                );
-
-                if (!rpcError && rpcData && rpcData.length > 0) {
-                  console.log(
-                    `Found ${rpcData.length} results with RPC function`
-                  );
-
-                  // Map results to the expected format
-                  results = rpcData.map((item) => ({
-                    id:
-                      item.id ||
-                      `path-${Date.now()}-${Math.random()
-                        .toString(36)
-                        .substring(2, 8)}`,
-                    path: item.image_path || item.path,
-                    filename: (item.image_path || item.path).split("/").pop(),
-                    type: item.embedding_type || "path_search",
-                  }));
-
-                  responseText = `I found ${results.length} image${
-                    results.length === 1 ? "" : "s"
-                  } in the path containing "${searchParams.path}".`;
-
-                  break;
-                }
-              } catch (rpcErr) {
-                console.warn(
-                  "RPC search failed, continuing with direct query fallback:",
-                  rpcErr
-                );
-              }
-
-              // If RPC failed or returned no results, try a more basic approach with raw SQL if available
-              try {
-                const { data: rawData, error: rawError } = await supabase.rpc(
-                  "search_images_by_path_fallback",
-                  {
-                    search_term: searchTerm,
-                    limit_val: searchParams.limit,
-                  }
-                );
-
-                if (!rawError && rawData && rawData.length > 0) {
-                  console.log(
-                    `Found ${rawData.length} results with fallback search`
-                  );
-
-                  // Map results to the expected format
-                  results = rawData.map((item) => ({
-                    id:
-                      item.id ||
-                      `path-${Date.now()}-${Math.random()
-                        .toString(36)
-                        .substring(2, 8)}`,
-                    path: item.image_path || item.path,
-                    filename: (item.image_path || item.path).split("/").pop(),
-                    type: item.embedding_type || "fallback_search",
-                  }));
-
-                  responseText = `I found ${results.length} image${
-                    results.length === 1 ? "" : "s"
-                  } in the path containing "${searchParams.path}".`;
-
-                  break;
-                }
-              } catch (rawErr) {
-                console.warn("Fallback search failed:", rawErr);
-              }
-
-              // If we get here, none of the specialized searches worked - last attempt with a simpler direct query
-              const { data: lastResortData, error: lastResortError } =
-                await supabase
-                  .from("image_embeddings")
-                  .select("id, image_path")
-                  .not("image_path", "is", null)
-                  .limit(searchParams.limit);
-
-              if (
-                !lastResortError &&
-                lastResortData &&
-                lastResortData.length > 0
-              ) {
-                // Filter client-side
-                const filteredResults = lastResortData.filter(
-                  (item) =>
-                    item.image_path &&
-                    item.image_path.toLowerCase().includes(searchTerm)
-                );
-
-                if (filteredResults.length > 0) {
-                  console.log(
-                    `Found ${filteredResults.length} results with client-side filtering`
-                  );
-
-                  results = filteredResults.map((item) => ({
-                    id:
-                      item.id ||
-                      `path-${Date.now()}-${Math.random()
-                        .toString(36)
-                        .substring(2, 8)}`,
-                    path: item.image_path,
-                    filename: item.image_path.split("/").pop(),
-                    type: "client_filtered",
-                  }));
-
-                  responseText = `I found ${results.length} image${
-                    results.length === 1 ? "" : "s"
-                  } in the path containing "${searchParams.path}".`;
-
-                  break;
-                }
-              }
-
-              // No results from any approach
-              responseText = `I couldn't find any images in the path containing "${searchParams.path}". Try a different folder name.`;
-              results = [];
-              break;
-            }
-
-            // Process results from the standard approach
-            // Remove duplicates by path
-            const uniquePaths = {};
-            results = pathData
-              .filter((item) => {
-                if (!uniquePaths[item.image_path]) {
-                  uniquePaths[item.image_path] = true;
-                  return true;
-                }
-                return false;
-              })
-              .map((item) => ({
-                id:
-                  item.id ||
-                  `path-${Date.now()}-${Math.random()
-                    .toString(36)
-                    .substring(2, 8)}`,
-                path: item.image_path,
-                filename: item.image_path.split("/").pop(),
-                type: item.embedding_type,
-                created: item.created_at,
-              }));
-
-            responseText = `I found ${results.length} image${
-              results.length === 1 ? "" : "s"
-            } in the path containing "${searchParams.path}".`;
-          } catch (pathSearchError) {
-            console.error("Path search error:", pathSearchError);
-            responseText = `I encountered an error searching for images by path: ${pathSearchError.message}. Try a different search method.`;
-            results = [];
-          }
+          responseText = `Here are ${results.length} more images with path containing "${searchParams.path}".`;
           break;
 
         case "noTattoo":
@@ -2502,22 +2343,54 @@ ${
             !showChatHistory ? "collapsed" : ""
           }`}
         >
+          {/* Always render the history header, but conditionally show/hide its contents */}
+          <div
+            className="history-header"
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "10px 16px",
+              borderBottom: "1px solid var(--color-border, #e5e7eb)",
+            }}
+          >
+            {showChatHistory ? (
+              <h3>Chat History</h3>
+            ) : (
+              <span style={{ width: "0", overflow: "hidden" }}></span>
+            )}
+
+            {/* Always show New Chat button, regardless of sidebar state */}
+            <button
+              className="new-chat-btn"
+              onClick={createNewThread}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 12px",
+                backgroundColor: "var(--primary, #4f46e5)",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "500",
+              }}
+            >
+              <PlusCircle size={14} />
+              New Chat
+            </button>
+          </div>
+
+          {/* Show chat history only if expanded */}
           {showChatHistory && (
-            <>
-              <div className="history-header">
-                <h3>Chat History</h3>
-                {/* Always show New Chat button, not conditionally rendered */}
-                <button className="new-chat-btn" onClick={createNewThread}>
-                  <PlusCircle size={14} />
-                  New Chat
-                </button>
-              </div>
-              <ChatHistory
-                onSelectThread={handleSelectThread}
-                selectedThreadId={selectedThreadId}
-              />
-            </>
+            <ChatHistory
+              onSelectThread={handleSelectThread}
+              selectedThreadId={selectedThreadId}
+            />
           )}
+
           <button
             className="toggle-history-btn"
             onClick={toggleChatHistory}
@@ -2537,12 +2410,24 @@ ${
         {/* Main chat area */}
         <div className="chat-main-area">
           {/* Header toolbar */}
-          <div className="chat-toolbar">
+          <div
+            className="chat-toolbar"
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "10px 16px",
+              borderBottom: "1px solid var(--color-border)",
+            }}
+          >
             <div className="toolbar-left">
               {/* Empty left side to balance layout */}
             </div>
 
-            <div className="toolbar-right">
+            <div
+              className="toolbar-right"
+              style={{ display: "flex", alignItems: "center", gap: "8px" }}
+            >
               {/* Export button */}
               {isFeatureEnabled("data_export") && (
                 <div className="export-button-container">
@@ -2553,10 +2438,22 @@ ${
                 </div>
               )}
 
+              {/* Settings button with inline styles to ensure visibility */}
               <button
                 className="settings-btn"
                 onClick={toggleSettings}
                 title="Chat settings"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "50%",
+                  backgroundColor: "var(--color-surface, #fafafa)",
+                  border: "1px solid var(--color-border, #e5e7eb)",
+                  cursor: "pointer",
+                }}
               >
                 <Settings size={18} />
               </button>
