@@ -460,9 +460,9 @@ const AppointmentForm = ({
 
                 {searchResults.length > 0 && (
                   <div className="aformx-search-results">
-                    {searchResults.map((contact) => (
+                    {searchResults.map((contact, index) => (
                       <div
-                        key={contact.id}
+                        key={`contact-search-${contact.id || ''}-${index}`}
                         className="aformx-search-result-item"
                         onClick={() => handleSelectContact(contact)}
                       >
@@ -470,8 +470,8 @@ const AppointmentForm = ({
                           {contact.name}
                         </div>
                         <div className="aformx-contact-details">
-                          {contact.email && <span>{contact.email}</span>}
-                          {contact.phone && <span>{contact.phone}</span>}
+                          {contact.email && <span key={`email-${contact.id || ''}-${index}`}>{contact.email}</span>}
+                          {contact.phone && <span key={`phone-${contact.id || ''}-${index}`}>{contact.phone}</span>}
                         </div>
                       </div>
                     ))}
@@ -599,9 +599,12 @@ const AppointmentForm = ({
                               : startTime.substring(0, 5)
                             : "";
 
+                          // Create a more unique key using both index and the time value
+                          const slotKey = slot.id || `${timeValue}-${index}`;
+
                           return (
                             <div
-                              key={index}
+                              key={slotKey}
                               className={`aformx-time-slot ${
                                 formData.time === timeValue ? "selected" : ""
                               }`}

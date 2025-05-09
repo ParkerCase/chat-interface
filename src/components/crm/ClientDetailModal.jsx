@@ -343,7 +343,7 @@ const ClientDetailModal = ({ client, onClose, centerCode }) => {
               <div className="appointments-list">
                 {appointments.map((appointment, index) => (
                   <div
-                    key={appointment.id || index}
+                    key={`${appointment.id || ''}-${index}`}
                     className="appointment-card"
                   >
                     <div className="appointment-header">
@@ -434,7 +434,7 @@ const ClientDetailModal = ({ client, onClose, centerCode }) => {
                   </thead>
                   <tbody>
                     {purchaseHistory.map((item, index) => (
-                      <tr key={index}>
+                      <tr key={`purchase-${item.id || item.description || ''}-${index}`}>
                         <td>{formatDate(item.date)}</td>
                         <td>{item.description || item.name}</td>
                         <td>{item.quantity || 1}</td>
