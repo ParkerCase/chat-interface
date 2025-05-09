@@ -1,4 +1,3 @@
-// src/components/admin/EnhancedSystemSettings.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
@@ -31,6 +30,7 @@ import {
 } from "lucide-react";
 import apiService from "../../services/apiService";
 import documentProcessor from "../../utils/DocumentProcessor";
+import backupService from "../../services/BackupService"; // Import the backup service
 
 import FileUploadDropzone from "../storage/FileUploadDropzone";
 
@@ -55,6 +55,11 @@ const EnhancedSystemSettings = () => {
   const [isProcessorInitialized, setIsProcessorInitialized] = useState(false);
   const [showUploadZone, setShowUploadZone] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [backupHistory, setBackupHistory] = useState([]);
+  const [loadingBackupHistory, setLoadingBackupHistory] = useState(false);
+  const [showBackupHistory, setShowBackupHistory] = useState(false);
+  const [isRunningDiagnostics, setIsRunningDiagnostics] = useState(false);
+  const [diagnosticResults, setDiagnosticResults] = useState(null);
 
   // Settings state
   const [generalSettings, setGeneralSettings] = useState({
@@ -180,6 +185,12 @@ const EnhancedSystemSettings = () => {
     return () => clearTimeout(timeout);
   }, [success]);
 
+  useEffect(() => {
+    if (activeSection === "backup" && showBackupHistory) {
+      fetchBackupHistory();
+    }
+  }, [activeSection, showBackupHistory]);
+
   // Fetch settings from Supabase
   const fetchSettings = async () => {
     try {
@@ -264,6 +275,20 @@ const EnhancedSystemSettings = () => {
       setError("Failed to load settings. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Function to fetch backup history
+  const fetchBackupHistory = async () => {
+    try {
+      setLoadingBackupHistory(true);
+      const history = await backupService.getBackupHistory({ limit: 5 });
+      setBackupHistory(history.data || []);
+    } catch (error) {
+      console.error("Error fetching backup history:", error);
+      setError("Failed to load backup history");
+    } finally {
+      setLoadingBackupHistory(false);
     }
   };
 
@@ -414,45 +439,48 @@ const EnhancedSystemSettings = () => {
     setBackupStatus("Initiating backup...");
 
     try {
-      // Call the backup endpoint
-      const response = await apiService.files?.triggerBackup();
-
-      if (response.data?.success) {
-        setBackupStatus(
-          "Backup initiated successfully. Files will be processed in the background."
-        );
-
-        // Monitor backup progress
-        const interval = setInterval(async () => {
-          const statusResponse = await apiService.files.getBackupStatus();
-
-          if (statusResponse.data?.status === "completed") {
-            setBackupStatus("Backup completed successfully!");
-            clearInterval(interval);
-            setIsBackingUp(false);
-          } else if (statusResponse.data?.status === "failed") {
-            setBackupStatus(`Backup failed: ${statusResponse.data?.error}`);
-            clearInterval(interval);
-            setIsBackingUp(false);
-          } else {
-            setBackupStatus(
-              `Backup in progress: ${statusResponse.data?.progress || 0}%`
-            );
-          }
-        }, 5000);
-
-        // Set timeout to stop polling after 30 minutes
-        setTimeout(() => {
-          clearInterval(interval);
+      // Create backup options from the settings
+      const backupOptions = {
+        backupLocation: backupSettings.backupLocation,
+        includeFiles: backupSettings.includeFiles,
+        includeDatabase: backupSettings.includeDatabase,
+        includeSettings: backupSettings.includeSettings,
+        providers: "dropbox,googledrive", // Use both providers by default
+        embeddingTypes: "full,partial", // Generate both types of embeddings
+        onProgressUpdate: (progressData) => {
+          setBackupStatus(
+            `${progressData.message} (${progressData.progress}%)`
+          );
+        },
+        onComplete: (result) => {
+          setBackupStatus(`Backup completed successfully!`);
           setIsBackingUp(false);
-        }, 30 * 60 * 1000);
-      } else {
-        throw new Error(response.data?.error || "Failed to initiate backup");
+          setSuccess("Backup and sync completed successfully");
+
+          // Refresh backup history if it's visible
+          if (showBackupHistory) {
+            fetchBackupHistory();
+          }
+        },
+        onError: (errorData) => {
+          setBackupStatus(`Backup failed: ${errorData.error}`);
+          setIsBackingUp(false);
+          setError(`Backup failed: ${errorData.error}`);
+        },
+      };
+
+      // Start the backup and sync process
+      await backupService.runBackupAndSync(backupOptions, currentUser?.id);
+
+      // The callbacks will handle UI updates, but we have this as a fallback
+      if (isBackingUp) {
+        setBackupStatus("Backup process is running in the background.");
       }
     } catch (error) {
       console.error("Backup error:", error);
-      setBackupStatus(`Backup failed: ${error.message}`);
+      setBackupStatus(`Backup failed: ${error.message || "Unknown error"}`);
       setIsBackingUp(false);
+      setError(`Backup failed: ${error.message || "Unknown error"}`);
     }
   };
 
@@ -798,48 +826,143 @@ const EnhancedSystemSettings = () => {
     }
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  };
+
   // Run a backup
   const runBackup = async () => {
+    await handleBackup();
+  };
+
+  const runBackupDiagnostics = async () => {
     try {
-      setSaving(true);
+      setIsRunningDiagnostics(true);
+      setError(null);
+      setDiagnosticResults(null);
+
+      // Run the diagnostics
+      const results = await backupService.checkBackupConstraints();
+
+      console.log("Diagnostic results:", results);
+      setDiagnosticResults(results);
+
+      if (!results.success) {
+        setError(`Diagnostics failed: ${results.error}`);
+      }
+    } catch (error) {
+      console.error("Error running diagnostics:", error);
+      setError(`Error running diagnostics: ${error.message}`);
+    } finally {
+      setIsRunningDiagnostics(false);
+    }
+  };
+
+  // Add this function to fix the tables
+  const fixBackupTables = async () => {
+    try {
+      setIsRunningDiagnostics(true);
       setError(null);
 
-      // In a real implementation, this would call a backend API to trigger a backup
-      // For demo purposes, we'll simulate a successful backup
+      // Run the fix
+      const results = await backupService.ensureBackupTablesExist();
 
-      // Create a backup record
-      const { data, error } = await supabase
-        .from("backups")
-        .insert([
-          {
-            type: "manual",
-            status: "completed",
-            location: backupSettings.backupLocation,
-            includes_files: backupSettings.includeFiles,
-            includes_database: backupSettings.includeDatabase,
-            includes_settings: backupSettings.includeSettings,
-            created_by: currentUser?.id,
-            created_at: new Date().toISOString(),
-            completed_at: new Date().toISOString(),
-            size_mb: 125.4, // Simulated backup size
-          },
-        ])
-        .select();
+      console.log("Fix results:", results);
 
-      if (error) throw error;
-
-      setSuccess("Backup completed successfully");
-    } catch (err) {
-      console.error("Backup error:", err);
-      setError(`Failed to create backup: ${err.message}`);
+      if (results.success) {
+        setSuccess(
+          "Backup tables fixed successfully. Please try your backup again."
+        );
+      } else {
+        setError(`Fix failed: ${results.error}`);
+      }
+    } catch (error) {
+      console.error("Error fixing tables:", error);
+      setError(`Error fixing tables: ${error.message}`);
     } finally {
-      setSaving(false);
+      setIsRunningDiagnostics(false);
+    }
+  };
+
+  const getStatusBadgeClass = (status) => {
+    switch (status?.toLowerCase()) {
+      case "completed":
+        return "status-badge-success";
+      case "in_progress":
+        return "status-badge-info";
+      case "failed":
+        return "status-badge-error";
+      default:
+        return "status-badge-default";
     }
   };
 
   // Helper function to capitalize first letter
   const capitalizeFirstLetter = (string) => {
     return string.charAt(0).toUpperCase() + string.slice(1);
+  };
+
+  // Render backup history section
+  const renderBackupHistory = () => {
+    if (loadingBackupHistory) {
+      return (
+        <div className="backup-history-loading">
+          <Loader className="spinner" size={24} />
+          <p>Loading backup history...</p>
+        </div>
+      );
+    }
+
+    if (!backupHistory.length) {
+      return (
+        <div className="no-backup-history">
+          <AlertCircle size={24} />
+          <p>No backup history found. Run your first backup to see it here.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="backup-history-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Includes</th>
+              <th>Location</th>
+            </tr>
+          </thead>
+          <tbody>
+            {backupHistory.map((backup) => (
+              <tr key={backup.id}>
+                <td>{formatDate(backup.created_at)}</td>
+                <td>{backup.type}</td>
+                <td>
+                  <span
+                    className={`status-badge ${getStatusBadgeClass(
+                      backup.status
+                    )}`}
+                  >
+                    {backup.status}
+                  </span>
+                </td>
+                <td>
+                  {backup.includes_files ? "Files, " : ""}
+                  {backup.includes_database ? "Database, " : ""}
+                  {backup.includes_settings ? "Settings" : ""}
+                </td>
+                <td>{backup.location}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   // Render
@@ -1808,6 +1931,80 @@ const EnhancedSystemSettings = () => {
                           <span className="checkbox-label">Settings</span>
                         </label>
                       </div>
+                      <div className="backup-history-toggle">
+                        <button
+                          type="button"
+                          className="toggle-history-button"
+                          onClick={() => {
+                            setShowBackupHistory(!showBackupHistory);
+                            if (!showBackupHistory) {
+                              fetchBackupHistory();
+                            }
+                          }}
+                        >
+                          {showBackupHistory
+                            ? "Hide Backup History"
+                            : "Show Backup History"}
+                        </button>
+                      </div>
+
+                      {showBackupHistory && (
+                        <div className="backup-history-section">
+                          <h4>Recent Backups</h4>
+                          {renderBackupHistory()}
+                        </div>
+                      )}
+
+                      {backupStatus && backupStatus.includes("failed") && (
+                        <div className="diagnostic-buttons">
+                          <button
+                            type="button"
+                            className="diagnostic-button"
+                            onClick={runBackupDiagnostics}
+                            disabled={isRunningDiagnostics}
+                          >
+                            {isRunningDiagnostics ? (
+                              <>
+                                <Loader size={14} className="spinner" />
+                                Running Diagnostics...
+                              </>
+                            ) : (
+                              <>
+                                <AlertCircle size={14} />
+                                Run Diagnostics
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="fix-button"
+                            onClick={fixBackupTables}
+                            disabled={isRunningDiagnostics}
+                          >
+                            {isRunningDiagnostics ? (
+                              <>
+                                <Loader size={14} className="spinner" />
+                                Fixing Tables...
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw size={14} />
+                                Fix Backup Tables
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+
+                      {diagnosticResults && (
+                        <div className="diagnostic-results">
+                          <h4>Diagnostic Results</h4>
+                          <pre>
+                            {JSON.stringify(diagnosticResults, null, 2)}
+                          </pre>
+                        </div>
+                      )}
 
                       <div className="form-actions">
                         <button
