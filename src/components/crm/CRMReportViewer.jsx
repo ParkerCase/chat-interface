@@ -341,7 +341,7 @@ const CRMReportViewer = ({
                         : "N/A";
 
                       return (
-                        <tr key={appointment.id || index}>
+                        <tr key={`appointment-viewer-${appointment.id || ''}-${index}`}>
                           <td>{formattedDateTime}</td>
                           <td>{clientName}</td>
                           <td>{serviceName}</td>
@@ -512,7 +512,7 @@ const CRMReportViewer = ({
                           </thead>
                           <tbody>
                             {pkg.services.map((service, svcIndex) => (
-                              <tr key={`service-${pkgIndex}-${svcIndex}`}>
+                              <tr key={`service-${service.id || service.name}-${pkgIndex}-${svcIndex}`}>
                                 <td>{service.name}</td>
                                 <td>{service.quantity || 1}</td>
                                 <td>{formatCurrency(service.value || 0)}</td>
@@ -598,7 +598,7 @@ const CRMReportViewer = ({
                           : 0;
 
                         return (
-                          <tr key={index}>
+                          <tr key={`payment-type-${type}`}>
                             <td>{type}</td>
                             <td>{formatCurrency(amount)}</td>
                             <td>{percentage.toFixed(1)}%</td>
@@ -646,9 +646,12 @@ const CRMReportViewer = ({
                     {transactions.map((transaction, index) => {
                       const date =
                         transaction.date || transaction.transaction_date;
+                      
+                      // Create a more reliable key by combining id with index
+                      const transactionKey = transaction.id || transaction.receipt_number || `trans-${date}-${index}`;
 
                       return (
-                        <tr key={index}>
+                        <tr key={transactionKey}>
                           <td>
                             {date ? new Date(date).toLocaleDateString() : "N/A"}
                           </td>
@@ -743,7 +746,7 @@ const CRMReportViewer = ({
                     {items
                       .sort((a, b) => (b.net_amount || 0) - (a.net_amount || 0))
                       .map((item, index) => (
-                        <tr key={index}>
+                        <tr key={item.id || `item-${item.name}-${index}`}>
                           <td>{item.name}</td>
                           <td>{item.quantity || 0}</td>
                           <td>{formatCurrency(item.total_amount || 0)}</td>
@@ -789,7 +792,7 @@ const CRMReportViewer = ({
                   </thead>
                   <tbody>
                     {Object.entries(centers).map(([center, data], index) => (
-                      <tr key={index}>
+                      <tr key={`center-${center}`}>
                         <td>{center}</td>
                         <td>{formatCurrency(data.total_sales || 0)}</td>
                         <td>{formatCurrency(data.total_refunds || 0)}</td>
@@ -866,7 +869,7 @@ const CRMReportViewer = ({
                   </thead>
                   <tbody>
                     {services.map((service, index) => (
-                      <tr key={service.id || index}>
+                      <tr key={service.id || `service-${service.name}-${index}`}>
                         <td>{service.name}</td>
                         <td>{service.category || "Uncategorized"}</td>
                         <td>{formatDuration(service.duration)}</td>

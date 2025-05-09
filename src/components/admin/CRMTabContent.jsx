@@ -343,8 +343,8 @@ const CRMTabContent = () => {
             </thead>
             <tbody>
               {recentContacts.length > 0 ? (
-                recentContacts.map((contact) => (
-                  <tr key={contact.id}>
+                recentContacts.map((contact, index) => (
+                  <tr key={`contact-tab-${contact.id || ''}-${index}`}>
                     <td>{contact.name}</td>
                     <td>{contact.email || "—"}</td>
                     <td>{contact.phone || "—"}</td>
