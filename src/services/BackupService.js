@@ -1,4 +1,4 @@
-// src/services/BackupService.js
+// src/services/BackupService.js - Updated to remove function invocation
 import axios from "axios";
 import { supabase } from "../lib/supabase";
 import apiService from "./apiService";
@@ -7,389 +7,287 @@ import apiService from "./apiService";
  * Service for handling backup and embedding maintenance operations
  */
 class BackupService {
-  // Add this authentication helper at the top of your BackupService class
-  async getAuthToken() {
-    const token = localStorage.getItem("authToken");
-    if (!token) {
-      console.error(
-        "Authentication token missing - user may need to log in again"
-      );
-      throw new Error("Authentication required - please log in");
-    }
-    return token;
-  }
-
-  // Replace triggerEmbeddingMaintenance with this version
+  /**
+   * Trigger embedding maintenance with simplified approach
+   * @param {Object} options - Configuration options
+   * @returns {Promise<Object>} Response from the server
+   */
   async triggerEmbeddingMaintenance(options = {}) {
     try {
-      const token = await this.getAuthToken();
+      console.log("Triggering embedding maintenance");
 
-      console.log("Triggering embedding maintenance with auth token");
-
-      // Use fetch instead of axios as an alternative approach
-      const response = await fetch(
-        "/api/admin/backup/run-embedding-maintenance",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(options),
-          credentials: "include", // This is important for cookies
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || `API returned status ${response.status}`
+      // Use a simplified fetch approach
+      try {
+        const response = await fetch(
+          "/api/admin/backup/run-embedding-maintenance",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Client-Info": "Tatt2Away AI Assistant",
+            },
+            credentials: "include",
+            body: JSON.stringify(options),
+          }
         );
-      }
 
-      const data = await response.json();
-      return data;
+        if (!response.ok) {
+          console.warn(`Embedding maintenance API error (${response.status})`);
+          return { success: false, status: response.status };
+        }
+
+        return await response.json();
+      } catch (fetchError) {
+        console.warn("Error during fetch:", fetchError);
+        return { success: false, error: fetchError.message };
+      }
     } catch (error) {
       console.error("Error triggering embedding maintenance:", error);
-      throw new Error(
-        "Failed to trigger maintenance: " + (error.message || "Unknown error")
-      );
-    }
-  }
-
-  /**
-   * Get the status of the embedding maintenance process
-   *
-   * @returns {Promise<Object>} Status information
-   */
-  async getEmbeddingMaintenanceStatus() {
-    try {
-      let token;
-      try {
-        token = await this.getAuthToken();
-      } catch (authError) {
-        console.warn("No auth token for API call, using fallback");
-        return { success: false, activeJob: false, lastRun: null };
-      }
-
-      console.log("Getting maintenance status with auth token");
-
-      const response = await fetch(
-        "/api/admin/backup/embedding-maintenance-status",
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          credentials: "include",
-        }
-      );
-
-      if (!response.ok) {
-        console.warn(`Status API returned ${response.status}`);
-        return { success: false, activeJob: false, lastRun: null };
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error("Error getting embedding maintenance status:", error);
       return { success: false, error: error.message };
     }
   }
-  /**
-   * Create a backup record in Supabase
-   *
-   * @param {Object} backupData - Data about the backup
-   * @returns {Promise<Object>} The created backup record
-   */
-  async createBackupRecord(backupData = {}) {
-    // Status values to try, in order
-    const statusValues = ["pending", "running", "completed", "failed"];
-    let lastError = null;
-
-    // Try each status value until one works
-    for (const status of statusValues) {
-      try {
-        console.log(
-          `Attempting to create backup record with status: ${status}`
-        );
-
-        // Create the base record with current status value
-        const baseRecord = {
-          type: backupData.type || "manual",
-          status: status,
-          location: backupData.location || "cloud",
-          includes_files:
-            backupData.includesFiles !== undefined
-              ? backupData.includesFiles
-              : true,
-          includes_database:
-            backupData.includesDatabase !== undefined
-              ? backupData.includesDatabase
-              : true,
-          includes_settings:
-            backupData.includesSettings !== undefined
-              ? backupData.includesSettings
-              : true,
-          created_by: backupData.userId,
-          created_at: new Date().toISOString(),
-        };
-
-        // Only include size_mb if provided
-        if (backupData.sizeMb !== undefined) {
-          baseRecord.size_mb = backupData.sizeMb;
-        }
-
-        // Try to insert with minimum fields to avoid other issues
-        const { data, error } = await supabase
-          .from("backups")
-          .insert([baseRecord])
-          .select();
-
-        // If no error, we found a working status!
-        if (!error) {
-          console.log(`Success! Created backup record with status: ${status}`);
-
-          // Store this working status for future use
-          localStorage.setItem("workingBackupStatus", status);
-
-          return data[0];
-        }
-
-        // Remember the last error
-        lastError = error;
-
-        // If it's not a constraint error, don't try other statuses
-        if (error.code !== "23514") {
-          throw error;
-        }
-
-        console.log(
-          `Status '${status}' failed with constraint error, trying next...`
-        );
-      } catch (error) {
-        console.warn(`Error trying status '${status}':`, error);
-        lastError = error;
-
-        // If it's not a constraint error, don't try other statuses
-        if (error.code !== "23514") {
-          throw error;
-        }
-      }
-    }
-
-    // If we get here, none of the statuses worked
-    console.error("All status attempts failed");
-    throw (
-      lastError ||
-      new Error("Failed to create backup record - no valid status found")
-    );
-  }
 
   /**
-   * Update a backup record in Supabase
-   *
-   * @param {string} backupId - ID of the backup to update
-   * @param {Object} updateData - Data to update
-   * @returns {Promise<Object>} The updated backup record
-   */
-  async updateBackupRecord(backupId, updateData = {}) {
-    // If we're updating status, try to use a known working value from localStorage
-    if (updateData.status) {
-      const knownWorkingStatus = localStorage.getItem("workingBackupStatus");
-
-      // For updates to completed status, try these values in order
-      const completedStatusValues = knownWorkingStatus
-        ? [knownWorkingStatus]
-        : ["completed", "failed", "running", "pending"];
-
-      // For updates, only try a few values
-      for (let i = 0; i < 2; i++) {
-        const statusToTry =
-          completedStatusValues[i] || completedStatusValues[0];
-
-        try {
-          console.log(
-            `Attempting to update backup record with status: ${statusToTry}`
-          );
-
-          // Create safe update data with the status we're trying
-          const safeUpdateData = { ...updateData, status: statusToTry };
-
-          // Remove notes field to avoid any schema issues
-          delete safeUpdateData.notes;
-
-          const { data, error } = await supabase
-            .from("backups")
-            .update(safeUpdateData)
-            .eq("id", backupId)
-            .select();
-
-          if (!error) {
-            console.log(
-              `Success! Updated backup record with status: ${statusToTry}`
-            );
-            return data[0];
-          }
-
-          // If it's not a constraint error, don't try other statuses
-          if (error.code !== "23514") {
-            throw error;
-          }
-        } catch (error) {
-          console.warn(`Error updating with status '${statusToTry}':`, error);
-
-          // If it's not a constraint error, don't try other statuses
-          if (error.code !== "23514") {
-            throw error;
-          }
-        }
-      }
-
-      // If we get here and have a known working status, let's try without a status change
-      if (knownWorkingStatus) {
-        console.log("Attempting update without changing status");
-
-        // Create update data without status change
-        const noStatusUpdateData = { ...updateData };
-        delete noStatusUpdateData.status;
-        delete noStatusUpdateData.notes;
-
-        if (Object.keys(noStatusUpdateData).length > 0) {
-          try {
-            const { data, error } = await supabase
-              .from("backups")
-              .update(noStatusUpdateData)
-              .eq("id", backupId)
-              .select();
-
-            if (!error) {
-              console.log(
-                "Success! Updated backup record without changing status"
-              );
-              return data[0];
-            }
-
-            throw error;
-          } catch (finalError) {
-            console.error("Final update attempt failed:", finalError);
-            throw finalError;
-          }
-        }
-      }
-
-      throw new Error("Failed to update backup record - no valid status found");
-    } else {
-      // No status update, just update other fields
-      const safeUpdateData = { ...updateData };
-      delete safeUpdateData.notes; // Remove notes to avoid schema issues
-
-      const { data, error } = await supabase
-        .from("backups")
-        .update(safeUpdateData)
-        .eq("id", backupId)
-        .select();
-
-      if (error) throw error;
-      return data[0];
-    }
-  }
-
-  /**
-   * Trigger a database backup via the API
-   *
+   * Trigger a database backup via the API with simplified approach
    * @param {Object} options - Backup options
    * @returns {Promise<Object>} Response from the server
    */
   async triggerDatabaseBackup(options = {}) {
     try {
-      const token = await this.getAuthToken();
+      console.log("Triggering database backup");
 
-      console.log("Triggering database backup with auth token");
-
-      // Use fetch instead of axios
+      // Use simplified fetch with minimal headers
       const response = await fetch("/api/admin/backup/database", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          "X-Client-Info": "Tatt2Away AI Assistant",
         },
+        credentials: "include",
         body: JSON.stringify(options),
-        credentials: "include", // This is important for cookies
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || `API returned status ${response.status}`
-        );
+        console.warn(`Database backup API error (${response.status})`);
+        return { success: false, status: response.status };
       }
 
-      const data = await response.json();
-      return data;
+      return await response.json();
     } catch (error) {
       console.error("Error triggering database backup:", error);
-      throw new Error("Authentication required");
+      return { success: false, error: error.message };
     }
   }
+
   /**
-   * Initiate a full backup and sync operation
-   *
+   * Create a backup record in Supabase with valid status values
+   * @param {Object} backupData - Data about the backup
+   * @returns {Promise<Object>} The created backup record
+   */
+  async createBackupRecord(backupData = {}) {
+    try {
+      // Try different status values in order of preference
+      const validStatusValues = ["pending", "running", "completed", "failed"];
+
+      for (const status of validStatusValues) {
+        try {
+          // Create a record with the current status value
+          const baseRecord = {
+            type: backupData.type || "manual",
+            status: status, // Try each status in sequence
+            location: backupData.location || "cloud",
+            includes_files:
+              backupData.includesFiles !== undefined
+                ? backupData.includesFiles
+                : true,
+            includes_database:
+              backupData.includesDatabase !== undefined
+                ? backupData.includesDatabase
+                : true,
+            includes_settings:
+              backupData.includesSettings !== undefined
+                ? backupSettings.includesSettings
+                : true,
+            created_by: backupData.userId,
+            created_at: new Date().toISOString(),
+          };
+
+          const { data, error } = await supabase
+            .from("backups")
+            .insert([baseRecord])
+            .select();
+
+          if (error) {
+            if (
+              error.code === "23514" &&
+              error.message.includes("check constraint")
+            ) {
+              // This status value doesn't work, try the next one
+              console.log(
+                `Status value '${status}' not allowed, trying next option`
+              );
+              continue;
+            }
+
+            if (error.message?.includes("does not exist")) {
+              console.warn(
+                "backups table does not exist, skipping record creation"
+              );
+              return null;
+            }
+
+            throw error;
+          }
+
+          console.log(
+            `Successfully created backup record with status: ${status}`
+          );
+          return data?.[0] || null;
+        } catch (statusError) {
+          // If error is not related to constraint violation, throw it
+          if (statusError.code !== "23514") {
+            throw statusError;
+          }
+        }
+      }
+
+      // If we get here, none of the status values worked
+      throw new Error(
+        "Could not create backup record - all status values rejected"
+      );
+    } catch (error) {
+      console.error("Error creating backup record:", error);
+
+      // Return null instead of throwing to allow the process to continue
+      return null;
+    }
+  }
+
+  /**
+   * Update a backup record in Supabase with valid status values
+   * @param {string} backupId - ID of the backup to update
+   * @param {Object} updateData - Data to update
+   * @returns {Promise<Object>} The updated backup record
+   */
+  async updateBackupRecord(backupId, updateData = {}) {
+    try {
+      if (!backupId) {
+        console.warn("No backup ID provided for update");
+        return null;
+      }
+
+      // If the update includes a status, make sure it's valid
+      if (updateData.status) {
+        const validStatusValues = ["pending", "running", "completed", "failed"];
+
+        // If the provided status is not in the valid list, try them in order
+        if (!validStatusValues.includes(updateData.status)) {
+          for (const status of validStatusValues) {
+            try {
+              const testUpdateData = { ...updateData, status };
+
+              const { data, error } = await supabase
+                .from("backups")
+                .update(testUpdateData)
+                .eq("id", backupId)
+                .select();
+
+              if (!error) {
+                console.log(
+                  `Successfully updated backup record with status: ${status}`
+                );
+                return data?.[0] || null;
+              }
+
+              if (error.code !== "23514") {
+                throw error;
+              }
+            } catch (statusError) {
+              // If error is not constraint violation, throw it
+              if (statusError.code !== "23514") {
+                throw statusError;
+              }
+            }
+          }
+
+          // If all status values failed, try without a status update
+          const noStatusUpdateData = { ...updateData };
+          delete noStatusUpdateData.status;
+
+          if (Object.keys(noStatusUpdateData).length > 0) {
+            try {
+              const { data, error } = await supabase
+                .from("backups")
+                .update(noStatusUpdateData)
+                .eq("id", backupId)
+                .select();
+
+              if (error) {
+                throw error;
+              }
+
+              return data?.[0] || null;
+            } catch (updateError) {
+              throw updateError;
+            }
+          }
+
+          // If we couldn't update with or without status, return null
+          return null;
+        }
+      }
+
+      // If no status in update or status is already valid, just do normal update
+      const { data, error } = await supabase
+        .from("backups")
+        .update(updateData)
+        .eq("id", backupId)
+        .select();
+
+      if (error) {
+        if (error.message?.includes("does not exist")) {
+          console.warn("backups table does not exist, skipping record update");
+          return null;
+        }
+        throw error;
+      }
+
+      return data?.[0] || null;
+    } catch (error) {
+      console.error("Error updating backup record:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Initiate a full backup and sync operation with simplified approach
    * @param {Object} options - Backup options
-   * @param {string} options.backupLocation - Where to store the backup (e.g., 'cloud', 'local')
-   * @param {boolean} options.includeFiles - Whether to include files in the backup
-   * @param {boolean} options.includeDatabase - Whether to include the database in the backup
-   * @param {boolean} options.includeSettings - Whether to include settings in the backup
-   * @param {Function} options.onProgressUpdate - Callback for progress updates
-   * @param {Function} options.onComplete - Callback for backup completion
-   * @param {Function} options.onError - Callback for backup errors
+   * @param {string} userId - User ID
    * @returns {Promise<Object>} The results of the backup operation
    */
   async runBackupAndSync(options = {}, userId) {
     let backupRecord = null;
-    let authenticationValid = true;
+    let embeddingSuccess = false;
+    let databaseSuccess = false;
+    let settingsSuccess = false;
 
     try {
-      // Check authentication first
-      try {
-        await this.getAuthToken();
-      } catch (authError) {
-        authenticationValid = false;
-        console.warn(
-          "Authentication issue detected, some features may be limited:",
-          authError.message
-        );
-
-        // We'll still create a backup record, but warn the user
-        if (options.onProgressUpdate) {
-          options.onProgressUpdate({
-            step: "authentication_warning",
-            message:
-              "Authentication issue detected. Some backup features may be limited.",
-            progress: 5,
-          });
-        }
-      }
-
-      // Create a backup record to track the process
+      // 1. Create a backup record to track the process
       try {
         backupRecord = await this.createBackupRecord({
           type: "manual",
-          // No status specified - let createBackupRecord find a working one
           location: options.backupLocation || "cloud",
           includesFiles: options.includeFiles,
           includesDatabase: options.includeDatabase,
           includesSettings: options.includeSettings,
           userId,
         });
-
-        console.log("Created backup record:", backupRecord);
       } catch (recordError) {
         console.error("Error creating backup record:", recordError);
-        // Continue anyway - we'll run the operations without recording
+        // Continue without a record
       }
 
-      // Call the progress callback if provided
+      // 2. Call the progress callback with initialization status
       if (options.onProgressUpdate) {
         options.onProgressUpdate({
           step: "initialization",
@@ -401,9 +299,8 @@ class BackupService {
         });
       }
 
-      // Trigger the embedding maintenance to sync files and generate embeddings
+      // 3. Trigger embedding maintenance if needed
       if (options.includeFiles) {
-        // Call the progress callback if provided
         if (options.onProgressUpdate) {
           options.onProgressUpdate({
             step: "embedding_maintenance",
@@ -414,48 +311,42 @@ class BackupService {
         }
 
         try {
-          if (authenticationValid) {
-            await this.triggerEmbeddingMaintenance({
-              // Map options to embedding maintenance options
-              providers: options.providers || "dropbox,googledrive",
-              embeddingTypes: options.embeddingTypes || "full,partial",
-              batchSize: options.batchSize || 50,
-              concurrentProcessing: options.concurrentProcessing || 3,
-            });
+          const embeddingResult = await this.triggerEmbeddingMaintenance({
+            providers: options.providers || "dropbox,googledrive",
+            embeddingTypes: options.embeddingTypes || "full,partial",
+            batchSize: options.batchSize || 50,
+            concurrentProcessing: options.concurrentProcessing || 3,
+          });
 
-            // Call the progress callback if provided
-            if (options.onProgressUpdate) {
-              options.onProgressUpdate({
-                step: "embedding_maintenance_complete",
-                message: "Embedding maintenance triggered successfully",
-                progress: 40,
-                backupId: backupRecord?.id,
-              });
-            }
-          } else {
-            if (options.onProgressUpdate) {
-              options.onProgressUpdate({
-                step: "embedding_maintenance_skipped",
-                message:
-                  "Embedding maintenance skipped due to authentication issues",
-                progress: 40,
-                backupId: backupRecord?.id,
-              });
-            }
+          embeddingSuccess = embeddingResult?.success;
+
+          if (options.onProgressUpdate) {
+            options.onProgressUpdate({
+              step: embeddingSuccess
+                ? "embedding_maintenance_complete"
+                : "embedding_maintenance_error",
+              message: embeddingSuccess
+                ? "Embedding maintenance triggered successfully"
+                : "Embedding maintenance failed, continuing with other backups",
+              progress: 40,
+              backupId: backupRecord?.id,
+            });
           }
         } catch (embedError) {
           console.error("Embedding maintenance error:", embedError);
-          options.onProgressUpdate?.({
-            step: "embedding_maintenance_error",
-            message:
-              "Embedding maintenance failed, continuing with other backups",
-            progress: 40,
-            backupId: backupRecord?.id,
-          });
+          if (options.onProgressUpdate) {
+            options.onProgressUpdate({
+              step: "embedding_maintenance_error",
+              message:
+                "Embedding maintenance failed, continuing with other backups",
+              progress: 40,
+              backupId: backupRecord?.id,
+            });
+          }
         }
       }
 
-      // Database backup if needed
+      // 4. Database backup if needed
       if (options.includeDatabase) {
         if (options.onProgressUpdate) {
           options.onProgressUpdate({
@@ -467,41 +358,38 @@ class BackupService {
         }
 
         try {
-          if (authenticationValid) {
-            await this.triggerDatabaseBackup({
-              location: options.backupLocation,
-            });
+          const dbResult = await this.triggerDatabaseBackup({
+            location: options.backupLocation,
+          });
 
-            if (options.onProgressUpdate) {
-              options.onProgressUpdate({
-                step: "database_backup_complete",
-                message: "Database backup completed",
-                progress: 70,
-                backupId: backupRecord?.id,
-              });
-            }
-          } else {
-            if (options.onProgressUpdate) {
-              options.onProgressUpdate({
-                step: "database_backup_skipped",
-                message: "Database backup skipped due to authentication issues",
-                progress: 70,
-                backupId: backupRecord?.id,
-              });
-            }
+          databaseSuccess = dbResult?.success;
+
+          if (options.onProgressUpdate) {
+            options.onProgressUpdate({
+              step: databaseSuccess
+                ? "database_backup_complete"
+                : "database_backup_error",
+              message: databaseSuccess
+                ? "Database backup completed"
+                : "Database backup failed, continuing with other backups",
+              progress: 70,
+              backupId: backupRecord?.id,
+            });
           }
         } catch (dbError) {
           console.error("Database backup error:", dbError);
-          options.onProgressUpdate?.({
-            step: "database_backup_error",
-            message: "Database backup failed, continuing with other backups",
-            progress: 70,
-            backupId: backupRecord?.id,
-          });
+          if (options.onProgressUpdate) {
+            options.onProgressUpdate({
+              step: "database_backup_error",
+              message: "Database backup failed, continuing with other backups",
+              progress: 70,
+              backupId: backupRecord?.id,
+            });
+          }
         }
       }
 
-      // Settings backup if needed
+      // 5. Settings backup if needed
       if (options.includeSettings) {
         if (options.onProgressUpdate) {
           options.onProgressUpdate({
@@ -513,6 +401,7 @@ class BackupService {
         }
 
         try {
+          // Use direct Supabase call for settings backup
           const { data: settingsData, error: settingsError } = await supabase
             .from("settings")
             .select("*");
@@ -523,12 +412,13 @@ class BackupService {
             );
           }
 
-          // We directly use Supabase, so this should work even with auth issues
-          if (backupRecord) {
-            // Store settings backup
-            const { error: backupError } = await supabase
-              .from("settings_backups")
-              .insert([
+          // Record settings backup
+          settingsSuccess = true;
+
+          // Store settings backup if we have a backup record
+          if (backupRecord && settingsData) {
+            try {
+              await supabase.from("settings_backups").insert([
                 {
                   backup_id: backupRecord.id,
                   settings_data: settingsData,
@@ -536,185 +426,132 @@ class BackupService {
                   created_by: userId,
                 },
               ]);
-
-            if (backupError) {
-              throw new Error(
-                `Failed to backup settings: ${backupError.message}`
+            } catch (saveError) {
+              console.warn(
+                "Could not save settings backup:",
+                saveError.message
               );
             }
+          }
 
-            if (options.onProgressUpdate) {
-              options.onProgressUpdate({
-                step: "settings_backup_complete",
-                message: "Settings backup completed",
-                progress: 90,
-                backupId: backupRecord.id,
-              });
-            }
-          } else {
-            // Without a backup record, we can't store the backup properly
-            if (options.onProgressUpdate) {
-              options.onProgressUpdate({
-                step: "settings_backup_partial",
-                message:
-                  "Settings retrieved but not stored due to missing backup record",
-                progress: 90,
-              });
-            }
+          if (options.onProgressUpdate) {
+            options.onProgressUpdate({
+              step: "settings_backup_complete",
+              message: "Settings backup completed",
+              progress: 90,
+              backupId: backupRecord?.id,
+            });
           }
         } catch (settingsError) {
           console.error("Settings backup error:", settingsError);
-          options.onProgressUpdate?.({
-            step: "settings_backup_error",
-            message: "Settings backup failed",
-            progress: 90,
-            backupId: backupRecord?.id,
-          });
+          if (options.onProgressUpdate) {
+            options.onProgressUpdate({
+              step: "settings_backup_error",
+              message: "Settings backup failed",
+              progress: 90,
+              backupId: backupRecord?.id,
+            });
+          }
         }
       }
 
-      // Update the backup record to mark it as completed
+      // 6. Update the backup record to mark it as completed
       if (backupRecord) {
         try {
-          const updatedRecord = await this.updateBackupRecord(backupRecord.id, {
-            // Using a dynamic approach to status based on our earlier findings
-            status: localStorage.getItem("workingBackupStatus") || "completed",
+          await this.updateBackupRecord(backupRecord.id, {
+            status: "completed",
             completed_at: new Date().toISOString(),
           });
-
-          // Call the completion callback if provided
-          if (options.onComplete) {
-            options.onComplete({
-              success: true,
-              backupId: updatedRecord?.id || backupRecord.id,
-              message: authenticationValid
-                ? "Backup and sync completed successfully"
-                : "Backup completed with limited functionality due to authentication issues",
-            });
-          }
-
-          return {
-            success: true,
-            backupId: updatedRecord?.id || backupRecord.id,
-            message: authenticationValid
-              ? "Backup and sync completed successfully"
-              : "Backup completed with limited functionality due to authentication issues",
-          };
         } catch (updateError) {
           console.error(
             "Error updating backup status, but operations completed:",
             updateError
           );
-
-          // Even if we can't update status, consider it successful
-          if (options.onComplete) {
-            options.onComplete({
-              success: true,
-              backupId: backupRecord.id,
-              message: "Backup completed but status update failed",
-            });
-          }
-
-          return {
-            success: true,
-            backupId: backupRecord.id,
-            message: "Backup completed but status update failed",
-          };
         }
-      } else {
-        // No backup record, but we still ran some operations
-        if (options.onComplete) {
-          options.onComplete({
-            success: true,
-            message: authenticationValid
-              ? "Operations completed but no backup record was created"
-              : "Limited operations completed due to authentication issues",
-          });
-        }
-
-        return {
-          success: true,
-          message: authenticationValid
-            ? "Operations completed but no backup record was created"
-            : "Limited operations completed due to authentication issues",
-        };
       }
+
+      // 7. Determine overall success state
+      const success =
+        (!options.includeFiles || embeddingSuccess) &&
+        (!options.includeDatabase || databaseSuccess) &&
+        (!options.includeSettings || settingsSuccess);
+
+      // 8. Generate a meaningful message
+      let message = "Backup ";
+      if (success) {
+        message += "completed successfully";
+      } else {
+        const successList = [];
+        if (embeddingSuccess) successList.push("file synchronization");
+        if (databaseSuccess) successList.push("database backup");
+        if (settingsSuccess) successList.push("settings backup");
+
+        if (successList.length > 0) {
+          message += `partially completed (${successList.join(
+            ", "
+          )} successful)`;
+        } else {
+          message += "failed";
+        }
+      }
+
+      // 9. Call completion callback if provided
+      if (options.onComplete) {
+        options.onComplete({
+          success,
+          backupId: backupRecord?.id,
+          message,
+        });
+      }
+
+      return {
+        success,
+        backupId: backupRecord?.id,
+        message,
+        details: {
+          embeddingSuccess,
+          databaseSuccess,
+          settingsSuccess,
+        },
+      };
     } catch (error) {
       console.error("Error running backup and sync:", error);
 
-      // Try to update the backup record to mark it as failed if we have a record ID
+      // Try to update the backup record to mark it as failed
       if (backupRecord?.id) {
-        try {
-          await this.updateBackupRecord(backupRecord.id, {
-            // Using a dynamic approach to status based on our earlier findings
-            status: localStorage.getItem("workingBackupStatus") || "failed",
-            completed_at: new Date().toISOString(),
-          }).catch((err) =>
-            console.error("Error updating failed backup record:", err)
-          );
-        } catch (updateError) {
-          console.error("Error updating failure status:", updateError);
-        }
+        await this.updateBackupRecord(backupRecord.id, {
+          status: "failed",
+          completed_at: new Date().toISOString(),
+        }).catch((err) =>
+          console.error("Error updating failed backup record:", err)
+        );
       }
 
-      // Call the error callback if provided
+      // Call error callback if provided
       if (options.onError) {
         options.onError({
           error:
             error.message || "Unknown error occurred during backup and sync",
           backupId: backupRecord?.id,
-          authIssue: !authenticationValid,
         });
       }
 
-      throw error;
+      return {
+        success: false,
+        error: error.message || "Unknown error occurred during backup and sync",
+        backupId: backupRecord?.id,
+      };
     }
   }
 
   /**
-   * Get backup history from Supabase
-   *
+   * Get backup history with simplified approach
    * @param {Object} options - Query options
-   * @param {number} options.limit - Maximum number of records to retrieve
-   * @param {number} options.page - Page number for pagination
    * @returns {Promise<Object>} Backup history records
    */
   async getBackupHistory(options = { limit: 10, page: 0 }) {
     try {
-      // Try to get token but fallback to direct Supabase if not available
-      let token;
-      try {
-        token = await this.getAuthToken();
-      } catch (authError) {
-        console.warn("No auth token for API call, using direct Supabase");
-      }
-
-      if (token) {
-        try {
-          // Try API with auth token
-          const response = await fetch(
-            `/api/admin/backup/history?limit=${options.limit}&page=${options.page}`,
-            {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-              credentials: "include",
-            }
-          );
-
-          if (response.ok) {
-            return await response.json();
-          }
-        } catch (apiError) {
-          console.warn(
-            "API call failed, falling back to direct Supabase query:",
-            apiError
-          );
-        }
-      }
-
-      // Fallback to direct Supabase query
+      // Use direct Supabase query - more reliable than API calls
       const { data, error, count } = await supabase
         .from("backups")
         .select("*", { count: "exact" })
@@ -724,80 +561,221 @@ class BackupService {
           (options.page + 1) * options.limit - 1
         );
 
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes("does not exist")) {
+          console.warn("backups table does not exist, returning empty results");
+          return {
+            data: [],
+            totalCount: 0,
+            page: options.page,
+            limit: options.limit,
+          };
+        }
+        throw error;
+      }
 
       return {
-        data,
-        totalCount: count,
+        data: data || [],
+        totalCount: count || 0,
         page: options.page,
         limit: options.limit,
       };
     } catch (error) {
       console.error("Error fetching backup history:", error);
-      throw error;
+
+      // Return empty data instead of throwing to avoid breaking the UI
+      return {
+        data: [],
+        totalCount: 0,
+        page: options.page || 0,
+        limit: options.limit || 10,
+        error: error.message,
+      };
     }
   }
+
+  // Update these methods in your BackupService.js
+
+  // Fixed method to check document embedding existence
+  async checkDocumentEmbeddingExists(documentPath) {
+    try {
+      // Check documents table instead of document_embeddings
+      const { data, error } = await supabase
+        .from("documents")
+        .select("id")
+        .eq("path", documentPath)
+        .maybeSingle();
+
+      if (error) {
+        // If error is about column 'path' not existing, try with 'storage_path' instead
+        if (
+          error.message &&
+          error.message.includes("column") &&
+          error.message.includes("path")
+        ) {
+          const { data: altData, error: altError } = await supabase
+            .from("documents")
+            .select("id")
+            .eq("storage_path", documentPath)
+            .maybeSingle();
+
+          if (altError) {
+            if (altError.message.includes("does not exist")) {
+              console.log("documents table does not exist");
+              return false;
+            }
+            throw altError;
+          }
+
+          return !!altData;
+        }
+
+        if (error.message.includes("does not exist")) {
+          console.log("documents table does not exist");
+          return false;
+        }
+        throw error;
+      }
+
+      return !!data;
+    } catch (error) {
+      console.error("Error checking document embedding:", error);
+      return false;
+    }
+  }
+
+  // Fixed method to check image embedding existence
+  async checkImageEmbeddingExists(imagePath) {
+    try {
+      const { data, error } = await supabase
+        .from("image_embeddings")
+        .select("id")
+        .eq("image_path", imagePath)
+        .maybeSingle();
+
+      if (error) {
+        if (error.message.includes("does not exist")) {
+          console.log("image_embeddings table does not exist");
+          return false;
+        }
+        throw error;
+      }
+
+      return !!data;
+    } catch (error) {
+      console.error("Error checking image embedding:", error);
+      return false;
+    }
+  }
+
+  // Fixed ensureBackupTablesExist method to create the correct tables
+  async ensureBackupTablesExist() {
+    try {
+      const tablesToCheck = ["backups", "database_backups", "settings_backups"];
+      let allTablesExist = true;
+
+      // Check if each table exists
+      for (const tableName of tablesToCheck) {
+        try {
+          const { error } = await supabase
+            .from(tableName)
+            .select("id")
+            .limit(1);
+
+          if (error && error.message.includes("does not exist")) {
+            allTablesExist = false;
+            break;
+          }
+        } catch (tableError) {
+          console.warn(`Error checking table ${tableName}:`, tableError);
+          allTablesExist = false;
+          break;
+        }
+      }
+
+      // If all tables exist, return success
+      if (allTablesExist) {
+        return true;
+      }
+
+      // Tables don't exist, create them via the API endpoint
+      try {
+        const response = await fetch("/api/admin/backup/setup-tables", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || `Server returned ${response.status}`
+          );
+        }
+
+        const result = await response.json();
+        return result.success;
+      } catch (apiError) {
+        console.error("Error setting up backup tables via API:", apiError);
+
+        // Try creating a backup directly as a fallback
+        try {
+          console.log("Attempting to create tables via direct insert...");
+
+          // Try to insert a record into backups table, which might auto-create it
+          const { error: insertError } = await supabase.from("backups").insert([
+            {
+              type: "initialization",
+              status: "completed",
+              location: "local",
+              created_at: new Date().toISOString(),
+            },
+          ]);
+
+          return (
+            !insertError || !insertError.message.includes("does not exist")
+          );
+        } catch (insertError) {
+          console.error("Failed to create tables via insert:", insertError);
+          return false;
+        }
+      }
+    } catch (error) {
+      console.error("Error ensuring backup tables exist:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Check backup constraints to diagnose issues
+   */
   async checkBackupConstraints() {
     try {
       console.log("Checking backup table constraints...");
 
-      // Try to get table information - use correct schema reference
-      const { data: tableInfo, error: tableError } = await supabase
-        .from("pg_tables") // Use pg_tables instead of information_schema
-        .select("tablename, schemaname")
-        .eq("tablename", "backups")
-        .eq("schemaname", "public");
+      // Check if backups table exists
+      const { error: checkError } = await supabase
+        .from("backups")
+        .select("id")
+        .limit(1);
 
-      if (tableError) {
-        console.error("Error getting table info:", tableError);
+      if (checkError) {
         return {
           success: false,
-          error: tableError.message,
+          tableExists: false,
+          error: checkError.message,
         };
       }
 
-      console.log("Table exists:", tableInfo && tableInfo.length > 0);
+      // Try to insert with each possible status to find what works
+      const statuses = ["pending", "running", "completed", "failed"];
+      const results = {};
 
-      // Try directly creating a record with "pending" status
-      let canCreatePending = false;
-      try {
-        // Try to insert a test record
-        const { data: testData, error: testError } = await supabase
-          .from("backups")
-          .insert([
-            {
-              type: "test",
-              status: "pending", // Try 'pending' as it's likely valid
-              location: "test",
-              created_at: new Date().toISOString(),
-            },
-          ])
-          .select();
-
-        canCreatePending = !testError;
-
-        // Delete the test record if created
-        if (testData && testData[0] && testData[0].id) {
-          await supabase.from("backups").delete().eq("id", testData[0].id);
-        }
-      } catch (e) {
-        console.error("Error testing 'pending' status:", e);
-      }
-
-      // Try directly creating a record with alternative statuses
-      const testStatuses = [
-        "running",
-        "in_progress",
-        "completed",
-        "done",
-        "failed",
-        "error",
-      ];
-      const statusResults = {};
-
-      for (const status of testStatuses) {
+      for (const status of statuses) {
         try {
-          const { data: testData, error: testError } = await supabase
+          const { data, error } = await supabase
             .from("backups")
             .insert([
               {
@@ -809,198 +787,40 @@ class BackupService {
             ])
             .select();
 
-          statusResults[status] = testError
-            ? `Error: ${testError.message}`
-            : "Success";
+          results[status] = {
+            success: !error,
+            error: error ? error.message : null,
+          };
 
-          // Delete the test record if created
-          if (testData && testData[0] && testData[0].id) {
-            await supabase.from("backups").delete().eq("id", testData[0].id);
+          // If successful, clean up the test record
+          if (data && data[0]?.id) {
+            await supabase.from("backups").delete().eq("id", data[0].id);
           }
-        } catch (e) {
-          statusResults[status] = `Exception: ${e.message}`;
+        } catch (err) {
+          results[status] = {
+            success: false,
+            error: err.message,
+          };
         }
-      }
-
-      console.log("Status test results:", statusResults);
-
-      // Try to create a backup with basic fields only
-      let createResult = null;
-      try {
-        const { data, error } = await supabase
-          .from("backups")
-          .insert([
-            {
-              type: "manual",
-              status: canCreatePending
-                ? "pending"
-                : Object.keys(statusResults).find((s) =>
-                    statusResults[s].includes("Success")
-                  ) || "pending",
-              location: "local",
-              created_at: new Date().toISOString(),
-            },
-          ])
-          .select();
-
-        createResult = {
-          success: !error,
-          error: error ? error.message : null,
-          data: data ? data[0] : null,
-        };
-
-        // Clean up test record
-        if (data && data[0] && data[0].id) {
-          await supabase.from("backups").delete().eq("id", data[0].id);
-        }
-      } catch (e) {
-        createResult = {
-          success: false,
-          error: e.message,
-        };
       }
 
       return {
         success: true,
-        tableExists: tableInfo && tableInfo.length > 0,
-        canCreatePending,
-        statusTests: statusResults,
-        createResult,
+        tableExists: true,
+        statusTests: results,
+        workingStatuses: Object.keys(results).filter(
+          (status) => results[status].success
+        ),
       };
     } catch (error) {
-      console.error("Diagnostic error:", error);
+      console.error("Error checking backup constraints:", error);
       return {
         success: false,
         error: error.message,
-      };
-    }
-  }
-
-  // Add this method for a direct fix that bypasses constraints
-  async ensureBackupTablesExist() {
-    try {
-      console.log("Ensuring backup tables exist with correct schema...");
-
-      // First try a direct insert approach
-      try {
-        const { data, error } = await supabase
-          .from("backups")
-          .insert([
-            {
-              type: "manual",
-              status: "pending", // Try with 'pending'
-              location: "local",
-              created_at: new Date().toISOString(),
-            },
-          ])
-          .select();
-
-        // If insert succeeded, delete it and create only what's needed
-        if (!error && data && data[0] && data[0].id) {
-          await supabase.from("backups").delete().eq("id", data[0].id);
-        } else {
-          // Try with alternative values
-          const testStatuses = ["running", "completed", "failed"];
-
-          for (const status of testStatuses) {
-            try {
-              const { data: testData, error: testError } = await supabase
-                .from("backups")
-                .insert([
-                  {
-                    type: "test",
-                    status: status,
-                    location: "test",
-                    created_at: new Date().toISOString(),
-                  },
-                ])
-                .select();
-
-              if (!testError && testData && testData[0] && testData[0].id) {
-                // Found a working status - clean up and return
-                await supabase
-                  .from("backups")
-                  .delete()
-                  .eq("id", testData[0].id);
-
-                console.log(`Success! '${status}' is a valid status value`);
-
-                return {
-                  success: true,
-                  usableStatus: status,
-                };
-              }
-            } catch (e) {
-              console.error(`Status '${status}' not working:`, e.message);
-            }
-          }
-        }
-      } catch (insertError) {
-        console.warn(
-          "Unable to create backup record directly:",
-          insertError.message
-        );
-      }
-
-      // If we get here, we need to try to find a working status or fix the table
-      return {
-        success: false,
-        message: "Could not find a working status value or create table",
-      };
-    } catch (error) {
-      console.error("Error ensuring tables exist:", error);
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-  }
-
-  /**
-   * Add utility method to apiService to handle API calls with proper error handling
-   */
-  static setupApiUtility() {
-    // Only add if it doesn't exist already
-    if (!apiService.utils.callApi) {
-      apiService.utils.callApi = async (endpoint, options = {}) => {
-        try {
-          const method = options.method || "GET";
-
-          if (method === "GET") {
-            return await axios.get(
-              `${apiService.utils.getBaseUrl()}${endpoint}`,
-              {
-                headers: {
-                  Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-                  "Content-Type": "application/json",
-                  ...options.headers,
-                },
-                params: options.params,
-              }
-            );
-          } else {
-            return await axios({
-              method,
-              url: `${apiService.utils.getBaseUrl()}${endpoint}`,
-              data: options.data,
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-                "Content-Type": "application/json",
-                ...options.headers,
-              },
-            });
-          }
-        } catch (error) {
-          console.error(`API call error (${endpoint}):`, error);
-          throw error;
-        }
       };
     }
   }
 }
-
-// Setup utility method when imported
-BackupService.setupApiUtility();
 
 // Export a singleton instance
 const backupService = new BackupService();

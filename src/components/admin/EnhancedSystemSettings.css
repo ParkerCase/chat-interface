@@ -835,6 +835,131 @@ label {
   margin: 0 auto 20px;
 }
 
+.backup-init-component {
+  margin-bottom: 24px;
+  padding: 16px;
+  border-radius: 6px;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.backup-status {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border-radius: 4px;
+}
+
+.backup-status.checking,
+.backup-status.setting-up {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.backup-status.ready {
+  background-color: rgba(34, 197, 94, 0.1);
+}
+
+.backup-status.not-ready {
+  background-color: rgba(234, 179, 8, 0.1);
+}
+
+.backup-status.error {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.backup-status .icon {
+  margin-right: 12px;
+}
+
+.backup-status .success {
+  color: rgb(34, 197, 94);
+}
+
+.backup-status .warning {
+  color: rgb(234, 179, 8);
+}
+
+.backup-status .error {
+  color: rgb(239, 68, 68);
+}
+
+.backup-status .spinning {
+  animation: spin 1.5s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.setup-button,
+.retry-button,
+.alternative-button {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s, opacity 0.2s;
+}
+
+.setup-button {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+}
+
+.retry-button {
+  background-color: #e5e7eb;
+  color: #374151;
+  border: none;
+}
+
+.alternative-button {
+  background-color: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #d1d5db;
+}
+
+.setup-button:hover,
+.retry-button:hover,
+.alternative-button:hover {
+  opacity: 0.9;
+}
+
+.setup-button:disabled,
+.retry-button:disabled,
+.alternative-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.check-results {
+  margin-top: 16px;
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.03);
+  border-radius: 4px;
+  font-size: 12px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.check-results pre {
+  font-family: monospace;
+  white-space: pre-wrap;
+  font-size: 11px;
+}
+
 .toggle-upload-button:hover {
   background-color: #e5e7eb;
 }

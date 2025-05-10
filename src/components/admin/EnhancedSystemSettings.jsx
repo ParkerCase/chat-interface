@@ -33,6 +33,7 @@ import documentProcessor from "../../utils/DocumentProcessor";
 import backupService from "../../services/BackupService"; // Import the backup service
 
 import FileUploadDropzone from "../storage/FileUploadDropzone";
+import BackupInitComponent from "./BackupInitComponent";
 
 import Header from "../Header";
 import "./EnhancedSystemSettings.css";
@@ -60,6 +61,7 @@ const EnhancedSystemSettings = () => {
   const [showBackupHistory, setShowBackupHistory] = useState(false);
   const [isRunningDiagnostics, setIsRunningDiagnostics] = useState(false);
   const [diagnosticResults, setDiagnosticResults] = useState(null);
+  const [backupSystemReady, setBackupSystemReady] = useState(false);
 
   // Settings state
   const [generalSettings, setGeneralSettings] = useState({
@@ -435,6 +437,12 @@ const EnhancedSystemSettings = () => {
   };
 
   const handleBackup = async () => {
+    // Skip if backup system isn't ready
+    if (!backupSystemReady) {
+      setError("Backup system is not ready. Please set up the system first.");
+      return;
+    }
+
     setIsBackingUp(true);
     setBackupStatus("Initiating backup...");
 
@@ -470,11 +478,25 @@ const EnhancedSystemSettings = () => {
       };
 
       // Start the backup and sync process
-      await backupService.runBackupAndSync(backupOptions, currentUser?.id);
+      const results = await backupService.runBackupAndSync(
+        backupOptions,
+        currentUser?.id
+      );
 
       // The callbacks will handle UI updates, but we have this as a fallback
       if (isBackingUp) {
-        setBackupStatus("Backup process is running in the background.");
+        if (results.success) {
+          setBackupStatus("Backup process completed successfully");
+          setSuccess(
+            results.message || "Backup and sync completed successfully"
+          );
+        } else {
+          setBackupStatus(
+            `Backup encountered issues: ${results.error || "unknown error"}`
+          );
+          setError(`Backup process error: ${results.error || "unknown error"}`);
+        }
+        setIsBackingUp(false);
       }
     } catch (error) {
       console.error("Backup error:", error);
@@ -1948,6 +1970,14 @@ const EnhancedSystemSettings = () => {
                         </button>
                       </div>
 
+                      {activeSection === "backup" && (
+                        <div className="backup-system-status">
+                          <BackupInitComponent
+                            onReady={(ready) => setBackupSystemReady(ready)}
+                          />
+                        </div>
+                      )}
+
                       {showBackupHistory && (
                         <div className="backup-history-section">
                           <h4>Recent Backups</h4>
@@ -2011,9 +2041,9 @@ const EnhancedSystemSettings = () => {
                           type="button"
                           className="run-backup-button"
                           onClick={runBackup}
-                          disabled={saving}
+                          disabled={!backupSystemReady || saving || isBackingUp}
                         >
-                          {saving ? (
+                          {isBackingUp ? (
                             <>
                               <Loader size={14} className="spinner" />
                               Running Backup...
