@@ -17,9 +17,8 @@ class BackupService {
     try {
       console.log("Triggering embedding maintenance");
 
-      // Use the exact URL that worked in console
-      const url =
-        "http://147.182.247.128:4000/api/admin/backup/run-embedding-maintenance";
+      // Use the base URL from getApiUrl
+      const url = `${this.getApiUrl()}/api/admin/backup/run-embedding-maintenance`;
 
       console.log("Calling:", url);
 
@@ -27,6 +26,7 @@ class BackupService {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
         },
         credentials: "include",
         body: JSON.stringify({
@@ -37,15 +37,35 @@ class BackupService {
         }),
       });
 
-      if (!response.ok) {
-        console.warn(`Embedding maintenance API error (${response.status})`);
-        return { success: false, status: response.status };
+      // Handle the response more gracefully
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch (jsonError) {
+        console.warn("Response is not JSON:", jsonError);
+        responseData = { success: response.ok, status: response.status };
       }
 
-      return await response.json();
+      if (!response.ok) {
+        console.warn(
+          `Embedding maintenance API error (${response.status}):`,
+          responseData
+        );
+        return {
+          success: false,
+          status: response.status,
+          error: responseData.error || `HTTP ${response.status}`,
+        };
+      }
+
+      return responseData;
     } catch (error) {
       console.error("Error triggering embedding maintenance:", error);
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        error: error.message,
+        isNetworkError: error.message.includes("Failed to fetch"),
+      };
     }
   }
 
@@ -53,8 +73,8 @@ class BackupService {
     try {
       console.log("Triggering database backup");
 
-      // Use the exact URL that worked in console
-      const url = "http://147.182.247.128:4000/api/admin/backup/database";
+      // Use the base URL from getApiUrl
+      const url = `${this.getApiUrl()}/api/admin/backup/database`;
 
       console.log("Calling:", url);
 
@@ -62,20 +82,43 @@ class BackupService {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          includeMetadata: true,
+        }),
       });
 
-      if (!response.ok) {
-        console.warn(`Database backup API error (${response.status})`);
-        return { success: false, status: response.status };
+      // Handle the response more gracefully
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch (jsonError) {
+        console.warn("Response is not JSON:", jsonError);
+        responseData = { success: response.ok, status: response.status };
       }
 
-      return await response.json();
+      if (!response.ok) {
+        console.warn(
+          `Database backup API error (${response.status}):`,
+          responseData
+        );
+        return {
+          success: false,
+          status: response.status,
+          error: responseData.error || `HTTP ${response.status}`,
+        };
+      }
+
+      return responseData;
     } catch (error) {
       console.error("Error triggering database backup:", error);
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        error: error.message,
+        isNetworkError: error.message.includes("Failed to fetch"),
+      };
     }
   }
 
@@ -260,10 +303,7 @@ class BackupService {
   }
 
   /**
-   * Initiate a full backup and sync operation with simplified approach
-   * @param {Object} options - Backup options
-   * @param {string} userId - User ID
-   * @returns {Promise<Object>} The results of the backup operation
+   * Run a combined backup and sync operation
    */
   async runBackupAndSync(options = {}, userId) {
     let backupRecord = null;
@@ -327,7 +367,9 @@ class BackupService {
                 : "embedding_maintenance_error",
               message: embeddingSuccess
                 ? "Embedding maintenance triggered successfully"
-                : "Embedding maintenance failed, continuing with other backups",
+                : `Embedding maintenance failed: ${
+                    embeddingResult.error || "unknown error"
+                  }`,
               progress: 40,
               backupId: backupRecord?.id,
             });
@@ -337,8 +379,7 @@ class BackupService {
           if (options.onProgressUpdate) {
             options.onProgressUpdate({
               step: "embedding_maintenance_error",
-              message:
-                "Embedding maintenance failed, continuing with other backups",
+              message: `Embedding maintenance failed: ${embedError.message}`,
               progress: 40,
               backupId: backupRecord?.id,
             });
@@ -371,7 +412,9 @@ class BackupService {
                 : "database_backup_error",
               message: databaseSuccess
                 ? "Database backup completed"
-                : "Database backup failed, continuing with other backups",
+                : `Database backup failed: ${
+                    dbResult.error || "unknown error"
+                  }`,
               progress: 70,
               backupId: backupRecord?.id,
             });
@@ -381,7 +424,7 @@ class BackupService {
           if (options.onProgressUpdate) {
             options.onProgressUpdate({
               step: "database_backup_error",
-              message: "Database backup failed, continuing with other backups",
+              message: `Database backup failed: ${dbError.message}`,
               progress: 70,
               backupId: backupRecord?.id,
             });
