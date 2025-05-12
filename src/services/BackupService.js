@@ -7,64 +7,64 @@ import apiService from "./apiService";
  * Service for handling backup and embedding maintenance operations
  */
 class BackupService {
-  /**
-   * Trigger embedding maintenance with simplified approach
-   * @param {Object} options - Configuration options
-   * @returns {Promise<Object>} Response from the server
-   */
+  // At the top of BackupService.js, add this helper function
+  getApiUrl = () => {
+    // Use environment variable if available, otherwise use a default
+    return process.env.REACT_APP_API_URL || "http://147.182.247.128:4000";
+  };
+
   async triggerEmbeddingMaintenance(options = {}) {
     try {
       console.log("Triggering embedding maintenance");
 
-      // Use a simplified fetch approach
-      try {
-        const response = await fetch(
-          "/api/admin/backup/run-embedding-maintenance",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Client-Info": "Tatt2Away AI Assistant",
-            },
-            credentials: "include",
-            body: JSON.stringify(options),
-          }
-        );
+      // Use the exact URL that worked in console
+      const url =
+        "http://147.182.247.128:4000/api/admin/backup/run-embedding-maintenance";
 
-        if (!response.ok) {
-          console.warn(`Embedding maintenance API error (${response.status})`);
-          return { success: false, status: response.status };
-        }
+      console.log("Calling:", url);
 
-        return await response.json();
-      } catch (fetchError) {
-        console.warn("Error during fetch:", fetchError);
-        return { success: false, error: fetchError.message };
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          providers: options.providers || "dropbox,googledrive",
+          embeddingTypes: options.embeddingTypes || "full,partial",
+          batchSize: options.batchSize || 50,
+          concurrentProcessing: options.concurrentProcessing || 3,
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn(`Embedding maintenance API error (${response.status})`);
+        return { success: false, status: response.status };
       }
+
+      return await response.json();
     } catch (error) {
       console.error("Error triggering embedding maintenance:", error);
       return { success: false, error: error.message };
     }
   }
 
-  /**
-   * Trigger a database backup via the API with simplified approach
-   * @param {Object} options - Backup options
-   * @returns {Promise<Object>} Response from the server
-   */
   async triggerDatabaseBackup(options = {}) {
     try {
       console.log("Triggering database backup");
 
-      // Use simplified fetch with minimal headers
-      const response = await fetch("/api/admin/backup/database", {
+      // Use the exact URL that worked in console
+      const url = "http://147.182.247.128:4000/api/admin/backup/database";
+
+      console.log("Calling:", url);
+
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Client-Info": "Tatt2Away AI Assistant",
         },
         credentials: "include",
-        body: JSON.stringify(options),
+        body: JSON.stringify({}),
       });
 
       if (!response.ok) {
@@ -106,7 +106,7 @@ class BackupService {
                 : true,
             includes_settings:
               backupData.includesSettings !== undefined
-                ? backupSettings.includesSettings
+                ? backupData.includesSettings // FIXED: Using backupData instead of backupSettings
                 : true,
             created_by: backupData.userId,
             created_at: new Date().toISOString(),
