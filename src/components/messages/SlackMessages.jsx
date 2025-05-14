@@ -170,13 +170,23 @@ const EnhancedSlackMessages = () => {
     }
   }, [currentUser]);
 
+  // Add a retry count ref to prevent infinite loops
+  const retryCountRef = useRef(0);
+  const maxRetries = 3;
+
   // Load messages when selected channel changes
   useEffect(() => {
     if (!selectedChannel) return;
 
+    let mounted = true;
     const loadMessages = async () => {
+      if (!mounted) return;
+
       setLoading(true);
       try {
+        // Reset retry count on new channel
+        retryCountRef.current = 0;
+
         // Try to get from cache first for immediate display
         const cacheKey = `slack:messages:${selectedChannel}`;
         const cachedMessages = await RedisCache.get(cacheKey);
@@ -210,11 +220,27 @@ const EnhancedSlackMessages = () => {
         } else {
           setNewMessage("");
         }
+
+        // Reset error on success
+        setError(null);
       } catch (err) {
-        setError("Failed to load messages");
-        console.error(err);
+        console.error("Error loading messages:", err);
+
+        // Prevent infinite retry loops
+        if (retryCountRef.current < maxRetries && err.code !== "PGRST200") {
+          retryCountRef.current++;
+          console.log(
+            `Retrying... attempt ${retryCountRef.current} of ${maxRetries}`
+          );
+          setTimeout(() => {
+            if (mounted) loadMessages();
+          }, 1000 * retryCountRef.current); // Exponential backoff
+        } else {
+          setError("Failed to load messages");
+          setMessages([]); // Set empty messages to prevent stuck state
+        }
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
@@ -318,7 +344,7 @@ const EnhancedSlackMessages = () => {
         });
       }
     };
-  }, [selectedChannel, currentUser]);
+  }, [selectedChannel, currentUser, unreadMessages, draftMessages]);
 
   // Effect for scrolling to bottom when messages change
   useEffect(() => {
@@ -2783,6 +2809,164 @@ const EnhancedSlackMessages = () => {
               </form>
             </>
           )}
+
+          {/* Attachment menu */}
+          {showAttachmentMenu && (
+            <div
+              className="attachment-menu"
+              style={{
+                position: "absolute",
+                bottom: "70px",
+                right: "60px",
+                backgroundColor: "white",
+                border: "1px solid var(--color-border)",
+                borderRadius: "8px",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                padding: "8px 0",
+                zIndex: 10,
+                width: "200px",
+              }}
+            >
+              <div
+                className="attachment-option"
+                onClick={() => {
+                  fileInputRef.current?.click();
+                  setShowAttachmentMenu(false);
+                }}
+                style={{
+                  padding: "10px 16px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  fontSize: "0.95rem",
+                  color: "var(--color-text-primary)",
+                  transition: "background-color 0.1s",
+                }}
+              >
+                <FileText size={18} />
+                <span>Upload Document</span>
+              </div>
+              <div
+                className="attachment-option"
+                onClick={() => {
+                  imageInputRef.current?.click();
+                  setShowAttachmentMenu(false);
+                }}
+                style={{
+                  padding: "10px 16px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  fontSize: "0.95rem",
+                  color: "var(--color-text-primary)",
+                  transition: "background-color 0.1s",
+                }}
+              >
+                <Image size={18} />
+                <span>Upload Image</span>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.txt,.csv"
+                onChange={handleFileUpload}
+                style={{ display: "none" }}
+              />
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                style={{ display: "none" }}
+              />
+            </div>
+          )}
+
+          {/* Emoji picker for input */}
+          {showEmojiPicker === "input" && (
+            <div
+              className="emoji-picker emoji-picker-input"
+              style={{
+                position: "absolute",
+                bottom: "70px",
+                right: "110px",
+                backgroundColor: "white",
+                border: "1px solid var(--color-border)",
+                borderRadius: "8px",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                zIndex: 10,
+                padding: "8px",
+              }}
+            >
+              <div
+                className="emoji-list"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(5, 1fr)",
+                  gap: "4px",
+                }}
+              >
+                {[
+                  "😀",
+                  "😂",
+                  "😊",
+                  "😎",
+                  "😍",
+                  "🤔",
+                  "👍",
+                  "👎",
+                  "❤️",
+                  "🎉",
+                  "🔥",
+                  "💯",
+                  "👀",
+                  "👏",
+                  "🙌",
+                ].map((emoji) => (
+                  <button
+                    key={emoji}
+                    className="emoji-item"
+                    onClick={() => handleEmojiSelect(emoji)}
+                    style={{
+                      border: "none",
+                      background: "none",
+                      padding: "6px",
+                      cursor: "pointer",
+                      fontSize: "1.2rem",
+                      borderRadius: "4px",
+                      transition: "background-color 0.2s",
+                    }}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="close-emoji-picker"
+                onClick={() => setShowEmojiPicker(false)}
+                style={{
+                  position: "absolute",
+                  top: "-8px",
+                  right: "-8px",
+                  backgroundColor: "var(--color-surface)",
+                  border: "1px solid var(--color-border)",
+                  width: "20px",
+                  height: "20px",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  padding: 0,
+                  fontSize: "12px",
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -3160,8 +3344,8 @@ const EnhancedSlackMessages = () => {
         </div>
       )}
 
-      {/* CSS Keyframes */}
-      <style jsx>{`
+      {/* CSS Styles */}
+      <style>{`
         @keyframes spin {
           0% {
             transform: rotate(0deg);

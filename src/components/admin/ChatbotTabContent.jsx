@@ -2831,7 +2831,10 @@ ${
                   cursor: "pointer",
                 }}
               >
-                <Settings size={18} />
+                <Settings
+                  size={18}
+                  style={{ backgroundColor: "#000", width: "18px" }}
+                />
               </button>
             </div>
           </div>

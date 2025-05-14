@@ -1179,7 +1179,9 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                       </thead>
                       <tbody>
                         {contacts.map((contact, index) => (
-                          <tr key={`contact-search-${contact.id || ''}-${index}`}>
+                          <tr
+                            key={`contact-search-${contact.id || ""}-${index}`}
+                          >
                             <td>{contact.name}</td>
                             <td>{contact.email || "—"}</td>
                             <td>{contact.phone || "—"}</td>
@@ -1238,7 +1240,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                       <tbody>
                         {recentContacts.map((contact, index) => (
                           <tr
-                            key={`contact-${contact.id || ''}-${index}`}
+                            key={`contact-${contact.id || ""}-${index}`}
                             onClick={() => handleContactSelect(contact)}
                           >
                             <td>{contact.name}</td>
@@ -1441,7 +1443,7 @@ const CRMDashboard = ({ onClose, onRefresh, centers = [] }) => {
                 <div className="apt-appointments-list">
                   {appointments.map((appointment, index) => (
                     <div
-                      key={`${appointment.id || ''}-${index}`}
+                      key={`${appointment.id || ""}-${index}`}
                       className="apt-appointment-card"
                     >
                       <div className="apt-appointment-header">
