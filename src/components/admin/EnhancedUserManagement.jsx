@@ -1160,201 +1160,347 @@ const EnhancedUserManagement = ({
               )}
             </div>
           ) : (
-            <table className="users-table">
-              <thead className="user-filters">
-                <tr className="user-filters-selector">
-                  <th className="checkbox-cell" style={{ width: "50px" }}>
-                    <label className="checkbox-container">
-                      <input
-                        type="checkbox"
-                        checked={isAllSelected}
-                        onChange={handleSelectAll}
-                      />
-                      <span className="checkbox-checkmark"></span>
-                    </label>
-                  </th>
-
-                  <th className="sortable" onClick={() => handleSort("name")}>
-                    <div className="th-content">
-                      <span>Name</span>
-                      {sortField === "name" && (
-                        <ArrowUpDown
-                          size={14}
-                          className={
-                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                          }
-                        />
-                      )}
-                    </div>
-                  </th>
-
-                  <th className="sortable" onClick={() => handleSort("email")}>
-                    <div className="th-content">
-                      <span>Email</span>
-                      {sortField === "email" && (
-                        <ArrowUpDown
-                          size={14}
-                          className={
-                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                          }
-                        />
-                      )}
-                    </div>
-                  </th>
-
-                  <th className="sortable" onClick={() => handleSort("role")}>
-                    <div className="th-content">
-                      <span>Role</span>
-                      {sortField === "role" && (
-                        <ArrowUpDown
-                          size={14}
-                          className={
-                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                          }
-                        />
-                      )}
-                    </div>
-                  </th>
-
-                  <th className="sortable" onClick={() => handleSort("status")}>
-                    <div className="th-content">
-                      <span>Status</span>
-                      {sortField === "status" && (
-                        <ArrowUpDown
-                          size={14}
-                          className={
-                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                          }
-                        />
-                      )}
-                    </div>
-                  </th>
-
-                  <th
-                    className="sortable"
-                    onClick={() => handleSort("lastActive")}
-                  >
-                    <div className="th-content">
-                      <span>Last Active</span>
-                      {sortField === "lastActive" && (
-                        <ArrowUpDown
-                          size={14}
-                          className={
-                            sortDirection === "asc" ? "sort-asc" : "sort-desc"
-                          }
-                        />
-                      )}
-                    </div>
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {filteredUsers.map((user) => (
-                  <tr
-                    key={user.id}
-                    className={
-                      selectedUsers.includes(user.id) ? "selected" : ""
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))",
+                gap: "20px",
+                padding: "20px",
+              }}
+            >
+              {filteredUsers.map((user) => (
+                <div
+                  key={user.id}
+                  style={{
+                    backgroundColor: "white",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
+                    transition: "all 0.3s ease",
+                    border: selectedUsers.includes(user.id)
+                      ? "2px solid #4f46e5"
+                      : "1px solid #e5e7eb",
+                    position: "relative",
+                    cursor: "pointer",
+                    ...(selectedUsers.includes(user.id) && {
+                      boxShadow:
+                        "0 0 0 2px rgba(79, 70, 229, 0.1), 0 2px 8px rgba(0, 0, 0, 0.08)",
+                    }),
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!selectedUsers.includes(user.id)) {
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.boxShadow =
+                        "0 4px 12px rgba(0, 0, 0, 0.1)";
                     }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!selectedUsers.includes(user.id)) {
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow =
+                        "0 2px 8px rgba(0, 0, 0, 0.08)";
+                    }
+                  }}
+                >
+                  <label
+                    className="checkbox-container"
+                    style={{
+                      position: "absolute",
+                      top: "10px",
+                      right: "10px",
+                      width: "18px",
+                      height: "18px",
+                      cursor: "pointer",
+                    }}
                   >
-                    <td className="checkbox-cell">
-                      <label className="checkbox-container ">
-                        <input
-                          type="checkbox"
-                          checked={selectedUsers.includes(user.id)}
-                          onChange={() => handleSelectUser(user.id)}
-                        />
-                        <span className="checkbox-checkmark"></span>
-                      </label>
-                    </td>
-                    <td>{user.name}</td>
-                    <td>{user.email}</td>
-                    <td>
-                      <span
-                        className={`user-badge ${
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.includes(user.id)}
+                      onChange={() => handleSelectUser(user.id)}
+                    />
+                    <span className="checkbox-checkmark"></span>
+                  </label>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      marginBottom: "15px",
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: "18px",
+                          fontWeight: "600",
+                          color: "#1e293b",
+                          marginBottom: "5px",
+                        }}
+                      >
+                        {user.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          color: "#64748b",
+                          marginBottom: "10px",
+                        }}
+                      >
+                        {user.email}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "8px",
+                      marginBottom: "15px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        padding: "4px 12px",
+                        borderRadius: "9999px",
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        backgroundColor:
                           user.role === "super_admin"
-                            ? "super-admin-badge"
+                            ? "#fee2e2"
                             : user.role === "admin"
-                            ? "admin-badge"
-                            : ""
-                        }`}
+                            ? "#e0e7ff"
+                            : "#f3f4f6",
+                        color:
+                          user.role === "super_admin"
+                            ? "#dc2626"
+                            : user.role === "admin"
+                            ? "#4338ca"
+                            : "#6b7280",
+                        border: `1px solid ${
+                          user.role === "super_admin"
+                            ? "#fecaca"
+                            : user.role === "admin"
+                            ? "#c7d2fe"
+                            : "#e5e7eb"
+                        }`,
+                      }}
+                    >
+                      {user.role === "super_admin"
+                        ? "Super Admin"
+                        : user.role === "admin"
+                        ? "Admin"
+                        : "User"}
+                    </span>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        padding: "4px 12px",
+                        borderRadius: "9999px",
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        backgroundColor:
+                          user.status.toLowerCase() === "active"
+                            ? "#dcfce7"
+                            : "#f3f4f6",
+                        color:
+                          user.status.toLowerCase() === "active"
+                            ? "#16a34a"
+                            : "#6b7280",
+                        border: `1px solid ${
+                          user.status.toLowerCase() === "active"
+                            ? "#bbf7d0"
+                            : "#e5e7eb"
+                        }`,
+                      }}
+                    >
+                      {user.status}
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      color: "#94a3b8",
+                      marginBottom: "15px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "5px",
+                    }}
+                  >
+                    <Clock size={14} />
+                    Last active {formatDate(user.lastActive)}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "8px",
+                      paddingTop: "15px",
+                      borderTop: "1px solid #f1f5f9",
+                    }}
+                  >
+                    <button
+                      className="action-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(user);
+                      }}
+                      style={{
+                        padding: "8px",
+                        borderRadius: "6px",
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        transition: "all 0.2s",
+                        flex: 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "#e0e7ff";
+                        e.currentTarget.style.borderColor = "#c7d2fe";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "#f8fafc";
+                        e.currentTarget.style.borderColor = "#e2e8f0";
+                      }}
+                      title="Edit User"
+                    >
+                      <Edit size={14} color="#4f46e5" />
+                    </button>
+
+                    <button
+                      className="action-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setUserToReset(user);
+                        setShowResetModal(true);
+                      }}
+                      style={{
+                        padding: "8px",
+                        borderRadius: "6px",
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        transition: "all 0.2s",
+                        flex: 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "#fef3c7";
+                        e.currentTarget.style.borderColor = "#fde68a";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "#f8fafc";
+                        e.currentTarget.style.borderColor = "#e2e8f0";
+                      }}
+                      title="Reset Password"
+                    >
+                      <Key size={14} color="#f59e0b" />
+                    </button>
+
+                    <button
+                      className="action-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openMfaModal(user);
+                      }}
+                      style={{
+                        padding: "8px",
+                        borderRadius: "6px",
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        transition: "all 0.2s",
+                        flex: 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "#dcfce7";
+                        e.currentTarget.style.borderColor = "#bbf7d0";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "#f8fafc";
+                        e.currentTarget.style.borderColor = "#e2e8f0";
+                      }}
+                      title="Manage MFA Settings"
+                    >
+                      {user.mfaEnabled ? (
+                        <Lock size={14} color="#16a34a" />
+                      ) : (
+                        <Unlock size={14} color="#16a34a" />
+                      )}
+                    </button>
+
+                    {canSeeDeleteButton(user) && (
+                      <button
+                        className="action-button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setUserToDelete(user);
+                          setShowDeleteModal(true);
+                        }}
+                        style={{
+                          padding: "8px",
+                          borderRadius: "6px",
+                          backgroundColor: "#f8fafc",
+                          border: "1px solid #e2e8f0",
+                          cursor:
+                            canManageUser(user) &&
+                            user.email !== "itsus@tatt2away.com" &&
+                            user.email !== "parker@tatt2away.com"
+                              ? "pointer"
+                              : "not-allowed",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          transition: "all 0.2s",
+                          flex: 1,
+                          opacity:
+                            canManageUser(user) &&
+                            user.email !== "itsus@tatt2away.com" &&
+                            user.email !== "parker@tatt2away.com"
+                              ? 1
+                              : 0.5,
+                        }}
+                        onMouseEnter={(e) => {
+                          if (
+                            canManageUser(user) &&
+                            user.email !== "itsus@tatt2away.com" &&
+                            user.email !== "parker@tatt2away.com"
+                          ) {
+                            e.currentTarget.style.backgroundColor = "#fee2e2";
+                            e.currentTarget.style.borderColor = "#fecaca";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "#f8fafc";
+                          e.currentTarget.style.borderColor = "#e2e8f0";
+                        }}
+                        disabled={
+                          !canManageUser(user) ||
+                          user.email === "itsus@tatt2away.com" ||
+                          user.email === "parker@tatt2away.com"
+                        }
+                        title="Delete User"
                       >
-                        {user.role === "super_admin"
-                          ? "Super Admin"
-                          : user.role === "admin"
-                          ? "Admin"
-                          : "User"}
-                      </span>
-                    </td>
-                    <td>
-                      <span
-                        className={`status-badge ${user.status.toLowerCase()}`}
-                      >
-                        {user.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="last-active">
-                        <span>{formatDate(user.lastActive)}</span>
-                      </div>
-                    </td>
-
-                    <td>
-                      <div className="action-buttons">
-                        <button
-                          className=" edit-button"
-                          onClick={() => openEditModal(user)}
-                          title="Edit User"
-                        >
-                          <Edit size={14} />
-                        </button>
-
-                        <button
-                          className=" reset-password-button"
-                          onClick={() => {
-                            setUserToReset(user);
-                            setShowResetModal(true);
-                          }}
-                          title="Reset Password"
-                        >
-                          <Key size={14} />
-                        </button>
-
-                        <button
-                          className=" mfa-button"
-                          onClick={() => openMfaModal(user)}
-                          title="Manage MFA Settings"
-                        >
-                          {user.mfaEnabled ? (
-                            <Lock size={14} />
-                          ) : (
-                            <Unlock size={14} />
-                          )}
-                        </button>
-
-                        {canSeeDeleteButton(user) && (
-                          <button
-                            className=" delete-button"
-                            onClick={() => {
-                              setUserToDelete(user);
-                              setShowDeleteModal(true);
-                            }}
-                            title="Delete User"
-                            disabled={
-                              !canManageUser(user) ||
-                              user.email === "itsus@tatt2away.com" ||
-                              user.email === "parker@tatt2away.com"
-                            }
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        <Trash2 size={14} color="#ef4444" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 

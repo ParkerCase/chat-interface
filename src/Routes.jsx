@@ -4,7 +4,6 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 
 // Import existing components
-import MainApp from "./components/MainApp";
 import AdminPanel from "./components/admin/AdminPanel";
 import AuthPage from "./components/AuthPage";
 import SSOCallback from "./components/auth/SSOCallback";
