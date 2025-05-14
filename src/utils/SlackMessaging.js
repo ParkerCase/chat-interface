@@ -7,9 +7,50 @@ export const SlackMessaging = {
    */
   async getChannels() {
     try {
+      // First check if the RPC function exists
       const { data, error } = await supabase.rpc("slack_get_channels");
 
-      if (error) throw error;
+      if (error) {
+        // If the RPC function fails, try direct table access
+        console.warn("RPC function failed, trying direct access:", error);
+
+        const { data: channels, error: directError } = await supabase
+          .from("slack_channels")
+          .select("*")
+          .order("name", { ascending: true });
+
+        if (directError) {
+          console.error("Direct channel access failed:", directError);
+          // Return empty array with sample channels in development
+          if (process.env.NODE_ENV === "development") {
+            return [
+              {
+                id: "1",
+                name: "general",
+                type: "general",
+                description: "General discussion",
+              },
+              {
+                id: "2",
+                name: "admin-only",
+                type: "general",
+                admin_only: true,
+                description: "Admin discussion",
+              },
+              {
+                id: "3",
+                name: "knowledge-base",
+                type: "knowledge",
+                description: "Knowledge base documents",
+              },
+            ];
+          }
+          throw directError;
+        }
+
+        return channels || [];
+      }
+
       return data || [];
     } catch (error) {
       console.error("Error fetching Slack channels:", error);
@@ -24,12 +65,52 @@ export const SlackMessaging = {
    */
   async getMessages(channelId, limit = 50) {
     try {
+      // Try RPC first
       const { data, error } = await supabase.rpc("slack_get_messages", {
-        channel_id: channelId,
-        message_limit: limit,
+        p_channel_id: channelId,
+        p_message_limit: limit,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Fallback to direct query
+        console.warn("RPC function failed, trying direct access:", error);
+
+        const { data: messages, error: directError } = await supabase
+          .from("slack_messages")
+          .select(
+            `
+            *,
+            user:user_id (
+              id,
+              email,
+              full_name
+            )
+          `
+          )
+          .eq("channel_id", channelId)
+          .order("timestamp", { ascending: false })
+          .limit(limit);
+
+        if (directError) {
+          console.error("Direct message access failed:", directError);
+          throw directError;
+        }
+
+        // Get current user ID once
+        const { data: userData } = await supabase.auth.getUser();
+        const currentUserId = userData?.user?.id;
+
+        // Format messages to match expected structure
+        return (messages || [])
+          .map((msg) => ({
+            ...msg,
+            user_name: msg.user?.full_name || msg.user?.email || "Unknown User",
+            user_avatar: null, // Add avatar URL if available
+            is_self: msg.user_id === currentUserId,
+          }))
+          .reverse(); // Reverse to get oldest first
+      }
+
       return data || [];
     } catch (error) {
       console.error("Error fetching Slack messages:", error);
@@ -37,40 +118,6 @@ export const SlackMessaging = {
     }
   },
 
-  /**
-   * Send a message to a Slack channel
-   * @param {string} channelId - Slack channel ID
-   * @param {string} message - Message text
-   */
-  async sendMessage(channelId, message) {
-    try {
-      const { data, error } = await supabase.rpc("slack_send_message", {
-        channel_id: channelId,
-        message_text: message,
-      });
-
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error("Error sending Slack message:", error);
-      return false;
-    }
-  },
-
-  /**
-   * Get unread message count
-   */
-  async getUnreadCount() {
-    try {
-      const { data, error } = await supabase.rpc("slack_get_unread_count");
-
-      if (error) throw error;
-      return data || 0;
-    } catch (error) {
-      console.error("Error fetching unread count:", error);
-      return 0;
-    }
-  },
   /**
    * Send a message to a Slack channel
    * @param {string} channelId - Slack channel ID
@@ -88,37 +135,63 @@ export const SlackMessaging = {
         throw new Error("Message content is required");
       }
 
-      // Call the RPC function
+      // Get current user
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
+
+      if (!userId) {
+        throw new Error("User not authenticated");
+      }
+
+      // Try RPC function first
       const { data, error } = await supabase.rpc("slack_send_message", {
-        channel_id: channelId,
-        message_text: message,
+        p_channel_id: channelId,
+        p_message_text: message,
       });
 
       if (error) {
-        console.error("Backend error sending message:", error);
-        throw error;
-      }
+        console.warn("RPC function failed, trying direct insert:", error);
 
-      // If we need to directly insert into the database as a fallback
-      if (!data) {
-        // Direct insert fallback if RPC fails
-        const { error: insertError } = await supabase
+        // Direct insert fallback
+        const { data: insertData, error: insertError } = await supabase
           .from("slack_messages")
           .insert({
             channel_id: channelId,
             text: message,
-            user_id: (await supabase.auth.getUser()).data?.user?.id,
+            user_id: userId,
             timestamp: new Date().toISOString(),
-          });
+          })
+          .select()
+          .single();
 
         if (insertError) throw insertError;
+
+        return true;
       }
 
       return true;
     } catch (error) {
       console.error("Error sending Slack message:", error);
-      // Return false so the component can handle the error appropriately
       return false;
+    }
+  },
+
+  /**
+   * Get unread message count
+   */
+  async getUnreadCount() {
+    try {
+      const { data, error } = await supabase.rpc("slack_get_unread_count");
+
+      if (error) {
+        console.warn("Could not get unread count:", error);
+        return 0;
+      }
+
+      return data || 0;
+    } catch (error) {
+      console.error("Error fetching unread count:", error);
+      return 0;
     }
   },
 
@@ -133,19 +206,30 @@ export const SlackMessaging = {
         throw new Error("Channel ID and attachment info are required");
       }
 
+      // Get current user
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
+
+      if (!userId) {
+        throw new Error("User not authenticated");
+      }
+
+      // Try RPC first
       const { data, error } = await supabase.rpc("slack_send_attachment", {
         channel_id: channelId,
         attachment_data: attachmentInfo,
       });
 
       if (error) {
-        // Fallback to direct insert if RPC fails
+        console.warn("RPC function failed, trying direct insert:", error);
+
+        // Fallback to direct insert
         const { error: insertError } = await supabase
           .from("slack_messages")
           .insert({
             channel_id: channelId,
             text: attachmentInfo.text || "Shared an attachment",
-            user_id: (await supabase.auth.getUser()).data?.user?.id,
+            user_id: userId,
             attachment_url: attachmentInfo.attachment_url,
             attachment_type: attachmentInfo.attachment_type,
             original_filename: attachmentInfo.original_filename,
@@ -158,6 +242,145 @@ export const SlackMessaging = {
       return true;
     } catch (error) {
       console.error("Error sending attachment:", error);
+      return false;
+    }
+  },
+
+  /**
+   * Create a new channel
+   * @param {string} name - Channel name
+   * @param {object} options - Channel options
+   */
+  async createChannel(name, options = {}) {
+    try {
+      // Direct insert since RPC might not be available
+      const { data, error } = await supabase
+        .from("slack_channels")
+        .insert({
+          name: name.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+          description: options.description || `${name} channel`,
+          type: options.type || "general",
+          admin_only: options.adminOnly || false,
+          created_by: (await supabase.auth.getUser()).data?.user?.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return data;
+    } catch (error) {
+      console.error("Error creating channel:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Search messages in channels
+   * @param {string} query - Search query
+   */
+  async searchMessages(query) {
+    try {
+      const { data, error } = await supabase
+        .from("slack_messages")
+        .select(
+          `
+          *,
+          user:user_id (
+            id,
+            email,
+            full_name
+          )
+        `
+        )
+        .ilike("text", `%${query}%`)
+        .order("timestamp", { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      // Get current user ID once
+      const { data: userData } = await supabase.auth.getUser();
+      const currentUserId = userData?.user?.id;
+
+      // Format messages
+      return (data || []).map((msg) => ({
+        ...msg,
+        user_name: msg.user?.full_name || msg.user?.email || "Unknown User",
+        user_avatar: null,
+        is_self: msg.user_id === currentUserId,
+      }));
+    } catch (error) {
+      console.error("Error searching messages:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Add reaction to a message
+   * @param {string} messageId - Message ID
+   * @param {string} emoji - Emoji reaction
+   */
+  async addReaction(messageId, emoji) {
+    try {
+      const userId = (await supabase.auth.getUser()).data?.user?.id;
+
+      const { error } = await supabase.from("slack_message_reactions").insert({
+        message_id: messageId,
+        user_id: userId,
+        emoji: emoji,
+      });
+
+      if (error) throw error;
+
+      return true;
+    } catch (error) {
+      console.error("Error adding reaction:", error);
+      return false;
+    }
+  },
+
+  /**
+   * Pin a message
+   * @param {string} messageId - Message ID
+   */
+  async pinMessage(messageId) {
+    try {
+      const { error } = await supabase
+        .from("slack_messages")
+        .update({ pinned: true })
+        .eq("id", messageId);
+
+      if (error) throw error;
+
+      return true;
+    } catch (error) {
+      console.error("Error pinning message:", error);
+      return false;
+    }
+  },
+
+  /**
+   * Send a thread reply
+   * @param {string} parentId - Parent message ID
+   * @param {string} message - Reply text
+   */
+  async sendThreadReply(parentId, message) {
+    try {
+      const userId = (await supabase.auth.getUser()).data?.user?.id;
+
+      const { error } = await supabase.from("slack_messages").insert({
+        parent_id: parentId,
+        text: message,
+        user_id: userId,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (error) throw error;
+
+      return true;
+    } catch (error) {
+      console.error("Error sending thread reply:", error);
       return false;
     }
   },

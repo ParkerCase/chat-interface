@@ -432,708 +432,917 @@ const EnhancedAppointmentDetails = ({
     (appointmentDetails.status || "").toLowerCase() === "canceled";
 
   return (
-    <div className="aptdt-container">
-      <div className="aptdt-header">
-        <div className="aptdt-title-section">
-          <h2>Appointment Details</h2>
-          <div
-            className={`aptdt-status-badge ${(
-              appointmentDetails.status || ""
-            ).toLowerCase()}`}
-          >
-            {appointmentDetails.status || "Booked"}
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "white",
+          borderRadius: "12px",
+          width: "90%",
+          maxWidth: "800px",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow:
+            "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: "20px 24px",
+            borderBottom: "1px solid #e5e7eb",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "1.5rem",
+                fontWeight: "600",
+                color: "#111827",
+              }}
+            >
+              Appointment Details
+            </h2>
+            <div
+              style={{
+                padding: "4px 12px",
+                borderRadius: "16px",
+                backgroundColor:
+                  appointmentDetails.status === "Booked"
+                    ? "#DBEAFE"
+                    : "#F3F4F6",
+                color:
+                  appointmentDetails.status === "Booked"
+                    ? "#1E40AF"
+                    : "#6B7280",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+              }}
+            >
+              {appointmentDetails.status || "Booked"}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              onClick={handleRefresh}
+              style={{
+                padding: "8px",
+                background: "none",
+                border: "1px solid #e5e7eb",
+                borderRadius: "6px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#374151",
+              }}
+              title="Refresh"
+            >
+              <RefreshCw size={16} />
+            </button>
+            <button
+              onClick={handlePrint}
+              style={{
+                padding: "8px",
+                background: "none",
+                border: "1px solid #e5e7eb",
+                borderRadius: "6px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#374151",
+              }}
+              title="Print Details"
+            >
+              <Printer size={16} />
+            </button>
+            <button
+              onClick={onClose}
+              style={{
+                padding: "8px",
+                background: "none",
+                border: "1px solid #e5e7eb",
+                borderRadius: "6px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#DC2626",
+              }}
+              title="Close"
+            >
+              <X size={16} />
+            </button>
           </div>
         </div>
 
-        <div className="aptdt-header-actions">
-          <button
-            className="aptdt-action-button"
-            onClick={handleRefresh}
-            title="Refresh"
+        {/* Messages */}
+        {error && (
+          <div
+            style={{
+              margin: "16px 24px 0",
+              padding: "12px",
+              backgroundColor: "#FEE2E2",
+              color: "#991B1B",
+              borderRadius: "6px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
           >
-            <RefreshCw size={16} />
-          </button>
-          <button
-            className="aptdt-action-button"
-            onClick={handlePrint}
-            title="Print Details"
-          >
-            <Printer size={16} />
-          </button>
-          <button
-            className="aptdt-close-button"
-            onClick={onClose}
-            title="Close"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      </div>
-
-      {/* Success/Error messages */}
-      {error && (
-        <div className="aptdt-error-message">
-          <AlertCircle size={16} />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {success && (
-        <div className="aptdt-success-message">
-          <CheckCircle size={16} />
-          <span>{success}</span>
-        </div>
-      )}
-
-      {/* Tabs Navigation */}
-      <div className="aptdt-details-tabs">
-        <button
-          className={activeTab === "details" ? "active" : ""}
-          onClick={() => setActiveTab("details")}
-        >
-          Details
-        </button>
-        <button
-          className={activeTab === "client" ? "active" : ""}
-          onClick={() => setActiveTab("client")}
-        >
-          Client
-        </button>
-        <button
-          className={activeTab === "service" ? "active" : ""}
-          onClick={() => setActiveTab("service")}
-        >
-          Service
-        </button>
-        <button
-          className={activeTab === "notes" ? "active" : ""}
-          onClick={() => setActiveTab("notes")}
-        >
-          Notes
-        </button>
-      </div>
-
-      <div className="aptdt-content">
-        {/* Details Tab */}
-        {activeTab === "details" && (
-          <div className="aptdt-details-section aptdt-appointment-info">
-            <h3>Appointment Information</h3>
-
-            <div className="aptdt-info-grid">
-              <div className="aptdt-info-item">
-                <div className="aptdt-info-label">
-                  <Calendar size={16} />
-                  <span>Date</span>
-                </div>
-                <div className="aptdt-info-value">
-                  {formatDate(appointmentDetails.start_time)}
-                </div>
-              </div>
-
-              <div className="aptdt-info-item">
-                <div className="aptdt-info-label">
-                  <Clock size={16} />
-                  <span>Time</span>
-                </div>
-                <div className="aptdt-info-value">
-                  {formatTime(appointmentDetails.start_time)}
-                </div>
-              </div>
-
-              <div className="aptdt-info-item">
-                <div className="aptdt-info-label">
-                  <Clock size={16} />
-                  <span>End Time</span>
-                </div>
-                <div className="aptdt-info-value">
-                  {appointmentDetails.end_time
-                    ? formatTime(appointmentDetails.end_time)
-                    : calculateEndTime(
-                        appointmentDetails.start_time,
-                        appointmentDetails.duration || 60
-                      )}
-                </div>
-              </div>
-
-              <div className="aptdt-info-item">
-                <div className="aptdt-info-label">
-                  <Tag size={16} />
-                  <span>Service</span>
-                </div>
-                <div className="aptdt-info-value">{serviceName}</div>
-              </div>
-
-              <div className="aptdt-info-item">
-                <div className="aptdt-info-label">
-                  <Clock size={16} />
-                  <span>Duration</span>
-                </div>
-                <div className="aptdt-info-value">
-                  {appointmentDetails.duration ||
-                    (appointmentDetails.service
-                      ? appointmentDetails.service.duration
-                      : "60")}{" "}
-                  minutes
-                </div>
-              </div>
-
-              <div className="aptdt-info-item">
-                <div className="aptdt-info-label">
-                  <DollarSign size={16} />
-                  <span>Price</span>
-                </div>
-                <div className="aptdt-info-value">
-                  {formatCurrency(servicePrice)}
-                </div>
-              </div>
-
-              <div className="aptdt-info-item">
-                <div className="aptdt-info-label">
-                  <User size={16} />
-                  <span>Provider</span>
-                </div>
-                <div className="aptdt-info-value">
-                  {appointmentDetails.therapist ||
-                    (appointmentDetails.provider
-                      ? `${appointmentDetails.provider.first_name || ""} ${
-                          appointmentDetails.provider.last_name || ""
-                        }`.trim()
-                      : staffDetails
-                      ? `${staffDetails.first_name || ""} ${
-                          staffDetails.last_name || ""
-                        }`.trim()
-                      : "Not Assigned")}
-                </div>
-              </div>
-
-              <div className="aptdt-info-item">
-                <div className="aptdt-info-label">
-                  <MapPin size={16} />
-                  <span>Center</span>
-                </div>
-                <div className="aptdt-info-value">
-                  {appointmentDetails.center
-                    ? appointmentDetails.center.name
-                    : centerCode || "Unknown Center"}
-                </div>
-              </div>
-            </div>
-
-            <div className="aptdt-appointment-timeline">
-              <h4>Appointment Timeline</h4>
-              <div className="aptdt-timeline-steps">
-                <div className="aptdt-timeline-step completed">
-                  <div className="aptdt-step-icon">
-                    <CheckCircle size={16} />
-                  </div>
-                  <div className="aptdt-step-content">
-                    <div className="aptdt-step-title">Booked</div>
-                    <div className="aptdt-step-time">
-                      {appointmentDetails.created_date
-                        ? formatDate(appointmentDetails.created_date) +
-                          " at " +
-                          formatTime(appointmentDetails.created_date)
-                        : "Date unknown"}
-                    </div>
-                  </div>
-                </div>
-
-                {isCancelled ? (
-                  <div className="aptdt-timeline-step cancelled">
-                    <div className="aptdt-step-icon">
-                      <X size={16} />
-                    </div>
-                    <div className="aptdt-step-content">
-                      <div className="aptdt-step-title">Cancelled</div>
-                      <div className="aptdt-step-time">
-                        {appointmentDetails.modified_date
-                          ? formatDate(appointmentDetails.modified_date) +
-                            " at " +
-                            formatTime(appointmentDetails.modified_date)
-                          : "Date unknown"}
-                      </div>
-                      {appointmentDetails.cancel_reason && (
-                        <div className="aptdt-step-note">
-                          Reason: {appointmentDetails.cancel_reason}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : isPastAppointment &&
-                  (appointmentDetails.status || "").toLowerCase() ===
-                    "completed" ? (
-                  <div className="aptdt-timeline-step completed">
-                    <div className="aptdt-step-icon">
-                      <CheckCircle size={16} />
-                    </div>
-                    <div className="aptdt-step-content">
-                      <div className="aptdt-step-title">Completed</div>
-                      <div className="aptdt-step-time">
-                        {formatDate(
-                          appointmentDetails.end_time ||
-                            appointmentDetails.start_time
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ) : isPastAppointment ? (
-                  <div className="aptdt-timeline-step">
-                    <div className="aptdt-step-icon">
-                      <Clock size={16} />
-                    </div>
-                    <div className="aptdt-step-content">
-                      <div className="aptdt-step-title">
-                        {(appointmentDetails.status || "").toLowerCase() ===
-                        "noshow"
-                          ? "No Show"
-                          : "Appointment Time Passed"}
-                      </div>
-                      <div className="aptdt-step-time">
-                        {formatDate(appointmentDetails.start_time)}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="aptdt-timeline-step upcoming">
-                    <div className="aptdt-step-icon">
-                      <Clock size={16} />
-                    </div>
-                    <div className="aptdt-step-content">
-                      <div className="aptdt-step-title">Upcoming</div>
-                      <div className="aptdt-step-time">
-                        {formatDate(appointmentDetails.start_time) +
-                          " at " +
-                          formatTime(appointmentDetails.start_time)}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <AlertCircle size={16} />
+            <span>{error}</span>
           </div>
         )}
 
-        {/* Client Tab */}
-        {activeTab === "client" && (
-          <div className="aptdt-details-section aptdt-client-info">
-            <div className="aptdt-section-header-with-action">
-              <h3>Client Information</h3>
-              <div className="aptdt-section-actions">
-                {client.id && !showClientHistory && (
-                  <button
-                    className="aptdt-view-history-button"
-                    onClick={() => loadClientHistory(client.id)}
-                    title="View Client History"
+        {success && (
+          <div
+            style={{
+              margin: "16px 24px 0",
+              padding: "12px",
+              backgroundColor: "#D1FAE5",
+              color: "#065F46",
+              borderRadius: "6px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <CheckCircle size={16} />
+            <span>{success}</span>
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div
+          style={{
+            display: "flex",
+            borderBottom: "1px solid #e5e7eb",
+            padding: "0 24px",
+          }}
+        >
+          {["details", "client", "service", "notes"].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                padding: "12px 20px",
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+                fontWeight: "500",
+                color: activeTab === tab ? "#2563EB" : "#6B7280",
+                borderBottom:
+                  activeTab === tab
+                    ? "2px solid #2563EB"
+                    : "2px solid transparent",
+                marginBottom: "-1px",
+                transition: "all 0.2s",
+                fontSize: "0.875rem",
+                textTransform: "capitalize",
+              }}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+          {/* Details Tab */}
+          {activeTab === "details" && (
+            <div>
+              <h3
+                style={{
+                  margin: "0 0 20px 0",
+                  fontSize: "1.125rem",
+                  fontWeight: "600",
+                  color: "#111827",
+                }}
+              >
+                Appointment Information
+              </h3>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: "20px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "#6B7280",
+                    }}
                   >
-                    <Clock size={14} />
-                    View History
-                  </button>
-                )}
-                {client.id && (
-                  <button
-                    className="aptdt-view-client-button"
-                    onClick={handleViewClient}
-                    title="View Client Details"
+                    <Calendar size={16} />
+                    <span style={{ fontSize: "0.875rem" }}>Date</span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1rem",
+                      fontWeight: "500",
+                      color: "#111827",
+                    }}
                   >
-                    <User size={14} />
-                    Full Profile
-                  </button>
-                )}
+                    {formatDate(appointmentDetails.start_time)}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "#6B7280",
+                    }}
+                  >
+                    <Clock size={16} />
+                    <span style={{ fontSize: "0.875rem" }}>Time</span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1rem",
+                      fontWeight: "500",
+                      color: "#111827",
+                    }}
+                  >
+                    {formatTime(appointmentDetails.start_time)}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "#6B7280",
+                    }}
+                  >
+                    <Clock size={16} />
+                    <span style={{ fontSize: "0.875rem" }}>End Time</span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1rem",
+                      fontWeight: "500",
+                      color: "#111827",
+                    }}
+                  >
+                    {appointmentDetails.end_time
+                      ? formatTime(appointmentDetails.end_time)
+                      : calculateEndTime(
+                          appointmentDetails.start_time,
+                          appointmentDetails.duration || 60
+                        )}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "#6B7280",
+                    }}
+                  >
+                    <Tag size={16} />
+                    <span style={{ fontSize: "0.875rem" }}>Service</span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1rem",
+                      fontWeight: "500",
+                      color: "#111827",
+                    }}
+                  >
+                    {serviceName}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "#6B7280",
+                    }}
+                  >
+                    <Clock size={16} />
+                    <span style={{ fontSize: "0.875rem" }}>Duration</span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1rem",
+                      fontWeight: "500",
+                      color: "#111827",
+                    }}
+                  >
+                    {appointmentDetails.duration || 60} minutes
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "#6B7280",
+                    }}
+                  >
+                    <DollarSign size={16} />
+                    <span style={{ fontSize: "0.875rem" }}>Price</span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1rem",
+                      fontWeight: "500",
+                      color: "#111827",
+                    }}
+                  >
+                    {formatCurrency(servicePrice)}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "#6B7280",
+                    }}
+                  >
+                    <User size={16} />
+                    <span style={{ fontSize: "0.875rem" }}>Provider</span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1rem",
+                      fontWeight: "500",
+                      color: "#111827",
+                    }}
+                  >
+                    {appointmentDetails.therapist || "Not Assigned"}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "#6B7280",
+                    }}
+                  >
+                    <MapPin size={16} />
+                    <span style={{ fontSize: "0.875rem" }}>Center</span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1rem",
+                      fontWeight: "500",
+                      color: "#111827",
+                    }}
+                  >
+                    {appointmentDetails.center?.name ||
+                      centerCode ||
+                      "Unknown Center"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Timeline */}
+              <div style={{ marginTop: "32px" }}>
+                <h4
+                  style={{
+                    margin: "0 0 16px 0",
+                    fontSize: "1.125rem",
+                    fontWeight: "600",
+                    color: "#111827",
+                  }}
+                >
+                  Appointment Timeline
+                </h4>
+                <div style={{ position: "relative", paddingLeft: "32px" }}>
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: "12px",
+                      top: "20px",
+                      bottom: "20px",
+                      width: "2px",
+                    }}
+                  />
+
+                  {/* Timeline items */}
+                  <div style={{ position: "relative", paddingBottom: "20px" }}>
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: "-20px",
+                        top: "4px",
+                        width: "24px",
+                        height: "24px",
+                        borderRadius: "50%",
+                        backgroundColor: "#10B981",
+                        display: "flex",
+                        alignSelf: "center",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <CheckCircle size={14} color="white" />
+                    </div>
+                    <div
+                      style={{
+                        marginLeft: "15px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontWeight: "500",
+                          color: "#111827",
+                          marginBottom: "4px",
+                        }}
+                      >
+                        Booked
+                      </div>
+                      <div style={{ fontSize: "0.875rem", color: "#6B7280" }}>
+                        {appointmentDetails.created_date
+                          ? formatDate(appointmentDetails.created_date) +
+                            " at " +
+                            formatTime(appointmentDetails.created_date)
+                          : "Date unknown"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
+          )}
 
-            {!showClientHistory ? (
-              <div className="aptdt-info-grid">
-                <div className="aptdt-info-item">
-                  <div className="aptdt-info-label">
+          {/* Client Tab */}
+          {activeTab === "client" && (
+            <div>
+              <h3
+                style={{
+                  margin: "0 0 20px 0",
+                  fontSize: "1.125rem",
+                  fontWeight: "600",
+                  color: "#111827",
+                }}
+              >
+                Client Information
+              </h3>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: "20px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "#6B7280",
+                    }}
+                  >
                     <User size={16} />
-                    <span>Name</span>
+                    <span style={{ fontSize: "0.875rem" }}>Name</span>
                   </div>
-                  <div className="aptdt-info-value">{clientName}</div>
+                  <div
+                    style={{
+                      fontSize: "1rem",
+                      fontWeight: "500",
+                      color: "#111827",
+                    }}
+                  >
+                    {clientName}
+                  </div>
                 </div>
 
                 {client.email && (
-                  <div className="aptdt-info-item">
-                    <div className="aptdt-info-label">
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "4px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        color: "#6B7280",
+                      }}
+                    >
                       <Mail size={16} />
-                      <span>Email</span>
+                      <span style={{ fontSize: "0.875rem" }}>Email</span>
                     </div>
-                    <div className="aptdt-info-value">{client.email}</div>
+                    <div
+                      style={{
+                        fontSize: "1rem",
+                        fontWeight: "500",
+                        color: "#111827",
+                      }}
+                    >
+                      {client.email}
+                    </div>
                   </div>
                 )}
 
                 {(client.mobile || client.phone) && (
-                  <div className="aptdt-info-item">
-                    <div className="aptdt-info-label">
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "4px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        color: "#6B7280",
+                      }}
+                    >
                       <Phone size={16} />
-                      <span>Phone</span>
+                      <span style={{ fontSize: "0.875rem" }}>Phone</span>
                     </div>
-                    <div className="aptdt-info-value">
+                    <div
+                      style={{
+                        fontSize: "1rem",
+                        fontWeight: "500",
+                        color: "#111827",
+                      }}
+                    >
                       {client.mobile || client.phone}
                     </div>
                   </div>
                 )}
-
-                {client.gender && (
-                  <div className="aptdt-info-item">
-                    <div className="aptdt-info-label">
-                      <User size={16} />
-                      <span>Gender</span>
-                    </div>
-                    <div className="aptdt-info-value">{client.gender}</div>
-                  </div>
-                )}
-
-                {client.date_of_birth && (
-                  <div className="aptdt-info-item">
-                    <div className="aptdt-info-label">
-                      <Calendar size={16} />
-                      <span>Date of Birth</span>
-                    </div>
-                    <div className="aptdt-info-value">
-                      {formatDate(client.date_of_birth)}
-                    </div>
-                  </div>
-                )}
-
-                {(client.membership || client.membership_id) && (
-                  <div className="aptdt-info-item">
-                    <div className="aptdt-info-label">
-                      <Tag size={16} />
-                      <span>Membership</span>
-                    </div>
-                    <div className="aptdt-info-value">
-                      {client.membership?.name || "Active Membership"}
-                    </div>
-                  </div>
-                )}
               </div>
-            ) : isLoading ? (
-              <div className="aptdt-loading-state">
-                <RefreshCw className="aptdt-spinner" size={20} />
-                <p>Loading client history...</p>
-              </div>
-            ) : clientHistory && clientHistory.length > 0 ? (
-              <div className="aptdt-client-history">
-                <button
-                  className="aptdt-back-button"
-                  onClick={() => setShowClientHistory(false)}
+            </div>
+          )}
+
+          {/* Service Tab */}
+          {activeTab === "service" && (
+            <div>
+              <h3
+                style={{
+                  margin: "0 0 20px 0",
+                  fontSize: "1.125rem",
+                  fontWeight: "600",
+                  color: "#111827",
+                }}
+              >
+                Service Information
+              </h3>
+              {/* Service content */}
+            </div>
+          )}
+
+          {/* Notes Tab */}
+          {activeTab === "notes" && (
+            <div>
+              <h3
+                style={{
+                  margin: "0 0 20px 0",
+                  fontSize: "1.125rem",
+                  fontWeight: "600",
+                  color: "#111827",
+                }}
+              >
+                Appointment Notes
+              </h3>
+              {appointmentDetails.notes ? (
+                <div
+                  style={{
+                    padding: "16px",
+                    backgroundColor: "#F9FAFB",
+                    borderRadius: "8px",
+                    color: "#374151",
+                    whiteSpace: "pre-wrap",
+                  }}
                 >
-                  <ArrowRight size={14} className="aptdt-back-icon" />
-                  Back to Client Details
-                </button>
-
-                <h4>Client History</h4>
-                <div className="aptdt-history-items">
-                  {clientHistory.map((item, index) => (
-                    <div key={index} className="aptdt-history-item">
-                      <div className="aptdt-history-item-date">
-                        <Calendar size={14} />
-                        {formatDate(item.date)}
-                      </div>
-                      <div className="aptdt-history-item-type">
-                        {item.type === "appointment" ? (
-                          <Clock size={14} />
-                        ) : item.type === "purchase" ? (
-                          <DollarSign size={14} />
-                        ) : (
-                          <Tag size={14} />
-                        )}
-                        {item.type || "Activity"}
-                      </div>
-                      <div className="aptdt-history-item-details">
-                        <p className="aptdt-item-description">
-                          {item.description || item.name || "Unknown activity"}
-                        </p>
-                        {item.amount && (
-                          <p className="aptdt-item-amount">
-                            {formatCurrency(item.amount)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="aptdt-no-history">
-                <p>No history available for this client.</p>
-                <button
-                  className="aptdt-back-button"
-                  onClick={() => setShowClientHistory(false)}
-                >
-                  Back to Client Details
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Service Tab */}
-        {activeTab === "service" && (
-          <div className="aptdt-details-section aptdt-service-info">
-            <h3>Service Information</h3>
-
-            {isLoading && !serviceDetails ? (
-              <div className="aptdt-loading-state">
-                <RefreshCw className="aptdt-spinner" size={20} />
-                <p>Loading service details...</p>
-              </div>
-            ) : serviceDetails ? (
-              <div className="aptdt-service-details">
-                <div className="aptdt-info-grid">
-                  <div className="aptdt-info-item">
-                    <div className="aptdt-info-label">
-                      <Tag size={16} />
-                      <span>Service Name</span>
-                    </div>
-                    <div className="aptdt-info-value">
-                      {serviceDetails.name}
-                    </div>
-                  </div>
-
-                  <div className="aptdt-info-item">
-                    <div className="aptdt-info-label">
-                      <Clock size={16} />
-                      <span>Duration</span>
-                    </div>
-                    <div className="aptdt-info-value">
-                      {serviceDetails.duration || 60} minutes
-                    </div>
-                  </div>
-
-                  <div className="aptdt-info-item">
-                    <div className="aptdt-info-label">
-                      <DollarSign size={16} />
-                      <span>Price</span>
-                    </div>
-                    <div className="aptdt-info-value">
-                      {formatCurrency(serviceDetails.price || 0)}
-                    </div>
-                  </div>
-
-                  {serviceDetails.category && (
-                    <div className="aptdt-info-item">
-                      <div className="aptdt-info-label">
-                        <Tag size={16} />
-                        <span>Category</span>
-                      </div>
-                      <div className="aptdt-info-value">
-                        {serviceDetails.category}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {serviceDetails.description && (
-                  <div className="aptdt-service-description">
-                    <h4>Description</h4>
-                    <p>{serviceDetails.description}</p>
-                  </div>
-                )}
-
-                {staffDetails && (
-                  <div className="aptdt-staff-details">
-                    <h4>Service Provider</h4>
-                    <div className="aptdt-staff-card">
-                      <div className="aptdt-staff-avatar">
-                        <User size={32} />
-                      </div>
-                      <div className="aptdt-staff-info">
-                        <div className="aptdt-staff-name">
-                          {staffDetails.first_name} {staffDetails.last_name}
-                        </div>
-                        <div className="aptdt-staff-title">
-                          {staffDetails.title ||
-                            staffDetails.designation ||
-                            "Service Provider"}
-                        </div>
-                        {staffDetails.expertise && (
-                          <div className="aptdt-staff-expertise">
-                            {staffDetails.expertise}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="aptdt-no-service-details">
-                <p>No detailed service information available.</p>
-                <div className="aptdt-basic-service-info">
-                  <div className="aptdt-info-item">
-                    <div className="aptdt-info-label">Service:</div>
-                    <div className="aptdt-info-value">{serviceName}</div>
-                  </div>
-                  <div className="aptdt-info-item">
-                    <div className="aptdt-info-label">Duration:</div>
-                    <div className="aptdt-info-value">
-                      {appointmentDetails.duration || "60"} minutes
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Notes Tab */}
-        {activeTab === "notes" && (
-          <div className="aptdt-details-section aptdt-notes-info">
-            <h3>Appointment Notes</h3>
-
-            {/* Notes section */}
-            {appointmentDetails.notes ? (
-              <div className="aptdt-notes-section">
-                <div className="aptdt-notes-content">
                   {appointmentDetails.notes}
                 </div>
-              </div>
-            ) : (
-              <div className="aptdt-no-notes">
-                <p>No notes have been added to this appointment.</p>
-                {!isPastAppointment && !isCancelled && (
-                  <div className="aptdt-add-note-placeholder">
-                    <Clipboard size={32} />
-                    <p>You can add notes for this appointment.</p>
-                    <textarea
-                      placeholder="Add notes here..."
-                      disabled={isLoading}
-                      rows={4}
-                    ></textarea>
-                    <button
-                      className="aptdt-save-note-button"
-                      disabled={isLoading}
-                    >
-                      Save Notes
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+              ) : (
+                <p style={{ color: "#6B7280" }}>
+                  No notes have been added to this appointment.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
-            {/* Special instructions or follow-up notes if available */}
-            {appointmentDetails.special_instructions && (
-              <div className="aptdt-special-instructions">
-                <h4>Special Instructions</h4>
-                <div className="aptdt-instructions-content">
-                  {appointmentDetails.special_instructions}
-                </div>
-              </div>
-            )}
-
-            {appointmentDetails.follow_up_notes && (
-              <div className="aptdt-follow-up-notes">
-                <h4>Follow-up Notes</h4>
-                <div className="aptdt-follow-up-content">
-                  {appointmentDetails.follow_up_notes}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Appointment actions */}
-        <div className="aptdt-appointment-actions">
+        {/* Actions */}
+        <div
+          style={{
+            padding: "20px 24px",
+            borderTop: "1px solid #e5e7eb",
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: "12px",
+            backgroundColor: "#F9FAFB",
+            borderRadius: "0 0 25px 25px",
+          }}
+        >
           {!isPastAppointment && !isCancelled && (
             <>
               <button
-                className="aptdt-reschedule-button"
                 onClick={handleReschedule}
                 disabled={isLoading}
+                style={{
+                  padding: "10px 20px",
+                  border: "none",
+                  borderRadius: "6px",
+                  backgroundColor: "var(--color-primary, #2563EB)",
+                  color: "white",
+                  fontWeight: "500",
+                  cursor: isLoading ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  opacity: isLoading ? 0.6 : 1,
+                }}
               >
                 <Edit size={16} />
                 <span>Reschedule</span>
               </button>
 
               <button
-                className="aptdt-cancel-button"
                 onClick={() => setShowCancelConfirm(true)}
                 disabled={isLoading}
+                style={{
+                  padding: "10px 20px",
+                  border: "1px solid var(--color-error, #DC2626)",
+                  borderRadius: "6px",
+                  backgroundColor: "var(--color-background, white)",
+                  color: "var(--color-error, #DC2626)",
+                  fontWeight: "500",
+                  cursor: isLoading ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  opacity: isLoading ? 0.6 : 1,
+                }}
               >
                 <Trash2 size={16} />
                 <span>Cancel Appointment</span>
               </button>
             </>
           )}
-
-          <button
-            className="aptdt-message-button"
-            onClick={() => {
-              /* Would integrate with messaging system */
-            }}
-            disabled={isLoading}
-          >
-            <MessageSquare size={16} />
-            <span>Send Message</span>
-          </button>
         </div>
       </div>
 
       {/* Cancel confirmation modal */}
       {showCancelConfirm && (
-        <div className="aptdt-modal-overlay">
-          <div className="aptdt-modal-container">
-            <div className="aptdt-modal-header">
-              <h3>Cancel Appointment</h3>
-              <button
-                className="aptdt-close-modal-button"
-                onClick={() => setShowCancelConfirm(false)}
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1001,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "12px",
+              padding: "24px",
+              width: "90%",
+              maxWidth: "500px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "20px",
+              }}
+            >
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: "1.25rem",
+                  fontWeight: "600",
+                  color: "#111827",
+                }}
               >
-                <X size={18} />
+                Cancel Appointment
+              </h3>
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "4px",
+                }}
+              >
+                <X size={20} />
               </button>
             </div>
 
-            <div className="aptdt-modal-content">
-              <div className="aptdt-warning-message">
-                <AlertCircle size={24} />
-                <p>Are you sure you want to cancel this appointment?</p>
-              </div>
-
-              <div className="aptdt-appointment-summary">
-                <p>
-                  <strong>Client:</strong> {clientName}
-                </p>
-                <p>
-                  <strong>Service:</strong> {serviceName}
-                </p>
-                <p>
-                  <strong>Date/Time:</strong>{" "}
-                  {formatDate(appointmentDetails.start_time)} at{" "}
-                  {formatTime(appointmentDetails.start_time)}
-                </p>
-              </div>
-
-              <div className="aptdt-form-group">
-                <label htmlFor="cancelReason">Cancellation Reason</label>
-                <textarea
-                  id="cancelReason"
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  placeholder="Enter reason for cancellation"
-                  rows={3}
-                />
-              </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                padding: "16px",
+                backgroundColor: "#FEE2E2",
+                borderRadius: "8px",
+                marginBottom: "20px",
+              }}
+            >
+              <AlertCircle size={24} color="#991B1B" />
+              <p style={{ margin: 0, color: "#991B1B" }}>
+                Are you sure you want to cancel this appointment?
+              </p>
             </div>
 
-            <div className="aptdt-modal-footer">
+            <div style={{ marginBottom: "20px" }}>
+              <p style={{ margin: "8px 0" }}>
+                <strong>Client:</strong> {clientName}
+              </p>
+              <p style={{ margin: "8px 0" }}>
+                <strong>Service:</strong> {serviceName}
+              </p>
+              <p style={{ margin: "8px 0" }}>
+                <strong>Date/Time:</strong>{" "}
+                {formatDate(appointmentDetails.start_time)} at{" "}
+                {formatTime(appointmentDetails.start_time)}
+              </p>
+            </div>
+
+            <div style={{ marginBottom: "20px" }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "8px",
+                  fontWeight: "500",
+                  color: "#374151",
+                }}
+              >
+                Cancellation Reason
+              </label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Enter reason for cancellation"
+                rows={3}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "1px solid #D1D5DB",
+                  borderRadius: "6px",
+                  resize: "vertical",
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "12px",
+              }}
+            >
               <button
-                className="aptdt-secondary-button"
                 onClick={() => setShowCancelConfirm(false)}
                 disabled={isLoading}
+                style={{
+                  padding: "10px 20px",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: "6px",
+                  backgroundColor: "white",
+                  color: "#374151",
+                  fontWeight: "500",
+                  cursor: isLoading ? "not-allowed" : "pointer",
+                  opacity: isLoading ? 0.6 : 1,
+                }}
               >
                 Keep Appointment
               </button>
 
               <button
-                className="aptdt-primary-button aptdt-cancel-confirm-button"
                 onClick={handleCancelAppointment}
                 disabled={isLoading}
+                style={{
+                  padding: "10px 20px",
+                  border: "none",
+                  borderRadius: "6px",
+                  backgroundColor: "#DC2626",
+                  color: "white",
+                  fontWeight: "500",
+                  cursor: isLoading ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  opacity: isLoading ? 0.6 : 1,
+                }}
               >
                 {isLoading ? (
                   <>
-                    <RefreshCw className="aptdt-spinner" size={16} />
+                    <RefreshCw className="spinning" size={16} />
                     <span>Cancelling...</span>
                   </>
                 ) : (

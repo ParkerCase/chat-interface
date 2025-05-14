@@ -341,7 +341,11 @@ const CRMReportViewer = ({
                         : "N/A";
 
                       return (
-                        <tr key={`appointment-viewer-${appointment.id || ''}-${index}`}>
+                        <tr
+                          key={`appointment-viewer-${
+                            appointment.id || ""
+                          }-${index}`}
+                        >
                           <td>{formattedDateTime}</td>
                           <td>{clientName}</td>
                           <td>{serviceName}</td>
@@ -512,7 +516,11 @@ const CRMReportViewer = ({
                           </thead>
                           <tbody>
                             {pkg.services.map((service, svcIndex) => (
-                              <tr key={`service-${service.id || service.name}-${pkgIndex}-${svcIndex}`}>
+                              <tr
+                                key={`service-${
+                                  service.id || service.name
+                                }-${pkgIndex}-${svcIndex}`}
+                              >
                                 <td>{service.name}</td>
                                 <td>{service.quantity || 1}</td>
                                 <td>{formatCurrency(service.value || 0)}</td>
@@ -646,9 +654,12 @@ const CRMReportViewer = ({
                     {transactions.map((transaction, index) => {
                       const date =
                         transaction.date || transaction.transaction_date;
-                      
+
                       // Create a more reliable key by combining id with index
-                      const transactionKey = transaction.id || transaction.receipt_number || `trans-${date}-${index}`;
+                      const transactionKey =
+                        transaction.id ||
+                        transaction.receipt_number ||
+                        `trans-${date}-${index}`;
 
                       return (
                         <tr key={transactionKey}>
@@ -869,7 +880,9 @@ const CRMReportViewer = ({
                   </thead>
                   <tbody>
                     {services.map((service, index) => (
-                      <tr key={service.id || `service-${service.name}-${index}`}>
+                      <tr
+                        key={service.id || `service-${service.name}-${index}`}
+                      >
                         <td>{service.name}</td>
                         <td>{service.category || "Uncategorized"}</td>
                         <td>{formatDuration(service.duration)}</td>
