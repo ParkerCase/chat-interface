@@ -248,6 +248,31 @@ const ImprovedReportsSection = ({
   };
 
   // Generate report based on selected options
+  // Add this function OUTSIDE your component (at the top of the file)
+  async function directFetch(url, method, payload) {
+    // Using the browser's built-in fetch API - NO libraries, NO middleware
+    console.log(`DIRECT FETCH: ${method} ${url}`);
+    console.log("Payload:", JSON.stringify(payload));
+
+    const options = {
+      method: method,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: method !== "GET" ? JSON.stringify(payload) : undefined,
+      credentials: "include", // Include cookies if needed
+    };
+
+    const response = await fetch(url, options);
+    const data = await response.json();
+
+    console.log("DIRECT FETCH RESPONSE:", data);
+    return data;
+  }
+
+  // Inside your ImprovedReportsSection component
+  // Replace your generateReport function with this:
+
   const generateReport = async () => {
     setIsLoading(true);
     setError(null);
@@ -255,164 +280,149 @@ const ImprovedReportsSection = ({
     setProcessedReportData(null);
 
     try {
-      // Check if a center is selected
       if (!selectedCenter) {
         setError("Please select a center to generate reports");
         setIsLoading(false);
         return;
       }
 
-      let response;
-
-      // Format datetime range for sales reports
+      // Format datetime range for API calls
       const formattedStartDate = `${dateRange.startDate} 00:00:00`;
       const formattedEndDate = `${dateRange.endDate} 23:59:59`;
-
-      // Get center ID using our helper function - this is critical!
       const centerId = getCenterIdFromCode(selectedCenter);
 
-      // Validate center ID
-      if (!centerId && ["sales_accrual", "sales_cash"].includes(reportType)) {
-        setError(
-          `Cannot find valid center ID for ${selectedCenter}. Sales reports require a valid center ID.`
-        );
+      if (!centerId) {
+        setError(`Cannot find valid center ID for ${selectedCenter}`);
         setIsLoading(false);
         return;
       }
 
-      // Add timestamp to prevent caching
-      const timestamp = Date.now();
+      console.log("EMERGENCY OVERRIDE - DIRECT FETCH");
+      console.log(`Report type: ${reportType}, Center ID: ${centerId}`);
 
-      // Make appropriate API call based on report type
-      switch (reportType) {
-        case "sales_accrual": {
-          // Prepare parameters for accrual basis sales report
-          const salesParams = {
-            start_date: formattedStartDate,
-            end_date: formattedEndDate,
-            center_ids: [centerId], // Use the retrieved center ID
-            page: 1,
-            size: 100,
-            _t: timestamp,
-          };
+      let rawData;
+      let processedResponse;
 
-          console.log("Using center ID for sales report:", centerId);
+      // Use direct fetch with absolutely no intermediaries
+      if (reportType === "sales_accrual") {
+        console.log(
+          "BYPASSING ALL SERVICES - Direct fetch to accrual endpoint"
+        );
 
-          // Call the accrual basis report API
-          console.log(
-            "Generating accrual basis sales report with:",
-            salesParams
-          );
+        // Create the payload exactly like the curl example
+        const payload = {
+          start_date: formattedStartDate,
+          end_date: formattedEndDate,
+          center_ids: [centerId],
+        };
 
-          // Try the API call without falling back immediately
-          response = await reportsApiService.getSalesAccrualBasisReport(
-            salesParams
-          );
-          break;
-        }
-        case "sales_cash": {
-          // Prepare parameters for cash basis sales report
-          const salesParams = {
-            start_date: formattedStartDate,
-            end_date: formattedEndDate,
-            // Try the same format as accrual basis
-            centers: {
-              ids: [centerId],
-            },
-            level_of_detail: "1",
-            _t: timestamp,
-          };
+        // Make the direct fetch call to the raw endpoint
+        rawData = await directFetch(
+          "http://147.182.247.128:4000/api/zenoti/reports/sales/accrual_basis/flat_file",
+          "POST",
+          payload
+        );
 
-          // Add filters
-          if (itemType !== "All") {
-            salesParams.item_types = [mapItemTypeToCode(itemType)];
-          } else {
-            salesParams.item_types = [-1];
-          }
+        // Format the response for the frontend
+        processedResponse = {
+          success: true,
+          reportType: "accrual",
+          items: rawData.report?.sales || [],
+          summary: {
+            totalSales: rawData.report?.total?.sales_inc_tax || 0,
+            totalRefunds: rawData.report?.total?.refunds || 0,
+            netSales:
+              (rawData.report?.total?.sales_inc_tax || 0) -
+              (rawData.report?.total?.refunds || 0),
+          },
+        };
+      } else if (reportType === "sales_cash") {
+        console.log("BYPASSING ALL SERVICES - Direct fetch to cash endpoint");
 
-          if (paymentMode !== "All") {
-            salesParams.payment_types = [mapPaymentTypeToCode(paymentMode)];
-          } else {
-            salesParams.payment_types = [-1];
-          }
+        // Create the payload exactly like the curl example
+        const payload = {
+          center_ids: [centerId],
+          level_of_detail: "1",
+          start_date: formattedStartDate,
+          end_date: formattedEndDate,
+          item_types: itemType !== "All" ? [mapItemTypeToCode(itemType)] : [-1],
+          payment_types:
+            paymentMode !== "All" ? [mapPaymentTypeToCode(paymentMode)] : [-1],
+          sale_types: status !== "All" ? [mapSaleTypeToCode(status)] : [-1],
+          sold_by_ids: [],
+          invoice_statuses: [-1],
+        };
 
-          if (status !== "All") {
-            salesParams.sale_types = [mapSaleTypeToCode(status)];
-          } else {
-            salesParams.sale_types = [-1];
-          }
+        // Make the direct fetch call to the raw endpoint
+        rawData = await directFetch(
+          "http://147.182.247.128:4000/api/zenoti/reports/sales/cash_basis/flat_file",
+          "POST",
+          payload
+        );
 
-          // Add missing required fields
-          salesParams.sold_by_ids = [];
-          salesParams.invoice_statuses = [-1]; // Add this missing field!
-
-          console.log("Generating cash basis sales report with:", salesParams);
-          response = await reportsApiService.getSalesCashBasisReport(
-            salesParams
-          );
-          break;
-        }
-        case "appointments":
-          // Prepare parameters for appointments
-          const appointmentParams = {
-            startDate: dateRange.startDate,
-            endDate: dateRange.endDate,
-            centerCode: selectedCenter,
-            _t: timestamp,
-          };
-          // Add status filter if set
-          if (status !== "All") appointmentParams.status = status;
-
-          response = await reportsApiService.getAppointmentsReport(
-            appointmentParams
-          );
-          break;
-        case "packages":
-          response = await reportsApiService.getPackagesReport({
-            centerCode: selectedCenter,
-            _t: timestamp,
-          });
-          break;
-        case "services":
-          response = await reportsApiService.getServicesReport({
-            centerCode: selectedCenter,
-            _t: timestamp,
-          });
-          break;
-        default:
-          throw new Error(`Unsupported report type: ${reportType}`);
-      }
-
-      console.log(`${reportType} report response:`, response);
-
-      // Check if we got a successful response
-      if (response?.data) {
-        setReportData(response.data); // Store raw response
-
-        // Process data for display
-        const processed = processReportData(response.data, reportType);
-        setProcessedReportData(processed);
-
-        showNotification("Report generated successfully", "success");
-
-        // Open the report viewer
-        setShowReportViewer(true);
-
-        // Track event for analytics
-        try {
-          analyticsUtils.trackEvent("zenoti:report_generated", {
-            reportType,
-            centerCode: selectedCenter,
-            dateRange: `${dateRange.startDate} to ${dateRange.endDate}`,
-          });
-        } catch (analyticsError) {
-          console.warn("Analytics tracking error:", analyticsError);
-        }
+        // Format the response for the frontend
+        processedResponse = {
+          success: true,
+          reportType: "cash",
+          items: rawData.report?.sales || [],
+          summary: {
+            totalSales: rawData.report?.total?.sales_collected_inc_tax || 0,
+            totalRefunds: rawData.report?.total?.refunds || 0,
+            netSales:
+              (rawData.report?.total?.sales_collected_inc_tax || 0) -
+              (rawData.report?.total?.refunds || 0),
+          },
+        };
       } else {
-        setError("No data returned from API. Please try again.");
+        // Use normal logic for other report types
+        let response;
+
+        switch (reportType) {
+          case "appointments":
+            const appointmentParams = {
+              startDate: dateRange.startDate,
+              endDate: dateRange.endDate,
+              centerCode: selectedCenter,
+              _t: Date.now(),
+            };
+            if (status !== "All") appointmentParams.status = status;
+            response = await reportsApiService.getAppointmentsReport(
+              appointmentParams
+            );
+            processedResponse = response.data;
+            break;
+
+          case "packages":
+            response = await reportsApiService.getPackagesReport({
+              centerCode: selectedCenter,
+              _t: Date.now(),
+            });
+            processedResponse = response.data;
+            break;
+
+          case "services":
+            response = await reportsApiService.getServicesReport({
+              centerCode: selectedCenter,
+              _t: Date.now(),
+            });
+            processedResponse = response.data;
+            break;
+
+          default:
+            throw new Error(`Unsupported report type: ${reportType}`);
+        }
       }
+
+      console.log(`${reportType} final processed response:`, processedResponse);
+
+      // Use this response for processing
+      setReportData(processedResponse);
+      const processed = processReportData(processedResponse, reportType);
+      setProcessedReportData(processed);
+      showNotification("Report generated successfully", "success");
+      setShowReportViewer(true);
     } catch (err) {
-      console.error("Error generating report:", err);
+      console.error("Emergency fetch error:", err);
       setError(
         "Failed to generate report: " + (err.message || "Unknown error")
       );
