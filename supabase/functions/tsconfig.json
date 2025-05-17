@@ -2,14 +2,15 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "strict": true,
     "lib": ["dom", "esnext"],
-    "types": ["./node_modules/deno-types"],
-    "allowJs": true,
-    "checkJs": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true
   },
-  "typeRoots": ["./node_modules/@types", "./node_modules/deno-types"]
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules"]
 }

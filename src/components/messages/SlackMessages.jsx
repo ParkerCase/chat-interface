@@ -170,8 +170,9 @@ const EnhancedSlackMessages = () => {
     }
   }, [currentUser]);
 
-  // Add a retry count ref to prevent infinite loops
+  // Add refs to prevent infinite loops and track loading state
   const retryCountRef = useRef(0);
+  const isLoadingRef = useRef(false);
   const maxRetries = 3;
 
   // Load messages when selected channel changes
@@ -179,10 +180,14 @@ const EnhancedSlackMessages = () => {
     if (!selectedChannel) return;
 
     let mounted = true;
-    const loadMessages = async () => {
-      if (!mounted) return;
 
+    const loadMessages = async () => {
+      // Prevent concurrent executions of this function
+      if (!mounted || isLoadingRef.current) return;
+
+      isLoadingRef.current = true;
       setLoading(true);
+
       try {
         // Reset retry count on new channel
         retryCountRef.current = 0;
@@ -194,7 +199,7 @@ const EnhancedSlackMessages = () => {
         if (cachedMessages && Array.isArray(cachedMessages)) {
           setMessages(cachedMessages);
           scrollToBottom();
-          setLoading(false);
+          // Don't set loading to false here to prevent flickering
         }
 
         // Always fetch fresh messages
@@ -205,8 +210,11 @@ const EnhancedSlackMessages = () => {
         delete updatedUnreadMessages[selectedChannel];
         setUnreadMessages(updatedUnreadMessages);
 
-        // Only update state if messages are different
-        if (JSON.stringify(freshMessages) !== JSON.stringify(cachedMessages)) {
+        // Only update state if messages are different and component is still mounted
+        if (
+          mounted &&
+          JSON.stringify(freshMessages) !== JSON.stringify(cachedMessages)
+        ) {
           setMessages(freshMessages);
           scrollToBottom();
 
@@ -215,32 +223,42 @@ const EnhancedSlackMessages = () => {
         }
 
         // Restore draft message if available
-        if (draftMessages[selectedChannel]) {
+        if (mounted && draftMessages[selectedChannel]) {
           setNewMessage(draftMessages[selectedChannel]);
-        } else {
+        } else if (mounted) {
           setNewMessage("");
         }
 
         // Reset error on success
-        setError(null);
+        if (mounted) setError(null);
       } catch (err) {
         console.error("Error loading messages:", err);
 
         // Prevent infinite retry loops
-        if (retryCountRef.current < maxRetries && err.code !== "PGRST200") {
+        if (
+          mounted &&
+          retryCountRef.current < maxRetries &&
+          err.code !== "PGRST200"
+        ) {
           retryCountRef.current++;
           console.log(
             `Retrying... attempt ${retryCountRef.current} of ${maxRetries}`
           );
           setTimeout(() => {
-            if (mounted) loadMessages();
+            if (mounted) {
+              isLoadingRef.current = false; // Reset loading flag before retry
+              loadMessages();
+            }
           }, 1000 * retryCountRef.current); // Exponential backoff
-        } else {
+        } else if (mounted) {
           setError("Failed to load messages");
           setMessages([]); // Set empty messages to prevent stuck state
         }
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setLoading(false);
+          isLoadingRef.current = false; // Reset loading flag
+        }
       }
     };
 
@@ -438,10 +456,22 @@ const EnhancedSlackMessages = () => {
   const refreshMessages = async () => {
     if (!selectedChannel) return;
 
+    // Prevent concurrent refreshes
+    if (retryCountRef.current > 0) return;
+
     setLoading(true);
     try {
-      const messages = await SlackMessaging.getMessages(selectedChannel);
+      // Force fresh fetch
+      const messages = await SlackMessaging.getMessages(
+        selectedChannel,
+        50,
+        true
+      );
       setMessages(messages);
+
+      // Update cache
+      const cacheKey = `slack:messages:${selectedChannel}`;
+      await RedisCache.set(cacheKey, messages, 300);
     } catch (err) {
       setError("Failed to refresh messages");
       console.error(err);
@@ -949,7 +979,7 @@ const EnhancedSlackMessages = () => {
             title="Search messages"
             style={{
               background: "none",
-              border: "none",
+              border: " 1px solid var(--color-border)",
               cursor: "pointer",
               width: "36px",
               height: "36px",
@@ -960,17 +990,17 @@ const EnhancedSlackMessages = () => {
               color: "var(--color-text-secondary)",
             }}
           >
-            <Search size={18} />
+            <Search size={18} color="black" />
           </button>
 
           <button
-            className="action-button refresh-button"
+            className="action-button help-button"
             onClick={refreshMessages}
             disabled={loading}
             title="Refresh"
             style={{
               background: "none",
-              border: "none",
+              border: " 1px solid var(--color-border)",
               cursor: "pointer",
               width: "36px",
               height: "36px",
@@ -990,7 +1020,7 @@ const EnhancedSlackMessages = () => {
             title="Help"
             style={{
               background: "none",
-              border: "none",
+              border: " 1px solid var(--color-border)",
               cursor: "pointer",
               width: "36px",
               height: "36px",

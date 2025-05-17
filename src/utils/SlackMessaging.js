@@ -62,8 +62,9 @@ export const SlackMessaging = {
    * Get messages from a specific channel
    * @param {string} channelId - Slack channel ID
    * @param {number} limit - Maximum number of messages to retrieve
+   * @param {boolean} forceRefresh - Skip cache and force a fresh fetch
    */
-  async getMessages(channelId, limit = 50) {
+  async getMessages(channelId, limit = 50, forceRefresh = false) {
     try {
       // Try RPC first
       const { data, error } = await supabase.rpc("slack_get_messages", {
@@ -75,18 +76,10 @@ export const SlackMessaging = {
         // Fallback to direct query
         console.warn("RPC function failed, trying direct access:", error);
 
+        // First get messages without the user join
         const { data: messages, error: directError } = await supabase
           .from("slack_messages")
-          .select(
-            `
-            *,
-            user:user_id (
-              id,
-              email,
-              full_name
-            )
-          `
-          )
+          .select("*")
           .eq("channel_id", channelId)
           .order("timestamp", { ascending: false })
           .limit(limit);
@@ -100,11 +93,41 @@ export const SlackMessaging = {
         const { data: userData } = await supabase.auth.getUser();
         const currentUserId = userData?.user?.id;
 
+        // Get unique user IDs from messages
+        const userIds = [
+          ...new Set(messages.map((msg) => msg.user_id).filter(Boolean)),
+        ];
+
+        // Fetch user details separately if we have user IDs
+        let userMap = {};
+        if (userIds.length > 0) {
+          try {
+            const { data: users } = await supabase
+              .from("profiles") // Using profiles table instead
+              .select("id, full_name, email")
+              .in("id", userIds);
+
+            if (users) {
+              userMap = users.reduce((acc, user) => {
+                acc[user.id] = user;
+                return acc;
+              }, {});
+            }
+          } catch (userError) {
+            console.warn("Could not fetch user details:", userError);
+            // Continue without user details
+          }
+        }
+
         // Format messages to match expected structure
         return (messages || [])
           .map((msg) => ({
             ...msg,
-            user_name: msg.user?.full_name || msg.user?.email || "Unknown User",
+            user_name:
+              userMap[msg.user_id]?.full_name ||
+              userMap[msg.user_id]?.email ||
+              msg.user_name ||
+              "Unknown User",
             user_avatar: null, // Add avatar URL if available
             is_self: msg.user_id === currentUserId,
           }))
