@@ -1,6 +1,7 @@
 // supabase/functions/zenoti-reports/index.ts
 
-import { corsHeaders } from '../_shared/cors';
+import { corsHeaders } from '../_shared/cors.ts';
+
 
 interface ReportRequest {
   reportType: 
