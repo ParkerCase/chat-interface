@@ -138,48 +138,43 @@ Deno.serve(async (req) => {
     
     console.log(`Making ${method} request to Zenoti: ${url}`);
     
-// In your zenoti-connector function, update the fetch response handling:
-console.log(`Making ${method} request to Zenoti: ${url}`);
-
-const response = await fetch(url, requestOptions);
-let responseData;
-
-// Check content type to determine how to parse the response
-const contentType = response.headers.get('content-type');
-if (contentType && contentType.includes('application/json')) {
-  // Parse as JSON
-  responseData = await response.json();
-} else {
-  // Handle text response
-  const textResponse = await response.text();
-  console.error(`Zenoti returned non-JSON response: ${textResponse}`);
-  
-  // Return a structured error
-  responseData = {
-    error: textResponse,
-    status: response.status,
-    statusText: response.statusText
-  };
-}
-
-// Return the formatted response
-return new Response(
-  JSON.stringify({
-    success: response.ok,
-    status: response.status,
-    statusText: response.statusText,
-    data: responseData,
-  }),
-  {
-    status: response.ok ? 200 : response.status,
-    headers: {
-      'Content-Type': 'application/json',
-      ...corsHeaders
-    }
+    const response = await fetch(url, requestOptions);
+    const responseData = await response.json();
+    
+    // 5. Return the formatted response
+    return new Response(
+      JSON.stringify({
+        success: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        data: responseData,
+      }),
+      {
+        status: response.ok ? 200 : response.status,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      }
+    );
+  } catch (error) {
+    console.error('Zenoti connector error:', error);
+    
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message || 'Unknown error occurred',
+      }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      }
+    );
   }
-);
-  }
-;
+});
 
 /**
  * Gets an authentication token for Zenoti API
