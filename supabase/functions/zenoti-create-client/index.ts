@@ -1,7 +1,8 @@
 
 // supabase/functions/zenoti-create-client/index.ts
 
-import { corsHeaders } from '../_shared/cors';
+import { corsHeaders } from '../_shared/cors.ts';
+
 
 interface ClientData {
   firstName?: string;
