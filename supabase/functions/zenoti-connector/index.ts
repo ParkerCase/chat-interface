@@ -1,6 +1,7 @@
 // supabase/functions/zenoti-connector/index.ts
 
 import { corsHeaders } from '../_shared/cors.ts';
+import { serve } from "std/http/server.ts";
 
 // Zenoti API configuration
 interface ZenotiConfig {
@@ -25,7 +26,7 @@ interface ZenotiRequest {
 }
 
 // Set to true to use mock data instead of real API calls
-const TEST_MODE = true;
+const TEST_MODE = false;
 
 // Hardcoded center ID mapping - used for specific Zenoti endpoints that require UUIDs
 const CENTER_ID_MAP: Record<string, string> = {
@@ -404,7 +405,7 @@ const getMockData = (endpoint: string) => {
   };
 };
 
-Deno.serve(async (req) => {
+serve(async (req: Request) => {
   // CORS preflight handler
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -487,8 +488,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: false,
-          error: error.message,
-          detail: error.toString()
+          error: error instanceof Error ? error.message : 'Error occurred in test auth endpoint',
         }),
         {
           status: 500,
@@ -573,8 +573,8 @@ Deno.serve(async (req) => {
           headers['Authorization'] = `Bearer ${authToken}`;
         }
       } catch (authError) {
-        console.error("Authentication error:", authError.message);
-        throw new Error(`Authentication failed: ${authError.message}`);
+console.error("Authentication error:", authError instanceof Error ? authError.message : String(authError));
+throw new Error(`Authentication failed: ${authError instanceof Error ? authError.message : String(authError)}`);
       }
     }
     
@@ -659,12 +659,12 @@ Deno.serve(async (req) => {
       throw new Error(`Error connecting to Zenoti API: ${fetchError.message}`);
     }
   } catch (error) {
-    console.error('Zenoti connector error:', error.message);
+console.error("Error in zenoti-connector function:", error instanceof Error ? error.message : "Unknown error");
     
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || 'Unknown error occurred',
+error: error instanceof Error ? error.message : 'Unknown error occurred',
         errorDetail: error.toString()
       }),
       {
@@ -683,41 +683,25 @@ Deno.serve(async (req) => {
  * Uses cache to avoid requesting a new token for every request
  */
 async function getZenotiAuthToken(config: ZenotiConfig): Promise<string> {
-  console.log("Starting authentication process for Organization-level Employee access...");
-  console.log("Auth config:", {
-    hasApiKey: !!config.apiKey,
-    hasApiSecret: !!config.apiSecret,
-    hasAppId: !!config.appId,
-    hasUsername: !!config.username,
-    hasPassword: !!config.password,
-    useOAuth: config.useOAuth
-  });
+  console.log("Starting authentication process for Zenoti...");
   
   const cacheKey = `${config.username}:${config.apiKey}`;
   
   // Check cache first
   if (TOKEN_CACHE[cacheKey] && TOKEN_CACHE[cacheKey].expires > Date.now()) {
-    console.log("Using cached token (expires in", (TOKEN_CACHE[cacheKey].expires - Date.now()) / 1000, "seconds)");
+    console.log("Using cached token");
     return TOKEN_CACHE[cacheKey].token;
   }
   
-  // Try organization-level API Key + App ID authentication first (matches your Zenoti integration config)
-  if (config.apiKey) {
-    console.log("Using Organization-level API Key authentication");
-    
-    // For this method, we don't need a token, but return a string to indicate
-    // that authentication is handled by headers
-    return "API_KEY_AUTH";
-  }
-  
-  // If useOAuth is true and credentials are provided, get token via OAuth as fallback
+  // Try OAuth authentication first
   if (config.useOAuth && config.username && config.password) {
-    console.log("Using OAuth authentication with username:", config.username);
-    
-    // Log OAuth token request for debugging
-    console.log(`Requesting OAuth token from ${config.apiUrl}/oauth/token`);
+    console.log("Attempting OAuth authentication with:", config.username);
     
     try {
+      // Log full request details for debugging
+      console.log(`OAuth request to: ${config.apiUrl}/oauth/token`);
+      console.log(`Username: ${config.username}, Password: [REDACTED]`);
+      
       const tokenResponse = await fetch(`${config.apiUrl}/oauth/token`, {
         method: 'POST',
         headers: {
@@ -730,14 +714,13 @@ async function getZenotiAuthToken(config: ZenotiConfig): Promise<string> {
         }),
       });
       
-      // Get full response text
+      // Get full response text for debugging
       const responseText = await tokenResponse.text();
-      console.log("OAuth response status:", tokenResponse.status);
-      console.log("OAuth response body:", responseText.substring(0, 100));
+      console.log(`OAuth response status: ${tokenResponse.status}`);
+      console.log(`Response preview: ${responseText.substring(0, 200)}`);
       
-      // Check for HTTP error
       if (!tokenResponse.ok) {
-        throw new Error(`OAuth request failed with status ${tokenResponse.status}: ${responseText}`);
+        throw new Error(`OAuth request failed: Status ${tokenResponse.status} - ${responseText}`);
       }
       
       // Try to parse the response
@@ -754,21 +737,169 @@ async function getZenotiAuthToken(config: ZenotiConfig): Promise<string> {
       
       console.log("Successfully obtained OAuth token");
       
-      // Cache the token with expiry
+      // Cache the token
       TOKEN_CACHE[cacheKey] = {
         token: tokenData.access_token,
-        expires: Date.now() + (tokenData.expires_in * 1000) - 60000, // Subtract 1 minute for safety
+        expires: Date.now() + ((tokenData.expires_in || 3600) * 1000) - 60000, // Subtract 1 minute for safety
       };
       
       return tokenData.access_token;
     } catch (error) {
-      console.error("OAuth authentication error:", error.message);
-      throw error;
+      // Log detailed error information
+      console.error("OAuth authentication failed:", error instanceof Error ? error.message : "Unknown error");
+      console.error("Falling back to API key authentication");
     }
   }
   
-  // If no auth methods available
-  throw new Error("No valid authentication method available for Zenoti");
+  // Fallback to API Key authentication
+  if (config.apiKey) {
+    console.log("Using API Key authentication");
+    return "API_KEY_AUTH";
+  }
+  
+  throw new Error("No valid authentication methods available for Zenoti");
+}
+
+// Add a debug endpoint to test environment and connection
+if (req.url.includes('/debug-zenoti')) {
+  const config = getConfigFromEnv();
+  const timestamp = new Date().toISOString();
+  
+  // Debug log environment variables
+  console.log(`[${timestamp}] Debug request received`);
+  console.log("Environment variables:");
+  console.log(`ZENOTI_API_URL: ${Deno.env.get("ZENOTI_API_URL") || "NOT SET"}`);
+  console.log(`ZENOTI_USERNAME set: ${!!Deno.env.get("ZENOTI_USERNAME")}`);
+  console.log(`ZENOTI_PASSWORD set: ${!!Deno.env.get("ZENOTI_PASSWORD")}`);
+  console.log(`ZENOTI_API_KEY set: ${!!Deno.env.get("ZENOTI_API_KEY")}`);
+  console.log(`ZENOTI_APP_ID set: ${!!Deno.env.get("ZENOTI_APP_ID")}`);
+  console.log(`ZENOTI_USE_OAUTH: ${Deno.env.get("ZENOTI_USE_OAUTH")}`);
+  
+  try {
+    // Try to get an auth token
+    const authToken = await getZenotiAuthToken(config);
+    console.log(`Auth token obtained: ${authToken === "API_KEY_AUTH" ? "Using API Key Auth" : "OAuth Token received"}`);
+    
+    // Try a simple API call to centers
+    let centersResponse;
+    let headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (authToken === "API_KEY_AUTH") {
+      if (config.apiKey) headers['X-API-KEY'] = config.apiKey;
+    } else {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    
+    try {
+      console.log("Testing API call to /centers");
+      centersResponse = await fetch(`${config.apiUrl}/centers`, {
+        method: 'GET',
+        headers
+      });
+      
+      const centersText = await centersResponse.text();
+      console.log(`Centers API response status: ${centersResponse.status}`);
+      console.log(`Centers API response preview: ${centersText.substring(0, 200)}`);
+      
+      if (centersResponse.ok) {
+        const centersData = JSON.parse(centersText);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            timestamp,
+            auth: {
+              method: authToken === "API_KEY_AUTH" ? "API Key" : "OAuth",
+              status: "Success"
+            },
+            test: {
+              endpoint: "centers",
+              status: centersResponse.status,
+              success: true
+            },
+            config: {
+              apiUrl: config.apiUrl,
+              hasUsername: !!config.username,
+              hasPassword: !!config.password,
+              hasApiKey: !!config.apiKey,
+              useOAuth: config.useOAuth,
+              testMode: TEST_MODE
+            },
+            data: {
+              centerCount: centersData.centers?.length || 0,
+            }
+          }),
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          }
+        );
+      } else {
+        throw new Error(`Centers API call failed: ${centersResponse.status} - ${centersText}`);
+      }
+    } catch (apiError) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          timestamp,
+          auth: {
+            method: authToken === "API_KEY_AUTH" ? "API Key" : "OAuth",
+            status: "Success"
+          },
+          test: {
+            endpoint: "centers",
+            status: centersResponse ? centersResponse.status : "Error",
+            success: false,
+            error: apiError instanceof Error ? apiError.message : String(apiError)
+          },
+          config: {
+            apiUrl: config.apiUrl,
+            hasUsername: !!config.username,
+            hasPassword: !!config.password,
+            hasApiKey: !!config.apiKey,
+            useOAuth: config.useOAuth,
+            testMode: TEST_MODE
+          }
+        }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        }
+      );
+    }
+  } catch (authError) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        timestamp,
+        auth: {
+          error: authError instanceof Error ? authError.message : String(authError),
+          status: "Failed"
+        },
+        config: {
+          apiUrl: config.apiUrl,
+          hasUsername: !!config.username,
+          hasPassword: !!config.password,
+          hasApiKey: !!config.apiKey,
+          useOAuth: config.useOAuth,
+          testMode: TEST_MODE
+        }
+      }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      }
+    );
+  }
 }
 
 /**
