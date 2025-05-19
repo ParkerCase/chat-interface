@@ -4,6 +4,7 @@
     "deploy": "deployctl deploy --project=zenoti-connector --import-map=../deno.json --no-static index.ts"
   },
   "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.21.0"
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.21.0",
+    "std/": "https://deno.land/std@0.170.0/"
   }
 }

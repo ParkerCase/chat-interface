@@ -1,6 +1,9 @@
 // supabase/functions/zenoti-reports/index.ts
 
 import { corsHeaders } from '../_shared/cors.ts';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+
 
 
 interface ReportRequest {
@@ -29,7 +32,7 @@ interface ReportRequest {
   size?: number;
 }
 
-Deno.serve(async (req: Request): Promise<Response> => {
+serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });

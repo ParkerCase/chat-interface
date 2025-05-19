@@ -1,6 +1,7 @@
 // supabase/functions/zenoti-clients/index.ts
 
 import { corsHeaders } from '../_shared/cors.ts';
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 
 interface ClientSearchParams {
@@ -18,7 +19,7 @@ interface ClientResponse {
   totalCount?: number;
 }
 
-Deno.serve(async (req) => {
+serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -173,7 +174,8 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: false,
-          error: `Error fetching clients: ${error.message}`,
+          error: `Error fetching clients: ${error instanceof Error ? error.message : String(error)}`,
+
         }),
         {
           status: 500,
@@ -187,7 +189,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        error: `Error fetching clients: ${error.message}`,
+error: `Error fetching clients: ${error instanceof Error ? error.message : String(error)}`,
       }),
       {
         status: 500,
