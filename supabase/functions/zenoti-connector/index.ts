@@ -3,11 +3,6 @@
 import { corsHeaders } from '../_shared/cors.ts';
 import { serve } from "https://deno.land/std@0.167.0/http/server.ts";
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js";
-
-
-
-
 // Zenoti API configuration
 interface ZenotiConfig {
   apiUrl: string; 
@@ -28,9 +23,10 @@ interface ZenotiRequest {
   body?: any;
   centerCode?: string;
   requiresAuth?: boolean;
+  test?: boolean; // For simple connectivity test
 }
 
-// Set to true to use mock data instead of real API calls
+// Set to true to use mock data instead of real API calls (for development/testing)
 const TEST_MODE = false;
 
 // Hardcoded center ID mapping - used for specific Zenoti endpoints that require UUIDs
@@ -86,36 +82,42 @@ const getMockData = (endpoint: string) => {
   }
   
   // Clients/Guests endpoint
-  if (endpoint.includes("guests/search") || endpoint.includes("clients")) {
+  if (endpoint.includes("guests/search") || endpoint.includes("clients") || endpoint.includes("guests")) {
     return {
-      clients: [
+      guests: [
         { 
           id: "client1", 
           guest_id: "client1",
-          first_name: "John", 
-          last_name: "Doe", 
-          email: "john.doe@example.com", 
-          mobile: "555-123-4567",
+          personal_info: {
+            first_name: "John", 
+            last_name: "Doe", 
+            email: "john.doe@example.com", 
+            mobile: "555-123-4567",
+          },
           last_visit_date: new Date(Date.now() - 86400000).toISOString(),
           center_code: "AUS"
         },
         { 
           id: "client2", 
           guest_id: "client2",
-          first_name: "Jane", 
-          last_name: "Smith", 
-          email: "jane.smith@example.com", 
-          mobile: "555-987-6543",
+          personal_info: {
+            first_name: "Jane", 
+            last_name: "Smith", 
+            email: "jane.smith@example.com", 
+            mobile: "555-987-6543",
+          },
           last_visit_date: new Date(Date.now() - 172800000).toISOString(),
           center_code: "CHI"
         },
         { 
           id: "client3", 
           guest_id: "client3",
-          first_name: "Robert", 
-          last_name: "Johnson", 
-          email: "robert.johnson@example.com", 
-          mobile: "555-456-7890",
+          personal_info: {
+            first_name: "Robert", 
+            last_name: "Johnson", 
+            email: "robert.johnson@example.com", 
+            mobile: "555-456-7890",
+          },
           last_visit_date: new Date(Date.now() - 259200000).toISOString(),
           center_code: "CW"
         }
@@ -190,7 +192,10 @@ const getMockData = (endpoint: string) => {
           duration: 60,
           status: "Confirmed",
           notes: "Test appointment notes",
-          therapist: "Jane Smith",
+          therapist: {
+            first_name: "Jane",
+            last_name: "Smith"
+          },
           guest: {
             id: "client1",
             first_name: "John",
@@ -216,7 +221,10 @@ const getMockData = (endpoint: string) => {
           duration: 60,
           status: "Confirmed",
           notes: "First session",
-          therapist: "Jane Smith"
+          therapist: {
+            first_name: "Jane",
+            last_name: "Smith"
+          }
         },
         {
           id: "appointment2",
@@ -228,7 +236,10 @@ const getMockData = (endpoint: string) => {
           duration: 30,
           status: "Booked",
           notes: "New client consultation",
-          therapist: "Robert Johnson"
+          therapist: {
+            first_name: "Robert",
+            last_name: "Johnson"
+          }
         },
         {
           id: "appointment3",
@@ -240,7 +251,10 @@ const getMockData = (endpoint: string) => {
           duration: 45,
           status: "Confirmed",
           notes: "Follow-up session",
-          therapist: "John Doe"
+          therapist: {
+            first_name: "John",
+            last_name: "Doe"
+          }
         }
       ],
       total_count: 3
@@ -403,6 +417,39 @@ const getMockData = (endpoint: string) => {
     };
   }
   
+  // Therapists endpoint
+  if (endpoint.includes("therapists")) {
+    return {
+      therapists: [
+        {
+          id: "therapist1",
+          first_name: "Jane",
+          last_name: "Smith",
+          designation: "Senior Therapist",
+          expertise: ["Tattoo Removal", "Consultations"],
+          is_active: true
+        },
+        {
+          id: "therapist2",
+          first_name: "Robert",
+          last_name: "Johnson",
+          designation: "Therapist",
+          expertise: ["Tattoo Removal"],
+          is_active: true
+        },
+        {
+          id: "therapist3",
+          first_name: "John",
+          last_name: "Doe",
+          designation: "Junior Therapist",
+          expertise: ["Consultations"],
+          is_active: true
+        }
+      ],
+      total_count: 3
+    };
+  }
+  
   // Default mock data
   return {
     message: "Mock data not implemented for this endpoint",
@@ -411,11 +458,26 @@ const getMockData = (endpoint: string) => {
 };
 
 serve(async (req: Request) => {
-  // TEMP bypass auth protection
-  req.headers.set("Authorization", `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`);
-    // CORS preflight handler
+  // CORS preflight handler
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
+
+  // Simple test endpoint
+  if (req.url.includes('/test')) {
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Zenoti connector function is operational",
+        timestamp: new Date().toISOString()
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      }
+    );
   }
 
   // Debug endpoint to check environment variables
@@ -509,52 +571,88 @@ serve(async (req: Request) => {
   }
 
   if (req.url.includes('/debug-zenoti')) {
-  const config = getConfigFromEnv();
-  const timestamp = new Date().toISOString();
-  
-  // Debug log environment variables
-  console.log(`[${timestamp}] Debug request received`);
-  console.log("Environment variables:");
-  console.log(`ZENOTI_API_URL: ${Deno.env.get("ZENOTI_API_URL") || "NOT SET"}`);
-  console.log(`ZENOTI_USERNAME set: ${!!Deno.env.get("ZENOTI_USERNAME")}`);
-  console.log(`ZENOTI_PASSWORD set: ${!!Deno.env.get("ZENOTI_PASSWORD")}`);
-  console.log(`ZENOTI_API_KEY set: ${!!Deno.env.get("ZENOTI_API_KEY")}`);
-  console.log(`ZENOTI_APP_ID set: ${!!Deno.env.get("ZENOTI_APP_ID")}`);
-  console.log(`ZENOTI_USE_OAUTH: ${Deno.env.get("ZENOTI_USE_OAUTH")}`);
-  
-  try {
-    // Try to get an auth token
-    const authToken = await getZenotiAuthToken(config);
-    console.log(`Auth token obtained: ${authToken === "API_KEY_AUTH" ? "Using API Key Auth" : "OAuth Token received"}`);
+    const config = getConfigFromEnv();
+    const timestamp = new Date().toISOString();
     
-    // Try a simple API call to centers
-    let centersResponse;
-    let headers = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (authToken === "API_KEY_AUTH") {
-      if (config.apiKey) headers['X-API-KEY'] = config.apiKey;
-    } else {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
+    // Debug log environment variables
+    console.log(`[${timestamp}] Debug request received`);
+    console.log("Environment variables:");
+    console.log(`ZENOTI_API_URL: ${Deno.env.get("ZENOTI_API_URL") || "NOT SET"}`);
+    console.log(`ZENOTI_USERNAME set: ${!!Deno.env.get("ZENOTI_USERNAME")}`);
+    console.log(`ZENOTI_PASSWORD set: ${!!Deno.env.get("ZENOTI_PASSWORD")}`);
+    console.log(`ZENOTI_API_KEY set: ${!!Deno.env.get("ZENOTI_API_KEY")}`);
+    console.log(`ZENOTI_APP_ID set: ${!!Deno.env.get("ZENOTI_APP_ID")}`);
+    console.log(`ZENOTI_USE_OAUTH: ${Deno.env.get("ZENOTI_USE_OAUTH")}`);
     
     try {
-      console.log("Testing API call to /centers");
-      centersResponse = await fetch(`${config.apiUrl}/centers`, {
-        method: 'GET',
-        headers
-      });
+      // Try to get an auth token
+      const authToken = await getZenotiAuthToken(config);
+      console.log(`Auth token obtained: ${authToken === "API_KEY_AUTH" ? "Using API Key Auth" : "OAuth Token received"}`);
       
-      const centersText = await centersResponse.text();
-      console.log(`Centers API response status: ${centersResponse.status}`);
-      console.log(`Centers API response preview: ${centersText.substring(0, 200)}`);
+      // Try a simple API call to centers
+      let centersResponse;
+      let headers = {
+        'Content-Type': 'application/json',
+      };
       
-      if (centersResponse.ok) {
-        const centersData = JSON.parse(centersText);
+      if (authToken === "API_KEY_AUTH") {
+        if (config.apiKey) headers['X-API-KEY'] = config.apiKey;
+      } else {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
+      try {
+        console.log("Testing API call to /centers");
+        centersResponse = await fetch(`${config.apiUrl}/centers`, {
+          method: 'GET',
+          headers
+        });
+        
+        const centersText = await centersResponse.text();
+        console.log(`Centers API response status: ${centersResponse.status}`);
+        console.log(`Centers API response preview: ${centersText.substring(0, 200)}`);
+        
+        if (centersResponse.ok) {
+          const centersData = JSON.parse(centersText);
+          return new Response(
+            JSON.stringify({
+              success: true,
+              timestamp,
+              auth: {
+                method: authToken === "API_KEY_AUTH" ? "API Key" : "OAuth",
+                status: "Success"
+              },
+              test: {
+                endpoint: "centers",
+                status: centersResponse.status,
+                success: true
+              },
+              config: {
+                apiUrl: config.apiUrl,
+                hasUsername: !!config.username,
+                hasPassword: !!config.password,
+                hasApiKey: !!config.apiKey,
+                useOAuth: config.useOAuth,
+                testMode: TEST_MODE
+              },
+              data: {
+                centerCount: centersData.centers?.length || 0,
+              }
+            }),
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            }
+          );
+        } else {
+          throw new Error(`Centers API call failed: ${centersResponse.status} - ${centersText}`);
+        }
+      } catch (apiError) {
         return new Response(
           JSON.stringify({
-            success: true,
+            success: false,
             timestamp,
             auth: {
               method: authToken === "API_KEY_AUTH" ? "API Key" : "OAuth",
@@ -562,8 +660,9 @@ serve(async (req: Request) => {
             },
             test: {
               endpoint: "centers",
-              status: centersResponse.status,
-              success: true
+              status: centersResponse ? centersResponse.status : "Error",
+              success: false,
+              error: apiError instanceof Error ? apiError.message : String(apiError)
             },
             config: {
               apiUrl: config.apiUrl,
@@ -572,35 +671,25 @@ serve(async (req: Request) => {
               hasApiKey: !!config.apiKey,
               useOAuth: config.useOAuth,
               testMode: TEST_MODE
-            },
-            data: {
-              centerCount: centersData.centers?.length || 0,
             }
           }),
           {
+            status: 500,
             headers: {
               'Content-Type': 'application/json',
               ...corsHeaders
             }
           }
         );
-      } else {
-        throw new Error(`Centers API call failed: ${centersResponse.status} - ${centersText}`);
       }
-    } catch (apiError) {
+    } catch (authError) {
       return new Response(
         JSON.stringify({
           success: false,
           timestamp,
           auth: {
-            method: authToken === "API_KEY_AUTH" ? "API Key" : "OAuth",
-            status: "Success"
-          },
-          test: {
-            endpoint: "centers",
-            status: centersResponse ? centersResponse.status : "Error",
-            success: false,
-            error: apiError instanceof Error ? apiError.message : String(apiError)
+            error: authError instanceof Error ? authError.message : String(authError),
+            status: "Failed"
           },
           config: {
             apiUrl: config.apiUrl,
@@ -620,37 +709,46 @@ serve(async (req: Request) => {
         }
       );
     }
-  } catch (authError) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        timestamp,
-        auth: {
-          error: authError instanceof Error ? authError.message : String(authError),
-          status: "Failed"
-        },
-        config: {
-          apiUrl: config.apiUrl,
-          hasUsername: !!config.username,
-          hasPassword: !!config.password,
-          hasApiKey: !!config.apiKey,
-          useOAuth: config.useOAuth,
-          testMode: TEST_MODE
-        }
-      }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          ...corsHeaders
-        }
-      }
-    );
   }
-}
 
   try {
-    const requestData = await req.json();
+    // Parse the request body
+    let requestData: ZenotiRequest;
+    
+    try {
+      requestData = await req.json();
+    } catch (parseError) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Invalid JSON in request body'
+        }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        }
+      );
+    }
+    
+    // Handle simple connectivity test
+    if (requestData.test === true) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Zenoti connector function is operational",
+          timestamp: new Date().toISOString()
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        }
+      );
+    }
     
     // Validate the request data
     if (!requestData || typeof requestData !== 'object') {
@@ -661,17 +759,15 @@ serve(async (req: Request) => {
       throw new Error('Missing or invalid endpoint parameter');
     }
 
-    
-    
     // Parse and validate the request with defaults
     const { 
       endpoint, 
       method = 'GET', 
       params, 
       body, 
-     // centerCode, 
+      centerCode, 
       requiresAuth = true 
-    } = requestData as ZenotiRequest;
+    } = requestData;
     
     console.log(`Processing request for endpoint: ${endpoint}, method: ${method}`);
     
@@ -708,7 +804,7 @@ serve(async (req: Request) => {
       try {
         const authToken = await getZenotiAuthToken(config);
         
-        // Always add API key
+        // Always add API key if available
         if (config.apiKey) {
           headers['X-API-KEY'] = config.apiKey;
         }
@@ -723,8 +819,8 @@ serve(async (req: Request) => {
           headers['Authorization'] = `Bearer ${authToken}`;
         }
       } catch (authError) {
-console.error("Authentication error:", authError instanceof Error ? authError.message : String(authError));
-throw new Error(`Authentication failed: ${authError instanceof Error ? authError.message : String(authError)}`);
+        console.error("Authentication error:", authError instanceof Error ? authError.message : String(authError));
+        throw new Error(`Authentication failed: ${authError instanceof Error ? authError.message : String(authError)}`);
       }
     }
     
@@ -809,12 +905,12 @@ throw new Error(`Authentication failed: ${authError instanceof Error ? authError
       throw new Error(`Error connecting to Zenoti API: ${fetchError.message}`);
     }
   } catch (error) {
-console.error("Error in zenoti-connector function:", error instanceof Error ? error.message : "Unknown error");
+    console.error("Error in zenoti-connector function:", error instanceof Error ? error.message : "Unknown error");
     
     return new Response(
       JSON.stringify({
         success: false,
-error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
         errorDetail: error.toString()
       }),
       {
@@ -907,41 +1003,9 @@ async function getZenotiAuthToken(config: ZenotiConfig): Promise<string> {
   throw new Error("No valid authentication methods available");
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function testAuth() {
-  try {
-    const config = getConfigFromEnv();
-    console.log("Testing authentication with config:", {
-      apiUrl: config.apiUrl,
-      hasUsername: !!config.username,
-      hasPassword: !!config.password,
-      hasApiKey: !!config.apiKey,
-      useOAuth: config.useOAuth
-    });
-    
-    const token = await getZenotiAuthToken(config);
-    console.log("Auth result:", token === "API_KEY_AUTH" ? "Using API Key" : "Got OAuth token");
-    return { success: true, message: "Authentication successful" };
-  } catch (error) {
-    console.error("Auth test failed:", error);
-    return { 
-      success: false, 
-      error: error.message || "Unknown error",
-      config: {
-        apiUrl: config.apiUrl,
-        hasUsername: !!config.username,
-        hasPassword: !!config.password,
-        hasApiKey: !!config.apiKey,
-        useOAuth: config.useOAuth
-      }
-    };
-  }
-}
-
 /**
  * Helper to get center ID from center code
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getCenterIdFromCode(centerCode: string): string {
   if (!centerCode) return CENTER_ID_MAP.DEFAULT;
   return CENTER_ID_MAP[centerCode] || CENTER_ID_MAP.DEFAULT;
