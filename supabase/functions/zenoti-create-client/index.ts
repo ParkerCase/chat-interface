@@ -2,7 +2,7 @@
 // supabase/functions/zenoti-create-client/index.ts
 
 import { corsHeaders } from '../_shared/cors.ts';
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.170.0/http/server.ts";
 
 
 interface ClientData {
