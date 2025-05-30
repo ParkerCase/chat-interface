@@ -2,6 +2,7 @@
 
 import { corsHeaders } from '../_shared/cors.ts';
 import { serve } from "https://deno.land/std@0.170.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.21.0';
 
 
 
@@ -33,99 +34,109 @@ interface ReportRequest {
 }
 
 serve(async (req: Request): Promise<Response> => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  const supabase = createClient(Deno.env.get('SUPABASE_URL'), Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
+  const zenotiApiKey = Deno.env.get('ZENOTI_API_KEY');
+  const zenotiApiUrl = Deno.env.get('ZENOTI_API_URL');
+  const { reportType, startDate, endDate, centerCode, ...filters } = await req.json();
+
+  // Get center_id from centerCode
+  let centerId = null;
+  if (centerCode) {
+    const { data: center } = await supabase
+      .from('zenoti_centers')
+      .select('center_id, center_code')
+      .eq('center_code', centerCode)
+      .single();
+    if (center && center.center_id) {
+      centerId = center.center_id;
+    }
   }
-  
-  try {
-    // Extract parameters from request
-    const url = new URL(req.url);
-    let params: ReportRequest;
-    
-    if (req.method === 'POST') {
-      params = await req.json();
-    } else {
-      // Extract from query parameters
-      params = {
-        reportType: url.searchParams.get('reportType') as any || 'accrual_basis',
-        startDate: url.searchParams.get('startDate') || undefined,
-        endDate: url.searchParams.get('endDate') || undefined,
-        centerCode: url.searchParams.get('centerCode') || '',
-        status: url.searchParams.get('status') || undefined,
-        page: url.searchParams.has('page') ? parseInt(url.searchParams.get('page')!) : 1,
-        size: url.searchParams.has('size') ? parseInt(url.searchParams.get('size')!) : 50
-      };
-    }
-    
-    // Validate parameters
-    if (!params.centerCode) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Center code is required' 
-        }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        }
-      );
-    }
-    
-    // Set up default date range if not provided
-    if (!params.startDate) {
-      const defaultStart = new Date();
-      defaultStart.setMonth(defaultStart.getMonth() - 1); // Default to last month
-      params.startDate = defaultStart.toISOString().split('T')[0];
-    }
-    
-    if (!params.endDate) {
-      params.endDate = new Date().toISOString().split('T')[0];
-    }
-    
-    // Call the appropriate report function based on type
-    switch (params.reportType) {
-      case 'accrual_basis':
-        return await getAccrualBasisReport(req.url, params);
-      
-      case 'cash_basis':
-        return await getCashBasisReport(req.url, params);
-      
-      case 'appointments':
-        return await getAppointmentsReport(req.url, params);
-      
-      case 'services':
-        return await getServicesReport(req.url, params);
-      
-      case 'packages':
-        return await getPackagesReport(req.url, params);
-      
-      default:
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: `Unsupported report type: ${params.reportType}` 
-          }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders }
-          }
-        );
-    }
-  } catch (error) {
-    console.error('Error generating report:', error);
-    
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: `Error generating report: ${error.message}`
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders }
-      }
-    );
+  if (!centerId) {
+    return new Response(JSON.stringify({ success: false, error: 'Invalid or missing centerCode/centerId' }), { status: 400, headers: corsHeaders });
   }
+
+  let data = [];
+  let summary = {};
+  let endpoint = '';
+  let body = {};
+  let table = '';
+  let page = filters.page || 1;
+  let size = filters.size || 100;
+
+  if (reportType === 'accrual') {
+    endpoint = `/reports/sales/accrual_basis/flat_file?page=${page}&size=${size}`;
+    body = {
+      start_date: `${startDate} 00:00:00`,
+      end_date: `${endDate} 23:59:59`,
+      centers: { ids: [centerId] }
+    };
+    table = 'zenoti_sales_accrual_reports';
+  } else if (reportType === 'cash_basis') {
+    endpoint = `/reports/sales/cash_basis/flat_file?page=${page}&size=${size}`;
+    body = {
+      center_ids: [centerId],
+      level_of_detail: "1",
+      start_date: `${startDate} 00:00:00`,
+      end_date: `${endDate} 23:59:59`,
+      item_types: filters.item_types || [-1],
+      payment_types: filters.payment_types || [-1],
+      sale_types: filters.sale_types || [-1],
+      sold_by_ids: [],
+      invoice_statuses: filters.invoice_statuses || [-1]
+    };
+    table = 'zenoti_sales_cash_reports';
+  } else if (reportType === 'appointments') {
+    endpoint = `/reports/appointments/flat_file?page=${page}&size=${size}`;
+    body = {
+      center_ids: [centerId],
+      date_type: filters.date_type || 0,
+      appointment_statuses: filters.appointment_statuses || [-1],
+      appointment_sources: filters.appointment_sources || [-1],
+      start_date: startDate,
+      end_date: endDate
+    };
+    table = 'zenoti_appointments_reports';
+  } else {
+    return new Response(JSON.stringify({ success: false, error: `Unsupported report type: ${reportType}` }), { status: 400, headers: corsHeaders });
+  }
+
+  // Fetch from Zenoti
+  const response = await fetch(`${zenotiApiUrl}${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `apikey ${zenotiApiKey}`,
+      'Content-Type': 'application/json',
+      ...corsHeaders
+    },
+    body: JSON.stringify(body)
+  });
+  const result = await response.json();
+
+  // Extract data array depending on report type
+  if (reportType === 'accrual' && result.sales) {
+    data = result.sales;
+  } else if (reportType === 'cash_basis' && result.sales) {
+    data = result.sales;
+  } else if (reportType === 'appointments' && result.appointments) {
+    data = result.appointments;
+  } else if (result.data && Array.isArray(result.data)) {
+    data = result.data;
+  }
+
+  // Store the report data in Supabase for caching
+  if (table && data.length > 0) {
+    await supabase.from(table).insert({
+      report_type: reportType,
+      center_id: centerId,
+      center_code: centerCode,
+      start_date: startDate,
+      end_date: endDate,
+      data,
+      fetched_at: new Date().toISOString()
+    });
+  }
+
+  return new Response(JSON.stringify({ success: true, data, summary }), { headers: corsHeaders });
 });
 
 /**
