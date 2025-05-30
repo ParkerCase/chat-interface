@@ -42,7 +42,7 @@ const CRMTabContent = () => {
 
       setConnectionStatus({
         connected: true,
-        message: "Successfully connected to Supabase database",
+        message: "Successfully connected",
       });
       return true;
     } catch (error) {
@@ -266,7 +266,7 @@ const CRMTabContent = () => {
             />
           </div>
           <div className="connection-details" style={{ flex: 1 }}>
-            <h4 style={{ margin: "0 0 4px 0" }}>Zenoti CRM via Supabase</h4>
+            <h4 style={{ margin: "0 0 4px 0" }}>Zenoti CRM</h4>
             <p style={{ margin: 0, color: "#666" }}>
               {connectionStatus?.message || "Checking connection status..."}
             </p>
@@ -512,12 +512,12 @@ const CRMTabContent = () => {
                 justifyContent: "space-between",
                 alignItems: "center",
                 padding: "16px 24px",
-                borderBottom: "1px solid #e0e0e0",
-                backgroundColor: "#f5f5f5",
+                backgroundColor: "transparent",
                 color: "black",
+                border: "none",
               }}
             >
-              <h3 style={{ margin: 0 }}>Tatt2Away CRM Dashboard</h3>
+              <h3 style={{ margin: 0 }}> </h3>
               <button
                 className="close-crm-button"
                 onClick={handleCloseCRM}

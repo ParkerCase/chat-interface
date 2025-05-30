@@ -143,16 +143,11 @@ const ZenotiPackagesSection = ({
       console.log("Fetching packages for center:", selectedCenter);
       console.log("Center mapping:", centerMapping);
 
+      // Since all packages are stored under center_id 90aa9708-4678-4c04-999e-63e4aff12f40
+      // but are available to all centers, we always fetch ALL packages
       let query = supabase
         .from("zenoti_packages")
         .select("*", { count: "exact" });
-
-      // Apply center filter if a specific center is selected
-      if (selectedCenter !== "ALL" && centerCodeToId[selectedCenter]) {
-        const targetCenterId = centerCodeToId[selectedCenter];
-        console.log("Filtering packages by center ID:", targetCenterId);
-        query = query.eq("center_id", targetCenterId);
-      }
 
       // Apply search filter if provided
       if (searchTerm.trim()) {
@@ -178,7 +173,7 @@ const ZenotiPackagesSection = ({
         data: data?.length,
         count,
         selectedCenter,
-        targetCenterId: centerCodeToId[selectedCenter],
+        note: "All packages are shared across centers",
       });
 
       // Process packages data
@@ -202,7 +197,7 @@ const ZenotiPackagesSection = ({
           type_label: getPackageTypeLabel(row.type || details.type),
           time: row.time || details.time || 0,
           center_id: row.center_id,
-          center_code: centerIdToCode[row.center_id] || "Unknown",
+          center_code: "All Centers", // Since packages are shared across all centers
           is_active: details.active !== false,
           booking_start_date:
             row.booking_start_date || details.booking_start_date,
@@ -226,9 +221,7 @@ const ZenotiPackagesSection = ({
       setPackages(processedPackages);
       setTotalPackages(count || 0);
 
-      if (processedPackages.length === 0 && selectedCenter !== "ALL") {
-        console.warn("No packages found for center:", selectedCenter);
-      }
+      console.log("Final processed packages:", processedPackages.length);
     } catch (err) {
       console.error("Error fetching packages:", err);
       setError(`Failed to fetch packages: ${err.message}`);
@@ -241,19 +234,12 @@ const ZenotiPackagesSection = ({
     searchTerm,
     page,
     rowsPerPage,
-    selectedCenter,
-    centerCodeToId,
-    centerIdToCode,
+    selectedCenter, // Keep this for consistency but don't use it for filtering
   ]);
 
   // Load packages on mount and when dependencies change
   useEffect(() => {
-    // Add a small delay to ensure center mapping is available
-    const timer = setTimeout(() => {
-      fetchPackages();
-    }, 100);
-
-    return () => clearTimeout(timer);
+    fetchPackages();
   }, [fetchPackages]);
 
   // Reset page when search or center changes
@@ -424,22 +410,11 @@ const ZenotiPackagesSection = ({
             <Typography variant="body2" color="textSecondary">
               {searchTerm
                 ? "Try adjusting your search criteria"
-                : selectedCenter !== "ALL"
-                ? `No packages are available for ${selectedCenter} center`
-                : "No packages are available"}
+                : "No packages are available in the database"}
             </Typography>
-            {selectedCenter !== "ALL" && (
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  setSearchTerm("");
-                  // This would trigger the parent to change selectedCenter to "ALL"
-                  // You might need to add a callback prop for this
-                }}
-              >
-                View All Centers
-              </Button>
-            )}
+            <Button variant="outlined" onClick={handleRefresh}>
+              Refresh
+            </Button>
           </Box>
         ) : (
           <TableContainer sx={{ height: "100%" }}>
