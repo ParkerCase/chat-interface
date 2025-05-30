@@ -114,30 +114,34 @@ const CRMDashboard = ({
     setError(null);
 
     try {
-      // Build query
+      console.log("Fetching contacts for center:", selectedCenter);
+      console.log("Center mapping:", centerMapping);
+
+      // Build query - we need to fetch enough data to filter properly
       let query = supabase
         .from("zenoti_clients")
         .select("*", { count: "exact" });
 
-      // Apply center filter if selected
-      if (selectedCenter !== "ALL" && centerCodeToId[selectedCenter]) {
-        // Since center_id is stored in details JSON, we need to use a more complex query
-        // For now, we'll fetch all and filter in memory for better performance
-      }
-
-      // Apply search filter
+      // Apply search filter first
       if (contactsSearch.trim()) {
-        // This is a simplified search - in production you might want to use full-text search
         const searchTerm = contactsSearch.trim().toLowerCase();
         query = query.or(
           `details->personal_info->>first_name.ilike.%${searchTerm}%,details->personal_info->>last_name.ilike.%${searchTerm}%,details->personal_info->>email.ilike.%${searchTerm}%`
         );
       }
 
-      // Apply pagination
-      const from = contactsPage * contactsRowsPerPage;
-      const to = from + contactsRowsPerPage - 1;
-      query = query.range(from, to);
+      // For center filtering, we need to fetch ALL data first, then filter in memory
+      // because center info is in JSON details
+      if (selectedCenter === "ALL") {
+        // For "All Centers", we can use normal pagination
+        const from = contactsPage * contactsRowsPerPage;
+        const to = from + contactsRowsPerPage - 1;
+        query = query.range(from, to);
+      } else {
+        // For specific centers, fetch a large dataset to filter from
+        // We'll paginate after filtering
+        query = query.limit(5000); // Fetch more data to ensure we have enough after filtering
+      }
 
       // Order by last synced
       query = query.order("last_synced", { ascending: false });
@@ -145,6 +149,8 @@ const CRMDashboard = ({
       const { data, error, count } = await query;
 
       if (error) throw error;
+
+      console.log("Raw contacts data:", data?.length);
 
       // Process contacts
       let processedContacts = (data || []).map((row) => {
@@ -174,16 +180,53 @@ const CRMDashboard = ({
         };
       });
 
-      // Apply center filter in memory if needed
-      if (selectedCenter !== "ALL" && centerCodeToId[selectedCenter]) {
-        const targetCenterId = centerCodeToId[selectedCenter];
-        processedContacts = processedContacts.filter(
-          (contact) => contact.center_id === targetCenterId
-        );
+      console.log(
+        "Processed contacts before center filter:",
+        processedContacts.length
+      );
+
+      // Apply center filter and pagination
+      if (selectedCenter === "ALL") {
+        // For "All Centers", data is already paginated
+        setContacts(processedContacts);
+        setTotalContacts(count || 0);
+      } else {
+        // Extract center code from button text (e.g., "AUS - Austin" -> "AUS")
+        const selectedCenterCode = selectedCenter.split(" - ")[0];
+        console.log("Filtering by center code:", selectedCenterCode);
+
+        // Get the center ID for this code
+        const targetCenterId = centerCodeToId[selectedCenterCode];
+        console.log("Target center ID:", targetCenterId);
+
+        // Filter by both center_code and center_id for maximum compatibility
+        const filteredContacts = processedContacts.filter((contact) => {
+          const matchesCenterCode = contact.center_code === selectedCenterCode;
+          const matchesCenterId = contact.center_id === targetCenterId;
+          return matchesCenterCode || matchesCenterId;
+        });
+
+        console.log("Contacts after center filter:", filteredContacts.length);
+
+        // Apply pagination AFTER filtering
+        const totalFiltered = filteredContacts.length;
+        const from = contactsPage * contactsRowsPerPage;
+        const to = from + contactsRowsPerPage;
+        const paginatedContacts = filteredContacts.slice(from, to);
+
+        setContacts(paginatedContacts);
+        setTotalContacts(totalFiltered);
       }
 
-      setContacts(processedContacts);
-      setTotalContacts(count || 0);
+      // Debug: Log unique center codes and IDs found
+      const uniqueCenterCodes = [
+        ...new Set(processedContacts.map((c) => c.center_code)),
+      ];
+      const uniqueCenterIds = [
+        ...new Set(processedContacts.map((c) => c.center_id)),
+      ];
+      console.log("Unique center codes found:", uniqueCenterCodes);
+      console.log("Unique center IDs found:", uniqueCenterIds);
     } catch (err) {
       console.error("Error fetching contacts:", err);
       setError(`Failed to fetch contacts: ${err.message}`);
@@ -477,6 +520,16 @@ const CRMDashboard = ({
                   sx={{ width: 300 }}
                 />
               </Box>
+
+              {/* Debug Info - only show in development */}
+              {process.env.NODE_ENV === "development" && (
+                <Box sx={{ mb: 2, p: 1, bgcolor: "#f5f5f5", borderRadius: 1 }}>
+                  <Typography variant="caption" display="block">
+                    Debug: Selected Center: {selectedCenter} | Found Contacts:{" "}
+                    {totalContacts}
+                  </Typography>
+                </Box>
+              )}
             </Box>
 
             <Box sx={{ flex: 1, overflow: "hidden" }}>
@@ -490,6 +543,40 @@ const CRMDashboard = ({
                   }}
                 >
                   <CircularProgress />
+                </Box>
+              ) : contacts.length === 0 ? (
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    height: "100%",
+                    flexDirection: "column",
+                    gap: 2,
+                  }}
+                >
+                  <Typography variant="h6" color="textSecondary">
+                    No contacts found
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    textAlign="center"
+                  >
+                    {selectedCenter !== "ALL"
+                      ? `No contacts found for ${selectedCenter} center. Try selecting "All Centers" to see all contacts.`
+                      : contactsSearch
+                      ? "No contacts match your search criteria. Try adjusting your search terms."
+                      : "No contacts are available."}
+                  </Typography>
+                  {selectedCenter !== "ALL" && (
+                    <Button
+                      variant="outlined"
+                      onClick={() => handleCenterChange("ALL")}
+                    >
+                      View All Centers
+                    </Button>
+                  )}
                 </Box>
               ) : (
                 <TableContainer sx={{ height: "100%" }}>
@@ -549,6 +636,13 @@ const CRMDashboard = ({
                 setContactsPage(0);
               }}
               rowsPerPageOptions={[5, 10, 25, 50]}
+              labelDisplayedRows={({ from, to, count }) =>
+                `${from}–${to} of ${
+                  count !== -1 ? count.toLocaleString() : `more than ${to}`
+                }`
+              }
+              showFirstButton
+              showLastButton
             />
           </Paper>
         )}
@@ -670,6 +764,13 @@ const CRMDashboard = ({
                 setAppointmentsPage(0);
               }}
               rowsPerPageOptions={[5, 10, 25, 50]}
+              labelDisplayedRows={({ from, to, count }) =>
+                `${from}–${to} of ${
+                  count !== -1 ? count.toLocaleString() : `more than ${to}`
+                }`
+              }
+              showFirstButton
+              showLastButton
             />
           </Paper>
         )}
