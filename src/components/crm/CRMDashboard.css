@@ -302,7 +302,7 @@
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
   .crm-tab-content {
-    background-color: #1a1a1a;
+    background-color: transparent;
     color: #ffffff;
   }
 
