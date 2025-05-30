@@ -493,10 +493,13 @@ const CRMTabContent = () => {
             style={{
               backgroundColor: "#fff",
               borderRadius: "8px",
-              width: "95vw",
-              height: "90vh",
-              maxWidth: "1400px",
+              width: "98vw",
+              height: "98vh",
+              // maxWidth: "1400px",
               display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              margin: "auto",
               flexDirection: "column",
               overflow: "hidden",
             }}
@@ -505,11 +508,13 @@ const CRMTabContent = () => {
               className="crm-dashboard-header"
               style={{
                 display: "flex",
+                width: "100%",
                 justifyContent: "space-between",
                 alignItems: "center",
                 padding: "16px 24px",
                 borderBottom: "1px solid #e0e0e0",
                 backgroundColor: "#f5f5f5",
+                color: "black",
               }}
             >
               <h3 style={{ margin: 0 }}>Tatt2Away CRM Dashboard</h3>
