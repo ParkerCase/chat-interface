@@ -51,6 +51,17 @@ const ZenotiServicesSection = ({
   const [totalServices, setTotalServices] = useState(0);
 
   // Memoized center mapping
+  const centerCodeToId = useMemo(() => {
+    const mapping = {};
+    Object.entries(centerMapping).forEach(([key, value]) => {
+      if (key.length < 10) {
+        // This is a code
+        mapping[key] = value;
+      }
+    });
+    return mapping;
+  }, [centerMapping]);
+
   const centerIdToCode = useMemo(() => {
     const mapping = {};
     Object.entries(centerMapping).forEach(([key, value]) => {
@@ -104,9 +115,19 @@ const ZenotiServicesSection = ({
     setError(null);
 
     try {
+      console.log("Fetching services for center:", selectedCenter);
+      console.log("Center mapping:", centerMapping);
+
       let query = supabase
         .from("zenoti_services")
         .select("*", { count: "exact" });
+
+      // Apply center filter if a specific center is selected
+      if (selectedCenter !== "ALL" && centerCodeToId[selectedCenter]) {
+        const targetCenterId = centerCodeToId[selectedCenter];
+        console.log("Filtering by center ID:", targetCenterId);
+        query = query.eq("center_id", targetCenterId);
+      }
 
       // Apply search filter if provided
       if (searchTerm.trim()) {
@@ -127,6 +148,13 @@ const ZenotiServicesSection = ({
       const { data, error, count } = await query;
 
       if (error) throw error;
+
+      console.log("Services query result:", {
+        data: data?.length,
+        count,
+        selectedCenter,
+        targetCenterId: centerCodeToId[selectedCenter],
+      });
 
       // Process services data
       const processedServices = (data || []).map((row) => {
@@ -159,6 +187,10 @@ const ZenotiServicesSection = ({
 
       setServices(processedServices);
       setTotalServices(count || 0);
+
+      if (processedServices.length === 0 && selectedCenter !== "ALL") {
+        console.warn("No services found for center:", selectedCenter);
+      }
     } catch (err) {
       console.error("Error fetching services:", err);
       setError(`Failed to fetch services: ${err.message}`);
@@ -167,17 +199,30 @@ const ZenotiServicesSection = ({
     } finally {
       setIsLoading(false);
     }
-  }, [searchTerm, page, rowsPerPage, centerIdToCode, extractFromDetails]);
+  }, [
+    searchTerm,
+    page,
+    rowsPerPage,
+    selectedCenter,
+    centerCodeToId,
+    centerIdToCode,
+    extractFromDetails,
+  ]);
 
   // Load services on mount and when dependencies change
   useEffect(() => {
-    fetchServices();
+    // Add a small delay to ensure center mapping is available
+    const timer = setTimeout(() => {
+      fetchServices();
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [fetchServices]);
 
-  // Reset page when search changes
+  // Reset page when search or center changes
   useEffect(() => {
     setPage(0);
-  }, [searchTerm]);
+  }, [searchTerm, selectedCenter]);
 
   // Refresh function
   const handleRefresh = useCallback(() => {
@@ -202,13 +247,13 @@ const ZenotiServicesSection = ({
     const categories = new Set(services.map((s) => s.category)).size;
 
     return {
-      total: services.length,
+      total: totalServices, // Use total from query, not filtered results
       active: totalActive,
       avgPrice,
       avgDuration,
       categories,
     };
-  }, [services]);
+  }, [services, totalServices]);
 
   return (
     <Paper
@@ -233,6 +278,17 @@ const ZenotiServicesSection = ({
           </Box>
         </Box>
 
+        {/* Debug Info */}
+        {process.env.NODE_ENV === "development" && (
+          <Box sx={{ mb: 2, p: 1, bgcolor: "#f5f5f5", borderRadius: 1 }}>
+            <Typography variant="caption" display="block">
+              Debug: Selected Center: {selectedCenter} | Center ID:{" "}
+              {centerCodeToId[selectedCenter] || "N/A"} | Services Found:{" "}
+              {services.length} | Total Count: {totalServices}
+            </Typography>
+          </Box>
+        )}
+
         {/* Summary Cards */}
         <Grid container spacing={2} sx={{ mb: 2 }}>
           <Grid item xs={12} sm={6} md={2.4}>
@@ -242,7 +298,7 @@ const ZenotiServicesSection = ({
                   Total Services
                 </Typography>
                 <Typography variant="h6">
-                  {totalServices.toLocaleString()}
+                  {summaryStats.total.toLocaleString()}
                 </Typography>
               </CardContent>
             </Card>
@@ -347,8 +403,22 @@ const ZenotiServicesSection = ({
             <Typography variant="body2" color="textSecondary">
               {searchTerm
                 ? "Try adjusting your search criteria"
+                : selectedCenter !== "ALL"
+                ? `No services are available for ${selectedCenter} center`
                 : "No services are available"}
             </Typography>
+            {selectedCenter !== "ALL" && (
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setSearchTerm("");
+                  // This would trigger the parent to change selectedCenter to "ALL"
+                  // You might need to add a callback prop for this
+                }}
+              >
+                View All Centers
+              </Button>
+            )}
           </Box>
         ) : (
           <TableContainer sx={{ height: "100%" }}>
@@ -553,6 +623,14 @@ const ZenotiServicesSection = ({
                       size="small"
                       color={selectedService.is_active ? "success" : "default"}
                     />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="textSecondary">
+                      Center
+                    </Typography>
+                    <Typography variant="body1">
+                      {selectedService.center_code}
+                    </Typography>
                   </Grid>
                   {selectedService.description && (
                     <Grid item xs={12}>

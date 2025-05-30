@@ -55,6 +55,17 @@ const ZenotiPackagesSection = ({
   const [totalPackages, setTotalPackages] = useState(0);
 
   // Memoized center mapping
+  const centerCodeToId = useMemo(() => {
+    const mapping = {};
+    Object.entries(centerMapping).forEach(([key, value]) => {
+      if (key.length < 10) {
+        // This is a code
+        mapping[key] = value;
+      }
+    });
+    return mapping;
+  }, [centerMapping]);
+
   const centerIdToCode = useMemo(() => {
     const mapping = {};
     Object.entries(centerMapping).forEach(([key, value]) => {
@@ -129,9 +140,19 @@ const ZenotiPackagesSection = ({
     setError(null);
 
     try {
+      console.log("Fetching packages for center:", selectedCenter);
+      console.log("Center mapping:", centerMapping);
+
       let query = supabase
         .from("zenoti_packages")
         .select("*", { count: "exact" });
+
+      // Apply center filter if a specific center is selected
+      if (selectedCenter !== "ALL" && centerCodeToId[selectedCenter]) {
+        const targetCenterId = centerCodeToId[selectedCenter];
+        console.log("Filtering packages by center ID:", targetCenterId);
+        query = query.eq("center_id", targetCenterId);
+      }
 
       // Apply search filter if provided
       if (searchTerm.trim()) {
@@ -153,11 +174,24 @@ const ZenotiPackagesSection = ({
 
       if (error) throw error;
 
+      console.log("Packages query result:", {
+        data: data?.length,
+        count,
+        selectedCenter,
+        targetCenterId: centerCodeToId[selectedCenter],
+      });
+
       // Process packages data
       const processedPackages = (data || []).map((row) => {
         const details = row.details || {};
         const seriesPackage = details.series_package || {};
         const validity = seriesPackage.validity || {};
+
+        // Calculate price from series package if available
+        let packagePrice = 0;
+        if (seriesPackage.regular && seriesPackage.regular.price) {
+          packagePrice = seriesPackage.regular.price;
+        }
 
         return {
           id: row.id,
@@ -180,6 +214,7 @@ const ZenotiPackagesSection = ({
           freeze_count: seriesPackage.freeze_count || 0,
           cost_to_center: seriesPackage.cost_to_center || 0,
           terms_and_conditions: seriesPackage.terms_and_conditions || "",
+          price: packagePrice,
 
           // Commission details
           commission: details.commission || {},
@@ -190,6 +225,10 @@ const ZenotiPackagesSection = ({
 
       setPackages(processedPackages);
       setTotalPackages(count || 0);
+
+      if (processedPackages.length === 0 && selectedCenter !== "ALL") {
+        console.warn("No packages found for center:", selectedCenter);
+      }
     } catch (err) {
       console.error("Error fetching packages:", err);
       setError(`Failed to fetch packages: ${err.message}`);
@@ -198,17 +237,29 @@ const ZenotiPackagesSection = ({
     } finally {
       setIsLoading(false);
     }
-  }, [searchTerm, page, rowsPerPage, centerIdToCode]);
+  }, [
+    searchTerm,
+    page,
+    rowsPerPage,
+    selectedCenter,
+    centerCodeToId,
+    centerIdToCode,
+  ]);
 
   // Load packages on mount and when dependencies change
   useEffect(() => {
-    fetchPackages();
+    // Add a small delay to ensure center mapping is available
+    const timer = setTimeout(() => {
+      fetchPackages();
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [fetchPackages]);
 
-  // Reset page when search changes
+  // Reset page when search or center changes
   useEffect(() => {
     setPage(0);
-  }, [searchTerm]);
+  }, [searchTerm, selectedCenter]);
 
   // Refresh function
   const handleRefresh = useCallback(() => {
@@ -227,13 +278,13 @@ const ZenotiPackagesSection = ({
     }, {});
 
     return {
-      total: packages.length,
+      total: totalPackages, // Use total from query, not filtered results
       active: totalActive,
       inactive: packages.length - totalActive,
       types: Object.keys(typeGroups).length,
       typeGroups,
     };
-  }, [packages]);
+  }, [packages, totalPackages]);
 
   return (
     <Paper
@@ -258,6 +309,17 @@ const ZenotiPackagesSection = ({
           </Box>
         </Box>
 
+        {/* Debug Info */}
+        {process.env.NODE_ENV === "development" && (
+          <Box sx={{ mb: 2, p: 1, bgcolor: "#f5f5f5", borderRadius: 1 }}>
+            <Typography variant="caption" display="block">
+              Debug: Selected Center: {selectedCenter} | Center ID:{" "}
+              {centerCodeToId[selectedCenter] || "N/A"} | Packages Found:{" "}
+              {packages.length} | Total Count: {totalPackages}
+            </Typography>
+          </Box>
+        )}
+
         {/* Summary Cards */}
         <Grid container spacing={2} sx={{ mb: 2 }}>
           <Grid item xs={12} sm={6} md={3}>
@@ -267,7 +329,7 @@ const ZenotiPackagesSection = ({
                   Total Packages
                 </Typography>
                 <Typography variant="h6">
-                  {totalPackages.toLocaleString()}
+                  {summaryStats.total.toLocaleString()}
                 </Typography>
               </CardContent>
             </Card>
@@ -362,8 +424,22 @@ const ZenotiPackagesSection = ({
             <Typography variant="body2" color="textSecondary">
               {searchTerm
                 ? "Try adjusting your search criteria"
+                : selectedCenter !== "ALL"
+                ? `No packages are available for ${selectedCenter} center`
                 : "No packages are available"}
             </Typography>
+            {selectedCenter !== "ALL" && (
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setSearchTerm("");
+                  // This would trigger the parent to change selectedCenter to "ALL"
+                  // You might need to add a callback prop for this
+                }}
+              >
+                View All Centers
+              </Button>
+            )}
           </Box>
         ) : (
           <TableContainer sx={{ height: "100%" }}>
@@ -386,6 +462,7 @@ const ZenotiPackagesSection = ({
                       Time
                     </Box>
                   </TableCell>
+                  <TableCell align="right">Price</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Booking Period</TableCell>
                   <TableCell>Center</TableCell>
@@ -429,6 +506,11 @@ const ZenotiPackagesSection = ({
                     <TableCell align="right">
                       <Typography variant="body2">
                         {formatDuration(pkg.time)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography variant="body2" fontWeight="medium">
+                        {formatCurrency(pkg.price)}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -555,6 +637,14 @@ const ZenotiPackagesSection = ({
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <Typography variant="body2" color="textSecondary">
+                      Price
+                    </Typography>
+                    <Typography variant="body1">
+                      {formatCurrency(selectedPackage.price)}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="textSecondary">
                       Status
                     </Typography>
                     <Chip
@@ -562,6 +652,14 @@ const ZenotiPackagesSection = ({
                       size="small"
                       color={selectedPackage.is_active ? "success" : "default"}
                     />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="textSecondary">
+                      Center
+                    </Typography>
+                    <Typography variant="body1">
+                      {selectedPackage.center_code}
+                    </Typography>
                   </Grid>
                   {selectedPackage.description && (
                     <Grid item xs={12}>

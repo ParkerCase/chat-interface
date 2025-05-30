@@ -25,6 +25,7 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  TextField,
 } from "@mui/material";
 import {
   BarChart,
@@ -48,6 +49,7 @@ import {
   Event,
   TrendingUp,
   Assessment,
+  DateRange,
 } from "@mui/icons-material";
 import jsPDF from "jspdf";
 
@@ -61,6 +63,12 @@ const CRMAnalyticsDashboard = ({
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState(0);
   const [dateRange, setDateRange] = useState("30days");
+  const [reportType, setReportType] = useState("accrual");
+
+  // Custom date range
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [useCustomDates, setUseCustomDates] = useState(false);
 
   // Data states
   const [accrualReports, setAccrualReports] = useState([]);
@@ -70,6 +78,7 @@ const CRMAnalyticsDashboard = ({
   // Processed data states
   const [salesData, setSalesData] = useState([]);
   const [appointmentData, setAppointmentData] = useState([]);
+  const [rawReportData, setRawReportData] = useState([]);
   const [summaryStats, setSummaryStats] = useState({
     totalSales: 0,
     totalRefunds: 0,
@@ -92,6 +101,17 @@ const CRMAnalyticsDashboard = ({
     Object.entries(centerMapping).forEach(([key, value]) => {
       if (key.length < 10) {
         // This is a code
+        mapping[key] = value;
+      }
+    });
+    return mapping;
+  }, [centerMapping]);
+
+  const centerIdToCode = useMemo(() => {
+    const mapping = {};
+    Object.entries(centerMapping).forEach(([key, value]) => {
+      if (key.length > 10) {
+        // This is an ID
         mapping[key] = value;
       }
     });
@@ -122,52 +142,67 @@ const CRMAnalyticsDashboard = ({
     }).format(amount);
   };
 
+  // Calculate date range
+  const getDateRange = useCallback(() => {
+    if (useCustomDates && startDate && endDate) {
+      return { startDate, endDate };
+    }
+
+    const now = new Date();
+    const start = new Date();
+
+    switch (dateRange) {
+      case "7days":
+        start.setDate(now.getDate() - 7);
+        break;
+      case "30days":
+        start.setDate(now.getDate() - 30);
+        break;
+      case "90days":
+        start.setDate(now.getDate() - 90);
+        break;
+      case "1year":
+        start.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        start.setDate(now.getDate() - 30);
+    }
+
+    return {
+      startDate: start.toISOString().split("T")[0],
+      endDate: now.toISOString().split("T")[0],
+    };
+  }, [dateRange, useCustomDates, startDate, endDate]);
+
   // Fetch all analytics data
   const fetchAnalyticsData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Calculate date filter based on selected range
-      const now = new Date();
-      const startDate = new Date();
+      const { startDate: filterStartDate, endDate: filterEndDate } =
+        getDateRange();
 
-      switch (dateRange) {
-        case "7days":
-          startDate.setDate(now.getDate() - 7);
-          break;
-        case "30days":
-          startDate.setDate(now.getDate() - 30);
-          break;
-        case "90days":
-          startDate.setDate(now.getDate() - 90);
-          break;
-        case "1year":
-          startDate.setFullYear(now.getFullYear() - 1);
-          break;
-        default:
-          startDate.setDate(now.getDate() - 30);
-      }
-
-      const startDateStr = startDate.toISOString().split("T")[0];
-
-      // Build queries with date and center filters
+      // Build base queries
       let accrualQuery = supabase
         .from("zenoti_sales_accrual_reports")
         .select("*")
-        .gte("start_date", startDateStr)
+        .gte("start_date", filterStartDate)
+        .lte("end_date", filterEndDate)
         .order("start_date", { ascending: false });
 
       let cashQuery = supabase
         .from("zenoti_sales_cash_reports")
         .select("*")
-        .gte("start_date", startDateStr)
+        .gte("start_date", filterStartDate)
+        .lte("end_date", filterEndDate)
         .order("start_date", { ascending: false });
 
       let appointmentQuery = supabase
         .from("zenoti_appointments_reports")
         .select("*")
-        .gte("start_date", startDateStr)
+        .gte("start_date", filterStartDate)
+        .lte("end_date", filterEndDate)
         .order("start_date", { ascending: false });
 
       // Apply center filter if selected
@@ -205,13 +240,14 @@ const CRMAnalyticsDashboard = ({
     } finally {
       setIsLoading(false);
     }
-  }, [selectedCenter, centerCodeToId, dateRange, safeJsonParse]);
+  }, [selectedCenter, centerCodeToId, getDateRange, safeJsonParse]);
 
-  // Process analytics data
+  // Process analytics data with proper filtering
   const processAnalyticsData = useCallback(
     (accrualData, cashData, appointmentData) => {
       // Process sales data
       const processedSalesData = [];
+      const rawSalesData = [];
       let totalSales = 0;
       let totalRefunds = 0;
 
@@ -220,6 +256,14 @@ const CRMAnalyticsDashboard = ({
         const salesItems = safeJsonParse(report.data);
 
         salesItems.forEach((item) => {
+          // Apply center filter if needed
+          if (selectedCenter !== "ALL" && centerCodeToId[selectedCenter]) {
+            const targetCenterId = centerCodeToId[selectedCenter];
+            if (item.center_id !== targetCenterId) {
+              return; // Skip this item
+            }
+          }
+
           const saleAmount = parseFloat(item.sales_inc_tax || 0);
           const isRefund = saleAmount < 0;
 
@@ -229,7 +273,7 @@ const CRMAnalyticsDashboard = ({
             totalSales += saleAmount;
           }
 
-          processedSalesData.push({
+          const processedItem = {
             date: item.sale_date,
             amount: saleAmount,
             item_name: item.item_name,
@@ -237,7 +281,19 @@ const CRMAnalyticsDashboard = ({
             center: item.center_name || item.center_code,
             type: "accrual",
             is_refund: isRefund,
-          });
+            invoice_no: item.invoice_no,
+            payment_type: item.payment_type,
+          };
+
+          processedSalesData.push(processedItem);
+
+          // Add to raw data if this is the selected report type
+          if (reportType === "accrual") {
+            rawSalesData.push({
+              ...item,
+              report_type: "Accrual",
+            });
+          }
         });
       });
 
@@ -246,6 +302,14 @@ const CRMAnalyticsDashboard = ({
         const salesItems = safeJsonParse(report.data);
 
         salesItems.forEach((item) => {
+          // Apply center filter if needed
+          if (selectedCenter !== "ALL" && centerCodeToId[selectedCenter]) {
+            const targetCenterId = centerCodeToId[selectedCenter];
+            if (item.center_id !== targetCenterId) {
+              return; // Skip this item
+            }
+          }
+
           const collectedAmount = parseFloat(item.sales_collected_inc_tax || 0);
 
           processedSalesData.push({
@@ -256,12 +320,22 @@ const CRMAnalyticsDashboard = ({
             center: item.center_name || item.center_code,
             type: "cash",
             payment_type: item.payment_type,
+            invoice_no: item.invoice_no,
           });
+
+          // Add to raw data if this is the selected report type
+          if (reportType === "cash_basis") {
+            rawSalesData.push({
+              ...item,
+              report_type: "Cash Basis",
+            });
+          }
         });
       });
 
       // Process appointment data
       const processedAppointmentData = [];
+      const rawAppointmentData = [];
       let totalAppointments = 0;
       let completedAppointments = 0;
 
@@ -269,6 +343,14 @@ const CRMAnalyticsDashboard = ({
         const appointments = safeJsonParse(report.data);
 
         appointments.forEach((appointment) => {
+          // Apply center filter if needed
+          if (selectedCenter !== "ALL" && centerCodeToId[selectedCenter]) {
+            const targetCenterId = centerCodeToId[selectedCenter];
+            if (appointment.center_id !== targetCenterId) {
+              return; // Skip this appointment
+            }
+          }
+
           totalAppointments++;
 
           const isCompleted = appointment.status === "Closed";
@@ -276,14 +358,24 @@ const CRMAnalyticsDashboard = ({
             completedAppointments++;
           }
 
-          processedAppointmentData.push({
+          const processedAppointment = {
             date: appointment.appointment_date,
             guest_name: appointment.guest_name,
             service_name: appointment.service_name,
             status: appointment.status,
             center: appointment.center_name,
             therapist: appointment.serviced_by,
-          });
+          };
+
+          processedAppointmentData.push(processedAppointment);
+
+          // Add to raw data if this is the selected report type
+          if (reportType === "appointments") {
+            rawAppointmentData.push({
+              ...appointment,
+              report_type: "Appointments",
+            });
+          }
         });
       });
 
@@ -304,14 +396,38 @@ const CRMAnalyticsDashboard = ({
         completedAppointments,
         cancellationRate,
       });
+
+      // Set raw report data based on selected report type
+      if (reportType === "accrual" || reportType === "cash_basis") {
+        setRawReportData(rawSalesData);
+      } else if (reportType === "appointments") {
+        setRawReportData(rawAppointmentData);
+      }
     },
-    [safeJsonParse]
+    [safeJsonParse, selectedCenter, centerCodeToId, reportType]
   );
 
   // Load data on mount and when dependencies change
   useEffect(() => {
     fetchAnalyticsData();
   }, [fetchAnalyticsData]);
+
+  // Reprocess data when report type changes
+  useEffect(() => {
+    if (
+      accrualReports.length > 0 ||
+      cashReports.length > 0 ||
+      appointmentReports.length > 0
+    ) {
+      processAnalyticsData(accrualReports, cashReports, appointmentReports);
+    }
+  }, [
+    reportType,
+    processAnalyticsData,
+    accrualReports,
+    cashReports,
+    appointmentReports,
+  ]);
 
   // Refresh function
   const handleRefresh = useCallback(() => {
@@ -329,44 +445,51 @@ const CRMAnalyticsDashboard = ({
     doc.text("CRM Analytics Report", 20, 30);
 
     doc.setFontSize(12);
-    doc.text(`Report Period: ${dateRange}`, 20, 50);
+    const { startDate: reportStartDate, endDate: reportEndDate } =
+      getDateRange();
+    doc.text(`Report Period: ${reportStartDate} to ${reportEndDate}`, 20, 50);
     doc.text(
       `Center: ${selectedCenter === "ALL" ? "All Centers" : selectedCenter}`,
       20,
       60
     );
-    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 70);
+    doc.text(`Report Type: ${reportType}`, 20, 70);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 80);
 
     // Summary section
     doc.setFontSize(16);
-    doc.text("Summary", 20, 90);
+    doc.text("Summary", 20, 100);
 
     doc.setFontSize(12);
     doc.text(
       `Total Sales: ${formatCurrency(summaryStats.totalSales)}`,
       20,
-      110
+      120
     );
     doc.text(
       `Total Refunds: ${formatCurrency(summaryStats.totalRefunds)}`,
       20,
-      120
+      130
     );
-    doc.text(`Net Sales: ${formatCurrency(summaryStats.netSales)}`, 20, 130);
-    doc.text(`Total Appointments: ${summaryStats.totalAppointments}`, 20, 140);
+    doc.text(`Net Sales: ${formatCurrency(summaryStats.netSales)}`, 20, 140);
+    doc.text(`Total Appointments: ${summaryStats.totalAppointments}`, 20, 150);
     doc.text(
       `Completed Appointments: ${summaryStats.completedAppointments}`,
       20,
-      150
+      160
     );
     doc.text(
       `Cancellation Rate: ${summaryStats.cancellationRate.toFixed(1)}%`,
       20,
-      160
+      170
     );
 
-    doc.save("crm-analytics-report.pdf");
-  }, [summaryStats, dateRange, selectedCenter]);
+    doc.save(
+      `crm-analytics-report-${reportType}-${
+        new Date().toISOString().split("T")[0]
+      }.pdf`
+    );
+  }, [summaryStats, selectedCenter, reportType, getDateRange]);
 
   // Create chart data for daily sales
   const dailySalesData = useMemo(() => {
@@ -412,6 +535,66 @@ const CRMAnalyticsDashboard = ({
     return data.slice(startIndex, endIndex);
   };
 
+  // Get columns for raw report data based on report type
+  const getReportColumns = () => {
+    switch (reportType) {
+      case "accrual":
+        return [
+          { key: "sale_date", label: "Sale Date" },
+          { key: "guest_name", label: "Guest" },
+          { key: "item_name", label: "Item" },
+          {
+            key: "sales_inc_tax",
+            label: "Sales (Inc. Tax)",
+            format: "currency",
+          },
+          { key: "center_name", label: "Center" },
+          { key: "invoice_no", label: "Invoice" },
+          { key: "payment_type", label: "Payment Type" },
+        ];
+      case "cash_basis":
+        return [
+          { key: "sale_date", label: "Sale Date" },
+          { key: "guest_name", label: "Guest" },
+          { key: "item_name", label: "Item" },
+          {
+            key: "sales_collected_inc_tax",
+            label: "Collected (Inc. Tax)",
+            format: "currency",
+          },
+          { key: "center_name", label: "Center" },
+          { key: "invoice_no", label: "Invoice" },
+          { key: "payment_type", label: "Payment Type" },
+        ];
+      case "appointments":
+        return [
+          { key: "appointment_date", label: "Date" },
+          { key: "guest_name", label: "Guest" },
+          { key: "service_name", label: "Service" },
+          { key: "serviced_by", label: "Therapist" },
+          { key: "status", label: "Status" },
+          { key: "center_name", label: "Center" },
+          { key: "start_time", label: "Start Time", format: "datetime" },
+        ];
+      default:
+        return [];
+    }
+  };
+
+  // Format cell value based on column type
+  const formatCellValue = (value, format) => {
+    if (!value && value !== 0) return "N/A";
+
+    switch (format) {
+      case "currency":
+        return formatCurrency(parseFloat(value));
+      case "datetime":
+        return new Date(value).toLocaleString();
+      default:
+        return value;
+    }
+  };
+
   return (
     <Paper
       elevation={1}
@@ -430,18 +613,60 @@ const CRMAnalyticsDashboard = ({
           <Typography variant="h6">Analytics Dashboard</Typography>
           <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
             <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Report Type</InputLabel>
+              <Select
+                value={reportType}
+                label="Report Type"
+                onChange={(e) => setReportType(e.target.value)}
+              >
+                <MenuItem value="accrual">Accrual Report</MenuItem>
+                <MenuItem value="cash_basis">Cash Basis Report</MenuItem>
+                <MenuItem value="appointments">Appointments Report</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
               <InputLabel>Period</InputLabel>
               <Select
                 value={dateRange}
                 label="Period"
-                onChange={(e) => setDateRange(e.target.value)}
+                onChange={(e) => {
+                  setDateRange(e.target.value);
+                  setUseCustomDates(false);
+                }}
               >
                 <MenuItem value="7days">Last 7 days</MenuItem>
                 <MenuItem value="30days">Last 30 days</MenuItem>
                 <MenuItem value="90days">Last 90 days</MenuItem>
                 <MenuItem value="1year">Last year</MenuItem>
+                <MenuItem value="custom">Custom Range</MenuItem>
               </Select>
             </FormControl>
+            {dateRange === "custom" && (
+              <>
+                <TextField
+                  type="date"
+                  label="Start Date"
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setUseCustomDates(true);
+                  }}
+                />
+                <TextField
+                  type="date"
+                  label="End Date"
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setUseCustomDates(true);
+                  }}
+                />
+              </>
+            )}
             <Button
               variant="outlined"
               startIcon={<Download />}
@@ -666,6 +891,11 @@ const CRMAnalyticsDashboard = ({
               >
                 <Tab label={`Sales Data (${salesData.length})`} />
                 <Tab label={`Appointments (${appointmentData.length})`} />
+                <Tab
+                  label={`${reportType.toUpperCase()} Report (${
+                    rawReportData.length
+                  })`}
+                />
               </Tabs>
 
               {/* Sales Data Tab */}
@@ -795,6 +1025,69 @@ const CRMAnalyticsDashboard = ({
                   <TablePagination
                     component="div"
                     count={appointmentData.length}
+                    page={page}
+                    onPageChange={(e, newPage) => setPage(newPage)}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={(e) => {
+                      setRowsPerPage(parseInt(e.target.value, 10));
+                      setPage(0);
+                    }}
+                    rowsPerPageOptions={[5, 10, 25, 50]}
+                  />
+                </Box>
+              )}
+
+              {/* Raw Report Data Tab */}
+              {activeTab === 2 && (
+                <Box
+                  sx={{
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  <TableContainer sx={{ flex: 1 }}>
+                    <Table stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          {getReportColumns().map((column) => (
+                            <TableCell
+                              key={column.key}
+                              align={
+                                column.format === "currency" ? "right" : "left"
+                              }
+                            >
+                              {column.label}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {getCurrentPageData(rawReportData).map((row, index) => (
+                          <TableRow key={index}>
+                            {getReportColumns().map((column) => (
+                              <TableCell
+                                key={column.key}
+                                align={
+                                  column.format === "currency"
+                                    ? "right"
+                                    : "left"
+                                }
+                              >
+                                {formatCellValue(
+                                  row[column.key],
+                                  column.format
+                                )}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  <TablePagination
+                    component="div"
+                    count={rawReportData.length}
                     page={page}
                     onPageChange={(e, newPage) => setPage(newPage)}
                     rowsPerPage={rowsPerPage}
