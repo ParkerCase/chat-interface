@@ -1,20 +1,20 @@
 import React, { useState, useEffect } from "react";
 import {
-  X,
-  User,
-  Mail,
-  Phone,
-  Calendar,
-  MapPin,
-  FileText,
-  Clock,
-  CreditCard,
-  Tag,
-  Info,
-  AlertCircle,
-} from "lucide-react";
-import zenotiService from "../../services/zenotiService";
-import "./ClientDetailModal.css";
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Tabs,
+  Tab,
+  Typography,
+  Box,
+  Button,
+  CircularProgress,
+  Alert,
+} from "@mui/material";
+import { DataGrid } from "@mui/x-data-grid";
+import { supabase } from "../../lib/supabase";
+import dayjs from "dayjs";
 
 const ClientDetailModal = ({ client, onClose, centerCode }) => {
   const [loading, setLoading] = useState(true);
@@ -22,452 +22,248 @@ const ClientDetailModal = ({ client, onClose, centerCode }) => {
   const [clientDetails, setClientDetails] = useState(null);
   const [appointments, setAppointments] = useState([]);
   const [purchaseHistory, setPurchaseHistory] = useState([]);
-  const [activeTab, setActiveTab] = useState("details");
+  const [tab, setTab] = useState(0);
 
   useEffect(() => {
     if (client && client.id) {
       loadClientData();
     }
+    // eslint-disable-next-line
   }, [client]);
 
   const loadClientData = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
+      // Fetch client details
+      const { data: clientData, error: clientError } = await supabase
+        .from("zenoti_clients")
+        .select("*")
+        .eq("id", client.id)
+        .single();
+      if (clientError) throw clientError;
+      setClientDetails(clientData);
 
-      // Load full client details
-      const detailsResponse = await zenotiService.getClient(
-        client.id,
-        centerCode
-      );
-
-      if (detailsResponse.data?.success) {
-        setClientDetails(detailsResponse.data.client);
-
-        // Load appointments for this client
-        try {
-          // Get current date and date 3 months from now
-          const today = new Date();
-          const threeMonthsAgo = new Date();
-          threeMonthsAgo.setMonth(today.getMonth() - 3);
-          const threeMonthsFromNow = new Date();
-          threeMonthsFromNow.setMonth(today.getMonth() + 3);
-
-          const appointmentsResponse = await zenotiService.getAppointments({
-            startDate: threeMonthsAgo.toISOString().split("T")[0],
-            endDate: threeMonthsFromNow.toISOString().split("T")[0],
-            centerCode,
-            guestId: client.id,
-          });
-
-          if (appointmentsResponse.data?.success) {
-            setAppointments(appointmentsResponse.data.appointments || []);
-          }
-        } catch (appointmentError) {
-          console.error("Error loading client appointments:", appointmentError);
-        }
-
-        // Load purchase history
-        try {
-          const historyResponse = await zenotiService.getClientPurchaseHistory(
-            client.id,
-            {
-              centerCode,
-            }
-          );
-
-          if (historyResponse?.data?.success) {
-            setPurchaseHistory(historyResponse.data.history || []);
-          }
-        } catch (historyError) {
-          console.error("Error loading purchase history:", historyError);
-        }
-      } else {
-        setError("Failed to load client details");
-      }
+      // Fetch appointments for this client
+      const { data: appts, error: apptError } = await supabase
+        .from("zenoti_appointments")
+        .select("*")
+        .eq("guest->>id", client.id)
+        .order("start_time", { ascending: false })
+        .limit(50);
+      setAppointments(appts || []);
+      // Fetch purchase history (from cash sales reports, as example)
+      const { data: purchases, error: purchaseError } = await supabase
+        .from("zenoti_sales_cash_reports")
+        .select("*")
+        .contains("details->clients", [client.id])
+        .order("report_date", { ascending: false })
+        .limit(50);
+      setPurchaseHistory(purchases || []);
     } catch (err) {
-      console.error("Error loading client data:", err);
-      setError("Error loading client data. Please try again.");
+      setError(err.message || "Failed to load client details");
     } finally {
       setLoading(false);
     }
   };
 
-  // Format date for display
-  const formatDate = (dateString) => {
-    if (!dateString) return "—";
-    return new Date(dateString).toLocaleDateString();
-  };
+  const handleTabChange = (_, newValue) => setTab(newValue);
 
-  // Format time for display
-  const formatTime = (dateTimeString) => {
-    if (!dateTimeString) return "—";
-    return new Date(dateTimeString).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  // Handle scheduling an appointment for this client
-  const handleScheduleAppointment = () => {
-    // Close this modal first
-    onClose();
-
-    // Here you would typically open the appointment scheduling modal
-    // and pre-select this client
-    if (
-      window.openAppointmentModal &&
-      typeof window.openAppointmentModal === "function"
-    ) {
-      window.openAppointmentModal(client);
-    } else {
-      // Fallback if the global function isn't available
-      console.log("Schedule appointment for client:", client);
-      // You could dispatch an event that the parent component listens for
-      const event = new CustomEvent("scheduleAppointment", {
-        detail: { client },
-      });
-      window.dispatchEvent(event);
-    }
-  };
-
-  if (loading) {
+  if (loading)
     return (
-      <div className="client-detail-modal">
-        <div className="modal-content loading">
-          <div className="loading-spinner"></div>
-          <p>Loading client details...</p>
-        </div>
-      </div>
+      <Dialog open onClose={onClose} maxWidth="md" fullWidth>
+        <DialogTitle>Loading Client Details...</DialogTitle>
+        <DialogContent
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            minHeight: 200,
+          }}
+        >
+          <CircularProgress />
+        </DialogContent>
+      </Dialog>
     );
-  }
-
-  if (error) {
+  if (error)
     return (
-      <div className="client-detail-modal">
-        <div className="modal-content error">
-          <div className="modal-header">
-            <h2>Error</h2>
-            <button className="close-button" onClick={onClose}>
-              <X size={20} />
-            </button>
-          </div>
-          <div className="error-message">
-            <AlertCircle size={24} />
-            <p>{error}</p>
-          </div>
-          <div className="modal-actions">
-            <button onClick={onClose}>Close</button>
-            <button onClick={loadClientData}>Retry</button>
-          </div>
-        </div>
-      </div>
+      <Dialog open onClose={onClose} maxWidth="md" fullWidth>
+        <DialogTitle>Error</DialogTitle>
+        <DialogContent>
+          <Alert severity="error">{error}</Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Close</Button>
+        </DialogActions>
+      </Dialog>
     );
-  }
-
-  const personalInfo = clientDetails?.personal_info || clientDetails || {};
-
+  if (!clientDetails) return null;
+  const personalInfo =
+    clientDetails.details?.personal_info || clientDetails.details || {};
   return (
-    <div className="client-detail-modal">
-      <div className="modal-content">
-        <div className="modal-header">
-          <h2>
-            {personalInfo.first_name || ""} {personalInfo.last_name || ""}
-          </h2>
-          <button className="close-button" onClick={onClose}>
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="client-tabs">
-          <button
-            className={activeTab === "details" ? "active" : ""}
-            onClick={() => setActiveTab("details")}
-          >
-            Details
-          </button>
-          <button
-            className={activeTab === "appointments" ? "active" : ""}
-            onClick={() => setActiveTab("appointments")}
-          >
-            Appointments
-          </button>
-          <button
-            className={activeTab === "purchases" ? "active" : ""}
-            onClick={() => setActiveTab("purchases")}
-          >
-            Purchase History
-          </button>
-        </div>
-
-        {activeTab === "details" && (
-          <div className="client-details-content">
-            <div className="info-section">
-              <h3>Contact Information</h3>
-              <div className="info-grid">
-                <div className="info-item">
-                  <Mail size={16} />
-                  <span className="label">Email:</span>
-                  <span className="value">{personalInfo.email || "—"}</span>
-                </div>
-                <div className="info-item">
-                  <Phone size={16} />
-                  <span className="label">Phone:</span>
-                  <span className="value">
-                    {personalInfo.mobile ||
-                      personalInfo.mobile_phone?.number ||
-                      personalInfo.phone ||
-                      "—"}
-                  </span>
-                </div>
-                <div className="info-item">
-                  <Calendar size={16} />
-                  <span className="label">Date of Birth:</span>
-                  <span className="value">
-                    {personalInfo.date_of_birth
-                      ? formatDate(personalInfo.date_of_birth)
-                      : "—"}
-                  </span>
-                </div>
-                <div className="info-item">
-                  <User size={16} />
-                  <span className="label">Gender:</span>
-                  <span className="value">{personalInfo.gender || "—"}</span>
-                </div>
-              </div>
-            </div>
-
-            {(personalInfo.address ||
-              personalInfo.city ||
-              personalInfo.state) && (
-              <div className="info-section">
-                <h3>Address</h3>
-                <div className="address-info">
-                  <MapPin size={16} />
-                  <div>
-                    {personalInfo.address && <p>{personalInfo.address}</p>}
-                    {(personalInfo.city || personalInfo.state) && (
-                      <p>
-                        {personalInfo.city}
-                        {personalInfo.city && personalInfo.state ? ", " : ""}
-                        {personalInfo.state}{" "}
-                        {personalInfo.postal_code || personalInfo.zip}
-                      </p>
-                    )}
-                    {personalInfo.country && <p>{personalInfo.country}</p>}
-                  </div>
-                </div>
-              </div>
+    <Dialog open onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>
+        {personalInfo.first_name} {personalInfo.last_name}
+      </DialogTitle>
+      <DialogContent>
+        <Tabs value={tab} onChange={handleTabChange} sx={{ mb: 2 }}>
+          <Tab label="Details" />
+          <Tab label="Appointments" />
+          <Tab label="Purchase History" />
+        </Tabs>
+        {tab === 0 && (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              Contact Information
+            </Typography>
+            <Typography>Email: {personalInfo.email || "—"}</Typography>
+            <Typography>
+              Phone:{" "}
+              {personalInfo.mobile ||
+                personalInfo.mobile_phone?.number ||
+                personalInfo.phone ||
+                "—"}
+            </Typography>
+            <Typography>
+              Date of Birth:{" "}
+              {personalInfo.date_of_birth
+                ? dayjs(personalInfo.date_of_birth).format("YYYY-MM-DD")
+                : "—"}
+            </Typography>
+            <Typography>Gender: {personalInfo.gender || "—"}</Typography>
+            <Typography mt={2} variant="h6">
+              Address
+            </Typography>
+            <Typography>
+              {personalInfo.address || ""} {personalInfo.city || ""}{" "}
+              {personalInfo.state || ""}{" "}
+              {personalInfo.postal_code || personalInfo.zip || ""}{" "}
+              {personalInfo.country || ""}
+            </Typography>
+            <Typography mt={2} variant="h6">
+              Preferences
+            </Typography>
+            {clientDetails.details?.preferences &&
+              Object.entries(clientDetails.details.preferences).map(
+                ([k, v]) => (
+                  <Typography key={k}>
+                    {k}:{" "}
+                    {typeof v === "boolean" ? (v ? "Yes" : "No") : String(v)}
+                  </Typography>
+                )
+              )}
+            <Typography mt={2} variant="h6">
+              Notes
+            </Typography>
+            <Typography>{clientDetails.details?.notes || "—"}</Typography>
+            <Typography mt={2} variant="h6">
+              Account Information
+            </Typography>
+            <Typography>
+              Customer Since:{" "}
+              {clientDetails.details?.created_date
+                ? dayjs(clientDetails.details.created_date).format("YYYY-MM-DD")
+                : "—"}
+            </Typography>
+            <Typography>
+              Last Visit:{" "}
+              {clientDetails.details?.last_visit_date
+                ? dayjs(clientDetails.details.last_visit_date).format(
+                    "YYYY-MM-DD"
+                  )
+                : "—"}
+            </Typography>
+            {clientDetails.details?.memberships && (
+              <Typography>
+                Memberships:{" "}
+                {clientDetails.details.memberships
+                  .map((m) => m.name)
+                  .join(", ")}
+              </Typography>
             )}
-
-            {clientDetails.preferences && (
-              <div className="info-section">
-                <h3>Preferences</h3>
-                <div className="preferences-info">
-                  {Object.entries(clientDetails.preferences).map(
-                    ([key, value]) => (
-                      <div className="preference-item" key={key}>
-                        <Tag size={16} />
-                        <span className="label">
-                          {key
-                            .replace(/_/g, " ")
-                            .replace(/\b\w/g, (l) => l.toUpperCase())}
-                          :
-                        </span>
-                        <span className="value">
-                          {typeof value === "boolean"
-                            ? value
-                              ? "Yes"
-                              : "No"
-                            : value || "—"}
-                        </span>
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
-            )}
-
-            {clientDetails.notes && (
-              <div className="info-section">
-                <h3>Notes</h3>
-                <div className="notes-content">
-                  <FileText size={16} />
-                  <p>{clientDetails.notes}</p>
-                </div>
-              </div>
-            )}
-
-            <div className="info-section">
-              <h3>Account Information</h3>
-              <div className="info-grid">
-                <div className="info-item">
-                  <Calendar size={16} />
-                  <span className="label">Customer Since:</span>
-                  <span className="value">
-                    {clientDetails.created_date
-                      ? formatDate(clientDetails.created_date)
-                      : "—"}
-                  </span>
-                </div>
-                <div className="info-item">
-                  <Clock size={16} />
-                  <span className="label">Last Visit:</span>
-                  <span className="value">
-                    {clientDetails.last_visit_date
-                      ? formatDate(clientDetails.last_visit_date)
-                      : "—"}
-                  </span>
-                </div>
-                {clientDetails.memberships &&
-                  clientDetails.memberships.length > 0 && (
-                    <div className="info-item">
-                      <CreditCard size={16} />
-                      <span className="label">Memberships:</span>
-                      <span className="value">
-                        {clientDetails.memberships
-                          .map((m) => m.name)
-                          .join(", ")}
-                      </span>
-                    </div>
-                  )}
-              </div>
-            </div>
-          </div>
+            <Typography mt={2} variant="h6">
+              Raw Data
+            </Typography>
+            <pre
+              style={{
+                background: "#f5f5f5",
+                padding: 8,
+                borderRadius: 4,
+                maxHeight: 200,
+                overflow: "auto",
+              }}
+            >
+              {JSON.stringify(clientDetails, null, 2)}
+            </pre>
+          </Box>
         )}
-
-        {activeTab === "appointments" && (
-          <div className="appointments-content">
-            <h3>Client Appointments</h3>
-            {appointments.length > 0 ? (
-              <div className="appointments-list">
-                {appointments.map((appointment, index) => (
-                  <div
-                    key={`${appointment.id || ''}-${index}`}
-                    className="appointment-card"
-                  >
-                    <div className="appointment-header">
-                      <div className="appointment-date">
-                        <Calendar size={16} />
-                        <span>{formatDate(appointment.start_time)}</span>
-                      </div>
-                      <div className="appointment-time">
-                        <Clock size={16} />
-                        <span>{formatTime(appointment.start_time)}</span>
-                      </div>
-                      <div
-                        className={`appointment-status ${
-                          typeof appointment.status === 'string' ? appointment.status.toLowerCase() : "booked"
-                        }`}
-                      >
-                        {/* Safely handle status which might be an object */}
-                        {typeof appointment.status === 'string' 
-                          ? appointment.status 
-                          : (appointment.status && typeof appointment.status === 'object'
-                             ? (appointment.status.name || "Booked")
-                             : "Booked")}
-                      </div>
-                    </div>
-                    <div className="appointment-details">
-                      <h4>
-                        {/* Handle potential object values for service */}
-                        {typeof appointment.service_name === 'string' 
-                          ? appointment.service_name 
-                          : (typeof appointment.service?.name === 'string' 
-                             ? appointment.service.name 
-                             : "Service")}
-                      </h4>
-                      {/* Handle therapist which might be an object */}
-                      {appointment.therapist && (
-                        <p className="therapist-name">
-                          Provider: {typeof appointment.therapist === 'string' 
-                            ? appointment.therapist 
-                            : (appointment.therapist.firstName && appointment.therapist.lastName 
-                                ? `${appointment.therapist.firstName} ${appointment.therapist.lastName}`
-                                : (appointment.therapist.displayName || "Unknown Provider"))}
-                        </p>
-                      )}
-                      {/* Only show notes if it's a string */}
-                      {typeof appointment.notes === 'string' && appointment.notes && (
-                        <p className="appointment-notes small-text">
-                          {appointment.notes}
-                        </p>
-                      )}
-                      <p className="duration">
-                        {typeof appointment.duration === 'number' || typeof appointment.duration === 'string' 
-                          ? appointment.duration 
-                          : "60"} minutes
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="no-appointments">
-                <Calendar size={48} />
-                <p>No appointments found for this client.</p>
-                <button
-                  className="schedule-button"
-                  onClick={handleScheduleAppointment}
-                >
-                  Schedule Appointment
-                </button>
-              </div>
-            )}
-          </div>
+        {tab === 1 && (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              Appointments
+            </Typography>
+            <DataGrid
+              autoHeight
+              rows={appointments.map((a, i) => ({ id: a.id || i, ...a }))}
+              columns={[
+                {
+                  field: "start_time",
+                  headerName: "Start Time",
+                  width: 160,
+                  valueFormatter: ({ value }) =>
+                    value ? dayjs(value).format("YYYY-MM-DD HH:mm") : "",
+                },
+                { field: "service_name", headerName: "Service", width: 180 },
+                {
+                  field: "therapist_name",
+                  headerName: "Therapist",
+                  width: 140,
+                },
+                { field: "status", headerName: "Status", width: 100 },
+                { field: "center_code", headerName: "Center", width: 100 },
+              ]}
+              pageSize={5}
+              rowsPerPageOptions={[5, 10, 20]}
+            />
+          </Box>
         )}
-
-        {activeTab === "purchases" && (
-          <div className="purchases-content">
-            <h3>Purchase History</h3>
-            {purchaseHistory.length > 0 ? (
-              <div className="purchase-history-list">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Item</th>
-                      <th>Quantity</th>
-                      <th>Price</th>
-                      <th>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {purchaseHistory.map((item, index) => (
-                      <tr key={`purchase-${item.id || item.description || ''}-${index}`}>
-                        <td>{formatDate(item.date)}</td>
-                        <td>{item.description || item.name}</td>
-                        <td>{item.quantity || 1}</td>
-                        <td>${parseFloat(item.price || 0).toFixed(2)}</td>
-                        <td>
-                          $
-                          {parseFloat(item.total || item.price || 0).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="no-purchases">
-                <CreditCard size={48} />
-                <p>No purchase history found for this client.</p>
-              </div>
-            )}
-          </div>
+        {tab === 2 && (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              Purchase History (Raw)
+            </Typography>
+            <DataGrid
+              autoHeight
+              rows={purchaseHistory.map((p, i) => ({ id: p.id || i, ...p }))}
+              columns={[
+                {
+                  field: "report_date",
+                  headerName: "Date",
+                  width: 140,
+                  valueFormatter: ({ value }) =>
+                    value ? dayjs(value).format("YYYY-MM-DD") : "",
+                },
+                {
+                  field: "details",
+                  headerName: "Details",
+                  width: 400,
+                  renderCell: ({ value }) => (
+                    <pre style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>
+                      {JSON.stringify(value, null, 1)}
+                    </pre>
+                  ),
+                },
+              ]}
+              pageSize={5}
+              rowsPerPageOptions={[5, 10, 20]}
+            />
+          </Box>
         )}
-
-        <div className="modal-actions">
-          <button onClick={onClose}>Close</button>
-          <button
-            className="schedule-button"
-            onClick={handleScheduleAppointment}
-          >
-            Schedule Appointment
-          </button>
-        </div>
-      </div>
-    </div>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Close</Button>
+      </DialogActions>
+    </Dialog>
   );
 };
 

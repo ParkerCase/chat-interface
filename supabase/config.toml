@@ -1,3 +1,5 @@
+
+
 [functions.update-analytics-stats]
 enabled = true
 verify_jwt = true
@@ -15,3 +17,8 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/update-storage-permissions/deno.json"
 entrypoint = "./functions/update-storage-permissions/index.ts"
+
+[functions.zenoti-connector]
+enabled = true
+verify_jwt = false
+import_map = "./functions/zenoti-connector/deno.json"

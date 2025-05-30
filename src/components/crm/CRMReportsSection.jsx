@@ -206,6 +206,18 @@ const CENTER_IDS = {
   // Add other centers as needed
 };
 
+// Helper to flatten and parse report data arrays
+const flattenReportRows = (reportRows) =>
+  reportRows.flatMap((r) => {
+    if (Array.isArray(r.data)) return r.data;
+    try {
+      const arr = typeof r.data === "string" ? JSON.parse(r.data) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch {
+      return [];
+    }
+  });
+
 /**
  * Enhanced CRM Reports Dashboard that incorporates the ZenotiReportsDashboard functionality
  * with fixes for center ID handling and date validation

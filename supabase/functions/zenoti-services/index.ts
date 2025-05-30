@@ -1,6 +1,7 @@
 // supabase/functions/zenoti-services/index.ts
 
 import { corsHeaders } from '../_shared/cors.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.21.0';
 
 interface ServiceParams {
   centerCode: string;
@@ -19,50 +20,19 @@ interface ServiceResponse {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  const supabase = createClient(Deno.env.get('SUPABASE_URL'), Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
+  const body = await req.json();
+  const { name, code } = body;
+
+  let query = supabase.from('zenoti_services').select('*');
+  if (name) query = query.ilike('name', `%${name}%`);
+  if (code) query = query.eq('code', code);
+
+  const { data, error } = await query;
+  if (error) {
+    return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500 });
   }
-  
-  try {
-    // Extract parameters from request
-    let params: ServiceParams;
-    const url = new URL(req.url);
-    
-    if (req.method === 'POST') {
-      params = await req.json();
-    } else {
-      // Parse URL parameters
-      params = {
-        centerCode: url.searchParams.get('centerCode') || '',
-        allCenters: url.searchParams.get('allCenters') === 'true',
-        limit: url.searchParams.has('limit') ? parseInt(url.searchParams.get('limit')!) : 100,
-        offset: url.searchParams.has('offset') ? parseInt(url.searchParams.get('offset')!) : 0,
-        serviceId: url.searchParams.get('serviceId') || url.pathname.split('/').pop() || undefined
-      };
-    }
-    
-    // If serviceId is provided, fetch a single service
-    if (params.serviceId) {
-      return await getServiceDetails(req.url, params);
-    }
-    
-    // Otherwise, fetch all services
-    return await getAllServices(req.url, params);
-  } catch (error) {
-    console.error('Error in zenoti-services function:', error);
-    
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: `Error fetching services: ${error.message}`,
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders }
-      }
-    );
-  }
+  return new Response(JSON.stringify({ success: true, data }), { headers: { 'Content-Type': 'application/json' } });
 });
 
 /**

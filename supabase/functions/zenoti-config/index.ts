@@ -32,19 +32,36 @@ Deno.serve(async (req) => {
     
     // Get user information from the request
     let userId = null;
+    let isServiceRole = false;
     const authHeader = req.headers.get('Authorization');
+    let jwtPayload = null;
     
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-      
-      if (!error && user) {
-        userId = user.id;
+      // Decode JWT payload to check for service_role
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        jwtPayload = JSON.parse(jsonPayload);
+        if (jwtPayload.role === 'service_role') {
+          isServiceRole = true;
+        }
+      } catch (e) {
+        // Ignore decode errors, fallback to user check
+      }
+      if (!isServiceRole) {
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (!error && user) {
+          userId = user.id;
+        }
       }
     }
     
-    // Require authentication
-    if (!userId) {
+    // Require authentication (user or service role)
+    if (!userId && !isServiceRole) {
       return new Response(
         JSON.stringify({ success: false, error: 'Authentication required' }),
         {
@@ -54,33 +71,33 @@ Deno.serve(async (req) => {
       );
     }
     
-    // Check if user has admin privileges
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('roles')
-      .eq('id', userId)
-      .single();
+    // If not service role, check if user has admin privileges
+    if (!isServiceRole) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('roles')
+        .eq('id', userId)
+        .single();
       
-    if (profileError) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Failed to fetch user profile' }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        }
-      );
-    }
-    
-    const isAdmin = profile.roles?.includes('admin') || profile.roles?.includes('super_admin');
-    
-    if (!isAdmin) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Admin privileges required' }),
-        {
-          status: 403,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        }
-      );
+      if (profileError) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to fetch user profile' }),
+          {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          }
+        );
+      }
+      const isAdmin = profile.roles?.includes('admin') || profile.roles?.includes('super_admin');
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Admin privileges required' }),
+          {
+            status: 403,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          }
+        );
+      }
     }
     
     // Parse the request body
