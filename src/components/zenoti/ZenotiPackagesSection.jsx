@@ -1,10 +1,7 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { supabase } from "../../lib/supabase";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Typography,
-  CircularProgress,
-  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -39,61 +36,206 @@ import {
   Cancel,
 } from "@mui/icons-material";
 
-const ZenotiPackagesSection = ({
-  selectedCenter,
-  centerMapping = {},
-  onRefresh,
-}) => {
+const ZenotiPackagesSection = ({ onRefresh }) => {
+  // Hardcoded packages data based on your SQL
+  const allPackages = [
+    {
+      id: "a447ce61-ad06-4c78-b391-50034ea6eb14",
+      code: "Pkg1",
+      name: "(Large-2tx) Removal Package",
+      description: "2 Templates",
+      type: 2,
+      type_label: "Series",
+      time: 15,
+      is_active: true,
+      validity_expiry: 730,
+      validity_expiry_date: null,
+      freeze_count: -2,
+      cost_to_center: 0,
+      terms_and_conditions: "",
+      price: 0, // Price not specified in source data
+      commission: { type: 0, value: 0, factor: 100, eligible: false },
+      instalments: 12,
+      payment_frequency: 30,
+    },
+    {
+      id: "91a39ae0-bfad-4a44-b3c2-f88cde7d681d",
+      code: "Pkg2",
+      name: "(Large-4tx) Removal Package",
+      description: "2 templates",
+      type: 2,
+      type_label: "Series",
+      time: 15,
+      is_active: true,
+      validity_expiry: 730,
+      validity_expiry_date: null,
+      freeze_count: -2,
+      cost_to_center: 0,
+      terms_and_conditions: "",
+      price: 0,
+      commission: { type: 0, value: 0, factor: 100, eligible: false },
+      instalments: 18,
+      payment_frequency: 30,
+    },
+    {
+      id: "e887cf78-e008-45e9-a1d0-b574be64c680",
+      code: "Pkg3",
+      name: "(Medium-2tx) Removal Package",
+      description: "",
+      type: 2,
+      type_label: "Series",
+      time: 15,
+      is_active: true,
+      validity_expiry: 730,
+      validity_expiry_date: null,
+      freeze_count: -2,
+      cost_to_center: 0,
+      terms_and_conditions: "",
+      price: 0,
+      commission: { type: 0, value: 0, factor: 100, eligible: false },
+      instalments: 12,
+      payment_frequency: 30,
+    },
+    {
+      id: "a390244e-f380-42a8-ac84-345b647238d6",
+      code: "Pkg4",
+      name: "(Medium-4tx) Removal Package",
+      description: "1.5 templates, 4 treatments",
+      type: 2,
+      type_label: "Series",
+      time: 15,
+      is_active: true,
+      validity_expiry: 730,
+      validity_expiry_date: null,
+      freeze_count: -2,
+      cost_to_center: 0,
+      terms_and_conditions: "",
+      price: 0,
+      commission: { type: 0, value: 0, factor: 100, eligible: false },
+      instalments: 18,
+      payment_frequency: 30,
+    },
+    {
+      id: "2e1ee9c3-742f-4a06-8b7e-2443231137eb",
+      code: "Pkg5",
+      name: "(Small-2tx) Removal Package",
+      description: "1 template, 2 treatments",
+      type: 2,
+      type_label: "Series",
+      time: 15,
+      is_active: true,
+      validity_expiry: 0,
+      validity_expiry_date: "2100-01-01",
+      freeze_count: -2,
+      cost_to_center: 0,
+      terms_and_conditions: "",
+      price: 0,
+      commission: { type: 0, value: 0, factor: 100, eligible: false },
+      instalments: 6,
+      payment_frequency: 30,
+    },
+    {
+      id: "f36451a0-391b-4d4a-85da-ee895186ac99",
+      code: "Pkg6",
+      name: "(Small-4tx) Removal Package",
+      description: "1 template, 4 treatments",
+      type: 2,
+      type_label: "Series",
+      time: 15,
+      is_active: true,
+      validity_expiry: 0,
+      validity_expiry_date: "2100-01-01",
+      freeze_count: -2,
+      cost_to_center: 0,
+      terms_and_conditions: "",
+      price: 0,
+      commission: { type: 0, value: 0, factor: 100, eligible: false },
+      instalments: 12,
+      payment_frequency: 30,
+    },
+    {
+      id: "e99adfb0-7dc3-48c3-bdd4-466b6475f984",
+      code: "Pkg7",
+      name: "(XS-2tx) Removal Package",
+      description: "1/2 template, 2 treatments",
+      type: 2,
+      type_label: "Series",
+      time: 15,
+      is_active: true,
+      validity_expiry: 730,
+      validity_expiry_date: null,
+      freeze_count: -2,
+      cost_to_center: 0,
+      terms_and_conditions: "",
+      price: 0,
+      commission: { type: 0, value: 0, factor: 100, eligible: false },
+      instalments: 6,
+      payment_frequency: 30,
+    },
+    {
+      id: "c45543a3-8acb-40a9-84d5-ff784f7fc124",
+      code: "Pkg8",
+      name: "(XS-4tx) Removal Package",
+      description: "1/2 template, 4 treatments",
+      type: 2,
+      type_label: "Series",
+      time: 15,
+      is_active: true,
+      validity_expiry: 0,
+      validity_expiry_date: "2100-01-01",
+      freeze_count: -2,
+      cost_to_center: 0,
+      terms_and_conditions: "",
+      price: 0,
+      commission: { type: 0, value: 0, factor: 100, eligible: false },
+      instalments: 12,
+      payment_frequency: 30,
+    },
+    {
+      id: "3713d7aa-bf42-499f-9c4a-9ba8296a358b",
+      code: "Pkg9",
+      name: "(XXS-2tx) Removal Package",
+      description: "Minimum pricing, 20 dots or less",
+      type: 2,
+      type_label: "Series",
+      time: 15,
+      is_active: true,
+      validity_expiry: 0,
+      validity_expiry_date: "2100-01-01",
+      freeze_count: -2,
+      cost_to_center: 0,
+      terms_and_conditions: "",
+      price: 0,
+      commission: { type: 0, value: 0, factor: 100, eligible: false },
+      instalments: 6,
+      payment_frequency: 30,
+    },
+    {
+      id: "8bfd92d1-72c2-469e-a8d5-9e9a346742e7",
+      code: "Pkg11",
+      name: "(Brows-2tx) Removal Package",
+      description: "Two treatments on brows",
+      type: 2,
+      type_label: "Series",
+      time: 15,
+      is_active: true,
+      validity_expiry: 365,
+      validity_expiry_date: null,
+      freeze_count: -2,
+      cost_to_center: 0,
+      terms_and_conditions: "",
+      price: 0,
+      commission: { type: 0, value: 0, factor: 100, eligible: false },
+      instalments: 6,
+      payment_frequency: 30,
+    },
+  ];
+
   // State management
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [packages, setPackages] = useState([]);
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [totalPackages, setTotalPackages] = useState(0);
-
-  // Memoized center mapping
-  const centerCodeToId = useMemo(() => {
-    const mapping = {};
-    Object.entries(centerMapping).forEach(([key, value]) => {
-      if (key.length < 10) {
-        // This is a code
-        mapping[key] = value;
-      }
-    });
-    return mapping;
-  }, [centerMapping]);
-
-  const centerIdToCode = useMemo(() => {
-    const mapping = {};
-    Object.entries(centerMapping).forEach(([key, value]) => {
-      if (key.length > 10) {
-        // This is an ID
-        mapping[key] = value;
-      }
-    });
-    return mapping;
-  }, [centerMapping]);
-
-  // Utility to extract data from details JSON
-  const extractFromDetails = useCallback((details, path, fallback = null) => {
-    if (!details || typeof details !== "object") return fallback;
-
-    const pathArray = path.split(".");
-    let current = details;
-
-    for (const key of pathArray) {
-      if (current && typeof current === "object" && key in current) {
-        current = current[key];
-      } else {
-        return fallback;
-      }
-    }
-
-    return current !== null && current !== undefined ? current : fallback;
-  }, []);
 
   // Format currency
   const formatCurrency = (amount) => {
@@ -123,154 +265,46 @@ const ZenotiPackagesSection = ({
     }
   };
 
-  // Get package type label
-  const getPackageTypeLabel = (type) => {
-    const typeMap = {
-      1: "Standard",
-      2: "Series",
-      3: "Membership",
-      4: "Subscription",
-    };
-    return typeMap[type] || `Type ${type}`;
-  };
+  // Filter packages based on search term
+  const filteredPackages = useMemo(() => {
+    if (!searchTerm.trim()) return allPackages;
 
-  // Fetch packages from Supabase
-  const fetchPackages = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+    const search = searchTerm.toLowerCase().trim();
+    return allPackages.filter(
+      (pkg) =>
+        pkg.name.toLowerCase().includes(search) ||
+        pkg.code.toLowerCase().includes(search) ||
+        pkg.description.toLowerCase().includes(search)
+    );
+  }, [searchTerm]);
 
-    try {
-      console.log("Fetching packages for center:", selectedCenter);
-      console.log("Center mapping:", centerMapping);
+  // Get paginated packages
+  const paginatedPackages = useMemo(() => {
+    const startIndex = page * rowsPerPage;
+    return filteredPackages.slice(startIndex, startIndex + rowsPerPage);
+  }, [filteredPackages, page, rowsPerPage]);
 
-      // Since all packages are stored under center_id 90aa9708-4678-4c04-999e-63e4aff12f40
-      // but are available to all centers, we always fetch ALL packages
-      let query = supabase
-        .from("zenoti_packages")
-        .select("*", { count: "exact" });
-
-      // Apply search filter if provided
-      if (searchTerm.trim()) {
-        const search = searchTerm.trim();
-        query = query.or(
-          `name.ilike.%${search}%,code.ilike.%${search}%,description.ilike.%${search}%`
-        );
-      }
-
-      // Apply pagination
-      const from = page * rowsPerPage;
-      const to = from + rowsPerPage - 1;
-      query = query.range(from, to);
-
-      // Order by name
-      query = query.order("name", { ascending: true });
-
-      const { data, error, count } = await query;
-
-      if (error) throw error;
-
-      console.log("Packages query result:", {
-        data: data?.length,
-        count,
-        selectedCenter,
-        note: "All packages are shared across centers",
-      });
-
-      // Process packages data
-      const processedPackages = (data || []).map((row) => {
-        const details = row.details || {};
-        const seriesPackage = details.series_package || {};
-        const validity = seriesPackage.validity || {};
-
-        // Calculate price from series package if available
-        let packagePrice = 0;
-        if (seriesPackage.regular && seriesPackage.regular.price) {
-          packagePrice = seriesPackage.regular.price;
-        }
-
-        return {
-          id: row.id,
-          code: row.code || details.code || "N/A",
-          name: row.name || details.name || "Unknown Package",
-          description: row.description || details.description || "",
-          type: row.type || details.type || 1,
-          type_label: getPackageTypeLabel(row.type || details.type),
-          time: row.time || details.time || 0,
-          center_id: row.center_id,
-          center_code: "All Centers", // Since packages are shared across all centers
-          is_active: details.active !== false,
-          booking_start_date:
-            row.booking_start_date || details.booking_start_date,
-          booking_end_date: row.booking_end_date || details.booking_end_date,
-
-          // Series package specific details
-          validity_expiry: validity.expiry || 0,
-          validity_expiry_date: validity.expiry_date,
-          freeze_count: seriesPackage.freeze_count || 0,
-          cost_to_center: seriesPackage.cost_to_center || 0,
-          terms_and_conditions: seriesPackage.terms_and_conditions || "",
-          price: packagePrice,
-
-          // Commission details
-          commission: details.commission || {},
-
-          _raw: details,
-        };
-      });
-
-      setPackages(processedPackages);
-      setTotalPackages(count || 0);
-
-      console.log("Final processed packages:", processedPackages.length);
-    } catch (err) {
-      console.error("Error fetching packages:", err);
-      setError(`Failed to fetch packages: ${err.message}`);
-      setPackages([]);
-      setTotalPackages(0);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [
-    searchTerm,
-    page,
-    rowsPerPage,
-    selectedCenter, // Keep this for consistency but don't use it for filtering
-  ]);
-
-  // Load packages on mount and when dependencies change
-  useEffect(() => {
-    fetchPackages();
-  }, [fetchPackages]);
-
-  // Reset page when search or center changes
-  useEffect(() => {
+  // Reset page when search changes
+  React.useEffect(() => {
     setPage(0);
-  }, [searchTerm, selectedCenter]);
-
-  // Refresh function
-  const handleRefresh = useCallback(() => {
-    fetchPackages();
-    if (onRefresh) {
-      onRefresh();
-    }
-  }, [fetchPackages, onRefresh]);
+  }, [searchTerm]);
 
   // Get summary statistics
   const summaryStats = useMemo(() => {
-    const totalActive = packages.filter((p) => p.is_active).length;
-    const typeGroups = packages.reduce((acc, pkg) => {
+    const totalActive = allPackages.filter((p) => p.is_active).length;
+    const typeGroups = allPackages.reduce((acc, pkg) => {
       acc[pkg.type_label] = (acc[pkg.type_label] || 0) + 1;
       return acc;
     }, {});
 
     return {
-      total: totalPackages, // Use total from query, not filtered results
+      total: allPackages.length,
       active: totalActive,
-      inactive: packages.length - totalActive,
+      inactive: allPackages.length - totalActive,
       types: Object.keys(typeGroups).length,
       typeGroups,
     };
-  }, [packages, totalPackages]);
+  }, []);
 
   return (
     <Paper
@@ -289,22 +323,11 @@ const ZenotiPackagesSection = ({
         >
           <Typography variant="h6">Packages</Typography>
           <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-            <IconButton onClick={handleRefresh} disabled={isLoading}>
+            <IconButton onClick={onRefresh}>
               <Refresh />
             </IconButton>
           </Box>
         </Box>
-
-        {/* Debug Info */}
-        {process.env.NODE_ENV === "development" && (
-          <Box sx={{ mb: 2, p: 1, bgcolor: "#f5f5f5", borderRadius: 1 }}>
-            <Typography variant="caption" display="block">
-              Debug: Selected Center: {selectedCenter} | Center ID:{" "}
-              {centerCodeToId[selectedCenter] || "N/A"} | Packages Found:{" "}
-              {packages.length} | Total Count: {totalPackages}
-            </Typography>
-          </Box>
-        )}
 
         {/* Summary Cards */}
         <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -373,190 +396,131 @@ const ZenotiPackagesSection = ({
         />
       </Box>
 
-      {/* Error Display */}
-      {error && (
-        <Alert severity="error" sx={{ m: 2 }}>
-          {error}
-        </Alert>
-      )}
-
       {/* Packages Table */}
       <Box sx={{ flex: 1, overflow: "hidden" }}>
-        {isLoading ? (
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              height: "100%",
-            }}
-          >
-            <CircularProgress />
-          </Box>
-        ) : packages.length === 0 ? (
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              height: "100%",
-              flexDirection: "column",
-              gap: 2,
-            }}
-          >
-            <Typography variant="h6" color="textSecondary">
-              No packages found
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              {searchTerm
-                ? "Try adjusting your search criteria"
-                : "No packages are available in the database"}
-            </Typography>
-            <Button variant="outlined" onClick={handleRefresh}>
-              Refresh
-            </Button>
-          </Box>
-        ) : (
-          <TableContainer sx={{ height: "100%" }}>
-            <Table stickyHeader>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Code</TableCell>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell align="right">
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "flex-end",
-                        gap: 0.5,
-                      }}
-                    >
-                      <Schedule fontSize="small" />
-                      Time
+        <TableContainer sx={{ height: "100%" }}>
+          <Table stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell>Code</TableCell>
+                <TableCell>Name</TableCell>
+                <TableCell>Type</TableCell>
+                <TableCell align="right">
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "flex-end",
+                      gap: 0.5,
+                    }}
+                  >
+                    <Schedule fontSize="small" />
+                    Time
+                  </Box>
+                </TableCell>
+                <TableCell>Validity</TableCell>
+                <TableCell>Payments</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Availability</TableCell>
+                <TableCell align="center">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {paginatedPackages.map((pkg) => (
+                <TableRow key={pkg.id} hover>
+                  <TableCell>
+                    <Typography variant="body2" fontFamily="monospace">
+                      {pkg.code}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Box>
+                      <Typography variant="body2" fontWeight="medium">
+                        {pkg.name}
+                      </Typography>
+                      {pkg.description && (
+                        <Typography
+                          variant="caption"
+                          color="textSecondary"
+                          noWrap
+                        >
+                          {pkg.description.length > 50
+                            ? `${pkg.description.substring(0, 50)}...`
+                            : pkg.description}
+                        </Typography>
+                      )}
                     </Box>
                   </TableCell>
-                  <TableCell align="right">Price</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Booking Period</TableCell>
-                  <TableCell>Center</TableCell>
-                  <TableCell align="center">Actions</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={pkg.type_label}
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                    />
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="body2">
+                      {formatDuration(pkg.time)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {pkg.validity_expiry > 0
+                        ? `${pkg.validity_expiry} days`
+                        : "No expiry"}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {pkg.instalments} installments
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      Every {pkg.payment_frequency} days
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={pkg.is_active ? "Active" : "Inactive"}
+                      size="small"
+                      color={pkg.is_active ? "success" : "default"}
+                      icon={
+                        pkg.is_active ? (
+                          <CheckCircle fontSize="small" />
+                        ) : (
+                          <Cancel fontSize="small" />
+                        )
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label="All Centers"
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                    />
+                  </TableCell>
+                  <TableCell align="center">
+                    <IconButton
+                      size="small"
+                      onClick={() => setSelectedPackage(pkg)}
+                      color="primary"
+                    >
+                      <Visibility fontSize="small" />
+                    </IconButton>
+                  </TableCell>
                 </TableRow>
-              </TableHead>
-              <TableBody>
-                {packages.map((pkg) => (
-                  <TableRow key={pkg.id} hover>
-                    <TableCell>
-                      <Typography variant="body2" fontFamily="monospace">
-                        {pkg.code}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Box>
-                        <Typography variant="body2" fontWeight="medium">
-                          {pkg.name}
-                        </Typography>
-                        {pkg.description && (
-                          <Typography
-                            variant="caption"
-                            color="textSecondary"
-                            noWrap
-                          >
-                            {pkg.description.length > 50
-                              ? `${pkg.description.substring(0, 50)}...`
-                              : pkg.description}
-                          </Typography>
-                        )}
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={pkg.type_label}
-                        size="small"
-                        variant="outlined"
-                        color={pkg.type === 2 ? "primary" : "default"}
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography variant="body2">
-                        {formatDuration(pkg.time)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography variant="body2" fontWeight="medium">
-                        {formatCurrency(pkg.price)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={pkg.is_active ? "Active" : "Inactive"}
-                        size="small"
-                        color={pkg.is_active ? "success" : "default"}
-                        icon={
-                          pkg.is_active ? (
-                            <CheckCircle fontSize="small" />
-                          ) : (
-                            <Cancel fontSize="small" />
-                          )
-                        }
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Box>
-                        {pkg.booking_start_date && (
-                          <Typography
-                            variant="caption"
-                            color="textSecondary"
-                            display="block"
-                          >
-                            From: {formatDate(pkg.booking_start_date)}
-                          </Typography>
-                        )}
-                        {pkg.booking_end_date && (
-                          <Typography
-                            variant="caption"
-                            color="textSecondary"
-                            display="block"
-                          >
-                            To: {formatDate(pkg.booking_end_date)}
-                          </Typography>
-                        )}
-                        {!pkg.booking_start_date && !pkg.booking_end_date && (
-                          <Typography variant="caption" color="textSecondary">
-                            No restrictions
-                          </Typography>
-                        )}
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={pkg.center_code}
-                        size="small"
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <IconButton
-                        size="small"
-                        onClick={() => setSelectedPackage(pkg)}
-                        color="primary"
-                      >
-                        <Visibility fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </Box>
 
       {/* Pagination */}
       <TablePagination
         component="div"
-        count={totalPackages}
+        count={filteredPackages.length}
         page={page}
         onPageChange={(e, newPage) => setPage(newPage)}
         rowsPerPage={rowsPerPage}
@@ -612,14 +576,6 @@ const ZenotiPackagesSection = ({
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <Typography variant="body2" color="textSecondary">
-                      Price
-                    </Typography>
-                    <Typography variant="body1">
-                      {formatCurrency(selectedPackage.price)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" color="textSecondary">
                       Status
                     </Typography>
                     <Chip
@@ -630,11 +586,9 @@ const ZenotiPackagesSection = ({
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <Typography variant="body2" color="textSecondary">
-                      Center
+                      Availability
                     </Typography>
-                    <Typography variant="body1">
-                      {selectedPackage.center_code}
-                    </Typography>
+                    <Typography variant="body1">All Centers</Typography>
                   </Grid>
                   {selectedPackage.description && (
                     <Grid item xs={12}>
@@ -649,66 +603,69 @@ const ZenotiPackagesSection = ({
                 </Grid>
               </Box>
 
-              {/* Booking Period */}
+              {/* Validity Information */}
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  Booking Period
+                  Validity Information
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12} sm={6}>
                     <Typography variant="body2" color="textSecondary">
-                      Start Date
+                      Validity Days
                     </Typography>
                     <Typography variant="body1">
-                      {selectedPackage.booking_start_date
-                        ? formatDate(selectedPackage.booking_start_date)
-                        : "No restriction"}
+                      {selectedPackage.validity_expiry > 0
+                        ? `${selectedPackage.validity_expiry} days`
+                        : "No expiry"}
                     </Typography>
                   </Grid>
+                  {selectedPackage.validity_expiry_date && (
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" color="textSecondary">
+                        Expiry Date
+                      </Typography>
+                      <Typography variant="body1">
+                        {formatDate(selectedPackage.validity_expiry_date)}
+                      </Typography>
+                    </Grid>
+                  )}
                   <Grid item xs={12} sm={6}>
                     <Typography variant="body2" color="textSecondary">
-                      End Date
+                      Freeze Count
                     </Typography>
                     <Typography variant="body1">
-                      {selectedPackage.booking_end_date
-                        ? formatDate(selectedPackage.booking_end_date)
-                        : "No restriction"}
+                      {selectedPackage.freeze_count === -2
+                        ? "Unlimited"
+                        : selectedPackage.freeze_count}
                     </Typography>
                   </Grid>
                 </Grid>
               </Box>
 
-              {/* Validity Information */}
-              {(selectedPackage.validity_expiry > 0 ||
-                selectedPackage.validity_expiry_date) && (
-                <Box>
-                  <Typography variant="h6" gutterBottom>
-                    Validity Information
-                  </Typography>
-                  <Grid container spacing={2}>
-                    {selectedPackage.validity_expiry > 0 && (
-                      <Grid item xs={12} sm={6}>
-                        <Typography variant="body2" color="textSecondary">
-                          Validity Days
-                        </Typography>
-                        <Typography variant="body1">
-                          {selectedPackage.validity_expiry} days
-                        </Typography>
-                      </Grid>
-                    )}
-                    {selectedPackage.validity_expiry_date && (
-                      <Grid item xs={12} sm={6}>
-                        <Typography variant="body2" color="textSecondary">
-                          Expiry Date
-                        </Typography>
-                        <Typography variant="body1">
-                          {formatDate(selectedPackage.validity_expiry_date)}
-                        </Typography>
-                      </Grid>
-                    )}
+              {/* Payment Information */}
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Payment Schedule
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="textSecondary">
+                      Number of Installments
+                    </Typography>
+                    <Typography variant="body1">
+                      {selectedPackage.instalments}
+                    </Typography>
                   </Grid>
-                </Box>
-              )}
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="textSecondary">
+                      Payment Frequency
+                    </Typography>
+                    <Typography variant="body1">
+                      Every {selectedPackage.payment_frequency} days
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
 
               {/* Commission Information */}
               {selectedPackage.commission &&
@@ -734,6 +691,22 @@ const ZenotiPackagesSection = ({
                           {selectedPackage.commission.value || "N/A"}
                         </Typography>
                       </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="textSecondary">
+                          Eligible
+                        </Typography>
+                        <Typography variant="body1">
+                          {selectedPackage.commission.eligible ? "Yes" : "No"}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="textSecondary">
+                          Factor
+                        </Typography>
+                        <Typography variant="body1">
+                          {selectedPackage.commission.factor || "N/A"}
+                        </Typography>
+                      </Grid>
                     </Grid>
                   </Box>
                 )}
@@ -749,29 +722,6 @@ const ZenotiPackagesSection = ({
                   </Typography>
                 </Box>
               )}
-
-              <Divider />
-
-              {/* Raw Data */}
-              <Box>
-                <Typography variant="h6" gutterBottom>
-                  Raw Package Data
-                </Typography>
-                <Box
-                  component="pre"
-                  sx={{
-                    backgroundColor: "#f5f5f5",
-                    p: 2,
-                    borderRadius: 1,
-                    maxHeight: 300,
-                    overflow: "auto",
-                    fontSize: "12px",
-                    fontFamily: "monospace",
-                  }}
-                >
-                  {JSON.stringify(selectedPackage._raw, null, 2)}
-                </Box>
-              </Box>
             </Box>
           )}
         </DialogContent>
