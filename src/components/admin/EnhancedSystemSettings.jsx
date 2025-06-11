@@ -126,6 +126,8 @@ const EnhancedSystemSettings = () => {
     includeFiles: true,
     includeDatabase: true,
     includeSettings: true,
+    enabledProviders: "dropbox,googledrive",
+    embeddingTypes: "full,partial",
   });
 
   // Fetch settings on component mount
@@ -453,8 +455,8 @@ const EnhancedSystemSettings = () => {
         includeFiles: backupSettings.includeFiles,
         includeDatabase: backupSettings.includeDatabase,
         includeSettings: backupSettings.includeSettings,
-        providers: "dropbox,googledrive", // Use both providers by default
-        embeddingTypes: "full,partial", // Generate both types of embeddings
+        providers: backupSettings.enabledProviders || "dropbox,googledrive",
+        embeddingTypes: backupSettings.embeddingTypes || "full,partial",
         onProgressUpdate: (progressData) => {
           setBackupStatus(
             `${progressData.message} (${progressData.progress}%)`
@@ -860,6 +862,209 @@ const EnhancedSystemSettings = () => {
     await handleBackup();
   };
 
+  // Function to handle reprocessing of embeddings
+  const handleReprocessEmbeddings = async () => {
+    try {
+      setIsRunningDiagnostics(true);
+      setError(null);
+      setSuccess(null);
+      setBackupStatus("Initializing embedding maintenance...");
+
+      // Call the API to trigger embedding maintenance
+      const result = await backupService.triggerEmbeddingMaintenance({
+        providers: backupSettings.enabledProviders || "dropbox,googledrive",
+        embeddingTypes: backupSettings.embeddingTypes || "full,partial",
+        batchSize: 50,
+        concurrentProcessing: 3,
+      });
+
+      if (result.success) {
+        setSuccess(
+          `Embedding maintenance process initiated successfully. ${
+            result.message || ""
+          }`
+        );
+        setBackupStatus(
+          "Embedding maintenance in progress. This may take some time."
+        );
+
+        // Poll for status updates or implement websocket if available
+        const checkStatusInterval = setInterval(async () => {
+          try {
+            const statusResult = await apiService.status.check();
+
+            if (statusResult.data && statusResult.data.maintenance) {
+              const progress = statusResult.data.maintenance.progress || 0;
+              setBackupStatus(`Embedding maintenance: ${progress}% complete`);
+
+              if (
+                progress >= 100 ||
+                statusResult.data.maintenance.status === "completed"
+              ) {
+                clearInterval(checkStatusInterval);
+                setSuccess("Embedding maintenance completed successfully!");
+                setBackupStatus("Embedding maintenance completed");
+                setIsRunningDiagnostics(false);
+              }
+            }
+          } catch (statusError) {
+            console.warn("Error checking maintenance status:", statusError);
+          }
+        }, 5000); // Check every 5 seconds
+
+        // Set a timeout to stop checking after 10 minutes regardless
+        setTimeout(() => {
+          clearInterval(checkStatusInterval);
+          if (isRunningDiagnostics) {
+            setBackupStatus(
+              "Embedding maintenance still in progress. You can check results later."
+            );
+            setIsRunningDiagnostics(false);
+          }
+        }, 10 * 60 * 1000);
+      } else {
+        setError(
+          `Failed to initiate embedding maintenance: ${
+            result.error || "Unknown error"
+          }`
+        );
+        setBackupStatus("Embedding maintenance failed to start");
+        setIsRunningDiagnostics(false);
+      }
+    } catch (error) {
+      console.error("Error initiating embedding maintenance:", error);
+      setError(`Error initiating embedding maintenance: ${error.message}`);
+      setBackupStatus("Embedding maintenance failed");
+      setIsRunningDiagnostics(false);
+    }
+  };
+
+  // Function to scan and process Dropbox files
+  const scanDropboxFiles = async () => {
+    try {
+      setIsRunningDiagnostics(true);
+      setError(null);
+      setSuccess(null);
+      setBackupStatus("Connecting to Dropbox...");
+
+      // Call API to trigger Dropbox scan - using the embedding maintenance endpoint
+      // with provider specified as only Dropbox
+      const response = await fetch(
+        `${backupService.getApiUrl()}/api/admin/backup/run-embedding-maintenance`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            providers: "dropbox", // Only specify Dropbox as the provider
+            embeddingTypes: backupSettings.embeddingTypes || "full,partial",
+            sourceOnly: true, // Optional flag to indicate this is a source-only operation
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        setSuccess(
+          `Dropbox scan initiated successfully. ${result.message || ""}`
+        );
+        setBackupStatus(
+          "Dropbox scan in progress. Files will be processed in the background."
+        );
+
+        // Set a timeout to update the status after a reasonable time
+        setTimeout(() => {
+          setIsRunningDiagnostics(false);
+          setBackupStatus(
+            "Dropbox scan likely completed. Check the backup history for results."
+          );
+        }, 30000);
+      } else {
+        setError(`Failed to scan Dropbox: ${result.error || "Unknown error"}`);
+        setBackupStatus("Dropbox scan failed");
+        setIsRunningDiagnostics(false);
+      }
+    } catch (error) {
+      console.error("Error scanning Dropbox files:", error);
+      setError(`Error scanning Dropbox files: ${error.message}`);
+      setBackupStatus("Dropbox scan failed");
+      setIsRunningDiagnostics(false);
+    }
+  };
+
+  // Function to scan and process Google Drive files
+  const scanGoogleDriveFiles = async () => {
+    try {
+      setIsRunningDiagnostics(true);
+      setError(null);
+      setSuccess(null);
+      setBackupStatus("Connecting to Google Drive...");
+
+      // Call API to trigger Google Drive scan - using the embedding maintenance endpoint
+      // with provider specified as only Google Drive
+      const response = await fetch(
+        `${backupService.getApiUrl()}/api/admin/backup/run-embedding-maintenance`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            providers: "googledrive", // Only specify Google Drive as the provider
+            embeddingTypes: backupSettings.embeddingTypes || "full,partial",
+            sourceOnly: true, // Optional flag to indicate this is a source-only operation
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        setSuccess(
+          `Google Drive scan initiated successfully. ${result.message || ""}`
+        );
+        setBackupStatus(
+          "Google Drive scan in progress. Files will be processed in the background."
+        );
+
+        // Set a timeout to update the status after a reasonable time
+        setTimeout(() => {
+          setIsRunningDiagnostics(false);
+          setBackupStatus(
+            "Google Drive scan likely completed. Check the backup history for results."
+          );
+        }, 30000);
+      } else {
+        setError(
+          `Failed to scan Google Drive: ${result.error || "Unknown error"}`
+        );
+        setBackupStatus("Google Drive scan failed");
+        setIsRunningDiagnostics(false);
+      }
+    } catch (error) {
+      console.error("Error scanning Google Drive files:", error);
+      setError(`Error scanning Google Drive files: ${error.message}`);
+      setBackupStatus("Google Drive scan failed");
+      setIsRunningDiagnostics(false);
+    }
+  };
+
   const runBackupDiagnostics = async () => {
     try {
       setIsRunningDiagnostics(true);
@@ -1030,7 +1235,7 @@ const EnhancedSystemSettings = () => {
               <Database size={20} />
               <span>Storage</span>
             </button>
-            <button
+            {/* <button
               className={`nav-item ${
                 activeSection === "security" ? "active" : ""
               }`}
@@ -1038,7 +1243,7 @@ const EnhancedSystemSettings = () => {
             >
               <Shield size={20} />
               <span>Security</span>
-            </button>
+            </button> */}
             {/* <button
               className={`nav-item ${
                 activeSection === "notifications" ? "active" : ""
@@ -1055,7 +1260,7 @@ const EnhancedSystemSettings = () => {
               <Key size={20} />
               <span>API</span>
             </button>
-            <button
+            {/* <button
               className={`nav-item ${
                 activeSection === "backup" ? "active" : ""
               }`}
@@ -1063,7 +1268,7 @@ const EnhancedSystemSettings = () => {
             >
               <Cloud size={20} />
               <span>Backup</span>
-            </button>
+            </button> */}
           </div>
 
           {/* Settings Content */}
@@ -1770,7 +1975,6 @@ const EnhancedSystemSettings = () => {
                     </div>
                   </div>
                 )}
-                {/* Backup Settings */}
                 {activeSection === "backup" && (
                   <div className="settings-section">
                     <h3 className="settings-title">Backup & Recovery</h3>
@@ -1953,6 +2157,110 @@ const EnhancedSystemSettings = () => {
                           <span className="checkbox-label">Settings</span>
                         </label>
                       </div>
+
+                      <div className="form-group checkbox-group">
+                        <h4 className="checkbox-group-title">
+                          Data Source Providers
+                        </h4>
+                        <div className="provider-settings">
+                          <div className="provider-option">
+                            <input
+                              type="checkbox"
+                              id="providerDropbox"
+                              name="enabledProviders"
+                              checked={backupSettings.enabledProviders?.includes(
+                                "dropbox"
+                              )}
+                              onChange={(e) => {
+                                const currentProviders =
+                                  backupSettings.enabledProviders?.split(",") ||
+                                  [];
+                                const updatedProviders = e.target.checked
+                                  ? [...currentProviders, "dropbox"]
+                                  : currentProviders.filter(
+                                      (p) => p !== "dropbox"
+                                    );
+
+                                setBackupSettings((prev) => ({
+                                  ...prev,
+                                  enabledProviders: updatedProviders.join(","),
+                                }));
+                              }}
+                            />
+                            <label
+                              htmlFor="providerDropbox"
+                              className="provider-label"
+                            >
+                              <span className="provider-icon dropbox-icon">
+                                🔵
+                              </span>
+                              <span className="provider-name">Dropbox</span>
+                            </label>
+                          </div>
+
+                          <div className="provider-option">
+                            <input
+                              type="checkbox"
+                              id="providerGoogleDrive"
+                              name="enabledProviders"
+                              checked={backupSettings.enabledProviders?.includes(
+                                "googledrive"
+                              )}
+                              onChange={(e) => {
+                                const currentProviders =
+                                  backupSettings.enabledProviders?.split(",") ||
+                                  [];
+                                const updatedProviders = e.target.checked
+                                  ? [...currentProviders, "googledrive"]
+                                  : currentProviders.filter(
+                                      (p) => p !== "googledrive"
+                                    );
+
+                                setBackupSettings((prev) => ({
+                                  ...prev,
+                                  enabledProviders: updatedProviders.join(","),
+                                }));
+                              }}
+                            />
+                            <label
+                              htmlFor="providerGoogleDrive"
+                              className="provider-label"
+                            >
+                              <span className="provider-icon drive-icon">
+                                📝
+                              </span>
+                              <span className="provider-name">
+                                Google Drive
+                              </span>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="embeddingTypes">
+                          Embedding Generation
+                        </label>
+                        <select
+                          id="embeddingTypes"
+                          name="embeddingTypes"
+                          value={backupSettings.embeddingTypes}
+                          onChange={(e) => handleInputChange(e, "backup")}
+                          className="form-select"
+                        >
+                          <option value="full,partial">
+                            Full & Partial Embeddings
+                          </option>
+                          <option value="full">Full Embeddings Only</option>
+                          <option value="partial">
+                            Partial Embeddings Only
+                          </option>
+                        </select>
+                        <p className="field-hint">
+                          Full embeddings work for image searches. Partial
+                          embeddings enable detailed region-based searches.
+                        </p>
+                      </div>
                       <div className="backup-history-toggle">
                         <button
                           type="button"
@@ -2073,6 +2381,80 @@ const EnhancedSystemSettings = () => {
                             </>
                           )}
                         </button>
+                      </div>
+
+                      {/* Embedding and File Source Maintenance Section */}
+                      <div className="maintenance-section">
+                        <h4>Embedding & File Source Maintenance</h4>
+                        <p className="maintenance-description">
+                          Use these tools to manage file sources and trigger
+                          embedding maintenance.
+                        </p>
+
+                        <div className="maintenance-actions">
+                          <button
+                            type="button"
+                            className="maintenance-button"
+                            onClick={handleReprocessEmbeddings}
+                            disabled={isRunningDiagnostics || isBackingUp}
+                          >
+                            {isRunningDiagnostics ? (
+                              <>
+                                <Loader size={14} className="spinner" />
+                                Processing...
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw size={14} />
+                                Re-process Embeddings
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="maintenance-button dropbox-button"
+                            onClick={scanDropboxFiles}
+                            disabled={isRunningDiagnostics || isBackingUp}
+                          >
+                            {isRunningDiagnostics ? (
+                              <>
+                                <Loader size={14} className="spinner" />
+                                Scanning...
+                              </>
+                            ) : (
+                              <>
+                                <span className="provider-icon">🔵</span>
+                                Scan Dropbox Files
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="maintenance-button gdrive-button"
+                            onClick={scanGoogleDriveFiles}
+                            disabled={isRunningDiagnostics || isBackingUp}
+                          >
+                            {isRunningDiagnostics ? (
+                              <>
+                                <Loader size={14} className="spinner" />
+                                Scanning...
+                              </>
+                            ) : (
+                              <>
+                                <span className="provider-icon">📝</span>
+                                Scan Google Drive Files
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        <p className="maintenance-tip">
+                          <HelpCircle size={12} />
+                          Tip: Regular maintenance helps keep your search
+                          results accurate and up-to-date.
+                        </p>
                       </div>
 
                       {/* Add status display after the buttons */}

@@ -40,6 +40,7 @@ import {
   ClipboardList,
   ArrowDownCircle,
   Filter as FilterIcon,
+  Link as LinkIcon,
 } from "lucide-react";
 import {
   LineChart,
@@ -91,6 +92,7 @@ const EnhancedAnalyticsDashboard = () => {
     errorRate: 0,
     avgResponseTime: 0,
   });
+  const [integrationMetrics, setIntegrationMetrics] = useState(null);
 
   // Colors for charts
   const COLORS = useMemo(
@@ -230,9 +232,15 @@ const EnhancedAnalyticsDashboard = () => {
     // Initial fetch of realtime data
     SupabaseAnalytics.getRealtimeStats()
       .then(setRealtimeData)
-      .catch((err) =>
-        console.warn("Error fetching initial realtime stats:", err)
-      );
+      .catch((err) => {
+        // If analytics_stats is missing, fallback to sample data
+        setRealtimeData({
+          activeUsers: 0,
+          queries: 0,
+          errorRate: 0,
+          avgResponseTime: 0,
+        });
+      });
 
     return () => {
       // Clean up subscriptions and intervals
@@ -241,153 +249,149 @@ const EnhancedAnalyticsDashboard = () => {
     };
   }, []);
 
+  // Helper: Fetch count from a table
+  const fetchCount = async (table, filter = {}) => {
+    let query = supabase
+      .from(table)
+      .select("id", { count: "exact", head: true });
+    Object.entries(filter).forEach(([key, value]) => {
+      query = query.eq(key, value);
+    });
+    const { count, error } = await query;
+    if (error) throw error;
+    return count || 0;
+  };
+
+  // Helper: Fetch time series data (group by date)
+  const fetchTimeSeries = async (table, dateField, start, end, filter = {}) => {
+    if (!start || !end) return [];
+    let query = supabase
+      .from(table)
+      .select(`${dateField}`)
+      .gte(dateField, start)
+      .lte(dateField, end);
+    Object.entries(filter).forEach(([key, value]) => {
+      query = query.eq(key, value);
+    });
+    const { data, error } = await query;
+    if (error) throw error;
+    // Group by date
+    const counts = {};
+    data.forEach((row) => {
+      const date = row[dateField].split("T")[0];
+      counts[date] = (counts[date] || 0) + 1;
+    });
+    return Object.entries(counts).map(([date, value]) => ({ date, value }));
+  };
+
   // Main function to fetch all dashboard data
   const fetchDashboardData = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-
-      // Track analytics view event
-      SupabaseAnalytics.trackEvent("dashboard_view", {
-        timeframe,
-        activeTab,
-        preset: selectedPreset,
-      });
-
-      // Create a cache key based on current settings
-      const cacheKey = `${activeTab}:${timeframe}:${selectedPreset}`;
-
-      // We'll fetch different data based on the active tab
-      switch (activeTab) {
-        case "overview":
-          // Try to get from cache first
-          const cachedOverview = await AnalyticsCache.getDashboardData(
-            cacheKey
-          );
-          if (cachedOverview) {
-            setDashboardData(cachedOverview);
-            setLoading(false);
-
-            // Still fetch fresh data in background if cache is older than 5 minutes
-            if (
-              cachedOverview._cachedAt &&
-              Date.now() - cachedOverview._cachedAt > 5 * 60 * 1000
-            ) {
-              const freshData = await SupabaseAnalytics.getDashboardData(
-                timeframe,
-                dateRange
-              );
-
-              // Add timestamp for cache age tracking
-              freshData._cachedAt = Date.now();
-
-              // Update state and cache
-              setDashboardData(freshData);
-              AnalyticsCache.cacheDashboardData(cacheKey, freshData);
-            }
-
-            break;
-          }
-
-          // No cache, fetch fresh data
-          const overviewData = await SupabaseAnalytics.getDashboardData(
-            timeframe,
-            dateRange
-          );
-
-          // Add timestamp for cache age tracking
-          overviewData._cachedAt = Date.now();
-
-          setDashboardData(overviewData);
-
-          // Cache data for 5 minutes
-          AnalyticsCache.cacheDashboardData(cacheKey, overviewData, 300);
-          break;
-
-        case "users":
-          // Try to get from cache first
-          const cachedUserMetrics = await AnalyticsCache.getUserMetrics(
-            timeframe
-          );
-          if (cachedUserMetrics) {
-            setUserMetrics(cachedUserMetrics);
-            setLoading(false);
-
-            // Refresh in background if needed
-            if (
-              cachedUserMetrics._cachedAt &&
-              Date.now() - cachedUserMetrics._cachedAt > 5 * 60 * 1000
-            ) {
-              const freshUserData = await SupabaseAnalytics.getUserMetrics(
-                timeframe,
-                dateRange
-              );
-
-              freshUserData._cachedAt = Date.now();
-              setUserMetrics(freshUserData);
-              AnalyticsCache.cacheUserMetrics(timeframe, freshUserData);
-            }
-
-            break;
-          }
-
-          // No cache, fetch fresh data
-          const userMetricsData = await SupabaseAnalytics.getUserMetrics(
-            timeframe,
-            dateRange
-          );
-
-          userMetricsData._cachedAt = Date.now();
-          setUserMetrics(userMetricsData);
-
-          // Cache for 15 minutes
-          AnalyticsCache.cacheUserMetrics(timeframe, userMetricsData);
-          break;
-
-        // Implement similar caching for other tabs...
-        case "content":
-          const contentMetricsData = await SupabaseAnalytics.getContentMetrics(
-            timeframe,
-            dateRange
-          );
-          setContentMetrics(contentMetricsData);
-          break;
-
-        case "search":
-          const searchMetricsData = await SupabaseAnalytics.getSearchMetrics(
-            timeframe,
-            dateRange
-          );
-          setSearchMetrics(searchMetricsData);
-          break;
-
-        case "system":
-          const systemMetricsData = await SupabaseAnalytics.getSystemMetrics(
-            timeframe,
-            dateRange
-          );
-          setSystemMetrics(systemMetricsData);
-          break;
-
-        default:
-          // Default to overview
-          const defaultData = await SupabaseAnalytics.getDashboardData(
-            timeframe,
-            dateRange
-          );
-          setDashboardData(defaultData);
+      if (!dateRange.start || !dateRange.end) {
+        setLoading(false);
+        return;
       }
+      // Fetch all main stats
+      const [
+        totalUsers,
+        totalDocuments,
+        totalImages,
+        totalSearches,
+        totalSessions,
+      ] = await Promise.all([
+        fetchCount("profiles"),
+        fetchCount("documents"),
+        fetchCount("images"),
+        fetchCount("analytics_events", { event_type: "search" }),
+        fetchCount("analytics_events", { event_type: "session_start" }),
+      ]);
 
-      // Get realtime data regardless of the tab
-      const realtimeData = await SupabaseAnalytics.getRealtimeStats();
-      setRealtimeData(realtimeData);
-    } catch (err) {
-      console.error("Error loading analytics:", err);
-      setError(`Failed to load analytics data: ${err.message}`);
+      // Fetch time series for users, searches, documents
+      const [userSeries, searchSeries, docSeries] = await Promise.all([
+        fetchTimeSeries(
+          "profiles",
+          "created_at",
+          dateRange.start,
+          dateRange.end
+        ),
+        fetchTimeSeries(
+          "analytics_events",
+          "created_at",
+          dateRange.start,
+          dateRange.end,
+          { event_type: "search" }
+        ),
+        fetchTimeSeries(
+          "documents",
+          "created_at",
+          dateRange.start,
+          dateRange.end
+        ),
+      ]);
+
+      // Fetch top searches
+      const { data: topSearchesData } = await supabase
+        .from("analytics_events")
+        .select("search_term, count")
+        .eq("event_type", "search")
+        .order("count", { ascending: false })
+        .limit(5);
+      const topSearches = (topSearchesData || []).map((row) => ({
+        term: row.search_term,
+        count: row.count,
+      }));
+
+      // Fetch popular content
+      const { data: popularContentData } = await supabase
+        .from("documents")
+        .select("name, views, type")
+        .order("views", { ascending: false })
+        .limit(5);
+      const popularContent = (popularContentData || []).map((row) => ({
+        name: row.name,
+        views: row.views,
+        type: row.type,
+      }));
+
+      // Fetch recent users
+      const { data: recentUsersData } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      setDashboardData({
+        summary: {
+          totalUsers,
+          totalDocuments,
+          totalImages,
+          totalSearches,
+          totalSessions,
+          // Add more real stats as needed
+        },
+        timeSeriesData: userSeries.map((u, i) => ({
+          date: u.date,
+          users: u.value,
+          searches: searchSeries[i]?.value || 0,
+          documents: docSeries[i]?.value || 0,
+        })),
+        topSearches,
+        popularContent,
+        recentUsers: recentUsersData || [],
+      });
+    } catch (error) {
+      setError("Failed to load analytics data.");
+      setDashboardData({ summary: {} });
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
   const generateTimeSeriesData = (tf, range) => {
     const data = [];
@@ -432,96 +436,6 @@ const EnhancedAnalyticsDashboard = () => {
     return data;
   };
 
-  // Fetch overview dashboard data
-  const fetchOverviewData = async () => {
-    try {
-      // In a real app, you would fetch from your Supabase tables
-      // Here we're generating sample data for demonstration
-
-      // Get user counts from profiles table using safe RPC function
-      const { data: userCountData, error: userCountError } = await supabase.rpc(
-        "get_all_profiles_safe"
-      );
-
-      if (userCountError) throw userCountError;
-
-      // Get recent users using safe RPC function
-      const { data: recentUsersData, error: recentUsersError } =
-        await supabase.rpc("get_all_profiles_safe");
-
-      // Process to get only recent users
-      const recentUsers = recentUsersData
-        ? recentUsersData
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-            .slice(0, 5)
-        : [];
-
-      if (recentUsersError) throw recentUsersError;
-
-      // Calculate user growth
-      const totalUsers = userCountData.length;
-      const usersInTimeframe = userCountData.filter(
-        (user) => new Date(user.created_at) >= new Date(dateRange.start)
-      ).length;
-
-      // Get session counts from analytics_events
-      const { data: sessionData, error: sessionError } = await supabase
-        .from("analytics_events")
-        .select("id")
-        .eq("event_type", "session_start")
-        .gte("created_at", dateRange.start)
-        .lte("created_at", dateRange.end);
-
-      if (sessionError && sessionError.code !== "PGRST116") throw sessionError;
-
-      // Generate time series data for the overview
-      const timeSeriesData = generateTimeSeriesData(timeframe, dateRange);
-
-      // Generate sample data for remaining metrics
-      // In a real app, these would come from your database
-      const overview = {
-        summary: {
-          totalUsers: totalUsers,
-          activeUsers: Math.round(totalUsers * 0.65),
-          totalSessions: sessionData?.length || Math.round(totalUsers * 2.5),
-          avgSessionDuration: 8.2,
-          totalSearches: Math.round(totalUsers * 15),
-          totalDocuments: 1248,
-          totalImages: 723,
-        },
-        timeSeriesData: timeSeriesData,
-        userGrowth: {
-          total: totalUsers,
-          newInPeriod: usersInTimeframe,
-          percentChange:
-            usersInTimeframe > 0
-              ? Math.round((usersInTimeframe / totalUsers) * 100)
-              : 0,
-        },
-        topSearches: [
-          { term: "tattoo removal process", count: 145 },
-          { term: "pricing", count: 98 },
-          { term: "before and after", count: 76 },
-          { term: "procedure details", count: 62 },
-          { term: "safety information", count: 49 },
-        ],
-        popularContent: [
-          { name: "Treatment Guide", views: 312, type: "document" },
-          { name: "Aftercare Instructions", views: 245, type: "document" },
-          { name: "Before/After Gallery", views: 198, type: "gallery" },
-          { name: "Pricing Information", views: 176, type: "document" },
-          { name: "FAQ Document", views: 145, type: "document" },
-        ],
-        recentUsers: recentUsersData || [],
-      };
-
-      setDashboardData(overview);
-    } catch (error) {
-      console.error("Error fetching overview data:", error);
-      throw error;
-    }
-  };
-
   // Handle refresh button click
   const handleRefresh = async () => {
     try {
@@ -539,10 +453,17 @@ const EnhancedAnalyticsDashboard = () => {
         case "users":
           await AnalyticsCache.cacheUserMetrics(timeframe, null, 1); // Expire immediately
           break;
+        case "integrations":
+          // No cache for mock, but could clear real cache here
+          break;
         // Handle other tabs as needed
       }
 
-      await fetchDashboardData();
+      if (activeTab === "integrations") {
+        await fetchIntegrationMetrics();
+      } else {
+        await fetchDashboardData();
+      }
 
       // Track refresh action
       analyticsUtils.trackButtonClick("refresh_analytics", {
@@ -597,6 +518,10 @@ const EnhancedAnalyticsDashboard = () => {
         case "system":
           exportData = systemMetrics?.performance || [];
           filename = `system-metrics-${timeframe}`;
+          break;
+        case "integrations":
+          exportData = integrationMetrics?.integrations || [];
+          filename = `integration-metrics-${timeframe}`;
           break;
         default:
           exportData = dashboardData?.timeSeriesData || [];
@@ -718,6 +643,8 @@ const EnhancedAnalyticsDashboard = () => {
         return renderSearchDashboard();
       case "system":
         return renderSystemDashboard();
+      case "integrations":
+        return renderIntegrationsDashboard();
       default:
         return renderOverviewDashboard();
     }
@@ -725,7 +652,7 @@ const EnhancedAnalyticsDashboard = () => {
 
   // Render overview dashboard
   const renderOverviewDashboard = () => {
-    if (!dashboardData) {
+    if (!dashboardData || !dashboardData.summary) {
       return (
         <div className="analytics-loading">
           <Loader className="spinner" size={32} />
@@ -745,12 +672,16 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Total Users</h3>
               <div className="stat-value">
-                {formatNumber(dashboardData.summary.totalUsers)}
+                {dashboardData && dashboardData.summary
+                  ? formatNumber(dashboardData.summary.totalUsers)
+                  : 0}
               </div>
               <div className="stat-detail">
                 <span className="stat-label">Active:</span>
                 <span className="stat-subvalue">
-                  {formatNumber(dashboardData.summary.activeUsers)}
+                  {dashboardData && dashboardData.summary
+                    ? formatNumber(dashboardData.summary.activeUsers)
+                    : 0}
                 </span>
               </div>
             </div>
@@ -763,7 +694,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Total Sessions</h3>
               <div className="stat-value">
-                {formatNumber(dashboardData.summary.totalSessions)}
+                {dashboardData && dashboardData.summary
+                  ? formatNumber(dashboardData.summary.totalSessions)
+                  : 0}
               </div>
               <div className="stat-detail">
                 <span className="stat-label">Avg Duration:</span>
@@ -781,7 +714,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Total Searches</h3>
               <div className="stat-value">
-                {formatNumber(dashboardData.summary.totalSearches)}
+                {dashboardData && dashboardData.summary
+                  ? formatNumber(dashboardData.summary.totalSearches)
+                  : 0}
               </div>
             </div>
           </div>
@@ -793,7 +728,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Documents</h3>
               <div className="stat-value">
-                {formatNumber(dashboardData.summary.totalDocuments)}
+                {dashboardData && dashboardData.summary
+                  ? formatNumber(dashboardData.summary.totalDocuments)
+                  : 0}
               </div>
             </div>
           </div>
@@ -805,7 +742,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Images</h3>
               <div className="stat-value">
-                {formatNumber(dashboardData.summary.totalImages)}
+                {dashboardData && dashboardData.summary
+                  ? formatNumber(dashboardData.summary.totalImages)
+                  : 0}
               </div>
             </div>
           </div>
@@ -930,18 +869,27 @@ const EnhancedAnalyticsDashboard = () => {
               <div className="growth-summary">
                 <div className="growth-value">
                   <span className="total-value">
-                    {formatNumber(dashboardData.userGrowth.total)}
+                    {dashboardData && dashboardData.userGrowth
+                      ? formatNumber(dashboardData.userGrowth.total)
+                      : 0}
                   </span>
                   <span className="total-label">Total Users</span>
                 </div>
                 <div className="growth-change">
                   <div className="change-value">
                     <span className="new-users">
-                      +{formatNumber(dashboardData.userGrowth.newInPeriod)}
+                      +
+                      {dashboardData && dashboardData.userGrowth
+                        ? formatNumber(dashboardData.userGrowth.newInPeriod)
+                        : 0}
                     </span>
                     <span className="percentage">
                       <span className="arrow">↑</span>
-                      <span>{dashboardData.userGrowth.percentChange}%</span>
+                      <span>
+                        {dashboardData && dashboardData.userGrowth
+                          ? dashboardData.userGrowth.percentChange + "%"
+                          : 0}
+                      </span>
                     </span>
                   </div>
                   <div className="change-label">New in selected period</div>
@@ -1032,7 +980,7 @@ const EnhancedAnalyticsDashboard = () => {
             <h3 className="chart-title">Popular Content</h3>
             <div className="chart-container">
               <div className="popular-content-list">
-                {dashboardData.popularContent.map((item, index) => (
+                {(dashboardData.popularContent || []).map((item, index) => (
                   <div key={index} className="popular-content-item">
                     <div className="content-icon">
                       {item.type === "document" ? (
@@ -1063,7 +1011,7 @@ const EnhancedAnalyticsDashboard = () => {
             <h3 className="chart-title">Recent Users</h3>
             <div className="chart-container">
               <div className="recent-users-list">
-                {dashboardData.recentUsers.map((user, index) => (
+                {(dashboardData.recentUsers || []).map((user, index) => (
                   <div key={index} className="recent-user-item">
                     <div className="user-avatar">
                       {user.full_name?.charAt(0) || "U"}
@@ -1093,7 +1041,7 @@ const EnhancedAnalyticsDashboard = () => {
 
   // Render users dashboard
   const renderUsersDashboard = () => {
-    if (!userMetrics) {
+    if (!userMetrics || !userMetrics.summary) {
       return (
         <div className="analytics-loading">
           <Loader className="spinner" size={32} />
@@ -1110,7 +1058,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Total Users</h3>
               <div className="stat-value">
-                {formatNumber(userMetrics.summary.totalUsers)}
+                {dashboardData && dashboardData.summary
+                  ? formatNumber(dashboardData.summary.totalUsers)
+                  : 0}
               </div>
             </div>
           </div>
@@ -1119,14 +1069,18 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Active Users</h3>
               <div className="stat-value">
-                {formatNumber(userMetrics.summary.activeUsers)}
+                {dashboardData && dashboardData.summary
+                  ? formatNumber(dashboardData.summary.activeUsers)
+                  : 0}
               </div>
               <div className="stat-detail">
                 <span className="stat-percentage">
                   {Math.round(
-                    (userMetrics.summary.activeUsers /
-                      userMetrics.summary.totalUsers) *
-                      100
+                    (dashboardData && dashboardData.summary
+                      ? dashboardData.summary.activeUsers
+                      : 0 / dashboardData && dashboardData.summary
+                      ? dashboardData.summary.totalUsers
+                      : 0) * 100
                   )}
                   %
                 </span>
@@ -1139,7 +1093,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>New Users</h3>
               <div className="stat-value">
-                {formatNumber(userMetrics.summary.newUsers)}
+                {dashboardData && dashboardData.summary
+                  ? formatNumber(dashboardData.summary.newUsers)
+                  : 0}
               </div>
               <div className="stat-detail">
                 <span className="stat-label">In selected period</span>
@@ -1150,7 +1106,11 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="stat-card">
             <div className="stat-content">
               <h3>Churn Rate</h3>
-              <div className="stat-value">{userMetrics.summary.churnRate}%</div>
+              <div className="stat-value">
+                {dashboardData && dashboardData.summary
+                  ? dashboardData.summary.churnRate + "%"
+                  : 0}
+              </div>
             </div>
           </div>
 
@@ -1158,7 +1118,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Avg. Sessions</h3>
               <div className="stat-value">
-                {userMetrics.summary.averageSessionsPerUser}
+                {dashboardData && dashboardData.summary
+                  ? dashboardData.summary.averageSessionsPerUser
+                  : 0}
               </div>
               <div className="stat-detail">
                 <span className="stat-label">per user</span>
@@ -1476,7 +1438,7 @@ const EnhancedAnalyticsDashboard = () => {
 
   // Render content dashboard
   const renderContentDashboard = () => {
-    if (!contentMetrics) {
+    if (!contentMetrics || !contentMetrics.summary) {
       return (
         <div className="analytics-loading">
           <Loader className="spinner" size={32} />
@@ -1493,11 +1455,16 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Total Documents</h3>
               <div className="stat-value">
-                {formatNumber(contentMetrics.summary.totalDocuments)}
+                {dashboardData && dashboardData.summary
+                  ? formatNumber(dashboardData.summary.totalDocuments)
+                  : 0}
               </div>
               <div className="stat-detail">
                 <span className="stat-change positive">
-                  +{formatNumber(contentMetrics.summary.documentsAddedInPeriod)}
+                  +
+                  {dashboardData && dashboardData.summary
+                    ? formatNumber(dashboardData.summary.documentsAddedInPeriod)
+                    : 0}
                 </span>
                 <span className="stat-label">in period</span>
               </div>
@@ -1508,7 +1475,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Total Images</h3>
               <div className="stat-value">
-                {formatNumber(contentMetrics.summary.totalImages)}
+                {dashboardData && dashboardData.summary
+                  ? formatNumber(dashboardData.summary.totalImages)
+                  : 0}
               </div>
             </div>
           </div>
@@ -1517,7 +1486,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Total Folders</h3>
               <div className="stat-value">
-                {formatNumber(contentMetrics.summary.totalFolders)}
+                {dashboardData && dashboardData.summary
+                  ? formatNumber(dashboardData.summary.totalFolders)
+                  : 0}
               </div>
             </div>
           </div>
@@ -1526,7 +1497,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Total Storage</h3>
               <div className="stat-value">
-                {contentMetrics.summary.totalStorage} GB
+                {dashboardData && dashboardData.summary
+                  ? dashboardData.summary.totalStorage + " GB"
+                  : 0}
               </div>
             </div>
           </div>
@@ -1535,7 +1508,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Avg File Size</h3>
               <div className="stat-value">
-                {contentMetrics.summary.avgFileSize} MB
+                {dashboardData && dashboardData.summary
+                  ? dashboardData.summary.avgFileSize + " MB"
+                  : 0}
               </div>
             </div>
           </div>
@@ -1685,22 +1660,24 @@ const EnhancedAnalyticsDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {contentMetrics.popularContent.map((item, index) => (
-                      <tr key={index}>
-                        <td className="content-name-cell">
-                          {item.type === "document" ? (
-                            <FileText size={16} />
-                          ) : item.type === "gallery" ? (
-                            <Image size={16} />
-                          ) : (
-                            <FileText size={16} />
-                          )}
-                          <span>{item.name}</span>
-                        </td>
-                        <td>{formatNumber(item.views)}</td>
-                        <td>{formatNumber(item.downloads)}</td>
-                      </tr>
-                    ))}
+                    {(contentMetrics.popularContent || []).map(
+                      (item, index) => (
+                        <tr key={index}>
+                          <td className="content-name-cell">
+                            {item.type === "document" ? (
+                              <FileText size={16} />
+                            ) : item.type === "gallery" ? (
+                              <Image size={16} />
+                            ) : (
+                              <FileText size={16} />
+                            )}
+                            <span>{item.name}</span>
+                          </td>
+                          <td>{formatNumber(item.views)}</td>
+                          <td>{formatNumber(item.downloads)}</td>
+                        </tr>
+                      )
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1757,7 +1734,7 @@ const EnhancedAnalyticsDashboard = () => {
 
   // Render search dashboard
   const renderSearchDashboard = () => {
-    if (!searchMetrics) {
+    if (!searchMetrics || !searchMetrics.summary) {
       return (
         <div className="analytics-loading">
           <Loader className="spinner" size={32} />
@@ -1774,11 +1751,15 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Total Searches</h3>
               <div className="stat-value">
-                {formatNumber(searchMetrics.summary.totalSearches)}
+                {dashboardData && dashboardData.summary
+                  ? formatNumber(dashboardData.summary.totalSearches)
+                  : 0}
               </div>
               <div className="stat-detail">
                 <span className="stat-subvalue">
-                  {formatNumber(searchMetrics.summary.searchesInPeriod)}
+                  {dashboardData && dashboardData.summary
+                    ? formatNumber(dashboardData.summary.searchesInPeriod)
+                    : 0}
                 </span>
                 <span className="stat-label">in period</span>
               </div>
@@ -1789,7 +1770,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Unique Searches</h3>
               <div className="stat-value">
-                {formatNumber(searchMetrics.summary.uniqueSearches)}
+                {dashboardData && dashboardData.summary
+                  ? formatNumber(dashboardData.summary.uniqueSearches)
+                  : 0}
               </div>
             </div>
           </div>
@@ -1798,7 +1781,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Avg Per User</h3>
               <div className="stat-value">
-                {searchMetrics.summary.avgSearchesPerUser}
+                {dashboardData && dashboardData.summary
+                  ? dashboardData.summary.avgSearchesPerUser
+                  : 0}
               </div>
               <div className="stat-detail">
                 <span className="stat-label">searches</span>
@@ -1810,7 +1795,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Zero Result Rate</h3>
               <div className="stat-value">
-                {searchMetrics.summary.zeroResultRate}%
+                {dashboardData && dashboardData.summary
+                  ? dashboardData.summary.zeroResultRate + "%"
+                  : 0}
               </div>
             </div>
           </div>
@@ -1819,7 +1806,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Avg Results</h3>
               <div className="stat-value">
-                {searchMetrics.summary.avgResultsPerSearch}
+                {dashboardData && dashboardData.summary
+                  ? dashboardData.summary.avgResultsPerSearch
+                  : 0}
               </div>
               <div className="stat-detail">
                 <span className="stat-label">per search</span>
@@ -1892,7 +1881,7 @@ const EnhancedAnalyticsDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {searchMetrics.topSearchTerms.map((item, index) => (
+                    {(searchMetrics.topSearchTerms || []).map((item, index) => (
                       <tr key={index}>
                         <td>{item.term}</td>
                         <td>{formatNumber(item.count)}</td>
@@ -1967,12 +1956,14 @@ const EnhancedAnalyticsDashboard = () => {
             <h3 className="chart-title">Search Performance</h3>
             <div className="chart-container">
               <div className="metrics-list">
-                {searchMetrics.searchPerformance.map((metric, index) => (
-                  <div key={index} className="metric-item">
-                    <div className="metric-name">{metric.metric}</div>
-                    <div className="metric-value">{metric.value}</div>
-                  </div>
-                ))}
+                {(searchMetrics.searchPerformance || []).map(
+                  (metric, index) => (
+                    <div key={index} className="metric-item">
+                      <div className="metric-name">{metric.metric}</div>
+                      <div className="metric-value">{metric.value}</div>
+                    </div>
+                  )
+                )}
               </div>
             </div>
           </div>
@@ -1990,12 +1981,14 @@ const EnhancedAnalyticsDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {searchMetrics.zeroResultSearches.map((item, index) => (
-                      <tr key={index}>
-                        <td>{item.term}</td>
-                        <td>{formatNumber(item.count)}</td>
-                      </tr>
-                    ))}
+                    {(searchMetrics.zeroResultSearches || []).map(
+                      (item, index) => (
+                        <tr key={index}>
+                          <td>{item.term}</td>
+                          <td>{formatNumber(item.count)}</td>
+                        </tr>
+                      )
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -2008,7 +2001,7 @@ const EnhancedAnalyticsDashboard = () => {
 
   // Render system dashboard
   const renderSystemDashboard = () => {
-    if (!systemMetrics) {
+    if (!systemMetrics || !systemMetrics.summary) {
       return (
         <div className="analytics-loading">
           <Loader className="spinner" size={32} />
@@ -2025,7 +2018,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>API Calls</h3>
               <div className="stat-value">
-                {formatNumber(systemMetrics.summary.apiCalls)}
+                {dashboardData && dashboardData.summary
+                  ? formatNumber(dashboardData.summary.apiCalls)
+                  : 0}
               </div>
             </div>
           </div>
@@ -2034,7 +2029,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Error Rate</h3>
               <div className="stat-value">
-                {systemMetrics.summary.errorRate}%
+                {dashboardData && dashboardData.summary
+                  ? dashboardData.summary.errorRate + "%"
+                  : 0}
               </div>
             </div>
           </div>
@@ -2043,7 +2040,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>Avg Response</h3>
               <div className="stat-value">
-                {systemMetrics.summary.avgResponseTime}s
+                {dashboardData && dashboardData.summary
+                  ? dashboardData.summary.avgResponseTime + "s"
+                  : 0}
               </div>
             </div>
           </div>
@@ -2052,7 +2051,9 @@ const EnhancedAnalyticsDashboard = () => {
             <div className="stat-content">
               <h3>P95 Response</h3>
               <div className="stat-value">
-                {systemMetrics.summary.p95ResponseTime}s
+                {dashboardData && dashboardData.summary
+                  ? dashboardData.summary.p95ResponseTime + "s"
+                  : 0}
               </div>
             </div>
           </div>
@@ -2060,7 +2061,11 @@ const EnhancedAnalyticsDashboard = () => {
           <div className="stat-card">
             <div className="stat-content">
               <h3>Uptime</h3>
-              <div className="stat-value">{systemMetrics.summary.uptime}%</div>
+              <div className="stat-value">
+                {dashboardData && dashboardData.summary
+                  ? dashboardData.summary.uptime + "%"
+                  : 0}
+              </div>
             </div>
           </div>
         </div>
@@ -2277,18 +2282,22 @@ const EnhancedAnalyticsDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {systemMetrics.endpointPerformance.map((item, index) => (
-                      <tr key={index}>
-                        <td>{item.endpoint}</td>
-                        <td>{formatNumber(item.calls)}</td>
-                        <td>{item.avgTime}s</td>
-                        <td
-                          className={item.errorRate > 1 ? "value-warning" : ""}
-                        >
-                          {item.errorRate}%
-                        </td>
-                      </tr>
-                    ))}
+                    {(systemMetrics.endpointPerformance || []).map(
+                      (item, index) => (
+                        <tr key={index}>
+                          <td>{item.endpoint}</td>
+                          <td>{formatNumber(item.calls)}</td>
+                          <td>{item.avgTime}s</td>
+                          <td
+                            className={
+                              item.errorRate > 1 ? "value-warning" : ""
+                            }
+                          >
+                            {item.errorRate}%
+                          </td>
+                        </tr>
+                      )
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -2300,24 +2309,26 @@ const EnhancedAnalyticsDashboard = () => {
             <h3 className="chart-title">Recent Alerts & Incidents</h3>
             <div className="chart-container">
               <div className="alerts-list">
-                {systemMetrics.alertsAndIncidents.map((alert, index) => (
-                  <div key={index} className="alert-item">
-                    <div className="alert-header">
-                      <div className="alert-title">{alert.title}</div>
-                      <div
-                        className={`alert-status ${alert.status.toLowerCase()}`}
-                      >
-                        {alert.status}
+                {(systemMetrics.alertsAndIncidents || []).map(
+                  (alert, index) => (
+                    <div key={index} className="alert-item">
+                      <div className="alert-header">
+                        <div className="alert-title">{alert.title}</div>
+                        <div
+                          className={`alert-status ${alert.status.toLowerCase()}`}
+                        >
+                          {alert.status}
+                        </div>
+                      </div>
+                      <div className="alert-info">
+                        <div className="alert-date">{alert.date}</div>
+                        <div className="alert-duration">
+                          Duration: {alert.duration}
+                        </div>
                       </div>
                     </div>
-                    <div className="alert-info">
-                      <div className="alert-date">{alert.date}</div>
-                      <div className="alert-duration">
-                        Duration: {alert.duration}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  )
+                )}
               </div>
             </div>
           </div>
@@ -2325,6 +2336,222 @@ const EnhancedAnalyticsDashboard = () => {
       </div>
     );
   };
+
+  // Fetch integration analytics (mock for now)
+  const fetchIntegrationMetrics = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Fetch all integrations
+      const { data: integrationsData, error: integrationsError } =
+        await supabase
+          .from("integrations")
+          .select("id, provider, config, created_at, updated_at");
+      if (integrationsError) throw integrationsError;
+
+      // Fetch all integration logs in the selected date range
+      const { data: logsData, error: logsError } = await supabase
+        .from("integration_logs")
+        .select("provider, event_type, created_at")
+        .gte("created_at", dateRange.start)
+        .lte("created_at", dateRange.end);
+      if (logsError) throw logsError;
+
+      // Summarize integrations
+      const totalIntegrations = integrationsData.length;
+      let connected = 0;
+      let disconnected = 0;
+      let lastSync = null;
+      let errors = 0;
+      const integrationMap = {};
+      const now = new Date();
+
+      // Map logs by provider
+      const logsByProvider = {};
+      logsData.forEach((log) => {
+        if (!logsByProvider[log.provider]) logsByProvider[log.provider] = [];
+        logsByProvider[log.provider].push(log);
+        if (log.event_type === "error") errors++;
+      });
+
+      // Build integration analytics
+      const integrations = integrationsData.map((integration) => {
+        const provider = integration.provider;
+        const logs = logsByProvider[provider] || [];
+        // Status: if there are logs in the period, consider connected
+        const status = logs.length > 0 ? "connected" : "disconnected";
+        if (status === "connected") connected++;
+        else disconnected++;
+        // Last sync: latest log
+        const lastLog = logs.reduce((latest, log) => {
+          const logDate = new Date(log.created_at);
+          return !latest || logDate > new Date(latest.created_at)
+            ? log
+            : latest;
+        }, null);
+        if (
+          lastLog &&
+          (!lastSync || new Date(lastLog.created_at) > new Date(lastSync))
+        ) {
+          lastSync = lastLog.created_at;
+        }
+        // Usage: number of logs
+        const usage = logs.length;
+        // Errors: number of error logs for this integration
+        const integrationErrors = logs.filter(
+          (log) => log.event_type === "error"
+        ).length;
+        return {
+          id: integration.id,
+          name: provider.charAt(0).toUpperCase() + provider.slice(1),
+          status,
+          lastSync: lastLog ? lastLog.created_at : null,
+          errors: integrationErrors,
+          usage,
+        };
+      });
+
+      setIntegrationMetrics({
+        summary: {
+          totalIntegrations,
+          connected,
+          disconnected,
+          lastSync,
+          errors,
+        },
+        integrations,
+      });
+    } catch (err) {
+      setError("Failed to load integration analytics.");
+      setIntegrationMetrics(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch integration metrics when tab/date changes
+  useEffect(() => {
+    if (activeTab === "integrations" && dateRange.start && dateRange.end) {
+      fetchIntegrationMetrics();
+    }
+  }, [activeTab, dateRange]);
+
+  // Add after other render*Dashboard functions
+  const renderIntegrationsDashboard = () => {
+    if (!integrationMetrics || !integrationMetrics.summary) {
+      return (
+        <div className="analytics-loading">
+          <Loader className="spinner" size={32} />
+          <p>Loading integration analytics...</p>
+        </div>
+      );
+    }
+    const { summary, integrations } = integrationMetrics;
+    return (
+      <div className="analytics-dashboard">
+        {/* Integrations Summary */}
+        <div className="stats-summary">
+          <div className="stat-card">
+            <div className="stat-content">
+              <h3>Total Integrations</h3>
+              <div className="stat-value">
+                {formatNumber(summary.totalIntegrations)}
+              </div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-content">
+              <h3>Connected</h3>
+              <div className="stat-value">
+                {formatNumber(summary.connected)}
+              </div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-content">
+              <h3>Disconnected</h3>
+              <div className="stat-value">
+                {formatNumber(summary.disconnected)}
+              </div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-content">
+              <h3>Errors</h3>
+              <div className="stat-value">{formatNumber(summary.errors)}</div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-content">
+              <h3>Last Sync</h3>
+              <div className="stat-value">
+                {summary.lastSync
+                  ? new Date(summary.lastSync).toLocaleString()
+                  : "-"}
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* Integrations Table */}
+        <div className="chart-card large">
+          <h3 className="chart-title">Integration Status & Usage</h3>
+          <div className="chart-container">
+            <div className="table-container">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Last Sync</th>
+                    <th>Errors</th>
+                    <th>Usage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {integrations.map((item, idx) => (
+                    <tr key={item.id}>
+                      <td>{item.name}</td>
+                      <td>
+                        <span
+                          className={
+                            item.status === "connected"
+                              ? "stat-subvalue"
+                              : item.status === "disconnected"
+                              ? "stat-label"
+                              : ""
+                          }
+                        >
+                          {item.status.charAt(0).toUpperCase() +
+                            item.status.slice(1)}
+                        </span>
+                      </td>
+                      <td>
+                        {item.lastSync
+                          ? new Date(item.lastSync).toLocaleString()
+                          : "-"}
+                      </td>
+                      <td>{item.errors}</td>
+                      <td>{formatNumber(item.usage)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Top-level null check for dashboardData and summary
+  if (!dashboardData || !dashboardData.summary) {
+    return (
+      <div className="analytics-loading">
+        <Loader className="spinner" size={32} />
+        <p>Loading analytics dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="enhanced-analytics-dashboard">
@@ -2395,13 +2622,30 @@ const EnhancedAnalyticsDashboard = () => {
                 className=" refresh-button"
                 onClick={handleRefresh}
                 disabled={loading}
+                style={{
+                  backgroundColor: "#fff",
+                  color: "#000",
+                  marginRight: "0",
+                  padding: "auto",
+                  justifyContent: "center",
+                  textAlign: "center",
+                  alignItems: "center",
+                }}
               >
                 <RefreshCw
-                  style={{ marginBottom: "0" }}
+                  style={{
+                    marginBottom: "0",
+                    color: "#fff",
+                    padding: "0",
+                    justifyContent: "center",
+                    textAlign: "center",
+                    alignItems: "center",
+                    marginRight: "0",
+                  }}
                   size={16}
                   className={loading ? "spinning" : ""}
                 />
-                <span>Refresh</span>
+                <span></span>
               </button>
 
               <button
@@ -2460,6 +2704,13 @@ const EnhancedAnalyticsDashboard = () => {
           >
             <Settings size={16} />
             <span>System</span>
+          </button>
+          <button
+            className={activeTab === "integrations" ? "active" : ""}
+            onClick={() => setActiveTab("integrations")}
+          >
+            <LinkIcon size={16} />
+            <span>Integrations</span>
           </button>
         </div>
 

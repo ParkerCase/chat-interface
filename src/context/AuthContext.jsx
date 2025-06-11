@@ -104,7 +104,7 @@ export function AuthProvider({ children }) {
       // Try using the RPC function first (recommended approach)
       try {
         const { data: rpcData, error: rpcError } = await supabase.rpc(
-          "get_user_profile", 
+          "get_user_profile",
           { user_id: userId }
         );
 
@@ -227,7 +227,7 @@ export function AuthProvider({ children }) {
               profile_id: id,
               profile_email: email,
               profile_name: email,
-              profile_roles: ["user"]
+              profile_roles: ["user"],
             }
           );
 
@@ -554,17 +554,14 @@ export function AuthProvider({ children }) {
         "get_user_profile",
         { user_id: currentUser.id }
       );
-      
+
       if (userError) throw userError;
-      
+
       // Update profile using the safe RPC function
-      const { error } = await supabase.rpc(
-        "update_admin_roles",
-        {
-          profile_id: currentUser.id,
-          new_roles: userData.roles || ["user"]
-        }
-      );
+      const { error } = await supabase.rpc("update_admin_roles", {
+        profile_id: currentUser.id,
+        new_roles: userData.roles || ["user"],
+      });
 
       if (error) throw error;
 
@@ -1042,6 +1039,9 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Helper to get the user's tier
+  const getUserTier = () => currentUser?.tier || "basic";
+
   const value = {
     currentUser,
     loading,
@@ -1069,6 +1069,7 @@ export function AuthProvider({ children }) {
     terminateSession,
     terminateAllSessions,
     setError,
+    getUserTier,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

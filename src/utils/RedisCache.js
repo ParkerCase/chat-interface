@@ -48,21 +48,11 @@ export const RedisCache = {
    */
   async set(key, value, expiry = 3600) {
     try {
-      const { data, error } = await supabase.rpc("redis_set", {
-        key,
-        value: typeof value === "string" ? value : JSON.stringify(value),
-        expiry,
-      });
-
-      if (error) {
-        // Fallback to localStorage if Redis function fails
-        localStorageSet(key, value, expiry);
-        return true;
-      }
-      return data;
+      // Always fallback to localStorage since redis_set does not exist
+      localStorageSet(key, value, expiry);
+      return true;
     } catch (error) {
       console.warn("Redis cache set error:", error);
-      // Fallback to localStorage
       localStorageSet(key, value, expiry);
       return true;
     }

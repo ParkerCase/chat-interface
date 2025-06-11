@@ -133,14 +133,18 @@ const CRMDashboard = ({
       // For center filtering, we need to fetch ALL data first, then filter in memory
       // because center info is in JSON details
       if (selectedCenter === "ALL") {
-        // For "All Centers", we can use normal pagination
+        // For "All Centers", use normal pagination
         const from = contactsPage * contactsRowsPerPage;
         const to = from + contactsRowsPerPage - 1;
         query = query.range(from, to);
       } else {
-        // For specific centers, fetch a large dataset to filter from
-        // We'll paginate after filtering
-        query = query.limit(5000); // Fetch more data to ensure we have enough after filtering
+        // For specific centers, filter in the query!
+        query = query
+          .eq("details->>center_id", selectedCenter)
+          .order("last_synced", { ascending: false });
+        const from = contactsPage * contactsRowsPerPage;
+        const to = from + contactsRowsPerPage - 1;
+        query = query.range(from, to);
       }
 
       // Order by last synced
@@ -191,31 +195,9 @@ const CRMDashboard = ({
         setContacts(processedContacts);
         setTotalContacts(count || 0);
       } else {
-        // Extract center code from button text (e.g., "AUS - Austin" -> "AUS")
-        const selectedCenterCode = selectedCenter.split(" - ")[0];
-        console.log("Filtering by center code:", selectedCenterCode);
-
-        // Get the center ID for this code
-        const targetCenterId = centerCodeToId[selectedCenterCode];
-        console.log("Target center ID:", targetCenterId);
-
-        // Filter by both center_code and center_id for maximum compatibility
-        const filteredContacts = processedContacts.filter((contact) => {
-          const matchesCenterCode = contact.center_code === selectedCenterCode;
-          const matchesCenterId = contact.center_id === targetCenterId;
-          return matchesCenterCode || matchesCenterId;
-        });
-
-        console.log("Contacts after center filter:", filteredContacts.length);
-
-        // Apply pagination AFTER filtering
-        const totalFiltered = filteredContacts.length;
-        const from = contactsPage * contactsRowsPerPage;
-        const to = from + contactsRowsPerPage;
-        const paginatedContacts = filteredContacts.slice(from, to);
-
-        setContacts(paginatedContacts);
-        setTotalContacts(totalFiltered);
+        // For specific centers, data is already filtered and paginated by Supabase
+        setContacts(processedContacts);
+        setTotalContacts(count || 0);
       }
 
       // Debug: Log unique center codes and IDs found
@@ -374,8 +356,8 @@ const CRMDashboard = ({
   }, [activeSection, fetchContacts, fetchAppointments, onRefresh]);
 
   // Handle center change
-  const handleCenterChange = (centerCode) => {
-    setSelectedCenter(centerCode);
+  const handleCenterChange = (centerId) => {
+    setSelectedCenter(centerId);
   };
 
   // Format date utility
@@ -459,19 +441,15 @@ const CRMDashboard = ({
               />
               {centers.map((center) => (
                 <Chip
-                  key={center.center_code}
+                  key={center.center_id}
                   label={`${center.center_code} - ${center.name}`}
                   variant={
-                    selectedCenter === center.center_code
-                      ? "filled"
-                      : "outlined"
+                    selectedCenter === center.center_id ? "filled" : "outlined"
                   }
-                  onClick={() => handleCenterChange(center.center_code)}
+                  onClick={() => handleCenterChange(center.center_id)}
                   size="small"
                   color={
-                    selectedCenter === center.center_code
-                      ? "primary"
-                      : "default"
+                    selectedCenter === center.center_id ? "primary" : "default"
                   }
                 />
               ))}
@@ -521,15 +499,14 @@ const CRMDashboard = ({
                 />
               </Box>
 
-              {/* Debug Info - only show in development */}
-              {process.env.NODE_ENV === "development" && (
+              {/* {process.env.NODE_ENV === "development" && (
                 <Box sx={{ mb: 2, p: 1, bgcolor: "#f5f5f5", borderRadius: 1 }}>
                   <Typography variant="caption" display="block">
                     Debug: Selected Center: {selectedCenter} | Found Contacts:{" "}
                     {totalContacts}
                   </Typography>
                 </Box>
-              )}
+              )} */}
             </Box>
 
             <Box sx={{ flex: 1, overflow: "hidden" }}>

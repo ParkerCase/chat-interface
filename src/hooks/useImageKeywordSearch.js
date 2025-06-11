@@ -40,15 +40,90 @@ export function useImageKeywordSearch() {
       );
 
       // Call the Supabase RPC function for keyword search
-      const { data, error } = await supabase.rpc("search_images_by_keywords", {
-        search_terms: keywords,
-        match_limit: limit,
-        offset_value: offset,
-      });
+      let data, error;
+      try {
+        ({ data, error } = await supabase.rpc("search_images_by_keywords", {
+          search_terms: keywords,
+          match_limit: limit,
+          offset_value: offset,
+        }));
+      } catch (rpcErr) {
+        // If the function is missing, fallback to direct query and show a message
+        if (
+          (rpcErr.message && rpcErr.message.includes("404")) ||
+          (rpcErr.code && rpcErr.code === "PGRST202")
+        ) {
+          setError("Image keyword search is not available on this deployment.");
+          data = null;
+          error = null;
+        } else {
+          // Fallback: try direct query if any error
+          try {
+            let query = supabase
+              .from("enhanced_image_analysis")
+              .select("id, path, analysis", { count: "exact" });
+            if (keyword && keyword.trim()) {
+              query = query.textSearch("analysis", keyword, {
+                type: "websearch",
+                config: "english",
+              });
+            }
+            query = query.range(offset, offset + limit - 1);
+            const {
+              data: fallbackData,
+              error: queryError,
+              count,
+            } = await query;
+            if (queryError) throw queryError;
+            const processedResults = (fallbackData || []).map((item) => ({
+              id: item.id,
+              path: item.path,
+              filename: item.path.split("/").pop(),
+              keywords: keyword.split(/\s+/),
+              analysis: item.analysis,
+            }));
+            setResults(processedResults);
+            setTotalCount(count || 0);
+            return processedResults;
+          } catch (fallbackErr) {
+            setError(fallbackErr.message);
+            return [];
+          }
+        }
+      }
 
-      if (error) {
-        console.error("Error in search_images_by_keywords:", error);
-        throw error;
+      if (error || !data) {
+        // Fallback direct query if RPC fails or is missing
+        let query = supabase
+          .from("enhanced_image_analysis")
+          .select("id, path, analysis", { count: "exact" });
+
+        // Apply text search
+        if (keyword && keyword.trim()) {
+          query = query.textSearch("analysis", keyword, {
+            type: "websearch",
+            config: "english",
+          });
+        }
+
+        // Apply pagination
+        query = query.range(offset, offset + limit - 1);
+
+        const { data: fallbackData, error: queryError, count } = await query;
+        if (queryError) throw queryError;
+
+        const processedResults = (fallbackData || []).map((item) => ({
+          id: item.id,
+          path: item.path,
+          filename: item.path.split("/").pop(),
+          keywords: keyword.split(/\s+/),
+          analysis: item.analysis,
+        }));
+
+        setResults(processedResults);
+        setTotalCount(count || 0);
+
+        return processedResults;
       }
 
       // Get the total count for pagination

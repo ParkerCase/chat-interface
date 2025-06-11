@@ -30,16 +30,19 @@ export function ThemeProvider({ children }) {
 
         if (error) {
           console.error("Error loading themes:", error);
-          // Try fallback approach
           throw error;
         }
 
         if (mounted) {
-          console.log(`Loaded ${data?.length || 0} themes successfully`);
-          setAvailableThemes(data || []);
+          // Patch: use data as fallback for content
+          const patchedThemes = (data || []).map((theme) => ({
+            ...theme,
+            content: theme.content || theme.data,
+          }));
+          setAvailableThemes(patchedThemes);
 
           // Check for enterprise themes
-          const hasEnterpriseThemes = data.some(
+          const hasEnterpriseThemes = patchedThemes.some(
             (theme) => theme.id === "tatt2away" || theme.id === "dark"
           );
           setEnterpriseEnabled(hasEnterpriseThemes);
@@ -319,17 +322,14 @@ export function ThemeProvider({ children }) {
             "get_user_profile",
             { user_id: currentUser.id }
           );
-          
+
           if (profileError) throw profileError;
-          
+
           // Update using the safe RPC function
-          await supabase.rpc(
-            "update_admin_roles",
-            {
-              profile_id: currentUser.id,
-              new_roles: profile.roles || ["user"]
-            }
-          );
+          await supabase.rpc("update_admin_roles", {
+            profile_id: currentUser.id,
+            new_roles: profile.roles || ["user"],
+          });
         } catch (err) {
           // If not authenticated, just save to localStorage (already done in applyTheme)
           console.log("Theme preference saved locally only");

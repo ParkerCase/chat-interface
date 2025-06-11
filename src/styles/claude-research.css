@@ -1,0 +1,70 @@
+/* styles/claude-research.css */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-content {
+  background: #fff;
+  padding: 2rem;
+  border-radius: 8px;
+  width: 90vw;
+  max-width: 900px;
+  position: relative;
+}
+.close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+.research-btn {
+  background: #4f46e5;
+  color: #fff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.integration-status {
+  margin: 1rem 0;
+}
+.integration {
+  margin-right: 1rem;
+}
+.integration.active {
+  color: #16a34a;
+}
+.results-cache {
+  margin-top: 1rem;
+}
+.results-cache input {
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.results-cache ul {
+  list-style: none;
+  padding: 0;
+}
+.results-cache li {
+  margin-bottom: 1rem;
+  background: #f3f4f6;
+  padding: 1rem;
+  border-radius: 6px;
+}
+.loading {
+  text-align: center;
+  margin: 2rem 0;
+}

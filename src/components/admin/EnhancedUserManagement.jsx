@@ -154,9 +154,9 @@ const EnhancedUserManagement = ({
       }
 
       // CHANGE THIS PART: Use the safe RPC function instead
-      const { data: profilesData, error: profilesError } = await supabase.rpc(
-        "get_all_profiles_safe"
-      );
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*");
 
       if (profilesError) {
         throw profilesError;
@@ -221,48 +221,6 @@ const EnhancedUserManagement = ({
           };
         });
       }
-
-      // Add special admin accounts if they don't exist
-      const adminEmails = ["itsus@tatt2away.com", "parker@tatt2away.com"];
-      const existingAdminEmails = processedUsers.map((user) => user.email);
-
-      adminEmails.forEach((adminEmail) => {
-        if (!existingAdminEmails.includes(adminEmail)) {
-          const adminName =
-            adminEmail === "itsus@tatt2away.com"
-              ? "Tatt2Away Admin"
-              : "Parker Admin";
-          const adminUUID = generateDeterministicUUID(adminEmail);
-
-          processedUsers.unshift({
-            id: adminUUID,
-            name: adminName,
-            firstName:
-              adminEmail === "itsus@tatt2away.com" ? "Tatt2Away" : "Parker",
-            lastName: "Admin",
-            email: adminEmail,
-            role: "super_admin",
-            roleArray: ["super_admin", "admin", "user"],
-            status: "Active",
-            lastActive: new Date().toISOString(),
-            mfaEnabled: true,
-            isVirtualUser: true,
-            mfaMethods: [
-              {
-                id: `email-${adminEmail.replace(/[^a-zA-Z0-9]/g, "")}`,
-                type: "email",
-                createdAt: new Date().toISOString(),
-                email: adminEmail,
-              },
-            ],
-            createdAt: new Date().toISOString(),
-            tier: "enterprise",
-            emailConfirmed: true,
-            lastSignIn: new Date().toISOString(),
-            metadata: { isAdmin: true },
-          });
-        }
-      });
 
       setUsers(processedUsers);
       setFilteredUsers(processedUsers);
@@ -477,133 +435,87 @@ const EnhancedUserManagement = ({
     }));
   };
 
+  // Fetch user by email
+  const fetchUserByEmail = async (email) => {
+    // Always select all fields you need and filter by email
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id,email,first_name,last_name,full_name,roles,status")
+      .eq("email", email)
+      .single();
+    if (error) throw error;
+    return data;
+  };
+
   // Submit edit user form
   const handleEditUserSubmit = async (e) => {
     e.preventDefault();
     if (!userToEdit) return;
-
     try {
       setLoading(true);
-
-      // First get the current roles from the database to ensure we preserve any specialized roles
-      let existingRoles = userToEdit.roleArray || ["user"];
-
-      // Determine what roles to add/remove based on the selected role in the form
-      let newRoles = [...existingRoles];
-
-      // Remove existing role levels we're changing
-      newRoles = newRoles.filter(
-        (role) => role !== "user" && role !== "admin" && role !== "super_admin"
-      );
-
-      // Add the appropriate roles based on selected level
-      if (editForm.role === "super_admin") {
-        newRoles.push("super_admin", "admin", "user");
-      } else if (editForm.role === "admin") {
-        newRoles.push("admin", "user");
-      } else {
-        newRoles.push("user");
-      }
-
-      // Remove duplicates
-      newRoles = [...new Set(newRoles)];
-
-      // Special case for admin users - ensure they always have super_admin role
-      if (
-        userToEdit.email === "itsus@tatt2away.com" ||
-        userToEdit.email === "parker@tatt2away.com"
-      ) {
-        if (!newRoles.includes("super_admin")) {
-          newRoles.push("super_admin");
-        }
-        if (!newRoles.includes("admin")) {
-          newRoles.push("admin");
-        }
-        if (!newRoles.includes("user")) {
-          newRoles.push("user");
-        }
-      }
-
-      // Calculate full name from first and last name
-      const fullName = `${editForm.firstName} ${editForm.lastName}`.trim();
-
-      // Prepare the update data
-      const updateData = {
-        full_name: fullName,
-        first_name: editForm.firstName,
-        last_name: editForm.lastName,
-        roles: newRoles,
-        status: editForm.status,
-        updated_at: new Date().toISOString(),
-      };
-
-      // Update profile in Supabase
-      const { error } = await supabase
-        .from("profiles")
-        .update(updateData)
-        .eq("id", userToEdit.id);
-
-      if (error) {
-        throw error;
-      }
-
-      // Try to update user metadata in auth if possible
-      try {
-        await supabase.auth.admin.updateUserById(userToEdit.id, {
-          user_metadata: {
-            full_name: fullName,
+      // Call Edge Function to update user
+      const response = await fetch(
+        "https://rfnglcfyzoyqenofmsev.functions.supabase.co/update-user",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: userToEdit.id,
+            email: userToEdit.email,
+            full_name: `${editForm.firstName} ${editForm.lastName}`.trim(),
             first_name: editForm.firstName,
             last_name: editForm.lastName,
-            status: editForm.status,
-          },
-        });
-      } catch (authError) {
-        console.warn("Auth metadata update failed:", authError);
-        // Continue anyway - not critical
+            role: editForm.role,
+          }),
+        }
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error || "Failed to update user");
+        setLoading(false);
+        return;
       }
-
-      // Update user list with the new data
+      // Update local state
       setUsers((prevUsers) =>
         prevUsers.map((user) => {
           if (user.id === userToEdit.id) {
             return {
               ...user,
-              name: fullName,
+              name: `${editForm.firstName} ${editForm.lastName}`.trim(),
               firstName: editForm.firstName,
               lastName: editForm.lastName,
               role: editForm.role,
               status: editForm.status,
-              roleArray: newRoles,
+              roleArray: [editForm.role],
             };
           }
           return user;
         })
       );
-
-      setSuccess(`User ${fullName} successfully updated`);
+      setSuccess(
+        `User ${editForm.firstName} ${editForm.lastName}`.trim() +
+          " successfully updated"
+      );
       setShowEditModal(false);
       setUserToEdit(null);
-
-      // Refresh user list
       if (onRefreshUsers) {
         onRefreshUsers(
           users.map((user) =>
             user.id === userToEdit.id
               ? {
                   ...user,
-                  name: fullName,
+                  name: `${editForm.firstName} ${editForm.lastName}`.trim(),
                   firstName: editForm.firstName,
                   lastName: editForm.lastName,
                   role: editForm.role,
                   status: editForm.status,
-                  roleArray: newRoles,
+                  roleArray: [editForm.role],
                 }
               : user
           )
         );
       }
     } catch (error) {
-      console.error("Error updating user:", error);
       setError(`Failed to update user: ${error.message}`);
     } finally {
       setLoading(false);
@@ -640,15 +552,16 @@ const EnhancedUserManagement = ({
 
       // Then try to delete the auth user if we have admin access
       try {
-        const { error: authError } = await supabase.auth.admin.deleteUser(
-          userToDelete.id
-        );
+        // Comment out or remove the following line
+        // const { error: authError } = await supabase.auth.admin.deleteUser(
+        //   userToDelete.id
+        // );
 
-        if (authError) {
-          console.warn("Could not delete auth user:", authError);
+        if (error) {
+          console.warn("Could not delete auth user:", error);
         }
-      } catch (adminError) {
-        console.warn("Admin API access error:", adminError);
+      } catch (error) {
+        console.warn("Admin API access error:", error);
       }
 
       // Update local state
@@ -703,7 +616,8 @@ const EnhancedUserManagement = ({
 
           // Then try to delete auth user
           try {
-            await supabase.auth.admin.deleteUser(userId);
+            // Comment out or remove the following line
+            // await supabase.auth.admin.deleteUser(userId);
           } catch (error) {
             console.warn(`Auth delete failed for ${userId}:`, error);
           }
@@ -803,29 +717,20 @@ const EnhancedUserManagement = ({
   // Save MFA settings
   const handleSaveMfaSettings = async () => {
     if (!userForMfa) return;
-
     try {
       setLoading(true);
-
-      // Create a default email MFA method if required and none exists
       let updatedMethods = [...mfaOptions.methods];
-
       if (mfaOptions.requireMfa && updatedMethods.length === 0) {
-        // Create a default email MFA method
         const emailMfaMethod = {
           id: `email-${userForMfa.email.replace(/[^a-zA-Z0-9]/g, "")}`,
           type: "email",
           createdAt: new Date().toISOString(),
           email: userForMfa.email,
         };
-
         updatedMethods.push(emailMfaMethod);
       } else if (!mfaOptions.requireMfa) {
-        // If MFA is not required, remove all methods
         updatedMethods = [];
       }
-
-      // Update profile in Supabase
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -833,19 +738,23 @@ const EnhancedUserManagement = ({
           updated_at: new Date().toISOString(),
         })
         .eq("id", userForMfa.id);
-
       if (error) {
+        if (error.message?.includes("recursion")) {
+          setError("Database recursion error: Please contact support.");
+        } else if (error.code === "42501") {
+          setError(
+            "Permission denied: You do not have access to update MFA settings."
+          );
+        } else {
+          setError(`Failed to update MFA: ${error.message}`);
+        }
         throw error;
       }
-
-      // Send reset password email if enabling MFA to force user to set up MFA
       if (mfaOptions.requireMfa && !mfaOptions.methods.length) {
         await supabase.auth.resetPasswordForEmail(userForMfa.email, {
           redirectTo: `${window.location.origin}/reset-password`,
         });
       }
-
-      // Update user in state
       const updatedUsers = users.map((user) => {
         if (user.id === userForMfa.id) {
           return {
@@ -856,97 +765,59 @@ const EnhancedUserManagement = ({
         }
         return user;
       });
-
       setUsers(updatedUsers);
-
       setSuccess(`MFA settings updated for ${userForMfa.name}`);
       setShowMfaModal(false);
       setUserForMfa(null);
-
-      // Update parent component if callback provided
       if (onRefreshUsers) {
         onRefreshUsers(updatedUsers);
       }
     } catch (error) {
-      console.error("Error saving MFA settings:", error);
-      setError(`Failed to save MFA settings: ${error.message}`);
+      // Already handled above
     } finally {
       setLoading(false);
     }
   };
 
   // Handle inviting a new user
-  const handleInviteUser = async (e) => {
-    e.preventDefault();
-
+  const handleInviteUser = async () => {
     try {
       setLoading(true);
-
-      if (!inviteForm.email || !inviteForm.email.includes("@")) {
-        throw new Error("Valid email is required");
+      // Check if user already exists in profiles
+      const { data: existingUser, error: existingError } = await supabase
+        .from("profiles")
+        .select("id,email")
+        .eq("email", inviteForm.email)
+        .single();
+      if (existingUser) {
+        setError("A user with this email already exists.");
+        setLoading(false);
+        return;
       }
-
-      // Generate a temporary password
-      const tempPassword =
-        Math.random().toString(36).slice(2) +
-        Math.random().toString(36).slice(2).toUpperCase() +
-        "!" +
-        Math.floor(Math.random() * 10);
-
-      // Create the user account
-      const { data, error } = await supabase.auth.admin.createUser({
-        email: inviteForm.email,
-        password: tempPassword,
-        email_confirm: true,
-        user_metadata: {
-          full_name: `${inviteForm.firstName} ${inviteForm.lastName}`.trim(),
-          first_name: inviteForm.firstName,
-          last_name: inviteForm.lastName,
-        },
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (!data?.user) {
-        throw new Error("User creation failed");
-      }
-
-      // Determine roles based on selected role
-      let roles = ["user"];
-      if (inviteForm.role === "admin") {
-        roles = ["admin", "user"];
-      } else if (inviteForm.role === "super_admin") {
-        roles = ["super_admin", "admin", "user"];
-      }
-
-      // Create profile
-      const { error: profileError } = await supabase.from("profiles").insert([
+      // Call Edge Function to invite user
+      const response = await fetch(
+        "https://rfnglcfyzoyqenofmsev.functions.supabase.co/invite-user",
         {
-          id: data.user.id,
-          email: inviteForm.email,
-          full_name: `${inviteForm.firstName} ${inviteForm.lastName}`.trim(),
-          first_name: inviteForm.firstName,
-          last_name: inviteForm.lastName,
-          roles: roles,
-          tier: "enterprise",
-          created_at: new Date().toISOString(),
-        },
-      ]);
-
-      if (profileError) {
-        throw profileError;
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: inviteForm.email,
+            full_name: `${inviteForm.firstName} ${inviteForm.lastName}`.trim(),
+            first_name: inviteForm.firstName,
+            last_name: inviteForm.lastName,
+            role: inviteForm.role,
+          }),
+        }
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error || "Failed to invite user");
+        setLoading(false);
+        return;
       }
-
-      // Send password reset email to set their own password
-      await supabase.auth.resetPasswordForEmail(inviteForm.email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-
-      // Add the new user to the state
+      // Add new user to local state
       const newUser = {
-        id: data.user.id,
+        id: result.user.id,
         name:
           `${inviteForm.firstName} ${inviteForm.lastName}`.trim() ||
           inviteForm.email,
@@ -954,7 +825,7 @@ const EnhancedUserManagement = ({
         lastName: inviteForm.lastName,
         email: inviteForm.email,
         role: inviteForm.role,
-        roleArray: roles,
+        roleArray: [inviteForm.role],
         status: "Active",
         lastActive: new Date().toISOString(),
         mfaEnabled: false,
@@ -963,25 +834,15 @@ const EnhancedUserManagement = ({
         tier: "enterprise",
         emailConfirmed: true,
       };
-
       const updatedUsers = [newUser, ...users];
       setUsers(updatedUsers);
-
       setSuccess(`Invitation sent to ${inviteForm.email}`);
       setShowInviteModal(false);
-      setInviteForm({
-        email: "",
-        role: "user",
-        firstName: "",
-        lastName: "",
-      });
-
-      // Update parent component if callback provided
+      setInviteForm({ email: "", role: "user", firstName: "", lastName: "" });
       if (onRefreshUsers) {
         onRefreshUsers(updatedUsers);
       }
     } catch (error) {
-      console.error("Error inviting user:", error);
       setError(`Failed to invite user: ${error.message}`);
     } finally {
       setLoading(false);
@@ -1073,9 +934,9 @@ const EnhancedUserManagement = ({
               <RefreshCw
                 style={{ marginBottom: "0" }}
                 size={16}
+                color="white"
                 className={loading ? "spinning" : ""}
               />
-              Refresh
             </button>
 
             <button

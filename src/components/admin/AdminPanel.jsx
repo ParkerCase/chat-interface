@@ -141,35 +141,26 @@ const AdminPanel = () => {
     try {
       debugAdminPanel("Safely fetching profiles with error handling");
 
-      // First, check if current user is admin
-      const { data: isAdmin, error: adminError } = await supabase.rpc(
-        "is_admin_safe"
-      );
-
-      if (adminError) {
-        debugAdminPanel("Admin check failed:", adminError.message);
-      }
-
-      if (isAdmin) {
+      // Use local admin check
+      const isAdminUser =
+        currentUser?.roles?.includes("admin") ||
+        currentUser?.roles?.includes("super_admin");
+      if (isAdminUser) {
         debugAdminPanel("User confirmed as admin, fetching profiles");
-
-        // Now safely fetch profiles using our admin function
-        const { data: profiles, error: profilesError } = await supabase.rpc(
-          "get_all_profiles_safe"
-        );
-
+        // Fetch all profiles directly
+        const { data: profiles, error: profilesError } = await supabase
+          .from("profiles")
+          .select("*");
         if (!profilesError && profiles) {
           debugAdminPanel("Successfully fetched profiles", {
             count: profiles.length,
           });
           return profiles;
         }
-
         if (profilesError) {
           debugAdminPanel("Error fetching profiles:", profilesError.message);
         }
       }
-
       // FALLBACK: Return hardcoded admin users if all else fails
       debugAdminPanel("Using fallback hardcoded admin users");
       const currentTime = new Date().toISOString();
@@ -199,7 +190,6 @@ const AdminPanel = () => {
       ];
     } catch (error) {
       debugAdminPanel("Fatal error in safelyFetchProfiles:", error.message);
-
       // Always return at least the admin users as fallback
       const currentTime = new Date().toISOString();
       return [
@@ -353,7 +343,6 @@ const AdminPanel = () => {
   const ensureAdminUser = async () => {
     try {
       debugAdminPanel("Checking for admin user in database");
-
       // First check if admins already exist in our state
       if (
         recentUsers.some(
@@ -365,41 +354,30 @@ const AdminPanel = () => {
         debugAdminPanel("Admin users already exist in state");
         return true;
       }
-
-      try {
-        // Try using RPC to avoid RLS issues
-        const { data: exists } = await supabase.rpc("is_admin_safe");
-
-        if (exists) {
-          debugAdminPanel("Current user is admin according to RPC check");
-          return true;
-        }
-      } catch (rpcErr) {
-        debugAdminPanel("RPC admin check failed:", rpcErr.message);
-      }
-
       // Get admin emails to check for
       const adminEmails = ["itsus@tatt2away.com", "parker@tatt2away.com"];
-
       // Try to fetch admin profiles one by one
       for (const email of adminEmails) {
         try {
-          // Use safe RPC function to check profile
-          const { data: profileData, error: profileError } = await supabase.rpc(
-            "check_profile_exists",
-            { user_email: email }
-          );
-
+          // Check if profile exists
+          const { data: profileData, error: profileError } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("email", email)
+            .single();
           if (!profileError && profileData) {
             debugAdminPanel(`Found admin profile for ${email}`);
-
             // Ensure admin has super_admin role
-            const { data: updatedProfile, error: updateError } =
-              await supabase.rpc("update_admin_roles", {
-                profile_id: profileData.id,
-                new_roles: ["super_admin", "admin", "user"],
-              });
-
+            const { error: updateError } = await supabase
+              .from("profiles")
+              .update({
+                roles: ["super_admin", "admin", "user"],
+                full_name:
+                  email === "itsus@tatt2away.com"
+                    ? "Tatt2Away Admin"
+                    : "Parker Admin",
+              })
+              .eq("id", profileData.id);
             if (updateError) {
               debugAdminPanel(
                 "Error updating admin roles:",
@@ -412,28 +390,27 @@ const AdminPanel = () => {
             debugAdminPanel(
               `Admin profile for ${email} not found, creating one`
             );
-
             // Generate a UUID for this admin
             const adminUUID = window.crypto.randomUUID
               ? window.crypto.randomUUID()
               : `admin-${Date.now()}-${Math.random()
                   .toString(36)
                   .substring(2, 15)}`;
-
-            // Try to create profile using safe RPC
-            const { data: newProfile, error: insertError } = await supabase.rpc(
-              "create_admin_profile",
-              {
-                profile_id: adminUUID,
-                profile_email: email,
-                profile_name:
-                  email === "itsus@tatt2away.com"
-                    ? "Tatt2Away Admin"
-                    : "Parker Admin",
-                profile_roles: ["super_admin", "admin", "user"],
-              }
-            );
-
+            // Create profile directly
+            const { error: insertError } = await supabase
+              .from("profiles")
+              .insert([
+                {
+                  id: adminUUID,
+                  email,
+                  full_name:
+                    email === "itsus@tatt2away.com"
+                      ? "Tatt2Away Admin"
+                      : "Parker Admin",
+                  roles: ["super_admin", "admin", "user"],
+                  status: "Active",
+                },
+              ]);
             if (insertError) {
               debugAdminPanel(
                 "Error creating admin profile:",
@@ -450,11 +427,9 @@ const AdminPanel = () => {
           );
         }
       }
-
       // Add admin users to state even if we couldn't create them in the database
       const currentTime = new Date().toISOString();
       setRecentUsers((prev) => {
-        // Check if admins already exist in the state
         if (
           prev.some(
             (user) =>
@@ -464,8 +439,6 @@ const AdminPanel = () => {
         ) {
           return prev;
         }
-
-        // Add admin users
         return [
           {
             id: "admin-id-tatt2away",
@@ -494,7 +467,6 @@ const AdminPanel = () => {
           ...prev,
         ];
       });
-
       return true;
     } catch (error) {
       debugAdminPanel("Error in ensureAdminUser:", error.message);
@@ -507,8 +479,6 @@ const AdminPanel = () => {
     e.preventDefault();
     try {
       setIsLoading(true);
-
-      // Perform basic validation
       if (
         !newUserForm.email ||
         !newUserForm.password ||
@@ -517,7 +487,6 @@ const AdminPanel = () => {
         setError("Please fill out all required fields");
         return;
       }
-
       // Create the user in Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email: newUserForm.email,
@@ -531,9 +500,7 @@ const AdminPanel = () => {
           },
         },
       });
-
       if (error) throw error;
-
       if (data?.user) {
         // Determine roles based on selected role
         let roles = ["user"];
@@ -542,24 +509,20 @@ const AdminPanel = () => {
         } else if (newUserForm.role === "super_admin") {
           roles = ["super_admin", "admin", "user"];
         }
-
-        // Create profile using safe RPC function
-        const { data: newProfile, error: profileError } = await supabase.rpc(
-          "create_admin_profile",
+        // Create profile directly
+        const { error: profileError } = await supabase.from("profiles").insert([
           {
-            profile_id: data.user.id,
-            profile_email: newUserForm.email,
-            profile_name:
+            id: data.user.id,
+            email: newUserForm.email,
+            full_name:
               `${newUserForm.firstName} ${newUserForm.lastName}`.trim(),
-            profile_roles: roles,
-          }
-        );
-
+            roles,
+            status: "Active",
+          },
+        ]);
         if (profileError) throw profileError;
-
         // Refresh the user list
         await fetchUsers();
-
         setShowRegisterModal(false);
         setNewUserForm({
           email: "",
@@ -778,53 +741,17 @@ const AdminPanel = () => {
           };
 
           // Check for required admin accounts
-          const adminEmails = ["itsus@tatt2away.com", "parker@tatt2away.com"];
-          const existingAdminEmails = enrichedUsers.map((user) => user.email);
-          let finalUserList = [...enrichedUsers];
-
-          // Add any missing admin accounts with proper UUIDs
-          adminEmails.forEach((adminEmail) => {
-            if (!existingAdminEmails.includes(adminEmail)) {
-              debugAdminPanel(
-                `Adding default admin account for ${adminEmail} to list`
-              );
-
-              const adminName =
-                adminEmail === "itsus@tatt2away.com"
-                  ? "Tatt2Away Admin"
-                  : "Parker Admin";
-
-              // Generate a valid UUID for this admin user
-              const adminUUID = generateDeterministicUUID(adminEmail);
-
-              finalUserList.unshift({
-                id: adminUUID,
-                name: adminName,
-                email: adminEmail,
-                role: "super_admin",
-                roleArray: ["super_admin", "admin", "user"],
-                status: "Active",
-                lastActive: new Date().toISOString(),
-                mfaEnabled: true,
-                isVirtualUser: true,
-                mfaMethods: [
-                  {
-                    id: `email-${adminEmail.replace(/[^a-zA-Z0-9]/g, "")}`,
-                    type: "email",
-                    createdAt: new Date().toISOString(),
-                    email: adminEmail,
-                  },
-                ],
-              });
-            }
-          });
-
-          debugAdminPanel("Final processed user list:", {
-            count: finalUserList.length,
-          });
-
-          // Set users and mark as fetched to avoid redundant fetches
-          setRecentUsers(finalUserList);
+          // const adminEmails = ["itsus@tatt2away.com", "parker@tatt2away.com"];
+          // const existingAdminEmails = enrichedUsers.map((user) => user.email);
+          // let finalUserList = [...enrichedUsers];
+          // adminEmails.forEach((adminEmail) => {
+          //   if (!existingAdminEmails.includes(adminEmail)) {
+          //     ... (virtual user creation code) ...
+          //   }
+          // });
+          // debugAdminPanel("Final processed user list:", { count: finalUserList.length });
+          // setRecentUsers(finalUserList);
+          setRecentUsers(enrichedUsers);
           usersFetchedRef.current = true;
 
           // Fetch messaging and file analytics data
@@ -832,7 +759,7 @@ const AdminPanel = () => {
           const fileStats = await fetchFileAnalytics();
 
           // Calculate active users (those who logged in last 30 days)
-          const activeUsers = finalUserList.filter(
+          const activeUsers = enrichedUsers.filter(
             (user) =>
               new Date(user.lastActive) >
               new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
@@ -844,11 +771,11 @@ const AdminPanel = () => {
           const twoMonthsAgo = new Date();
           twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
 
-          const lastMonthUsers = finalUserList.filter(
+          const lastMonthUsers = enrichedUsers.filter(
             (user) => new Date(user.lastActive) > lastMonth
           ).length;
 
-          const twoMonthUsers = finalUserList.filter(
+          const twoMonthUsers = enrichedUsers.filter(
             (user) =>
               new Date(user.lastActive) > twoMonthsAgo &&
               new Date(user.lastActive) < lastMonth
@@ -875,7 +802,7 @@ const AdminPanel = () => {
 
           // Calculate stats
           const statsData = {
-            totalUsers: finalUserList.length,
+            totalUsers: enrichedUsers.length,
             activeUsers,
             totalMessages: chatStats.totalMessages,
             filesProcessed: fileStats.filesProcessed,
@@ -894,64 +821,6 @@ const AdminPanel = () => {
       } catch (err) {
         debugAdminPanel("Error loading admin data:", err.message);
         setError("Failed to load admin data. Please try again.");
-
-        // Emergency fallback - load just the known admin users
-        if (!recentUsers.length) {
-          try {
-            // Use the known users from the context with proper fields
-            const emergencyUsers = [
-              {
-                id: "admin-id-tatt2away",
-                name: "Tatt2Away Admin",
-                email: "itsus@tatt2away.com",
-                role: "super_admin",
-                roleArray: ["super_admin", "admin", "user"],
-                status: "Active",
-                lastActive: new Date().toISOString(),
-                mfaEnabled: true,
-                mfaMethods: [
-                  {
-                    id: "email-itsustatt2awaycom",
-                    type: "email",
-                    createdAt: new Date().toISOString(),
-                    email: "itsus@tatt2away.com",
-                  },
-                ],
-              },
-              {
-                id: "admin-id-parker",
-                name: "Parker Admin",
-                email: "parker@tatt2away.com",
-                role: "super_admin",
-                roleArray: ["super_admin", "admin", "user"],
-                status: "Active",
-                lastActive: new Date().toISOString(),
-              },
-            ];
-
-            setRecentUsers(emergencyUsers);
-            setStats({
-              totalUsers: emergencyUsers.length,
-              activeUsers: emergencyUsers.length,
-              totalMessages: 0,
-              filesProcessed: 0,
-              percentChanges: {
-                totalUsers: 0,
-                activeUsers: 0,
-                totalMessages: 0,
-                filesProcessed: 0,
-              },
-              averageResponseTime: 0,
-              lastUpdateTime: new Date().toISOString(),
-            });
-
-            usersFetchedRef.current = true;
-          } catch (fallbackError) {
-            console.error("Even emergency fallback failed:", fallbackError);
-          }
-        }
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -1302,7 +1171,7 @@ const AdminPanel = () => {
                   </div>
 
                   <div className="stat-card">
-                    <div className="stat-title">Files Processed</div>
+                    <div className="stat-title">All Records</div>
                     <div className="stat-value">{stats.filesProcessed}</div>
                     <div
                       className={`stat-change ${
@@ -1393,7 +1262,7 @@ const AdminPanel = () => {
                       <th>Last Active</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody style={{ backgroundColor: "white" }}>
                     {recentUsers.slice(0, 5).map((user) => (
                       <tr key={user.id}>
                         <td>{user.name}</td>

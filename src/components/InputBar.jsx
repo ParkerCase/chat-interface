@@ -8,7 +8,6 @@ import "./InputBar.css";
 function InputBar({
   onSend,
   onFileUpload,
-  onImageSearch,
   onAdvancedSearch,
   setFile,
   isLoading,

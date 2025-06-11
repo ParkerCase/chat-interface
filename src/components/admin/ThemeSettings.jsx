@@ -233,25 +233,19 @@ function ThemeSettings() {
       <div className="theme-grid">
         {(availableThemes || []).map((theme, index) => {
           // Validate theme data
-          if (!theme || typeof theme !== "object") {
-            console.error(`Invalid theme at index ${index}:`, theme);
-            return null;
-          }
-
-          const { id, name, description, content } = theme;
-
-          // Validate required fields
-          if (!id || !name || !content) {
+          const { id, name, description, content, data } = theme;
+          const themeContent = content || data;
+          if (!id || !name || !themeContent) {
             console.error(`Incomplete theme data at index ${index}:`, theme);
             return null;
           }
-
-          // Validate content structure
-          if (typeof content !== "object" || !content.primary) {
-            console.error(`Invalid theme content at index ${index}:`, content);
+          if (typeof themeContent !== "object" || !themeContent.primary) {
+            console.error(
+              `Invalid theme content at index ${index}:`,
+              themeContent
+            );
             return null;
           }
-
           const isActive = currentTheme?.id === id;
 
           return (
@@ -270,20 +264,20 @@ function ThemeSettings() {
               <div className="theme-preview">
                 <div
                   className="preview-strip"
-                  style={{ backgroundColor: content.primary }}
+                  style={{ backgroundColor: themeContent.primary }}
                 />
                 <div
                   className="preview-content"
                   style={{
-                    backgroundColor: content.background || "#ffffff",
-                    color: content.text || "#1f2937",
+                    backgroundColor: themeContent.background || "#ffffff",
+                    color: themeContent.text || "#1f2937",
                   }}
                 >
-                  <div style={{ color: content.primary }}>{name}</div>
+                  <div style={{ color: themeContent.primary }}>{name}</div>
                   <div
                     style={{
                       fontSize: "0.8rem",
-                      color: content["text-secondary"] || "#6b7280",
+                      color: themeContent["text-secondary"] || "#6b7280",
                     }}
                   >
                     {description || ""}

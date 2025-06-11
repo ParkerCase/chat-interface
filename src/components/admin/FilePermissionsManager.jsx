@@ -563,11 +563,10 @@ const FilePermissionsManager = ({ currentUser }) => {
               title="Refresh files"
             >
               <RefreshCw
-                style={{ marginBottom: "0" }}
+                style={{ color: "white", marginBottom: "0" }}
                 size={16}
                 className={loading ? "spinning" : ""}
               />
-              <span>Refresh</span>
             </button>
           </div>
         </div>

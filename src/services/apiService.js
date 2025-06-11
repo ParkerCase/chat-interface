@@ -453,6 +453,23 @@ const authApi = {
       throw error;
     }
   },
+
+  createAdminProfile: async (profileData) => {
+    try {
+      const { data, error, status } = await supabase.rpc(
+        "create_admin_profile",
+        profileData
+      );
+      // Treat 409 (conflict) as success: profile already exists
+      if (error && (error.code === "409" || error.message?.includes("409"))) {
+        return { success: true, alreadyExists: true };
+      }
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
 };
 
 // CRM endpoints
@@ -711,11 +728,44 @@ const rolesApi = {
 
 // Chat endpoints
 const chatApi = {
-  sendMessage: (message, userId) => {
-    const formData = new FormData();
-    formData.append("message", message);
-    formData.append("userId", userId);
-    return apiClient.post("/api/chat", formData);
+  sendMessage: async (message, userId) => {
+    try {
+      // Create a new thread if needed
+      let threadId;
+      const { data: threadData, error: threadError } = await supabase
+        .from("chat_threads")
+        .insert({ user_id: userId })
+        .select("id")
+        .single();
+      if (threadError && threadError.code !== "23505") throw threadError;
+      threadId = threadData ? threadData.id : undefined;
+      // Insert the message
+      const { data: messageData, error: messageError } = await supabase
+        .from("chat_history")
+        .insert({
+          thread_id: threadId,
+          user_id: userId,
+          message_type: "user",
+          content: message,
+        })
+        .select("*")
+        .single();
+      if (messageError) throw messageError;
+      return {
+        data: {
+          success: true,
+          message: messageData,
+          threadId,
+        },
+      };
+    } catch (error) {
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to send message",
+        },
+      };
+    }
   },
 
   zenoti: async (message, userId = null) => {
@@ -763,10 +813,38 @@ const chatApi = {
       const effectiveUserId =
         userId || localStorage.getItem("chatUserId") || "default-user";
 
-      const response = await apiClient.get(
-        `/api/chat/history/${effectiveUserId}`
-      );
-      return response;
+      // Fetch chat threads for the user
+      const { data: threads, error: threadsError } = await supabase
+        .from("chat_threads")
+        .select("id")
+        .eq("user_id", effectiveUserId);
+
+      if (threadsError) throw threadsError;
+      if (!threads || threads.length === 0) {
+        return {
+          data: {
+            success: true,
+            messages: [],
+          },
+        };
+      }
+
+      // Fetch all messages for the user's threads
+      const threadIds = threads.map((t) => t.id);
+      const { data: messages, error: messagesError } = await supabase
+        .from("chat_history")
+        .select("*")
+        .in("thread_id", threadIds)
+        .order("created_at", { ascending: true });
+
+      if (messagesError) throw messagesError;
+
+      return {
+        data: {
+          success: true,
+          messages: messages || [],
+        },
+      };
     } catch (error) {
       console.error("Error fetching chat history:", error);
       return {
@@ -785,17 +863,22 @@ const chatApi = {
       const limit = options.limit || 100; // Default to 100 messages
       const page = options.page || 0;
 
-      const response = await axios.get(
-        `${API_CONFIG.baseUrl}/api/chat/thread/${threadId}`,
-        {
-          params: {
-            limit,
-            offset: page * limit,
-          },
-        }
-      );
+      // Fetch messages for the thread from Supabase
+      const { data: messages, error } = await supabase
+        .from("chat_history")
+        .select("*")
+        .eq("thread_id", threadId)
+        .order("created_at", { ascending: true })
+        .range(page * limit, page * limit + limit - 1);
 
-      return response;
+      if (error) throw error;
+
+      return {
+        data: {
+          success: true,
+          messages: messages || [],
+        },
+      };
     } catch (error) {
       console.error("Error getting thread messages:", error);
       return {
@@ -906,7 +989,7 @@ const chatApi = {
       const { error: threadError } = await supabase
         .from("chat_threads")
         .delete()
-        .eq("thread_id", threadId);
+        .eq("id", threadId);
 
       if (threadError) throw threadError;
 
@@ -1000,37 +1083,10 @@ const chatApi = {
     }
   },
 
-  // Web-enhanced chat (for admin users)
-  advanced: async (message, userId) => {
-    try {
-      if (!message) {
-        throw new Error("Message is required");
-      }
-
-      const defaultUserId = userId || "default-user";
-
-      // Call the advanced chat endpoint
-      const response = await apiClient.post("/api/chat/advanced", {
-        message,
-        userId: defaultUserId,
-      });
-
-      return response;
-    } catch (error) {
-      console.error("Advanced chat error:", error);
-
-      // Format error for consistent handling
-      if (error.response) {
-        return error.response;
-      }
-
-      return {
-        data: {
-          success: false,
-          error: error.message || "Advanced chat request failed",
-        },
-      };
-    }
+  // Advanced chat (fallback to Supabase, no legacy endpoint)
+  advanced: async (message, userId, options = {}) => {
+    // For now, just call sendMessage
+    return chatApi.sendMessage(message, userId);
   },
 
   // Upload a document (for processing text documents)
@@ -1052,6 +1108,57 @@ const chatApi = {
       data: { mode },
       onProgress,
     });
+  },
+
+  // Save a chat message to Supabase (create thread if needed)
+  saveMessage: async ({
+    threadId,
+    content,
+    type = "user",
+    userId,
+    metadata = {},
+  }) => {
+    try {
+      let finalThreadId = threadId;
+      // If no threadId, create a new thread
+      if (!finalThreadId) {
+        const { data: threadData, error: threadError } = await supabase
+          .from("chat_threads")
+          .insert({ user_id: userId })
+          .select("id")
+          .single();
+        if (threadError) throw threadError;
+        finalThreadId = threadData.id;
+      }
+      // Insert the message
+      const { data: messageData, error: messageError } = await supabase
+        .from("chat_history")
+        .insert({
+          thread_id: finalThreadId,
+          user_id: userId,
+          message_type: type,
+          content,
+          metadata,
+        })
+        .select("id")
+        .single();
+      if (messageError) throw messageError;
+      return {
+        data: {
+          success: true,
+          messageId: messageData.id,
+          threadId: finalThreadId,
+        },
+      };
+    } catch (error) {
+      console.error("Error saving chat message:", error);
+      return {
+        data: {
+          success: false,
+          error: error.message || "Failed to save chat message",
+        },
+      };
+    }
   },
 };
 

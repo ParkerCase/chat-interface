@@ -29,6 +29,8 @@ import { useAuth } from "../context/AuthContext";
 import { useFeatureFlags, FeatureGate } from "../utils/featureFlags";
 import apiService from "../services/apiService";
 import CRMContactLookup from "../components/crm/CRMContactLookup";
+import ChatContainer from "../components/ChatContainer";
+import { supabase } from "../lib/supabase";
 
 const DashboardPage = () => {
   const { currentUser } = useAuth();
@@ -64,9 +66,13 @@ const DashboardPage = () => {
             if (analyticsResponse.data.success) {
               const dashboard = analyticsResponse.data.dashboard;
 
+              // Fetch real document count from Supabase
+              const { count: docCount, error: docError } = await supabase
+                .from("documents")
+                .select("id", { count: "exact", head: true });
               setStats({
                 searches: dashboard.summary.totalSearches || 0,
-                files: dashboard.summary.imagesProcessed || 0,
+                files: docCount || 0,
                 contacts: dashboard.realtime.activeUsers || 0,
                 workflows: 0, // Will be set from workflow stats
               });
@@ -168,13 +174,14 @@ const DashboardPage = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Files Processed
+              Knowledge Stream Files, Images, and CRM Records
             </CardTitle>
             <FileUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats.files.toLocaleString()}
+              {/* Only counting documents table for now */}
+              {stats.files != null ? stats.files.toLocaleString() : 0}
             </div>
             <p className="text-xs text-muted-foreground">
               +{Math.floor(Math.random() * 15) + 1}% from last week
@@ -463,6 +470,8 @@ const DashboardPage = () => {
           </CardContent>
         </Card>
       )}
+
+      <ChatContainer messages={[]} userId={currentUser?.id} />
     </div>
   );
 };

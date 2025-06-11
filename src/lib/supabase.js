@@ -107,91 +107,69 @@ export const verifyMfaCode = async (email, code) => {
 };
 
 // Helper to check admin rights
-export const checkAdminRights = async (userId) => {
+export const checkAdminRights = async (userId = "current") => {
+  // Try to get user from context or localStorage
+  let user = null;
   try {
-    if (!userId) return false;
+    user = JSON.parse(localStorage.getItem("currentUser"));
+  } catch {}
+  if (!user) return false;
 
-    // Use is_admin_safe RPC function for the current user if no userId is provided
-    if (userId === 'current') {
-      const { data, error } = await supabase.rpc('is_admin_safe');
-      
-      if (error) {
-        console.error("Error checking admin rights with is_admin_safe:", error);
-        return false;
-      }
-      
-      return data || false;
-    }
-    
-    // For a specific user, get their profile using the safe RPC function
-    const { data, error } = await supabase.rpc('get_user_profile', { user_id: userId });
-
-    if (error) {
-      console.error("Error checking admin rights:", error);
-      return false;
-    }
-
-    return (
-      data?.roles?.includes("admin") ||
-      data?.roles?.includes("super_admin") ||
-      false
-    );
-  } catch (error) {
-    console.error("Error checking admin rights:", error);
-    return false;
-  }
+  return (
+    user.roles?.includes("admin") ||
+    user.roles?.includes("super_admin") ||
+    false
+  );
 };
 
 // Helper to create or update a user profile
 export const upsertUserProfile = async (userId, userData) => {
   try {
     if (!userId) return { success: false, error: "No user ID provided" };
-    
+
     // Check if profile exists
-    const { data: existsData, error: existsError } = await supabase.rpc(
-      'check_profile_exists', 
-      { user_email: userData.email }
-    );
-    
-    if (existsError) {
+    const { data: existingProfile, error: existsError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", userId)
+      .single();
+
+    if (existsError && existsError.code !== "PGRST116") {
+      // PGRST116: No rows found
       console.error("Error checking if profile exists:", existsError);
+      return { success: false, error: existsError };
     }
-    
-    // If profile exists, update roles
-    if (existsData) {
-      const { data, error } = await supabase.rpc(
-        'update_admin_roles',
-        { 
-          profile_id: userId, 
-          new_roles: userData.roles || ["user"]
-        }
-      );
-      
+
+    if (existingProfile) {
+      // Update roles and other fields
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          roles: userData.roles || ["user"],
+          full_name: userData.fullName || userData.email,
+          email: userData.email,
+        })
+        .eq("id", userId);
       if (error) {
-        console.error("Error updating profile roles:", error);
+        console.error("Error updating profile:", error);
         return { success: false, error };
       }
-      
-      return { success: true, data };
-    } 
-    // Otherwise create new profile
-    else {
-      const { data, error } = await supabase.rpc(
-        'create_admin_profile',
+      return { success: true };
+    } else {
+      // Insert new profile
+      const { error } = await supabase.from("profiles").insert([
         {
-          profile_id: userId,
-          profile_email: userData.email,
-          profile_name: userData.fullName || userData.email,
-          profile_roles: userData.roles || ["user"]
-        }
-      );
-      
+          id: userId,
+          roles: userData.roles || ["user"],
+          full_name: userData.fullName || userData.email,
+          email: userData.email,
+        },
+      ]);
       if (error) {
         console.error("Error creating profile:", error);
         return { success: false, error };
       }
-      
-      return { success: true, data };
+      return { success: true };
     }
   } catch (error) {
     console.error("Error upserting profile:", error);

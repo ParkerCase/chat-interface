@@ -153,7 +153,16 @@ const ChatHistory = ({ onSelectThread, selectedThreadId }) => {
                 <MessageSquare size={20} />
               </div>
               <div className="thread-details">
-                <h4 className="thread-title">{thread.title}</h4>
+                <h4 className="thread-title">
+                  {thread.isClaudeMCP || thread.source === "claude-mcp" ? (
+                    <>
+                      <span className="telescope-icon">🔭</span>
+                      {thread.title}
+                    </>
+                  ) : (
+                    thread.title
+                  )}
+                </h4>
                 <p className="thread-preview">{getMessagePreview(thread)}</p>
               </div>
               <div className="thread-date">

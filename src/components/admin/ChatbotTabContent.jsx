@@ -20,6 +20,7 @@ import {
   Eye,
   Clipboard,
   Calendar, // Add this line to import the Calendar icon
+  Telescope, // Add this line to import the Telescope icon
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useFeatureFlags } from "../../utils/featureFlags";
@@ -37,6 +38,7 @@ import { supabase } from "../../lib/supabase";
 import analyticsUtils from "../../utils/analyticsUtils";
 import ChatImageResults from "../../components/ChatImageResults";
 import "./ChatbotTabContent.css";
+import ClaudeMCPModal from "../ClaudeMCPModal";
 
 const ChatbotTabContent = () => {
   const { currentUser } = useAuth();
@@ -146,6 +148,7 @@ const ChatbotTabContent = () => {
   // Load chat threads
   useEffect(() => {
     const loadChatHistory = async () => {
+      console.log("Loading chat history for user:", currentUser?.id);
       try {
         setIsLoading(true);
         setError(null);
@@ -165,10 +168,19 @@ const ChatbotTabContent = () => {
           );
           setThreads(processedThreads);
 
-          // Only auto-select a thread if not in "new chat" mode and no thread is selected
+          // Restore selected thread from localStorage if available
+          let savedThreadId = localStorage.getItem("selectedThreadId");
           if (processedThreads.length > 0 && !selectedThreadId && !isNewChat) {
-            setSelectedThreadId(processedThreads[0].id);
-            loadThreadMessages(processedThreads[0].id);
+            if (
+              savedThreadId &&
+              processedThreads.some((t) => t.id === savedThreadId)
+            ) {
+              setSelectedThreadId(savedThreadId);
+              loadThreadMessages(savedThreadId);
+            } else {
+              setSelectedThreadId(processedThreads[0].id);
+              loadThreadMessages(processedThreads[0].id);
+            }
           }
         } else {
           throw new Error(
@@ -266,9 +278,9 @@ const ChatbotTabContent = () => {
 
   // Handle thread selection
   const handleSelectThread = (threadId) => {
-    // Turn off new chat mode when a thread is selected
     setIsNewChat(false);
     setSelectedThreadId(threadId);
+    localStorage.setItem("selectedThreadId", threadId); // Save to localStorage
     loadThreadMessages(threadId);
   };
 
@@ -1900,478 +1912,110 @@ ${
   // Complete production-ready handleSendMessage implementation for ChatbotTabContent.jsx
 
   const handleSendMessage = async () => {
-    // Handle file uploads through separate function
-    if (file) {
-      return handleFileUpload();
-    }
-
-    // Validate input content
     if (!inputText.trim()) return;
+    setIsLoading(true);
+    setError(null);
 
-    // Track analytics if available
-    try {
-      if (
-        typeof analyticsUtils !== "undefined" &&
-        analyticsUtils &&
-        analyticsUtils.trackEvent
-      ) {
-        analyticsUtils.trackEvent("send_message", {
-          type: "text",
-          length: inputText.length,
-          hasQuestion: inputText.includes("?"),
-        });
+    let threadId = selectedThreadId;
+
+    // Only create a thread if needed
+    if (!threadId) {
+      const { data: thread, error: threadError } = await supabase
+        .from("chat_threads")
+        .insert([
+          { user_id: currentUser.id, title: inputText.substring(0, 30) },
+        ])
+        .select("id")
+        .single();
+      console.log("Thread creation:", { thread, threadError });
+      if (threadError) {
+        setError("Failed to create thread.");
+        setIsLoading(false);
+        return;
       }
-    } catch (analyticsError) {
-      // Non-critical error, just log
-      console.warn("Analytics tracking error:", analyticsError);
+      threadId = thread.id;
+      setSelectedThreadId(threadId);
+      // Auto-load messages for the new thread
+      loadThreadMessages(threadId);
     }
 
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // Generate a temporary ID for optimistic updates
-      const tempId = `temp-${Date.now()}-${Math.random()
-        .toString(36)
-        .substring(2, 9)}`;
-
-      // Create optimistic user message to show immediately
-      const userMessage = {
-        id: tempId,
-        sender: "user",
-        message_type: "user",
-        content: inputText,
-        created_at: new Date().toISOString(),
-        pending: true,
-      };
-
-      // Add to UI immediately (optimistic update)
-      setCurrentMessages((prev) => [...prev, userMessage]);
-
-      // Auto-scroll to new message if the function exists
-      if (typeof scrollToBottom === "function") {
-        setTimeout(() => {
-          scrollToBottom();
-        }, 50);
-      } else {
-        // Fallback for scrolling if the function isn't defined
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        }, 50);
-      }
-
-      // Check if it's an image search request for specialized handling
-      if (isImageSearchRequest(inputText)) {
-        // Add typing/searching indicator
-        const typingId = `typing-${Date.now()}`;
-        const typingMessage = {
-          id: typingId,
-          sender: "system",
-          message_type: "system",
-          content: "Searching for images...",
-          created_at: new Date().toISOString(),
-        };
-
-        setCurrentMessages((prev) => [...prev, typingMessage]);
-
-        // Try to get cached search results first
-        let result;
-        try {
-          // Only use ChatCache if it's defined
-          if (
-            typeof ChatCache !== "undefined" &&
-            ChatCache &&
-            ChatCache.getSearchResults
-          ) {
-            const cachedResults = await ChatCache.getSearchResults(inputText);
-            if (
-              cachedResults &&
-              cachedResults.timestamp &&
-              Date.now() - cachedResults.timestamp < 5 * 60 * 1000
-            ) {
-              // Valid if less than 5 minutes old
-              console.log("Using cached image search results");
-              result = cachedResults;
-            } else {
-              // Process the image search
-              result = await processImageSearch(inputText);
-              // Cache the results if cache is available
-              if (ChatCache && ChatCache.cacheSearchResults) {
-                await ChatCache.cacheSearchResults(inputText, result);
-              }
-            }
-          } else {
-            // No cache available, perform direct search
-            result = await processImageSearch(inputText);
-          }
-        } catch (cacheError) {
-          console.warn("Cache error, performing fresh search:", cacheError);
-          // Fallback to direct search
-          result = await processImageSearch(inputText);
-        }
-
-        // Remove the typing indicator
-        setCurrentMessages((prev) => prev.filter((msg) => msg.id !== typingId));
-
-        // Add assistant response with images
-        const msgId = `img-search-${Date.now()}`;
-        const assistantMessage = {
-          id: msgId,
-          sender: "assistant",
-          message_type: "assistant",
-          content: result.response,
-          created_at: new Date().toISOString(),
-          thread_id: selectedThreadId || null,
-          isImageSearch: true,
-          images: result.results,
-          searchParams: result.searchParams,
-        };
-
-        // Replace temporary message with real response
-        setCurrentMessages((prev) => [
-          ...prev.filter((msg) => msg.id !== tempId && msg.id !== typingId),
-          assistantMessage,
-        ]);
-
-        // Save to server in background if we have a thread
-        if (selectedThreadId) {
-          // Persist message to server and update thread
-          try {
-            const persistResponse = await apiService.chat.saveMessage({
-              threadId: selectedThreadId,
-              content: inputText,
-              type: "user",
-              metadata: {
-                isImageSearch: true,
-                searchQuery: inputText,
-              },
-            });
-
-            // Update assistant message with server ID if available
-            if (persistResponse.data?.messageId) {
-              setCurrentMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === msgId
-                    ? {
-                        ...msg,
-                        serverId: persistResponse.data.messageId,
-                        pending: false,
-                      }
-                    : msg
-                )
-              );
-            }
-
-            // Update thread cache if available
-            if (
-              selectedThreadId &&
-              typeof ChatCache !== "undefined" &&
-              ChatCache &&
-              ChatCache.cacheThreadMessages
-            ) {
-              const updatedMessages = currentMessages.filter(
-                (msg) => !msg.pending
-              );
-              updatedMessages.push({
-                ...assistantMessage,
-                pending: false,
-              });
-              ChatCache.cacheThreadMessages(selectedThreadId, updatedMessages);
-            }
-          } catch (saveError) {
-            console.warn("Error saving message to server:", saveError);
-            // Non-critical error, message still displays to user
-          }
-        }
-
-        // Update selected thread ID if this is a new thread
-        if (result.threadId && !selectedThreadId) {
-          setSelectedThreadId(result.threadId);
-          // Turn off new chat mode once we have a thread ID
-          setIsNewChat(false);
-        }
-      } else {
-        // Regular chat message processing
-
-        // Track message in typing state
-        let typingStartTime = Date.now();
-        let typingIndicatorTimeout;
-
-        // Handle "typing" indicators for longer requests
-        typingIndicatorTimeout = setTimeout(() => {
-          // Only add typing indicator for requests taking more than 1s
-          if (Date.now() - typingStartTime > 1000) {
-            const typingId = `typing-${Date.now()}`;
-            const typingMessage = {
-              id: typingId,
-              sender: "system",
-              message_type: "system",
-              content: "Assistant is typing...",
-              created_at: new Date().toISOString(),
-            };
-            setCurrentMessages((prev) => [...prev, typingMessage]);
-          }
-        }, 1000);
-
-        // Call API based on which mode is enabled
-        let response;
-        let apiStartTime = Date.now();
-
-        try {
-          if (useZenoti && chatSettings.showZenotiIntegration) {
-            // Zenoti-enhanced chat
-            console.log("Using Zenoti integration for message:", inputText);
-
-            // Make the API call
-            const chatResponse = await fetch(
-              `${apiService.utils.getBaseUrl()}/api/chat/zenoti`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${
-                    localStorage.getItem("authToken") || ""
-                  }`,
-                },
-                body: JSON.stringify({
-                  message: inputText,
-                  userId: currentUser?.id || "default-user",
-                  threadId: selectedThreadId,
-                }),
-              }
-            );
-
-            if (!chatResponse.ok) {
-              throw new Error(
-                `Zenoti chat request failed: ${chatResponse.status}`
-              );
-            }
-
-            response = { data: await chatResponse.json() };
-
-            // Track Zenoti-specific analytics if available
-            if (
-              typeof analyticsUtils !== "undefined" &&
-              analyticsUtils &&
-              analyticsUtils.trackEvent
-            ) {
-              analyticsUtils.trackEvent("zenoti_query", {
-                responseTime: Date.now() - apiStartTime,
-                success: true,
-              });
-            }
-          } else if (useInternet && chatSettings.showInternetSearch) {
-            // Advanced chat with web search
-            console.log("Using advanced chat with web search");
-
-            response = await apiService.chat.advanced(
-              inputText,
-              currentUser?.id,
-              { threadId: selectedThreadId }
-            );
-
-            // Track web search analytics if available
-            if (
-              typeof analyticsUtils !== "undefined" &&
-              analyticsUtils &&
-              analyticsUtils.trackEvent
-            ) {
-              analyticsUtils.trackEvent("web_search", {
-                responseTime: Date.now() - apiStartTime,
-                success: true,
-              });
-            }
-          } else {
-            // Regular chat
-            console.log("Using regular chat API");
-
-            const chatResponse = await fetch(
-              `${apiService.utils.getBaseUrl()}/api/chat`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${
-                    localStorage.getItem("authToken") || ""
-                  }`,
-                },
-                body: JSON.stringify({
-                  message: inputText,
-                  userId: currentUser?.id || "default-user",
-                  threadId: selectedThreadId,
-                }),
-              }
-            );
-
-            if (!chatResponse.ok) {
-              throw new Error(`Chat request failed: ${chatResponse.status}`);
-            }
-
-            response = { data: await chatResponse.json() };
-          }
-        } catch (apiError) {
-          // Clear typing indicator if shown
-          clearTimeout(typingIndicatorTimeout);
-
-          // Remove any typing indicators
-          setCurrentMessages((prev) =>
-            prev.filter((msg) => !msg.id.startsWith("typing-"))
-          );
-
-          console.error("API request failed:", apiError);
-
-          // Add error message
-          const errorMessage = {
-            id: `error-${Date.now()}`,
-            sender: "system",
-            message_type: "error",
-            content: `Error: ${
-              apiError.message || "Failed to send message. Please try again."
-            }`,
-            created_at: new Date().toISOString(),
-          };
-
-          setCurrentMessages((prev) => [
-            ...prev.filter((msg) => msg.id !== tempId),
-            errorMessage,
-          ]);
-
-          setError(apiError.message || "Failed to send message");
-          setIsLoading(false);
-          return;
-        }
-
-        // Clear typing indicator timeout
-        clearTimeout(typingIndicatorTimeout);
-
-        // Remove any typing indicators
-        setCurrentMessages((prev) =>
-          prev.filter((msg) => !msg.id.startsWith("typing-"))
-        );
-
-        if (!response || !response.data) {
-          throw new Error("Invalid response from chat API");
-        }
-
-        // Get thread ID from response
-        const threadId = response.data.threadId || selectedThreadId;
-
-        // Add assistant response with unique ID
-        const assistantId = `assistant-${Date.now()}`;
-        const assistantMessage = {
-          id: assistantId,
-          sender: "assistant",
-          message_type: "assistant",
-          content: response.data.response,
+    // Insert user message
+    const { data: userMsg, error: userMsgError } = await supabase
+      .from("chat_history")
+      .insert([
+        {
+          user_id: currentUser.id,
+          content: inputText,
+          sender: "user",
+          message_type: "user",
           created_at: new Date().toISOString(),
           thread_id: threadId,
-          source_documents: response.data.sourceDocuments,
-          citations: response.data.citations,
-          metadata: response.data.metadata || {},
-        };
-
-        // Update messages - replace pending message and add assistant message
-        setCurrentMessages((prev) => [
-          ...prev.filter(
-            (msg) => msg.id !== tempId && !msg.id.startsWith("typing-")
-          ),
-          assistantMessage,
-        ]);
-
-        // Auto-scroll to the new message
-        if (typeof scrollToBottom === "function") {
-          setTimeout(() => {
-            scrollToBottom();
-          }, 50);
-        } else {
-          // Fallback for scrolling if the function isn't defined
-          setTimeout(() => {
-            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-          }, 50);
-        }
-
-        // Update selected thread ID if this is a new thread
-        if (threadId && !selectedThreadId) {
-          setSelectedThreadId(threadId);
-          setIsNewChat(false);
-        }
-
-        // Update cache with the latest messages if available
-        if (
-          threadId &&
-          typeof ChatCache !== "undefined" &&
-          ChatCache &&
-          ChatCache.cacheThreadMessages
-        ) {
-          try {
-            // Get current messages for the thread
-            const cachedMessages =
-              (await ChatCache.getThreadMessages(threadId)) || [];
-
-            // Filter out any pending messages and add our new messages
-            const updatedMessages = [
-              ...cachedMessages.filter((msg) => !msg.pending),
-              {
-                ...userMessage,
-                pending: false,
-                thread_id: threadId,
-              },
-              assistantMessage,
-            ];
-
-            // Update the cache
-            await ChatCache.cacheThreadMessages(threadId, updatedMessages);
-
-            console.log(
-              `Cache updated for thread ${threadId} with ${updatedMessages.length} messages`
-            );
-          } catch (cacheError) {
-            console.warn("Error updating message cache:", cacheError);
-            // Non-critical error, continue without caching
-          }
-        }
-      }
-
-      // Reset input after successful message
-      setInputText("");
-
-      // Clear any saved draft if draft functionality exists
-      const hasDraftFunctionality =
-        typeof draftMessages !== "undefined" &&
-        draftMessages &&
-        typeof setDraftMessages === "function";
-
-      if (
-        hasDraftFunctionality &&
-        selectedThreadId &&
-        draftMessages[selectedThreadId]
-      ) {
-        setDraftMessages((prev) => {
-          const updated = { ...prev };
-          delete updated[selectedThreadId];
-          localStorage.setItem("slack_draft_messages", JSON.stringify(updated));
-          return updated;
-        });
-      }
-    } catch (err) {
-      console.error("Send message error:", err);
-
-      // Add a user-friendly error message to the chat
-      const errorMessage = {
-        id: `error-${Date.now()}`,
-        sender: "system",
-        message_type: "error",
-        content: `Error: ${
-          err.message || "Something went wrong. Please try again."
-        }`,
-        created_at: new Date().toISOString(),
-      };
-
-      setCurrentMessages((prev) => [...prev, errorMessage]);
-      setError(err.message || "Failed to send message");
-    } finally {
+        },
+      ]);
+    console.log("User message insert:", { userMsg, userMsgError });
+    if (userMsgError) {
+      setError("Failed to save user message.");
       setIsLoading(false);
+      return;
     }
+
+    // OpenAI API call (add detailed logging)
+    let assistantMessage = "";
+    try {
+      const openaiResponse = await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.REACT_APP_OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-3.5-turbo",
+            messages: [{ role: "user", content: inputText }],
+          }),
+        }
+      );
+      console.log("OpenAI raw response:", openaiResponse);
+      const openaiData = await openaiResponse.json();
+      console.log("OpenAI API response JSON:", openaiData);
+      assistantMessage =
+        openaiData.choices?.[0]?.message?.content || "No response from OpenAI.";
+    } catch (err) {
+      console.log("OpenAI request failed:", err);
+      setError("OpenAI request failed.");
+      setIsLoading(false);
+      return;
+    }
+
+    // Insert assistant message
+    const { data: assistantMsg, error: assistantMsgError } = await supabase
+      .from("chat_history")
+      .insert([
+        {
+          user_id: currentUser.id,
+          content: assistantMessage,
+          sender: "assistant",
+          message_type: "assistant",
+          created_at: new Date().toISOString(),
+          thread_id: threadId,
+        },
+      ]);
+    console.log("Assistant message insert:", {
+      assistantMsg,
+      assistantMsgError,
+    });
+    if (assistantMsgError) {
+      setError("Failed to save assistant message.");
+      setIsLoading(false);
+      return;
+    }
+
+    setInputText("");
+    setIsLoading(false);
+    // Auto-select and load the thread after sending
+    setSelectedThreadId(threadId);
+    loadThreadMessages(threadId);
   };
 
   // Handle message from advanced search
@@ -2710,6 +2354,30 @@ ${
     };
   }, []);
 
+  // Add state to control Claude MCP modal visibility
+  const [showClaudeModal, setShowClaudeModal] = useState(false);
+
+  // Move loadChatHistory to the top of the component, before handleSendMessage and useEffect
+  const loadChatHistory = async () => {
+    console.log("Loading chat history for user:", currentUser?.id);
+    const { data, error } = await supabase
+      .from("chat_history")
+      .select(
+        "id, user_id, content, sender, message_type, created_at, thread_id"
+      )
+      .eq("user_id", currentUser.id)
+      .order("created_at", { ascending: true });
+    console.log("Chat history select response:", { data, error });
+    if (!error && data) {
+      setCurrentMessages(data);
+    }
+  };
+
+  // After fetching threads
+  console.log("Fetched threads:", threads);
+  // After fetching messages
+  console.log("Fetched messages:", currentMessages);
+
   return (
     <div className="chatbot-tab-content">
       <div className="chatbot-container">
@@ -2823,18 +2491,106 @@ ${
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  width: "36px",
+                  width: "50%",
                   height: "36px",
-                  borderRadius: "50%",
+                  borderRadius: "35%",
                   backgroundColor: "var(--color-surface, #fafafa)",
-                  border: "1px solid var(--color-border, #e5e7eb)",
+                  border: "2px solid #6366f1",
                   cursor: "pointer",
+                  transform: "none",
                 }}
               >
                 <Settings
                   size={18}
-                  style={{ backgroundColor: "#000", width: "18px" }}
+                  style={{ backgroundColor: "transparent", width: "18px" }}
                 />
+              </button>
+
+              {/* Claude MCP button */}
+              <button
+                className="claude-mcp-btn"
+                onClick={() => {
+                  setShowClaudeModal(true);
+                  console.log(
+                    "Telescope button clicked, opening Claude MCP modal"
+                  );
+                }}
+                title="Launch Claude MCP (Research Mode)"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "100%",
+                  backgroundColor: "#f5f5fa",
+                  border: "2px solid #6366f1",
+                  cursor: "pointer",
+                  marginRight: "4px",
+                }}
+              >
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 64 64"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  {/* Telescope body */}
+                  <rect
+                    x="24"
+                    y="14"
+                    width="28"
+                    height="12"
+                    rx="4"
+                    fill="#fff"
+                    stroke="#181C3A"
+                  />
+                  {/* Eyepiece */}
+                  <rect
+                    x="14"
+                    y="18"
+                    width="12"
+                    height="4"
+                    rx="2"
+                    fill="#10BFA6"
+                    stroke="#10BFA6"
+                  />
+                  {/* Lens */}
+                  <circle
+                    cx="52"
+                    cy="20"
+                    r="6"
+                    fill="none"
+                    stroke="#10BFA6"
+                    strokeWidth="3"
+                  />
+                  {/* Tripod */}
+                  <line x1="32" y1="26" x2="24" y2="54" stroke="#181C3A" />
+                  <line x1="44" y1="26" x2="52" y2="54" stroke="#181C3A" />
+                  <line x1="32" y1="54" x2="44" y2="54" stroke="#181C3A" />
+                  {/* Center joint */}
+                  <circle cx="36" cy="26" r="4" fill="#fff" stroke="#181C3A" />
+                  {/* Decorative marks */}
+                  <line
+                    x1="10"
+                    y1="10"
+                    x2="16"
+                    y2="12"
+                    stroke="#10BFA6"
+                    strokeWidth="2"
+                  />
+                  <line
+                    x1="54"
+                    y1="40"
+                    x2="58"
+                    y2="44"
+                    stroke="#10BFA6"
+                    strokeWidth="2"
+                  />
+                  <circle cx="56" cy="12" r="1.5" fill="#10BFA6" />
+                </svg>
               </button>
             </div>
           </div>
@@ -2854,32 +2610,68 @@ ${
           >
             {currentMessages.length === 0 ? (
               <div className="empty-chat">
-                <h3>Welcome to Tatt2Away AI</h3>
-                <p>
-                  Upload an image of a tattoo or type a question to get started!
-                </p>
-                <div className="quick-tips-container">
-                  <h4>Here's what you can do:</h4>
-                  <div className="quick-tips">
-                    <div className="tip-item">
-                      Upload tattoo images for analysis
-                    </div>
-                    <div className="tip-item">
-                      Ask about tattoo removal processes
-                    </div>
-                    <div className="tip-item">
-                      Search for similar tattoo designs
-                    </div>
-                    <div className="tip-item">
-                      Analyze tattoo colors and features
-                    </div>
-                    <div className="tip-item">
-                      Compare before and after results
-                    </div>
-                    <div className="tip-item">
-                      Get pricing and procedure information
-                    </div>
-                  </div>
+                <h2
+                  style={{
+                    color: "#4f46e5",
+                    fontWeight: 700,
+                    fontSize: "2rem",
+                    marginTop: "1rem",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  Welcome to Tatt2Away AI
+                </h2>
+                <div
+                  style={{
+                    background: "#f4f7fd",
+                    borderRadius: "14px",
+                    padding: "1.5rem 2.5rem",
+                    maxWidth: 540,
+                    margin: "0 auto 1.5rem auto",
+                    boxShadow: "0 2px 12px rgba(79,70,229,0.06)",
+                    border: "1px solid #e0e7ef",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "1.08rem",
+                      color: "#374151",
+                      marginBottom: "1.2rem",
+                      textAlign: "center",
+                    }}
+                  >
+                    For quick queries, tap into our knowledge stream of over{" "}
+                    <strong>30,000+</strong> records across Dropbox, Google
+                    Drive, CRM systems, and the internet—just start chatting
+                    below.
+                  </p>
+                  <p
+                    style={{
+                      fontSize: "1.08rem",
+                      color: "#374151",
+                      marginBottom: "1.2rem",
+                      textAlign: "center",
+                    }}
+                  >
+                    For anything related to imagery, document uploads, or deeper
+                    research, click the{" "}
+                    <span style={{ color: "#6366f1", fontWeight: 600 }}>
+                      &#128301; Research Mode
+                    </span>{" "}
+                    <span style={{ color: "#6366f1" }}>(telescope button)</span>{" "}
+                    in the top right corner to access our advanced research
+                    systems.
+                  </p>
+                  <p
+                    style={{
+                      fontSize: "1.08rem",
+                      color: "#374151",
+                      textAlign: "center",
+                    }}
+                  >
+                    Your AI assistant is ready to help—just type your question
+                    to get started.
+                  </p>
                 </div>
               </div>
             ) : (
@@ -2956,6 +2748,13 @@ ${
               <button
                 className={`internet-toggle ${useInternet ? "active" : ""}`}
                 onClick={toggleInternet}
+                style={{
+                  color: "#6366f1",
+                  cursor: "pointer",
+                  transform: "none",
+                  width: "7%",
+                  height: "91%",
+                }}
                 title={
                   useInternet
                     ? "Internet search enabled"
@@ -2963,21 +2762,6 @@ ${
                 }
               >
                 <Globe size={18} />
-              </button>
-            )}
-
-            {/* Zenoti integration toggle - only show if enabled in settings */}
-            {chatSettings.showZenotiIntegration && (
-              <button
-                className={`zenoti-toggle ${useZenoti ? "active" : ""}`}
-                onClick={toggleZenoti}
-                title={
-                  useZenoti
-                    ? "Zenoti integration enabled"
-                    : "Enable Zenoti integration"
-                }
-              >
-                <Calendar size={18} />
               </button>
             )}
 
@@ -2999,26 +2783,20 @@ ${
               />
             </div>
 
-            {/* File upload button */}
-            <button
-              className="upload-btn"
-              onClick={handleOpenUploadModal}
-              disabled={isLoading}
-              title="Upload file"
-            >
-              <Upload size={20} />
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                style={{ display: "none" }}
-              />
-            </button>
-
             {/* Send button */}
             <button
               className={`send-btn ${isLoading ? "loading" : ""}`}
               onClick={handleSendMessage}
+              style={{
+                backgroundColor: "var(--color-surface, #fafafa)",
+                color: "#6366f1",
+                border: "2px solid #6366f1",
+                cursor: "pointer",
+                transform: "none",
+                borderRadius: "55%",
+                width: "7%",
+                height: "91%",
+              }}
               disabled={isLoading || (!inputText.trim() && !file)}
             >
               {isLoading ? (
@@ -3052,20 +2830,6 @@ ${
                     checked={chatSettings.darkMode}
                     onChange={(e) =>
                       updateSetting("darkMode", e.target.checked)
-                    }
-                  />
-                </div>
-
-                <div className="setting-item">
-                  <label htmlFor="showZenotiIntegration">
-                    Zenoti Integration
-                  </label>
-                  <input
-                    type="checkbox"
-                    id="showZenotiIntegration"
-                    checked={chatSettings.showZenotiIntegration}
-                    onChange={(e) =>
-                      updateSetting("showZenotiIntegration", e.target.checked)
                     }
                   />
                 </div>
@@ -3170,41 +2934,6 @@ ${
           </div>
         )}
 
-        {/* Upload type modal */}
-        {showUploadModal && (
-          <div className="modal-overlay">
-            <div className="modal-content upload-modal">
-              <div className="modal-header">
-                <h3>Choose Upload Type</h3>
-                <button
-                  className="modal-close"
-                  onClick={() => setShowUploadModal(false)}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-              <div className="upload-options">
-                <button
-                  className="upload-option document-option"
-                  onClick={() => handleSelectUploadType("document")}
-                >
-                  <FileText size={32} />
-                  <span>Upload Document</span>
-                  <p>Upload a PDF, text, or document file for analysis</p>
-                </button>
-                <button
-                  className="upload-option image-option"
-                  onClick={() => handleSelectUploadType("image")}
-                >
-                  <Image size={32} />
-                  <span>Upload Image</span>
-                  <p>Upload an image for analysis or search</p>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Search mode modal */}
         {showSearchModal && (
           <div className="modal-overlay">
@@ -3249,6 +2978,14 @@ ${
           </div>
         )}
       </div>
+
+      {/* Claude MCP modal */}
+      {showClaudeModal && (
+        <ClaudeMCPModal
+          isOpen={showClaudeModal}
+          onClose={() => setShowClaudeModal(false)}
+        />
+      )}
     </div>
   );
 };

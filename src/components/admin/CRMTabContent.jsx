@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { RefreshCw, User, AlertCircle } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import CRMDashboard from "../crm/CRMDashboard";
@@ -12,22 +12,25 @@ const CRMTabContent = () => {
   const [error, setError] = useState(null);
 
   // Center mapping - bidirectional
-  const centerMapping = {
-    // Code to ID
-    AUS: "56081b99-7e03-46de-b589-3f60cbd90556",
-    CHI: "dc196a75-018b-43a2-9c27-9f7b1cc8207f",
-    CW: "982982ea-50ce-483f-a4e9-a8e5a76b4725",
-    Draper: "7110ab1d-5f3d-44b6-90ec-358029263a6a",
-    HTN: "d406abe6-6118-4d52-9794-546729918f52",
-    Houston: "90aa9708-4678-4c04-999e-63e4aff12f40",
-    // ID to Code (reverse mapping)
-    "56081b99-7e03-46de-b589-3f60cbd90556": "AUS",
-    "dc196a75-018b-43a2-9c27-9f7b1cc8207f": "CHI",
-    "982982ea-50ce-483f-a4e9-a8e5a76b4725": "CW",
-    "7110ab1d-5f3d-44b6-90ec-358029263a6a": "Draper",
-    "d406abe6-6118-4d52-9794-546729918f52": "HTN",
-    "90aa9708-4678-4c04-999e-63e4aff12f40": "Houston",
-  };
+  const centerMapping = useMemo(
+    () => ({
+      // Code to ID
+      AUS: "56081b99-7e03-46de-b589-3f60cbd90556",
+      CHI: "dc196a75-018b-43a2-9c27-9f7b1cc8207f",
+      CW: "982982ea-50ce-483f-a4e9-a8e5a76b4725",
+      Draper: "7110ab1d-5f3d-44b6-90ec-358029263a6a",
+      HTN: "d406abe6-6118-4d52-9794-546729918f52",
+      Houston: "90aa9708-4678-4c04-999e-63e4aff12f40",
+      // ID to Code (reverse mapping)
+      "56081b99-7e03-46de-b589-3f60cbd90556": "AUS",
+      "dc196a75-018b-43a2-9c27-9f7b1cc8207f": "CHI",
+      "982982ea-50ce-483f-a4e9-a8e5a76b4725": "CW",
+      "7110ab1d-5f3d-44b6-90ec-358029263a6a": "Draper",
+      "d406abe6-6118-4d52-9794-546729918f52": "HTN",
+      "90aa9708-4678-4c04-999e-63e4aff12f40": "Houston",
+    }),
+    []
+  );
 
   // Check connection status
   const checkConnectionStatus = useCallback(async () => {
@@ -295,8 +298,11 @@ const CRMTabContent = () => {
                 cursor: isLoading ? "not-allowed" : "pointer",
               }}
             >
-              <RefreshCw size={16} className={isLoading ? "spinning" : ""} />
-              Refresh
+              <RefreshCw
+                style={{ color: "white", marginBottom: "0" }}
+                size={16}
+                className={isLoading ? "spinning" : ""}
+              />
             </button>
           </div>
         </div>

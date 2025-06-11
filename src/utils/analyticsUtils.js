@@ -35,6 +35,15 @@ export const EVENT_TYPES = {
  */
 export const trackEvent = async (eventType, eventData = {}) => {
   try {
+    if (
+      !apiService.apiClient ||
+      typeof apiService.apiClient.post !== "function"
+    ) {
+      console.warn(
+        "analyticsUtils.trackEvent: apiClient is undefined or missing .post"
+      );
+      return;
+    }
     // Add standard data to all events
     const enrichedData = {
       ...eventData,
@@ -52,14 +61,13 @@ export const trackEvent = async (eventType, eventData = {}) => {
     };
 
     // Post to backend analytics endpoint using apiClient from apiService
-    return await apiService.apiClient.post("/api/analytics/events", {
+    await apiService.apiClient.post("/api/analytics/events", {
       eventType,
       data: enrichedData,
     });
   } catch (error) {
     // Silently fail - analytics should never break the app
     console.warn("Failed to track analytics event:", error);
-    return { success: false, error: error.message };
   }
 };
 
