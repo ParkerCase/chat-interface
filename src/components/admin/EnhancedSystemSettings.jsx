@@ -38,6 +38,73 @@ import BackupInitComponent from "./BackupInitComponent";
 import Header from "../Header";
 import "./EnhancedSystemSettings.css";
 
+function RecentUploadsTable() {
+  const [recentDocs, setRecentDocs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    async function fetchDocs() {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("documents")
+        .select(
+          "id, name, metadata, created_at, created_by, document_type, source_type, status"
+        )
+        .order("created_at", { ascending: false })
+        .limit(10);
+      setRecentDocs(data || []);
+      setLoading(false);
+    }
+    fetchDocs();
+  }, []);
+  if (loading) return <div>Loading...</div>;
+  if (!recentDocs.length) return <div>No recent uploads.</div>;
+  return (
+    <table className="data-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Size</th>
+          <th>Uploaded By</th>
+          <th>Uploaded At</th>
+        </tr>
+      </thead>
+      <tbody>
+        {recentDocs.map((doc) => {
+          // Parse values from metadata if available
+          let type =
+            doc.document_type || (doc.metadata && doc.metadata.fileType) || "-";
+          let size =
+            (doc.metadata && (doc.metadata.size || doc.metadata.fileSize)) ||
+            "-";
+          let uploadedBy =
+            doc.created_by || (doc.metadata && doc.metadata.uploaded_by) || "-";
+          let uploadedAt =
+            doc.created_at ||
+            (doc.metadata &&
+              (doc.metadata.uploaded_at || doc.metadata.createdAt)) ||
+            "-";
+          return (
+            <tr key={doc.id}>
+              <td>{doc.name}</td>
+              <td>{type}</td>
+              <td>
+                {size !== "-" ? (size / 1024 / 1024).toFixed(2) + " MB" : "-"}
+              </td>
+              <td>{uploadedBy}</td>
+              <td>
+                {uploadedAt !== "-"
+                  ? new Date(uploadedAt).toLocaleString()
+                  : "-"}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 const EnhancedSystemSettings = () => {
   const { currentUser, logout } = useAuth();
   const { isFeatureEnabled, organizationTier } = useFeatureFlags();
@@ -74,7 +141,7 @@ const EnhancedSystemSettings = () => {
   });
 
   const [storageSettings, setStorageSettings] = useState({
-    storagePath: "/data/uploads",
+    storagePath: "/data/documents",
     maxFileSize: 50, // MB
     acceptedFileTypes: "pdf,doc,docx,xls,xlsx,jpg,jpeg,png,gif",
     storageQuota: 50, // GB
@@ -1492,7 +1559,7 @@ const EnhancedSystemSettings = () => {
                           <input
                             type="checkbox"
                             name="enableVersioning"
-                            checked={storageSettings.enableVersioning}
+                            checked={!!storageSettings.enableVersioning}
                             onChange={(e) => handleInputChange(e, "storage")}
                           />
                           <span className="checkbox-label">
@@ -1510,7 +1577,7 @@ const EnhancedSystemSettings = () => {
                           <input
                             type="checkbox"
                             name="compressionEnabled"
-                            checked={storageSettings.compressionEnabled}
+                            checked={!!storageSettings.compressionEnabled}
                             onChange={(e) => handleInputChange(e, "storage")}
                           />
                           <span className="checkbox-label">
@@ -1542,109 +1609,34 @@ const EnhancedSystemSettings = () => {
                         </button>
                       </div>
 
-                      <div className="upload-section-container">
-                        <div className="upload-divider">
-                          <div className="divider-line"></div>
-                          <span>Upload Files</span>
-                          <div className="divider-line"></div>
-                        </div>
-
-                        <p className="upload-instructions">
-                          Upload documents to be processed with your current
-                          settings and added to the knowledge base.
-                        </p>
-
-                        <button
-                          type="button"
-                          className="toggle-upload-button"
-                          onClick={() => setShowUploadZone(!showUploadZone)}
+                      <div className="upload-section">
+                        <h4>Upload Documents</h4>
+                        <FileUploadDropzone
+                          bucket="documents"
+                          folder={
+                            storageSettings?.storagePath?.replace(/^\//, "") ||
+                            "data/uploads"
+                          }
+                          maxSize={
+                            storageSettings?.maxFileSize
+                              ? storageSettings.maxFileSize * 1024 * 1024
+                              : undefined
+                          }
+                          acceptedFileTypes={storageSettings?.acceptedFileTypes
+                            ?.split(",")
+                            .map((ext) => `.${ext.trim()}`)
+                            .reduce((acc, ext) => ({ ...acc, [ext]: [] }), {})}
+                          processForKnowledgeBase={true}
+                          onUploadComplete={handleUploadComplete}
+                          onUploadError={handleUploadError}
+                        />
+                        <div
+                          className="recent-uploads-table-wrapper"
+                          style={{ marginTop: 32 }}
                         >
-                          {showUploadZone ? (
-                            <>
-                              <X size={16} />
-                              Hide Upload Zone
-                            </>
-                          ) : (
-                            <>
-                              <Upload size={16} />
-                              Show Upload Zone
-                            </>
-                          )}
-                        </button>
-
-                        {showUploadZone && (
-                          <div className="upload-zone-wrapper">
-                            <FileUploadDropzone
-                              bucket="documents"
-                              folder={
-                                storageSettings?.storagePath?.replace(
-                                  /^\//,
-                                  ""
-                                ) || "data/uploads"
-                              }
-                              maxSize={
-                                storageSettings?.maxFileSize
-                                  ? storageSettings.maxFileSize * 1024 * 1024
-                                  : undefined
-                              }
-                              acceptedFileTypes={storageSettings?.acceptedFileTypes
-                                ?.split(",")
-                                .map((ext) => `.${ext.trim()}`)
-                                .reduce(
-                                  (acc, ext) => ({ ...acc, [ext]: [] }),
-                                  {}
-                                )}
-                              processForKnowledgeBase={true}
-                              onUploadComplete={handleUploadComplete}
-                              onUploadError={handleUploadError}
-                            />
-                          </div>
-                        )}
-
-                        {uploadedFiles.length > 0 && (
-                          <div className="recent-uploads">
-                            <h4>Recent Uploads</h4>
-                            <ul className="uploads-list">
-                              {uploadedFiles.map((file, index) => (
-                                <li key={index} className="upload-item">
-                                  <div className="upload-icon">
-                                    {
-                                      file && file.name
-                                        ? file.name.endsWith(".pdf")
-                                          ? "📄"
-                                          : file.name.endsWith(".doc") ||
-                                            file.name.endsWith(".docx")
-                                          ? "📝"
-                                          : file.name.endsWith(".csv") ||
-                                            file.name.endsWith(".xls") ||
-                                            file.name.endsWith(".xlsx")
-                                          ? "📊"
-                                          : "📁"
-                                        : "📁" // Default icon if filename is missing
-                                    }
-                                  </div>
-                                  <div className="upload-details">
-                                    <span className="upload-name">
-                                      {file && file.name
-                                        ? file.name
-                                        : "Unknown file"}
-                                    </span>
-                                    <span className="upload-meta">
-                                      {new Date().toLocaleString()} •{" "}
-                                      {file && file.size
-                                        ? (file.size / 1024).toFixed(2)
-                                        : "?"}{" "}
-                                      KB
-                                    </span>
-                                  </div>
-                                  <div className="upload-status">
-                                    ✓ Processed
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                          <h4>Recent Uploads</h4>
+                          <RecentUploadsTable />
+                        </div>
                       </div>
                     </form>
                   </div>
@@ -1683,7 +1675,7 @@ const EnhancedSystemSettings = () => {
                           <input
                             type="checkbox"
                             name="requireStrongPasswords"
-                            checked={securitySettings.requireStrongPasswords}
+                            checked={!!securitySettings.requireStrongPasswords}
                             onChange={(e) => handleInputChange(e, "security")}
                           />
                           <span className="checkbox-label">
@@ -1719,7 +1711,7 @@ const EnhancedSystemSettings = () => {
                           <input
                             type="checkbox"
                             name="forceMfa"
-                            checked={securitySettings.forceMfa}
+                            checked={!!securitySettings.forceMfa}
                             onChange={(e) => handleInputChange(e, "security")}
                           />
                           <span className="checkbox-label">
@@ -1795,7 +1787,7 @@ const EnhancedSystemSettings = () => {
                           <input
                             type="checkbox"
                             name="apiEnabled"
-                            checked={apiSettings.apiEnabled}
+                            checked={!!apiSettings.apiEnabled}
                             onChange={(e) => handleInputChange(e, "api")}
                           />
                           <span className="checkbox-label">
@@ -1860,7 +1852,7 @@ const EnhancedSystemSettings = () => {
                           <input
                             type="checkbox"
                             name="logAllRequests"
-                            checked={apiSettings.logAllRequests}
+                            checked={!!apiSettings.logAllRequests}
                             onChange={(e) => handleInputChange(e, "api")}
                           />
                           <span className="checkbox-label">
@@ -2131,7 +2123,7 @@ const EnhancedSystemSettings = () => {
                           <input
                             type="checkbox"
                             name="includeFiles"
-                            checked={backupSettings.includeFiles}
+                            checked={!!backupSettings.includeFiles}
                             onChange={(e) => handleInputChange(e, "backup")}
                           />
                           <span className="checkbox-label">User files</span>
@@ -2141,7 +2133,7 @@ const EnhancedSystemSettings = () => {
                           <input
                             type="checkbox"
                             name="includeDatabase"
-                            checked={backupSettings.includeDatabase}
+                            checked={!!backupSettings.includeDatabase}
                             onChange={(e) => handleInputChange(e, "backup")}
                           />
                           <span className="checkbox-label">Database</span>
@@ -2151,7 +2143,7 @@ const EnhancedSystemSettings = () => {
                           <input
                             type="checkbox"
                             name="includeSettings"
-                            checked={backupSettings.includeSettings}
+                            checked={!!backupSettings.includeSettings}
                             onChange={(e) => handleInputChange(e, "backup")}
                           />
                           <span className="checkbox-label">Settings</span>

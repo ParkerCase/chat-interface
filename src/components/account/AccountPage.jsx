@@ -15,6 +15,7 @@ import {
   Globe,
   Clock,
   Trash,
+  ArrowLeft,
   Loader,
   RefreshCw,
 } from "lucide-react";
@@ -45,6 +46,10 @@ function AccountPage({ tab = "profile" }) {
       return () => clearTimeout(timer);
     }
   }, [success]);
+
+  const handleBackToAdmin = () => {
+    navigate("/admin");
+  };
 
   const handleLogout = async () => {
     try {
@@ -138,6 +143,14 @@ function AccountPage({ tab = "profile" }) {
           >
             <Globe size={20} />
             <span>Sessions</span>
+          </button>
+          <button
+            onClick={handleBackToAdmin}
+            style={{ margin: "100% auto 0 auto", display: "flex" }}
+            className="flex items-center gap-6 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all"
+          >
+            <ArrowLeft size={16} />
+            Back to Admin
           </button>
         </div>
 

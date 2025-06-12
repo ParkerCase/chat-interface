@@ -75,9 +75,9 @@ function SSOCallback() {
       try {
         logCallback("Exchanging code for session");
 
-        // Exchange the code for a session
+        // Exchange the code for a session (no argument)
         const { data, error: exchangeError } =
-          await supabase.auth.exchangeCodeForSession(code);
+          await supabase.auth.exchangeCodeForSession();
 
         if (exchangeError) {
           logCallback("Code exchange error:", exchangeError);
@@ -124,13 +124,15 @@ function SSOCallback() {
             logCallback("Fetching user profile");
 
             // Use the safe RPC function to get user profile
-            let { data: profileData, error: profileError } = await supabase
-              .rpc("get_user_profile", { user_id: data.session.user.id });
+            let { data: profileData, error: profileError } = await supabase.rpc(
+              "get_user_profile",
+              { user_id: data.session.user.id }
+            );
 
             // Check if profile exists
-            const { data: profileExists, error: checkError } = await supabase
-              .rpc("check_profile_exists", { user_email: email });
-              
+            const { data: profileExists, error: checkError } =
+              await supabase.rpc("check_profile_exists", { user_email: email });
+
             if (checkError) {
               logCallback("Error checking if profile exists:", checkError);
             }
@@ -139,12 +141,12 @@ function SSOCallback() {
               logCallback("Creating new user profile");
 
               // Create a new profile using safe RPC function
-              const { data: newProfile, error: insertError } = await supabase
-                .rpc("create_admin_profile", {
+              const { data: newProfile, error: insertError } =
+                await supabase.rpc("create_admin_profile", {
                   profile_id: data.session.user.id,
                   profile_email: email,
                   profile_name: email,
-                  profile_roles: ["user"]
+                  profile_roles: ["user"],
                 });
 
               if (insertError) {

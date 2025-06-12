@@ -348,6 +348,27 @@ const FileUploadDropzone = ({
             folder: folder || "root",
             version: uploadResult.version,
           });
+
+          // After successful upload (DocumentProcessor branch)
+          if (uploadResult.success) {
+            try {
+              await supabase.from("documents").insert({
+                name: file.name,
+                type:
+                  file.type ||
+                  uploadResult.metadata?.fileType ||
+                  "application/octet-stream",
+                size: file.size,
+                storage_path: uploadResult.filePath,
+                url: uploadResult.metadata?.publicUrl || null,
+                uploaded_by: userId,
+                uploaded_at: new Date().toISOString(),
+                // Add more fields as needed
+              });
+            } catch (err) {
+              console.error("Failed to insert document metadata:", err);
+            }
+          }
         } else {
           // Regular file upload logic (not changed)
           // For regular uploads (not using DocumentProcessor)
@@ -419,6 +440,25 @@ const FileUploadDropzone = ({
             bucket: bucket,
             folder: folder || "root",
           });
+
+          // After successful upload (regular upload branch)
+          if (!error) {
+            try {
+              await supabase.from("documents").insert({
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                storage_path: filePath,
+                url: supabase.storage.from(bucket).getPublicUrl(filePath).data
+                  .publicUrl,
+                uploaded_by: userId,
+                uploaded_at: new Date().toISOString(),
+                // Add more fields as needed
+              });
+            } catch (err) {
+              console.error("Failed to insert document metadata:", err);
+            }
+          }
         }
       } catch (err) {
         console.error("Error in upload process:", err);

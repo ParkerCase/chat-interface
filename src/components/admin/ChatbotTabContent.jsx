@@ -39,6 +39,7 @@ import analyticsUtils from "../../utils/analyticsUtils";
 import ChatImageResults from "../../components/ChatImageResults";
 import "./ChatbotTabContent.css";
 import ClaudeMCPModal from "../ClaudeMCPModal";
+import { SupabaseAnalytics } from "../../utils/SupabaseAnalyticsIntegration";
 
 const ChatbotTabContent = () => {
   const { currentUser } = useAuth();
@@ -2509,7 +2510,12 @@ ${
               {/* Claude MCP button */}
               <button
                 className="claude-mcp-btn"
-                onClick={() => {
+                onClick={async () => {
+                  // Track Claude MCP click event
+                  await SupabaseAnalytics.trackEvent(
+                    "deep_research_mcp_claude",
+                    { userId: currentUser?.id }
+                  );
                   setShowClaudeModal(true);
                   console.log(
                     "Telescope button clicked, opening Claude MCP modal"

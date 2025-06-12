@@ -54,6 +54,7 @@ import {
   ToggleLeft,
   ToggleRight,
   FileText,
+  LogOut,
 } from "lucide-react";
 
 const AdminPanel = () => {
@@ -97,6 +98,8 @@ const AdminPanel = () => {
     lastName: "",
     role: "user",
   });
+
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   // Refs
   const lastLoadAttemptRef = useRef(0);
@@ -274,64 +277,14 @@ const AdminPanel = () => {
   // Fetch file analytics data
   const fetchFileAnalytics = async () => {
     try {
-      // Get file processing records
-      const { data: fileData } = await supabase
-        .from("file_processing_log")
-        .select("id, created_at, status");
-
-      if (!fileData) {
-        // Try an alternative table that might exist
-        const { data: storageData } = await supabase
-          .from("storage_stats")
-          .select("file_count, created_at");
-
-        if (storageData && storageData.length > 0) {
-          return {
-            filesProcessed: storageData[0].file_count || 0,
-            percentChange: 15, // Default if we can't calculate real change
-          };
-        }
-
-        return { filesProcessed: 0, percentChange: 0 };
-      }
-
-      // Count successfully processed files
-      const filesProcessed = fileData.filter(
-        (file) => file.status === "completed"
-      ).length;
-
-      // Count files processed in the last 30 days
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentFiles = fileData.filter(
-        (file) =>
-          new Date(file.created_at) > thirtyDaysAgo &&
-          file.status === "completed"
-      ).length;
-
-      // Calculate percentage change (if we have past data)
-      const sixtyDaysAgo = new Date();
-      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-      const thirtyToSixtyDaysFiles = fileData.filter(
-        (file) =>
-          new Date(file.created_at) > sixtyDaysAgo &&
-          new Date(file.created_at) < thirtyDaysAgo &&
-          file.status === "completed"
-      ).length;
-
-      // Calculate percentage change
-      let percentChange = 0;
-      if (thirtyToSixtyDaysFiles > 0) {
-        percentChange =
-          ((recentFiles - thirtyToSixtyDaysFiles) / thirtyToSixtyDaysFiles) *
-          100;
-      } else if (recentFiles > 0) {
-        percentChange = 100; // If no files before but we have files now
-      }
-
+      // Get total document count (match analytics dashboard)
+      const { count, error } = await supabase
+        .from("documents")
+        .select("id", { count: "exact", head: true });
+      if (error) throw error;
       return {
-        filesProcessed,
-        percentChange: Math.round(percentChange),
+        filesProcessed: count || 0,
+        percentChange: 0, // You can update this if you want to show change
       };
     } catch (error) {
       console.error("Error fetching file analytics:", error);
@@ -540,18 +493,18 @@ const AdminPanel = () => {
     }
   };
 
-  useEffect(() => {
-    const fetchUnreadCount = async () => {
-      const count = await SlackMessaging.getUnreadCount();
-      setUnreadCount(count);
-    };
+  // useEffect(() => {
+  //   const fetchUnreadCount = async () => {
+  //     const count = await SlackMessaging.getUnreadCount();
+  //     setUnreadCount(count);
+  //   };
 
-    fetchUnreadCount();
+  //   fetchUnreadCount();
 
-    // Set up polling every minute
-    const interval = setInterval(fetchUnreadCount, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  //   // Set up polling every minute
+  //   const interval = setInterval(fetchUnreadCount, 60000);
+  //   return () => clearInterval(interval);
+  // }, []);
 
   // Load admin data
   useEffect(() => {
@@ -942,6 +895,22 @@ const AdminPanel = () => {
     localStorage.setItem("preferredTheme", themeId);
   };
 
+  // Helper for avatar initial
+  const getAvatarInitial = () => {
+    if (currentUser?.name) return currentUser.name.charAt(0).toUpperCase();
+    if (currentUser?.email) return currentUser.email.charAt(0).toUpperCase();
+    return "U";
+  };
+
+  // Dropdown menu handler
+  const handleProfileClick = () => setProfileDropdownOpen((open) => !open);
+  const handleProfileBlur = (e) => {
+    // Close dropdown if focus leaves the menu
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setProfileDropdownOpen(false);
+    }
+  };
+
   // If user is not an admin, show unauthorized message
   if (!isAdmin) {
     return (
@@ -1015,14 +984,91 @@ const AdminPanel = () => {
         }}
         className="admin-header"
       >
-        <h1>Admin Panel</h1>
-        <div className="message-icon">
-          <Link to="/messages" title="Messages">
-            <MessageCircle size={24} />
-            {unreadCount > 0 && (
-              <span className="unread-badge">{unreadCount}</span>
+        <h1 style={{ margin: 0 }}>Admin Panel</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
+          <div className="message-icon">
+            <Link to="/messages" title="Messages">
+              <MessageCircle size={24} />
+              {unreadCount > 0 && (
+                <span className="unread-badge">{unreadCount}</span>
+              )}
+            </Link>
+          </div>
+          {/* Profile avatar and dropdown */}
+          <div
+            className="profile-dropdown"
+            onMouseEnter={() => setProfileDropdownOpen(true)}
+            onMouseLeave={() => setProfileDropdownOpen(false)}
+            style={{ pointerEvents: "auto" }}
+          >
+            <div
+              className="profile-avatar"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                background: "#ef4444",
+                color: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                fontSize: 20,
+                marginTop: "0px",
+                cursor: "pointer",
+                boxShadow: profileDropdownOpen
+                  ? "0 0 0 2px #fee2e2"
+                  : undefined,
+                border: profileDropdownOpen ? "2px solid #ef4444" : undefined,
+                transition: "box-shadow 0.2s, border 0.2s",
+              }}
+              title="Account"
+              onClick={handleProfileClick}
+            >
+              {getAvatarInitial()}
+            </div>
+            {profileDropdownOpen && (
+              <div
+                className="profile-dropdown-menu"
+                style={{
+                  position: "absolute",
+                  top: 48,
+                  right: 0,
+                  minWidth: 180,
+                  background: "white",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                  borderRadius: 8,
+                  zIndex: 100,
+                  padding: "0.5rem 0",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 0,
+                }}
+              >
+                <button
+                  className="profile-dropdown-item"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    textAlign: "left",
+                    padding: "0.75rem 1.25rem",
+                    fontSize: "1rem",
+                    color: "#ef4444",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
+                  onClick={async () => {
+                    await logout();
+                    window.location.href = "/login";
+                  }}
+                >
+                  <LogOut size={18} /> Log Out
+                </button>
+              </div>
             )}
-          </Link>
+          </div>
         </div>
       </div>
       {/* Admin navigation */}
@@ -1040,14 +1086,6 @@ const AdminPanel = () => {
           onClick={() => setActiveTab("users")}
         >
           Users
-        </div>
-        <div
-          className={`admin-nav-item ${
-            activeTab === "profile" ? "active" : ""
-          }`}
-          onClick={() => setActiveTab("profile")}
-        >
-          My Profile
         </div>
         <div
           className={`admin-nav-item ${activeTab === "crm" ? "active" : ""}`}
@@ -1172,7 +1210,9 @@ const AdminPanel = () => {
 
                   <div className="stat-card">
                     <div className="stat-title">All Records</div>
-                    <div className="stat-value">{stats.filesProcessed}</div>
+                    <div className="stat-value">
+                      {stats.filesProcessed.toLocaleString()}
+                    </div>
                     <div
                       className={`stat-change ${
                         stats.percentChanges.filesProcessed >= 0

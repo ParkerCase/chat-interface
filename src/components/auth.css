@@ -70,14 +70,14 @@
 
 .auth-form-container input:focus {
   outline: none;
-  border-color: #4f46e5;
+  border-color: #ff5733;
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
 }
 
 .auth-form-container button {
   width: 100%;
   padding: 0.75rem 1rem;
-  background-color: #4f46e5;
+  background-color: #f47254;
   color: white;
   border: none;
   border-radius: 6px;
@@ -88,11 +88,11 @@
 }
 
 .auth-form-container button:hover {
-  background-color: #4338ca;
+  background-color: #fb431a;
 }
 
 .auth-form-container button:disabled {
-  background-color: #8b5cf6;
+  background-color: #f79e8b;
   cursor: not-allowed;
 }
 /* Social Login Styles for AuthPage */
@@ -526,13 +526,13 @@
 }
 
 .primary-button:hover {
-  background-color: #4338ca;
+  background-color: #ff5733 !important;
 }
 
 .text-link {
   background: none;
   border: none;
-  color: #4f46e5;
+  color: #ff5733;
   font-size: 0.9rem;
   cursor: pointer;
   padding: 0;
@@ -635,7 +635,7 @@
 }
 
 .reset-password-button:hover {
-  background-color: #4338ca;
+  background-color: #ff5733;
 }
 
 .reset-password-button:disabled {
@@ -923,7 +923,7 @@
 }
 
 .reset-password-button:hover {
-  background-color: #2563eb;
+  background-color: #ff5733;
 }
 
 .reset-password-button:disabled {
@@ -1044,7 +1044,7 @@
 }
 
 .refresh-button:hover {
-  background-color: #4338ca;
+  background-color: #ff5733;
 }
 
 /* Password reset tips */
@@ -1137,7 +1137,7 @@
 }
 
 .login-button:hover:not(:disabled) {
-  background-color: #4338ca;
+  background-color: #ff5733 !important;
 }
 
 .login-button:disabled {
@@ -1214,7 +1214,7 @@
 }
 
 .reset-button:hover:not(:disabled) {
-  background-color: #4338ca;
+  background-color: #ff5733;
 }
 
 .back-link {
@@ -1296,4 +1296,27 @@
     padding: 1.5rem;
     max-width: 100%;
   }
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 18px 0 10px 0;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid #e5e7eb;
+}
+.divider:not(:empty)::before {
+  margin-right: 0.75em;
+}
+.divider:not(:empty)::after {
+  margin-left: 0.75em;
+}
+.divider span {
+  color: #888;
+  font-size: 0.95em;
 }

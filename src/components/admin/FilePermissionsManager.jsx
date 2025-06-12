@@ -39,6 +39,10 @@ const FilePermissionsManager = ({ currentUser }) => {
   const [showOnlyRestricted, setShowOnlyRestricted] = useState(false);
   const [cacheEnabled, setCacheEnabled] = useState(true); // Cache control
 
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalPages, setTotalPages] = useState(1);
+
   // Check if Redis cache is available
   const checkCacheAvailability = async () => {
     try {
@@ -206,16 +210,20 @@ const FilePermissionsManager = ({ currentUser }) => {
   };
 
   // Function to fetch fresh files data
-  const fetchFreshFiles = async () => {
+  const fetchFreshFiles = async (pageOverride = page) => {
     try {
-      // Get documents from the documents table
-      const { data, error } = await supabase
+      setLoading(true);
+      setError(null);
+      const offset = (pageOverride - 1) * pageSize;
+      // Get documents from the documents table with pagination
+      const { data, error, count } = await supabase
         .from("documents")
-        .select("*")
-        .order("created_at", { ascending: false });
-
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(offset, offset + pageSize - 1);
       if (error) throw error;
-
+      setTotalFiles(count || 0);
+      setTotalPages(Math.max(1, Math.ceil((count || 0) / pageSize)));
       // Process the files to extract more readable information
       const processedFiles = data.map((file) => {
         let fileType = "document";
@@ -308,7 +316,7 @@ const FilePermissionsManager = ({ currentUser }) => {
       // Cache the processed files if caching is enabled
       if (cacheEnabled) {
         try {
-          await RedisCache.set(FILES_CACHE_KEY, processedFiles, 1800); // Cache for 30 minutes
+          await RedisCache.set(FILES_CACHE_KEY, processedFiles, 1800);
         } catch (cacheError) {
           console.warn("Error caching files:", cacheError);
         }
@@ -480,6 +488,12 @@ const FilePermissionsManager = ({ currentUser }) => {
     }
   };
 
+  // When page or pageSize changes, fetch new page
+  useEffect(() => {
+    fetchFreshFiles(page);
+    // eslint-disable-next-line
+  }, [page, pageSize]);
+
   return (
     <div className="file-permissions-manager">
       <div className="admin-section">
@@ -602,8 +616,31 @@ const FilePermissionsManager = ({ currentUser }) => {
             </div>
           ) : (
             <>
-              <div className="files-count">
+              <div
+                className="files-count"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
                 Showing {getFilteredCount()} of {files.length} files
+                <select
+                  style={{
+                    fontSize: "1rem",
+                    padding: "0.5rem",
+                    borderRadius: "0.5rem",
+                    border: "1px solid #e2e8f0",
+                  }}
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                >
+                  {[25, 50, 100, 200].map((size) => (
+                    <option key={size} value={size}>
+                      {size} per page
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="files-table-container">
@@ -695,6 +732,45 @@ const FilePermissionsManager = ({ currentUser }) => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Pagination controls below the table */}
+              <div
+                className="pagination-controls"
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginBottom: "2%",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                  >
+                    Prev
+                  </button>
+                  <span
+                    style={{
+                      fontSize: "1rem",
+                      padding: "0 1rem",
+                    }}
+                  >
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             </>
           )}

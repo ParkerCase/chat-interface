@@ -19,7 +19,7 @@ import SSOCallback from "./components/auth/SSOCallback";
 import EnhancedPasswordReset from "./components/auth/EnhancedPasswordReset";
 import ResetPasswordPage from "./components/auth/ResetPasswordPage";
 import AccountPage from "./components/account/AccountPage";
-import EnhancedSlackMessages from "./components/messages/SlackMessages";
+import RealtimeChatApp from "./components/messages/RealtimeChatApp";
 
 // Route protection
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -46,6 +46,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { supabase } from "./lib/supabase";
 import "./App.css";
 import "./styles/theme.css";
+import { useSessionTracker } from "./utils/api-utils";
 
 // Add at the beginning of your App.jsx file, before calling ensureAuthState:
 if (typeof window !== "undefined") {
@@ -375,7 +376,7 @@ function AppContent() {
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<Navigate to="/admin" replace />} />
               <Route path="/profile" element={<AccountPage tab="profile" />} />
-              <Route path="/messages" element={<EnhancedSlackMessages />} />
+              <Route path="/messages" element={<RealtimeChatApp />} />
               <Route
                 path="/security"
                 element={<AccountPage tab="security" />}
@@ -423,6 +424,8 @@ function AppContent() {
 }
 
 function App() {
+  const { user } = useAuth();
+  useSessionTracker(user);
   return (
     <ThemeProvider>
       <ErrorBoundary>

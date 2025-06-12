@@ -23,8 +23,6 @@ export const SupabaseAnalytics = {
         data: eventData,
         created_at: new Date().toISOString(),
         session_id: localStorage.getItem("sessionId") || null,
-        url: window.location.href,
-        user_agent: navigator.userAgent,
       };
 
       const { data, error } = await supabase
