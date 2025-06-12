@@ -52,16 +52,9 @@ function SSOCallback() {
     });
 
     if (!code) {
-      logCallback("No code parameter found");
-      setError("Authentication failed: No code parameter found");
-      setStatus("error");
-
-      // Add fallback redirect for no-code scenario
-      const fallbackTimeout = setTimeout(() => {
-        window.location.href = "/login";
-      }, 3000);
-
-      return () => clearTimeout(fallbackTimeout);
+      logCallback("No code parameter found, redirecting to login");
+      window.location.replace("/login");
+      return;
     }
 
     // Add a meta refresh tag as a backup redirect method
