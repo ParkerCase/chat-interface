@@ -196,11 +196,11 @@ function SSOCallback() {
         logCallback("Unexpected error during code exchange:", err);
         setError(`Authentication failed: ${err.message}`);
         setStatus("error");
-
-        // Redirect to login as fallback
-        setTimeout(() => {
-          window.location.href = "/login?error=callback_failed";
-        }, 3000);
+        // Clear all auth state on error
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.replace("/login");
+        return;
       }
     };
 
