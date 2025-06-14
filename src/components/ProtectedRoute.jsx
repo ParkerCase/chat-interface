@@ -15,7 +15,7 @@ function ProtectedRoute() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Use the auth context
-  const { currentUser, loading } = useAuth();
+  const { currentUser, loading, isInitialized } = useAuth();
 
   // Verify authentication directly
   useEffect(() => {
@@ -83,7 +83,7 @@ function ProtectedRoute() {
   }, []);
 
   // Show loading during initialization
-  if (loading || isVerifying) {
+  if (loading || !isInitialized || isVerifying) {
     return (
       <div
         className="auth-loading"
