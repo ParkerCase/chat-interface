@@ -85,7 +85,7 @@ if (typeof window !== "undefined") {
           console.warn(`Admin navigation attempted: ${url}`);
           console.trace("Navigation call stack:");
         }
-        return true; // Allow normal navigation
+        return true;
       },
     };
 
