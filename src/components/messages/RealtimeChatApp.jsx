@@ -76,10 +76,52 @@ const useRealtimeChat = (roomName, username, onMessage) => {
   const [retryCount, setRetryCount] = useState(0);
   const channelRef = useRef(null);
   const retryTimeoutRef = useRef(null);
+  const { currentUser } = useAuth();
+
+  // Load existing messages when room changes
+  useEffect(() => {
+    if (!roomName) return;
+
+    const loadMessages = async () => {
+      try {
+        console.log(`Loading messages for room: ${roomName}`);
+        const { data, error } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('room_name', roomName)
+          .order('created_at', { ascending: true })
+          .limit(100);
+
+        if (error) {
+          console.error('Error loading messages:', error);
+          return;
+        }
+
+        const formattedMessages = data.map(msg => ({
+          id: msg.id,
+          content: msg.content,
+          user: {
+            name: msg.user_name,
+            id: msg.user_id
+          },
+          createdAt: msg.created_at,
+          roomName: msg.room_name
+        }));
+
+        setMessages(formattedMessages);
+        console.log(`Loaded ${formattedMessages.length} messages`);
+      } catch (error) {
+        console.error('Error loading messages:', error);
+      }
+    };
+
+    loadMessages();
+  }, [roomName]);
 
   useEffect(() => {
     if (!roomName || !username) return;
 
+    console.log(`Setting up realtime connection for room: ${roomName}`);
     setConnectionStatus("Connecting...");
     setIsConnected(false);
 
@@ -88,59 +130,77 @@ const useRealtimeChat = (roomName, username, onMessage) => {
       clearTimeout(retryTimeoutRef.current);
     }
 
-    // Create channel with better error handling
-    const channel = supabase.channel(`chat-${roomName}`, {
-      config: {
-        presence: {
-          key: username,
-        },
-        broadcast: {
-          self: true,
-        },
-      },
-    });
+    // Remove existing channel if any
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
 
-    channel
-      .on("broadcast", { event: "message" }, ({ payload }) => {
-        const newMessage = {
-          id: payload.id || `${Date.now()}-${Math.random()}`,
-          content: payload.content,
-          user: payload.user,
-          createdAt: payload.createdAt || new Date().toISOString(),
-          roomName: roomName,
-        };
-
-        setMessages((prev) => {
-          if (prev.find((msg) => msg.id === newMessage.id)) return prev;
-          const updated = [...prev, newMessage];
-
-          if (onMessage) {
-            onMessage(updated);
-          }
-
-          return updated;
-        });
+    // Create channel for real-time database changes
+    const channel = supabase
+      .channel(`messages-${roomName}`, {
+        config: {
+          broadcast: { self: false },
+          presence: { key: username }
+        }
       })
+      // Listen for new messages in the database
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `room_name=eq.${roomName}`
+        },
+        (payload) => {
+          console.log('New message received via postgres_changes:', payload);
+          const newMessage = {
+            id: payload.new.id,
+            content: payload.new.content,
+            user: {
+              name: payload.new.user_name,
+              id: payload.new.user_id
+            },
+            createdAt: payload.new.created_at,
+            roomName: payload.new.room_name
+          };
+
+          setMessages((prev) => {
+            // Check if message already exists
+            if (prev.find((msg) => msg.id === newMessage.id)) {
+              return prev;
+            }
+            const updated = [...prev, newMessage];
+            if (onMessage) {
+              onMessage(updated);
+            }
+            return updated;
+          });
+        }
+      )
+      // Listen for presence changes
       .on("presence", { event: "sync" }, () => {
-        console.log("Presence sync");
+        console.log("Presence sync for room:", roomName);
       })
       .on("presence", { event: "join" }, ({ key, newPresences }) => {
-        console.log("User joined:", key, newPresences);
+        console.log("User joined room:", key, roomName);
       })
       .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
-        console.log("User left:", key, leftPresences);
+        console.log("User left room:", key, roomName);
       })
       .subscribe(async (status) => {
-        console.log("Channel status:", status);
+        console.log(`Channel status for ${roomName}:`, status);
 
         if (status === "SUBSCRIBED") {
           setIsConnected(true);
           setConnectionStatus("Connected");
           setRetryCount(0);
+          console.log(`✅ Successfully connected to room: ${roomName}`);
 
-          // Join presence
+          // Track user presence
           await channel.track({
             user: username,
+            room: roomName,
             online_at: new Date().toISOString(),
           });
         } else if (
@@ -150,13 +210,14 @@ const useRealtimeChat = (roomName, username, onMessage) => {
         ) {
           setIsConnected(false);
           setConnectionStatus(`Connection Error (${status})`);
+          console.error(`❌ Connection failed for room ${roomName}:`, status);
 
           // Retry connection with exponential backoff
           const maxRetries = 5;
           if (retryCount < maxRetries) {
             const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
             console.log(
-              `Retrying connection in ${delay}ms (attempt ${
+              `Retrying connection for ${roomName} in ${delay}ms (attempt ${
                 retryCount + 1
               }/${maxRetries})`
             );
@@ -166,6 +227,7 @@ const useRealtimeChat = (roomName, username, onMessage) => {
             }, delay);
           } else {
             setConnectionStatus("Connection Failed - Max Retries Reached");
+            console.error(`❌ Max retries reached for room: ${roomName}`);
           }
         } else {
           setConnectionStatus(`Connecting... (${status})`);
@@ -174,52 +236,72 @@ const useRealtimeChat = (roomName, username, onMessage) => {
 
     channelRef.current = channel;
 
-    // Fallback connection check
-    const fallbackTimeout = setTimeout(() => {
-      if (!isConnected) {
-        console.log("Fallback: Assuming connected after timeout");
-        setIsConnected(true);
-        setConnectionStatus("Connected (Fallback)");
-      }
-    }, 3000);
-
     return () => {
-      clearTimeout(fallbackTimeout);
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
       }
       if (channelRef.current) {
+        console.log(`Cleaning up connection for room: ${roomName}`);
         supabase.removeChannel(channelRef.current);
       }
       setIsConnected(false);
       setConnectionStatus("Disconnected");
     };
-  }, [roomName, username, onMessage, retryCount, isConnected]);
+  }, [roomName, username, onMessage, retryCount, currentUser]);
 
   const sendMessage = async (content) => {
-    if (!content.trim() || !channelRef.current) return;
+    if (!content.trim()) {
+      console.error('Message content is empty');
+      return;
+    }
 
-    const message = {
-      id: `${Date.now()}-${Math.random()}`,
+    if (!currentUser) {
+      console.error('No authenticated user');
+      return;
+    }
+
+    const messageData = {
       content: content.trim(),
-      user: {
-        name: username,
-        id: username,
-      },
-      createdAt: new Date().toISOString(),
+      room_name: roomName,
+      user_id: currentUser.id,
+      user_name: currentUser.name || currentUser.email || 'Anonymous',
+      created_at: new Date().toISOString()
     };
 
+    console.log('Sending message to database:', messageData);
+
     try {
-      // Send the message via broadcast
-      await channelRef.current.send({
-        type: "broadcast",
-        event: "message",
-        payload: message,
-      });
+      // Insert message into database - this will trigger the realtime listener
+      const { data, error } = await supabase
+        .from('messages')
+        .insert([messageData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Failed to send message to database:', error);
+        throw error;
+      }
+
+      console.log('✅ Message sent successfully:', data);
+      return data;
     } catch (error) {
-      console.error("Failed to send message:", error);
-      // Add message to local state even if broadcast fails
-      setMessages((prev) => [...prev, message]);
+      console.error('❌ Error sending message:', error);
+      
+      // Add message to local state as fallback
+      const fallbackMessage = {
+        id: `temp-${Date.now()}-${Math.random()}`,
+        content: content.trim(),
+        user: {
+          name: currentUser.name || currentUser.email || 'Anonymous',
+          id: currentUser.id
+        },
+        createdAt: new Date().toISOString(),
+        roomName: roomName
+      };
+      
+      setMessages((prev) => [...prev, fallbackMessage]);
+      throw error;
     }
   };
 

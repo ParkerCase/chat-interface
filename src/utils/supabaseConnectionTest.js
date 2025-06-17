@@ -18,49 +18,84 @@ export const testSupabaseConnection = async () => {
 
     console.log("✅ Basic connection successful");
 
-    // Test 2: Realtime connection
-    console.log("2. Testing realtime connection...");
-    const channel = supabase.channel("test-connection");
+    // Test 2: Check if messages table exists
+    console.log("2. Testing messages table...");
+    const { data: messagesData, error: messagesError } = await supabase
+      .from("messages")
+      .select("id")
+      .limit(1);
+
+    if (messagesError && messagesError.code === '42P01') {
+      console.error("❌ Messages table does not exist!");
+      return {
+        success: false,
+        error: "Messages table missing - run create_messages_table.sql",
+        basicConnection: true,
+        messagesTable: false
+      };
+    }
+
+    console.log("✅ Messages table exists");
+
+    // Test 3: Test realtime connection for messages
+    console.log("3. Testing realtime connection for messages...");
+    const channel = supabase
+      .channel('test-messages-connection')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages'
+        },
+        (payload) => {
+          console.log('✅ Realtime postgres_changes working:', payload);
+        }
+      );
 
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
         console.log("⏰ Realtime connection timeout");
+        supabase.removeChannel(channel);
         resolve({
           success: false,
-          error: "Realtime connection timeout",
+          error: "Realtime connection timeout - check Supabase project settings",
           basicConnection: true,
+          messagesTable: true,
         });
-      }, 10000);
+      }, 15000);
 
-      channel
-        .on("broadcast", { event: "test" }, () => {
-          console.log("✅ Realtime broadcast received");
-        })
-        .subscribe((status) => {
-          console.log("📡 Channel status:", status);
+      channel.subscribe((status) => {
+        console.log("📡 Messages channel status:", status);
 
-          if (status === "SUBSCRIBED") {
-            clearTimeout(timeout);
-            console.log("✅ Realtime connection successful");
-            resolve({
-              success: true,
-              status: "connected",
-              basicConnection: true,
-            });
-          } else if (
-            status === "CHANNEL_ERROR" ||
-            status === "TIMED_OUT" ||
-            status === "CLOSED"
-          ) {
-            clearTimeout(timeout);
-            console.error("❌ Realtime connection failed:", status);
-            resolve({
-              success: false,
-              error: `Realtime connection failed: ${status}`,
-              basicConnection: true,
-            });
-          }
-        });
+        if (status === "SUBSCRIBED") {
+          clearTimeout(timeout);
+          console.log("✅ Messages realtime connection successful");
+          supabase.removeChannel(channel);
+          resolve({
+            success: true,
+            status: "connected",
+            basicConnection: true,
+            messagesTable: true,
+            realtime: true
+          });
+        } else if (
+          status === "CHANNEL_ERROR" ||
+          status === "TIMED_OUT" ||
+          status === "CLOSED"
+        ) {
+          clearTimeout(timeout);
+          console.error("❌ Messages realtime connection failed:", status);
+          supabase.removeChannel(channel);
+          resolve({
+            success: false,
+            error: `Messages realtime connection failed: ${status}`,
+            basicConnection: true,
+            messagesTable: true,
+            realtime: false
+          });
+        }
+      });
     });
   } catch (error) {
     console.error("❌ Connection test error:", error);
@@ -99,12 +134,22 @@ export const diagnoseSupabaseIssues = async () => {
   results.connection = await testSupabaseConnection();
 
   if (!results.connection.success) {
-    if (results.connection.error?.includes("timeout")) {
+    if (results.connection.error?.includes("Messages table missing")) {
+      results.recommendations.push(
+        "❗ CRITICAL: Run the SQL script to create the messages table"
+      );
+      results.recommendations.push(
+        "Execute: create_messages_table.sql in your Supabase SQL editor"
+      );
+    } else if (results.connection.error?.includes("timeout")) {
       results.recommendations.push(
         "Realtime connection timeout - check Supabase project settings"
       );
       results.recommendations.push(
         "Ensure realtime is enabled in your Supabase project"
+      );
+      results.recommendations.push(
+        "Check if messages table has realtime enabled: ALTER PUBLICATION supabase_realtime ADD TABLE messages;"
       );
     } else if (results.connection.error?.includes("unauthorized")) {
       results.recommendations.push(
@@ -115,6 +160,10 @@ export const diagnoseSupabaseIssues = async () => {
         "Connection failed - check network and Supabase status"
       );
     }
+  } else {
+    results.recommendations.push(
+      "✅ Connection successful! Your messaging setup should work."
+    );
   }
 
   console.log("📊 Diagnosis results:", results);
