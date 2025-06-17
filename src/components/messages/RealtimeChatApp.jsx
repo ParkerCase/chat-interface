@@ -88,7 +88,7 @@ const useRealtimeChat = (roomName, username, onMessage) => {
         const { data, error } = await supabase
           .from('messages')
           .select('*')
-          .eq('room_name', roomName)
+          .eq('channel_id', roomName)
           .order('created_at', { ascending: true })
           .limit(100);
 
@@ -101,11 +101,11 @@ const useRealtimeChat = (roomName, username, onMessage) => {
           id: msg.id,
           content: msg.content,
           user: {
-            name: msg.user_name,
+            name: msg.user_name || 'Anonymous User',
             id: msg.user_id
           },
           createdAt: msg.created_at,
-          roomName: msg.room_name
+          roomName: msg.channel_id
         }));
 
         setMessages(formattedMessages);
@@ -150,7 +150,7 @@ const useRealtimeChat = (roomName, username, onMessage) => {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `room_name=eq.${roomName}`
+          filter: `channel_id=eq.${roomName}`
         },
         (payload) => {
           console.log('New message received via postgres_changes:', payload);
@@ -158,11 +158,11 @@ const useRealtimeChat = (roomName, username, onMessage) => {
             id: payload.new.id,
             content: payload.new.content,
             user: {
-              name: payload.new.user_name,
+              name: payload.new.user_name || 'Anonymous User',
               id: payload.new.user_id
             },
             createdAt: payload.new.created_at,
-            roomName: payload.new.room_name
+            roomName: payload.new.channel_id
           };
 
           setMessages((prev) => {
@@ -262,9 +262,10 @@ const useRealtimeChat = (roomName, username, onMessage) => {
 
     const messageData = {
       content: content.trim(),
-      room_name: roomName,
+      channel_id: roomName,
       user_id: currentUser.id,
       user_name: currentUser.name || currentUser.email || 'Anonymous',
+      user_email: currentUser.email,
       created_at: new Date().toISOString()
     };
 
