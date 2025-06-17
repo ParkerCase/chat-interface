@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   Loader2,
   CheckCircle,
@@ -438,17 +439,19 @@ proxyServer.connect(transport);
 
   if (!isOpen) return null;
 
-  return (
+  const modalContent = (
     <div
-      className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[9999] p-4"
+      className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4"
       style={{
         position: "fixed",
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        zIndex: 9999,
+        zIndex: 999999,
+        backdropFilter: "blur(4px)",
       }}
+      onClick={onClose}
     >
       <div
         className="bg-white rounded-2xl max-w-4xl w-full max-h-[95vh] overflow-y-auto shadow-2xl"
@@ -456,6 +459,7 @@ proxyServer.connect(transport);
           maxWidth: "900px",
           width: "90%",
           maxHeight: "95vh",
+          position: "relative",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -821,6 +825,9 @@ proxyServer.connect(transport);
       </div>
     </div>
   );
+
+  // Use createPortal to render modal at document.body level
+  return createPortal(modalContent, document.body);
 };
 
 export default ClaudeMCPModal;
