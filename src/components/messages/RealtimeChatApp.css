@@ -135,6 +135,58 @@
   transform: scale(1.05);
 }
 
+/* Connection status animations */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.connection-status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.connection-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background-color 0.3s ease;
+}
+
+.connection-status-dot.connecting {
+  animation: pulse 2s infinite;
+}
+
+.connection-status-dot.connected {
+  background-color: #10b981;
+}
+
+.connection-status-dot.error {
+  background-color: #ef4444;
+}
+
+.connection-status-dot.warning {
+  background-color: #f59e0b;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .realtime-chat-sidebar {

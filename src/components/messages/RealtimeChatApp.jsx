@@ -4,6 +4,10 @@ import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
 import { cn } from "../../utils/api-utils";
 import {
+  testSupabaseConnection,
+  diagnoseSupabaseIssues,
+} from "../../utils/supabaseConnectionTest";
+import {
   Send,
   Plus,
   Search,
@@ -16,6 +20,7 @@ import {
   Menu,
   Smile,
   Paperclip,
+  Wifi,
 } from "lucide-react";
 import "./RealtimeChatApp.css";
 
@@ -68,7 +73,9 @@ const useRealtimeChat = (roomName, username, onMessage) => {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("Connecting...");
+  const [retryCount, setRetryCount] = useState(0);
   const channelRef = useRef(null);
+  const retryTimeoutRef = useRef(null);
 
   useEffect(() => {
     if (!roomName || !username) return;
@@ -76,8 +83,22 @@ const useRealtimeChat = (roomName, username, onMessage) => {
     setConnectionStatus("Connecting...");
     setIsConnected(false);
 
-    // Simplified connection - just use broadcast channels without complex presence
-    const channel = supabase.channel(`chat-${roomName}`);
+    // Clear any existing retry timeout
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+    }
+
+    // Create channel with better error handling
+    const channel = supabase.channel(`chat-${roomName}`, {
+      config: {
+        presence: {
+          key: username,
+        },
+        broadcast: {
+          self: true,
+        },
+      },
+    });
 
     channel
       .on("broadcast", { event: "message" }, ({ payload }) => {
@@ -100,36 +121,80 @@ const useRealtimeChat = (roomName, username, onMessage) => {
           return updated;
         });
       })
-      .subscribe((status) => {
+      .on("presence", { event: "sync" }, () => {
+        console.log("Presence sync");
+      })
+      .on("presence", { event: "join" }, ({ key, newPresences }) => {
+        console.log("User joined:", key, newPresences);
+      })
+      .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
+        console.log("User left:", key, leftPresences);
+      })
+      .subscribe(async (status) => {
         console.log("Channel status:", status);
+
         if (status === "SUBSCRIBED") {
           setIsConnected(true);
           setConnectionStatus("Connected");
-        } else if (status === "CHANNEL_ERROR") {
+          setRetryCount(0);
+
+          // Join presence
+          await channel.track({
+            user: username,
+            online_at: new Date().toISOString(),
+          });
+        } else if (
+          status === "CHANNEL_ERROR" ||
+          status === "TIMED_OUT" ||
+          status === "CLOSED"
+        ) {
           setIsConnected(false);
-          setConnectionStatus("Connection Error");
+          setConnectionStatus(`Connection Error (${status})`);
+
+          // Retry connection with exponential backoff
+          const maxRetries = 5;
+          if (retryCount < maxRetries) {
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
+            console.log(
+              `Retrying connection in ${delay}ms (attempt ${
+                retryCount + 1
+              }/${maxRetries})`
+            );
+
+            retryTimeoutRef.current = setTimeout(() => {
+              setRetryCount((prev) => prev + 1);
+            }, delay);
+          } else {
+            setConnectionStatus("Connection Failed - Max Retries Reached");
+          }
         } else {
-          setConnectionStatus("Connecting...");
+          setConnectionStatus(`Connecting... (${status})`);
         }
       });
 
     channelRef.current = channel;
 
-    // More aggressive fallback - assume connected after 1 second
-    const quickFallback = setTimeout(() => {
-      setIsConnected(true);
-      setConnectionStatus("Connected");
-    }, 1000);
+    // Fallback connection check
+    const fallbackTimeout = setTimeout(() => {
+      if (!isConnected) {
+        console.log("Fallback: Assuming connected after timeout");
+        setIsConnected(true);
+        setConnectionStatus("Connected (Fallback)");
+      }
+    }, 3000);
 
     return () => {
-      clearTimeout(quickFallback);
+      clearTimeout(fallbackTimeout);
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
       setIsConnected(false);
       setConnectionStatus("Disconnected");
     };
-  }, [roomName, username, onMessage]);
+  }, [roomName, username, onMessage, retryCount, isConnected]);
 
   const sendMessage = async (content) => {
     if (!content.trim() || !channelRef.current) return;
@@ -144,12 +209,18 @@ const useRealtimeChat = (roomName, username, onMessage) => {
       createdAt: new Date().toISOString(),
     };
 
-    // Send the message via broadcast
-    await channelRef.current.send({
-      type: "broadcast",
-      event: "message",
-      payload: message,
-    });
+    try {
+      // Send the message via broadcast
+      await channelRef.current.send({
+        type: "broadcast",
+        event: "message",
+        payload: message,
+      });
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      // Add message to local state even if broadcast fails
+      setMessages((prev) => [...prev, message]);
+    }
   };
 
   return { messages, sendMessage, isConnected, connectionStatus, setMessages };
@@ -165,6 +236,8 @@ const RealtimeChat = ({
   const { messages, sendMessage, isConnected, connectionStatus, setMessages } =
     useRealtimeChat(roomName, username, onMessage);
   const [newMessage, setNewMessage] = useState("");
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionTestResult, setConnectionTestResult] = useState(null);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -189,6 +262,30 @@ const RealtimeChat = ({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage(e);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setConnectionTestResult(null);
+
+    try {
+      const result = await diagnoseSupabaseIssues();
+      setConnectionTestResult(result);
+
+      if (result.connection?.success) {
+        console.log("✅ Connection test successful");
+      } else {
+        console.error("❌ Connection test failed:", result);
+      }
+    } catch (error) {
+      console.error("Connection test error:", error);
+      setConnectionTestResult({
+        success: false,
+        error: error.message,
+      });
+    } finally {
+      setTestingConnection(false);
     }
   };
 
@@ -225,12 +322,65 @@ const RealtimeChat = ({
                 </>
               )}
             </h2>
-            <p style={{ fontSize: 13, color: "#888", margin: 0 }}>
+            <p
+              style={{
+                fontSize: 13,
+                color:
+                  connectionStatus.includes("Error") ||
+                  connectionStatus.includes("Failed")
+                    ? "#ef4444"
+                    : connectionStatus.includes("Connected")
+                    ? "#10b981"
+                    : "#888",
+                margin: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background:
+                    connectionStatus.includes("Error") ||
+                    connectionStatus.includes("Failed")
+                      ? "#ef4444"
+                      : connectionStatus.includes("Connected")
+                      ? "#10b981"
+                      : "#f59e0b",
+                  animation: connectionStatus.includes("Connecting")
+                    ? "pulse 2s infinite"
+                    : "none",
+                }}
+              />
               {connectionStatus}
             </p>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            onClick={handleTestConnection}
+            disabled={testingConnection}
+            style={{
+              background: "transparent",
+              border: "1px solid #e5e7eb",
+              borderRadius: 6,
+              padding: "6px 12px",
+              fontSize: 12,
+              color: "#64748b",
+              cursor: testingConnection ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              opacity: testingConnection ? 0.6 : 1,
+            }}
+            title="Test Supabase Connection"
+          >
+            <Wifi size={14} />
+            {testingConnection ? "Testing..." : "Test Connection"}
+          </button>
           <div
             style={{
               width: 12,
@@ -241,6 +391,49 @@ const RealtimeChat = ({
           />
         </div>
       </div>
+      {/* Connection Test Results */}
+      {connectionTestResult && (
+        <div
+          style={{
+            background: connectionTestResult.connection?.success
+              ? "#f0fdf4"
+              : "#fef2f2",
+            border: `1px solid ${
+              connectionTestResult.connection?.success ? "#bbf7d0" : "#fecaca"
+            }`,
+            borderRadius: 8,
+            margin: "0 2rem",
+            padding: "12px 16px",
+            fontSize: 13,
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>
+            {connectionTestResult.connection?.success
+              ? "✅ Connection Test Successful"
+              : "❌ Connection Test Failed"}
+          </div>
+          {connectionTestResult.connection?.error && (
+            <div style={{ color: "#dc2626", marginBottom: 8 }}>
+              Error: {connectionTestResult.connection.error}
+            </div>
+          )}
+          {connectionTestResult.recommendations &&
+            connectionTestResult.recommendations.length > 0 && (
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  Recommendations:
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 16 }}>
+                  {connectionTestResult.recommendations.map((rec, index) => (
+                    <li key={index} style={{ marginBottom: 2 }}>
+                      {rec}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+        </div>
+      )}
       {/* Messages Container */}
       <div className="realtime-chat-messages">
         {messages.length === 0 ? (

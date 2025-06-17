@@ -16,101 +16,305 @@ import {
 
 // Mac Setup Screenshot Component
 const MacSetupScreenshot = () => (
-  <div className="bg-gray-100 rounded-lg p-4 border">
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden max-w-full">
+  <div
+    style={{
+      background: "#f5f5f7",
+      borderRadius: "12px",
+      padding: "20px",
+      border: "1px solid #e1e1e1",
+      position: "relative",
+    }}
+  >
+    <div
+      style={{
+        background: "white",
+        borderRadius: "12px",
+        boxShadow: "0 8px 30px rgba(0,0,0,0.12)",
+        overflow: "hidden",
+        maxWidth: "100%",
+      }}
+    >
       {/* Mac Finder Window */}
-      <div className="bg-gradient-to-b from-gray-100 to-gray-200 px-4 py-3 border-b flex items-center">
-        <div className="flex space-x-2 mr-4">
-          <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-          <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+      <div
+        style={{
+          background: "linear-gradient(to bottom, #f7f7f7, #e8e8e8)",
+          padding: "12px 16px",
+          borderBottom: "1px solid #d1d1d6",
+          display: "flex",
+          alignItems: "center",
+        }}
+      >
+        <div style={{ display: "flex", gap: "8px", marginRight: "16px" }}>
+          <div
+            style={{
+              width: "12px",
+              height: "12px",
+              background: "#ff5f57",
+              borderRadius: "50%",
+            }}
+          ></div>
+          <div
+            style={{
+              width: "12px",
+              height: "12px",
+              background: "#ffbd2e",
+              borderRadius: "50%",
+            }}
+          ></div>
+          <div
+            style={{
+              width: "12px",
+              height: "12px",
+              background: "#28ca42",
+              borderRadius: "50%",
+            }}
+          ></div>
         </div>
-        <div className="text-sm font-medium text-gray-700">
+        <div
+          style={{
+            fontSize: "14px",
+            fontWeight: "500",
+            color: "#333",
+            flex: 1,
+            textAlign: "center",
+          }}
+        >
           Claude — Application Support
         </div>
       </div>
 
       {/* Toolbar */}
-      <div className="bg-gray-50 px-4 py-2 border-b flex items-center space-x-2">
-        <div className="flex space-x-1">
-          <button className="w-6 h-6 bg-gray-200 rounded text-xs flex items-center justify-center">
+      <div
+        style={{
+          background: "#f7f7f7",
+          padding: "8px 16px",
+          borderBottom: "1px solid #e5e5e5",
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+        }}
+      >
+        <div style={{ display: "flex", gap: "4px" }}>
+          <button
+            style={{
+              width: "24px",
+              height: "24px",
+              borderRadius: "4px",
+              background: "#e5e5e5",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "12px",
+            }}
+          >
             ←
           </button>
-          <button className="w-6 h-6 bg-gray-200 rounded text-xs flex items-center justify-center">
+          <button
+            style={{
+              width: "24px",
+              height: "24px",
+              borderRadius: "4px",
+              background: "#e5e5e5",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "12px",
+            }}
+          >
             →
           </button>
         </div>
-        <div className="bg-white border rounded px-3 py-1 text-sm text-gray-600 flex-1">
+        <div
+          style={{
+            background: "white",
+            border: "1px solid #d1d1d6",
+            borderRadius: "6px",
+            padding: "4px 8px",
+            fontSize: "12px",
+            flex: 1,
+            color: "#666",
+          }}
+        >
           ~/Library/Application Support/Claude
         </div>
-        <div className="bg-white border rounded px-3 py-1 text-sm w-32">
-          <Search size={12} className="inline mr-1" />
-          Search
+        <div
+          style={{
+            background: "white",
+            border: "1px solid #d1d1d6",
+            borderRadius: "6px",
+            padding: "4px 8px",
+            width: "120px",
+            fontSize: "12px",
+            color: "#666",
+          }}
+        >
+          🔍 Search
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex">
+      <div style={{ display: "flex" }}>
         {/* Sidebar */}
-        <div className="w-48 bg-gray-50 border-r p-3">
-          <div className="space-y-1 text-sm">
-            <div className="text-xs text-gray-500 font-semibold mb-2">
+        <div
+          style={{
+            width: "180px",
+            background: "#f7f7f7",
+            borderRight: "1px solid #e5e5e5",
+            padding: "12px 0",
+          }}
+        >
+          <div style={{ marginBottom: "16px" }}>
+            <div
+              style={{
+                fontSize: "11px",
+                fontWeight: "600",
+                color: "#666",
+                padding: "0 16px 8px",
+                textTransform: "uppercase",
+              }}
+            >
               FAVORITES
             </div>
-            <div className="py-1 px-2 hover:bg-gray-200 rounded">
-              📱 AirDrop
-            </div>
-            <div className="py-1 px-2 hover:bg-gray-200 rounded">
-              🔄 Recents
-            </div>
-            <div className="py-1 px-2 hover:bg-gray-200 rounded">
-              📊 Applications
-            </div>
-            <div className="py-1 px-2 hover:bg-gray-200 rounded">
-              🏠 Desktop
-            </div>
-            <div className="py-1 px-2 hover:bg-gray-200 rounded">
-              📁 Documents
-            </div>
-            <div className="text-xs text-gray-500 font-semibold mt-4 mb-2">
+            {[
+              "📱 AirDrop",
+              "🔄 Recents",
+              "📊 Applications",
+              "🏠 Desktop",
+              "📁 Documents",
+            ].map((item, i) => (
+              <div
+                key={i}
+                style={{
+                  padding: "6px 16px",
+                  fontSize: "13px",
+                  color: "#333",
+                  cursor: "pointer",
+                }}
+              >
+                {item}
+              </div>
+            ))}
+            <div
+              style={{
+                fontSize: "11px",
+                fontWeight: "600",
+                color: "#666",
+                padding: "16px 16px 8px",
+                textTransform: "uppercase",
+              }}
+            >
               LOCATIONS
             </div>
-            <div className="py-1 px-2 bg-blue-100 text-blue-800 rounded">
+            <div
+              style={{
+                padding: "6px 16px",
+                fontSize: "13px",
+                background: "#007aff",
+                color: "white",
+              }}
+            >
               💻 Macintosh HD
             </div>
           </div>
         </div>
 
         {/* File Area */}
-        <div className="flex-1 p-4">
-          <div className="text-xs text-gray-500 mb-3 bg-gray-100 px-2 py-1 rounded">
-            Home > Library > Application Support > Claude
+        <div style={{ flex: 1, padding: "20px" }}>
+          <div
+            style={{
+              fontSize: "11px",
+              color: "#666",
+              marginBottom: "16px",
+              padding: "8px 12px",
+              background: "#f7f7f7",
+              borderRadius: "6px",
+            }}
+          >
+            Home › Library › Application Support › Claude
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: "16px",
+            }}
+          >
             {/* Highlighted config file */}
-            <div className="text-center p-3 bg-yellow-100 border-2 border-yellow-400 rounded-lg animate-pulse">
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg mx-auto mb-2 flex items-center justify-center text-white text-lg">
+            <div
+              style={{
+                textAlign: "center",
+                padding: "12px",
+                background: "#fff3cd",
+                border: "2px solid #ffc107",
+                borderRadius: "8px",
+                animation: "pulse 2s infinite",
+              }}
+            >
+              <div
+                style={{
+                  width: "48px",
+                  height: "48px",
+                  background: "linear-gradient(135deg, #667eea, #764ba2)",
+                  borderRadius: "8px",
+                  margin: "0 auto 8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "white",
+                  fontSize: "20px",
+                }}
+              >
                 📄
               </div>
-              <div className="text-xs font-medium">
+              <div style={{ fontSize: "12px", fontWeight: "bold" }}>
                 claude_desktop_config.json
               </div>
             </div>
 
             {/* Other files */}
-            <div className="text-center p-3">
-              <div className="w-12 h-12 bg-gray-300 rounded-lg mx-auto mb-2 flex items-center justify-center text-gray-600">
+            <div style={{ textAlign: "center", padding: "12px" }}>
+              <div
+                style={{
+                  width: "48px",
+                  height: "48px",
+                  background: "#e5e5e5",
+                  borderRadius: "8px",
+                  margin: "0 auto 8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#666",
+                  fontSize: "20px",
+                }}
+              >
                 📁
               </div>
-              <div className="text-xs">logs</div>
+              <div style={{ fontSize: "12px" }}>logs</div>
             </div>
 
-            <div className="text-center p-3">
-              <div className="w-12 h-12 bg-gray-300 rounded-lg mx-auto mb-2 flex items-center justify-center text-gray-600">
+            <div style={{ textAlign: "center", padding: "12px" }}>
+              <div
+                style={{
+                  width: "48px",
+                  height: "48px",
+                  background: "#e5e5e5",
+                  borderRadius: "8px",
+                  margin: "0 auto 8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#666",
+                  fontSize: "20px",
+                }}
+              >
                 📄
               </div>
-              <div className="text-xs">preferences.plist</div>
+              <div style={{ fontSize: "12px" }}>preferences.plist</div>
             </div>
           </div>
         </div>
@@ -118,7 +322,20 @@ const MacSetupScreenshot = () => (
     </div>
 
     {/* Instruction overlay */}
-    <div className="absolute top-2 right-2 bg-black bg-opacity-80 text-white p-3 rounded-lg text-sm max-w-xs">
+    <div
+      style={{
+        position: "absolute",
+        top: "20px",
+        right: "20px",
+        background: "rgba(0, 0, 0, 0.85)",
+        color: "white",
+        padding: "16px",
+        borderRadius: "8px",
+        fontSize: "14px",
+        maxWidth: "280px",
+        lineHeight: "1.4",
+      }}
+    >
       ✅ Perfect! Your config file is in the right place.
     </div>
   </div>
@@ -126,137 +343,339 @@ const MacSetupScreenshot = () => (
 
 // Windows Setup Screenshot Component
 const WindowsSetupScreenshot = () => (
-  <div className="bg-gray-100 rounded-lg p-4 border">
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden max-w-full">
+  <div
+    style={{
+      background: "#f3f3f3",
+      borderRadius: "8px",
+      padding: "20px",
+      border: "1px solid #ccc",
+      position: "relative",
+    }}
+  >
+    <div
+      style={{
+        background: "white",
+        borderRadius: "8px",
+        boxShadow: "0 8px 30px rgba(0,0,0,0.12)",
+        overflow: "hidden",
+        maxWidth: "100%",
+      }}
+    >
       {/* Windows File Explorer */}
-      <div className="bg-white px-4 py-2 border-b flex items-center justify-between">
-        <div className="flex items-center">
-          <div className="w-4 h-4 bg-blue-500 rounded-sm mr-2 flex items-center justify-center text-white text-xs">
+      <div
+        style={{
+          background: "white",
+          padding: "12px 16px",
+          borderBottom: "1px solid #e5e5e5",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <div
+            style={{
+              width: "16px",
+              height: "16px",
+              background: "#0078d4",
+              marginRight: "8px",
+              borderRadius: "2px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "white",
+              fontSize: "10px",
+            }}
+          >
             📁
           </div>
-          <div className="text-sm font-medium">Claude - File Explorer</div>
+          <div style={{ fontSize: "14px", fontWeight: "500" }}>
+            Claude - File Explorer
+          </div>
         </div>
-        <div className="flex">
-          <button className="w-8 h-6 hover:bg-gray-100 text-xs">─</button>
-          <button className="w-8 h-6 hover:bg-gray-100 text-xs">☐</button>
-          <button className="w-8 h-6 hover:bg-red-500 hover:text-white text-xs">
+        <div style={{ display: "flex" }}>
+          <button
+            style={{
+              width: "32px",
+              height: "24px",
+              border: "none",
+              background: "transparent",
+              fontSize: "12px",
+            }}
+          >
+            ─
+          </button>
+          <button
+            style={{
+              width: "32px",
+              height: "24px",
+              border: "none",
+              background: "transparent",
+              fontSize: "12px",
+            }}
+          >
+            ☐
+          </button>
+          <button
+            style={{
+              width: "32px",
+              height: "24px",
+              border: "none",
+              background: "transparent",
+              fontSize: "12px",
+            }}
+          >
             ✕
           </button>
         </div>
       </div>
 
-      {/* Ribbon */}
-      <div className="bg-gray-50 px-4 py-2 border-b">
-        <div className="flex space-x-4 mb-2 text-sm">
-          <div className="bg-blue-500 text-white px-3 py-1 rounded">Home</div>
-          <div className="text-gray-600 px-3 py-1">Share</div>
-          <div className="text-gray-600 px-3 py-1">View</div>
-        </div>
-        <div className="flex space-x-2 text-xs">
-          <button className="bg-white border px-2 py-1 rounded">📋 Copy</button>
-          <button className="bg-white border px-2 py-1 rounded">
-            📁 New folder
-          </button>
-          <button className="bg-white border px-2 py-1 rounded">
-            🗑️ Delete
-          </button>
-        </div>
-      </div>
-
       {/* Address Bar */}
-      <div className="bg-white px-4 py-2 border-b flex items-center space-x-2">
-        <div className="flex space-x-1">
-          <button className="w-6 h-6 border bg-gray-50 rounded text-xs">
+      <div
+        style={{
+          background: "white",
+          padding: "8px 16px",
+          borderBottom: "1px solid #e5e5e5",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+        }}
+      >
+        <div style={{ display: "flex", gap: "2px" }}>
+          <button
+            style={{
+              width: "28px",
+              height: "28px",
+              border: "1px solid #e5e5e5",
+              background: "white",
+              borderRadius: "4px",
+              fontSize: "12px",
+            }}
+          >
             ←
           </button>
-          <button className="w-6 h-6 border bg-gray-50 rounded text-xs">
+          <button
+            style={{
+              width: "28px",
+              height: "28px",
+              border: "1px solid #e5e5e5",
+              background: "white",
+              borderRadius: "4px",
+              fontSize: "12px",
+            }}
+          >
             →
           </button>
-          <button className="w-6 h-6 border bg-gray-50 rounded text-xs">
+          <button
+            style={{
+              width: "28px",
+              height: "28px",
+              border: "1px solid #e5e5e5",
+              background: "white",
+              borderRadius: "4px",
+              fontSize: "12px",
+            }}
+          >
             ↑
           </button>
         </div>
-        <div className="bg-white border rounded px-3 py-1 text-sm flex-1">
+        <div
+          style={{
+            flex: 1,
+            padding: "6px 12px",
+            border: "1px solid #e5e5e5",
+            borderRadius: "4px",
+            fontSize: "13px",
+            background: "white",
+          }}
+        >
           C:\Users\%USERNAME%\AppData\Roaming\Claude
         </div>
-        <div className="bg-white border rounded px-3 py-1 text-sm w-32">
+        <div
+          style={{
+            width: "150px",
+            padding: "6px 12px",
+            border: "1px solid #e5e5e5",
+            borderRadius: "4px",
+            fontSize: "13px",
+          }}
+        >
           Search Claude
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex">
+      <div style={{ display: "flex" }}>
         {/* Sidebar */}
-        <div className="w-48 bg-gray-50 border-r p-3">
-          <div className="space-y-1 text-sm">
-            <div className="text-xs text-gray-500 font-semibold mb-2">
+        <div
+          style={{
+            width: "200px",
+            background: "#f8f9fa",
+            borderRight: "1px solid #e5e5e5",
+            padding: "12px 0",
+          }}
+        >
+          <div style={{ marginBottom: "16px" }}>
+            <div
+              style={{
+                fontSize: "12px",
+                fontWeight: "600",
+                color: "#666",
+                padding: "0 16px 8px",
+                textTransform: "uppercase",
+              }}
+            >
               QUICK ACCESS
             </div>
-            <div className="py-1 px-2 hover:bg-blue-100 rounded">
-              🏠 Desktop
-            </div>
-            <div className="py-1 px-2 hover:bg-blue-100 rounded">
-              ⬇️ Downloads
-            </div>
-            <div className="py-1 px-2 hover:bg-blue-100 rounded">
-              📄 Documents
-            </div>
-            <div className="text-xs text-gray-500 font-semibold mt-4 mb-2">
+            {["🏠 Desktop", "⬇️ Downloads", "📄 Documents"].map((item, i) => (
+              <div
+                key={i}
+                style={{
+                  padding: "8px 16px",
+                  fontSize: "13px",
+                  color: "#333",
+                }}
+              >
+                {item}
+              </div>
+            ))}
+            <div
+              style={{
+                fontSize: "12px",
+                fontWeight: "600",
+                color: "#666",
+                padding: "16px 16px 8px",
+                textTransform: "uppercase",
+              }}
+            >
               THIS PC
             </div>
-            <div className="py-1 px-2 bg-blue-100 border-l-2 border-blue-500">
+            <div
+              style={{
+                padding: "8px 16px",
+                fontSize: "13px",
+                background: "#cce8ff",
+                borderLeft: "3px solid #0078d4",
+              }}
+            >
               💾 Local Disk (C:)
             </div>
           </div>
         </div>
 
         {/* File Area */}
-        <div className="flex-1">
-          <div className="bg-gray-50 px-4 py-3 border-b">
-            <div className="text-xs text-gray-500">
-              This PC > Local Disk (C:) > Users > AppData > Roaming
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid #e5e5e5",
+              background: "#fafafa",
+            }}
+          >
+            <div
+              style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}
+            >
+              This PC › Local Disk (C:) › Users › AppData › Roaming
             </div>
-            <div className="text-lg font-semibold">Claude</div>
+            <div style={{ fontSize: "18px", fontWeight: "600", color: "#333" }}>
+              Claude
+            </div>
           </div>
 
-          <div className="p-4">
-            <div className="flex justify-between items-center mb-4 text-sm">
-              <div className="text-gray-600">3 items</div>
-              <div className="flex space-x-1">
-                <button className="w-6 h-6 bg-blue-500 text-white text-xs">
-                  ⊞
-                </button>
-                <button className="w-6 h-6 border text-xs">≡</button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
+          <div style={{ padding: "20px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "16px",
+              }}
+            >
               {/* Highlighted config file */}
-              <div className="text-center p-3 bg-orange-100 border-2 border-orange-400 rounded-lg animate-pulse">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-700 rounded mx-auto mb-2 flex items-center justify-center text-white text-lg">
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "16px 8px",
+                  background: "#fff3cd",
+                  border: "2px solid #ff6b35",
+                  borderRadius: "6px",
+                  animation: "pulse 2s infinite",
+                }}
+              >
+                <div
+                  style={{
+                    width: "56px",
+                    height: "56px",
+                    background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+                    borderRadius: "6px",
+                    margin: "0 auto 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "white",
+                    fontSize: "24px",
+                  }}
+                >
                   📄
                 </div>
-                <div className="text-xs font-medium">
+                <div style={{ fontSize: "13px", fontWeight: "bold" }}>
                   claude_desktop_config.json
                 </div>
-                <div className="text-xs text-gray-500">2 KB • JSON File</div>
+                <div
+                  style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}
+                >
+                  2 KB • JSON File
+                </div>
               </div>
 
               {/* Other files */}
-              <div className="text-center p-3">
-                <div className="w-12 h-12 bg-yellow-400 rounded mx-auto mb-2 flex items-center justify-center text-yellow-800">
+              <div style={{ textAlign: "center", padding: "16px 8px" }}>
+                <div
+                  style={{
+                    width: "56px",
+                    height: "56px",
+                    background: "#ffd700",
+                    borderRadius: "6px",
+                    margin: "0 auto 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#8b4513",
+                    fontSize: "24px",
+                  }}
+                >
                   📁
                 </div>
-                <div className="text-xs">logs</div>
-                <div className="text-xs text-gray-500">File folder</div>
+                <div style={{ fontSize: "13px" }}>logs</div>
+                <div
+                  style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}
+                >
+                  File folder
+                </div>
               </div>
 
-              <div className="text-center p-3">
-                <div className="w-12 h-12 bg-gray-300 rounded mx-auto mb-2 flex items-center justify-center text-gray-600">
+              <div style={{ textAlign: "center", padding: "16px 8px" }}>
+                <div
+                  style={{
+                    width: "56px",
+                    height: "56px",
+                    background: "#e5e5e5",
+                    borderRadius: "6px",
+                    margin: "0 auto 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#666",
+                    fontSize: "24px",
+                  }}
+                >
                   📄
                 </div>
-                <div className="text-xs">preferences.dat</div>
-                <div className="text-xs text-gray-500">1 KB • DAT File</div>
+                <div style={{ fontSize: "13px" }}>preferences.dat</div>
+                <div
+                  style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}
+                >
+                  1 KB • DAT File
+                </div>
               </div>
             </div>
           </div>
@@ -265,8 +684,22 @@ const WindowsSetupScreenshot = () => (
     </div>
 
     {/* Instruction overlay */}
-    <div className="absolute top-2 right-2 bg-black bg-opacity-80 text-white p-3 rounded-lg text-sm max-w-xs">
-      ✅ Perfect! Your config file is in the correct Windows location.
+    <div
+      style={{
+        position: "absolute",
+        top: "20px",
+        right: "20px",
+        background: "rgba(0, 0, 0, 0.85)",
+        color: "white",
+        padding: "20px",
+        borderRadius: "8px",
+        fontSize: "14px",
+        maxWidth: "300px",
+        lineHeight: "1.5",
+      }}
+    >
+      ✅ <strong>Perfect!</strong> Your config file is in the correct Windows
+      location.
     </div>
   </div>
 );
@@ -376,18 +809,6 @@ proxyServer.connect(transport);
     },
   };
 
-  // Auto-detect platform
-  useEffect(() => {
-    if (isOpen) {
-      const platform = navigator.platform.toLowerCase();
-      if (platform.includes("mac")) {
-        // Don't auto-select, let user choose
-      } else if (platform.includes("win")) {
-        // Don't auto-select, let user choose
-      }
-    }
-  }, [isOpen]);
-
   const downloadConfig = () => {
     try {
       const configText = JSON.stringify(mcpConfig, null, 2);
@@ -441,113 +862,270 @@ proxyServer.connect(transport);
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4"
       style={{
         position: "fixed",
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
+        backgroundColor: "rgba(0, 0, 0, 0.7)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
         zIndex: 999999,
-        backdropFilter: "blur(4px)",
+        backdropFilter: "blur(5px)",
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl max-w-4xl w-full max-h-[95vh] overflow-y-auto shadow-2xl"
         style={{
-          maxWidth: "900px",
-          width: "90%",
+          backgroundColor: "white",
+          borderRadius: "24px",
+          maxWidth: "1000px",
+          width: "100%",
           maxHeight: "95vh",
+          overflow: "auto",
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)",
           position: "relative",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex justify-between items-center p-8 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50">
-          <h1 className="text-3xl font-bold text-gray-800">
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "40px 50px",
+            borderBottom: "2px solid #f0f0f0",
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            color: "white",
+            borderRadius: "24px 24px 0 0",
+          }}
+        >
+          <h1
+            style={{
+              fontSize: "36px",
+              fontWeight: "bold",
+              margin: 0,
+              textShadow: "0 2px 4px rgba(0,0,0,0.3)",
+            }}
+          >
             Set Up Claude with Advanced Tools
           </h1>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors bg-white rounded-full p-2 shadow-lg hover:shadow-xl"
+            style={{
+              backgroundColor: "rgba(255, 255, 255, 0.2)",
+              border: "none",
+              borderRadius: "12px",
+              padding: "12px",
+              cursor: "pointer",
+              color: "white",
+              fontSize: "24px",
+              transition: "all 0.3s ease",
+              backdropFilter: "blur(10px)",
+            }}
+            onMouseOver={(e) =>
+              (e.target.style.backgroundColor = "rgba(255, 255, 255, 0.3)")
+            }
+            onMouseOut={(e) =>
+              (e.target.style.backgroundColor = "rgba(255, 255, 255, 0.2)")
+            }
           >
-            <X size={28} />
+            <X size={32} />
           </button>
         </div>
 
         {/* Progress Indicator */}
-        <div className="flex justify-center items-center p-6 bg-gradient-to-r from-gray-50 to-blue-50">
-          <div className="flex items-center space-x-6">
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: "30px",
+            background: "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "30px" }}>
             <div
-              className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all duration-300 ${
-                currentStep >= 1
-                  ? "bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg"
-                  : "bg-gray-300"
-              }`}
+              style={{
+                width: "60px",
+                height: "60px",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "white",
+                fontWeight: "bold",
+                fontSize: "24px",
+                background:
+                  currentStep >= 1
+                    ? "linear-gradient(135deg, #4CAF50, #45a049)"
+                    : "#cccccc",
+                boxShadow:
+                  currentStep >= 1
+                    ? "0 8px 20px rgba(76, 175, 80, 0.4)"
+                    : "none",
+                transition: "all 0.3s ease",
+              }}
             >
-              1
+              {currentStep > 1 ? "✓" : "1"}
             </div>
             <div
-              className={`w-12 h-1 rounded transition-all duration-300 ${
-                currentStep >= 2
-                  ? "bg-gradient-to-r from-blue-500 to-purple-600"
-                  : "bg-gray-300"
-              }`}
+              style={{
+                width: "60px",
+                height: "8px",
+                borderRadius: "4px",
+                background:
+                  currentStep >= 2
+                    ? "linear-gradient(90deg, #4CAF50, #45a049)"
+                    : "#cccccc",
+                transition: "all 0.3s ease",
+              }}
             ></div>
             <div
-              className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all duration-300 ${
-                currentStep >= 2
-                  ? "bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg"
-                  : "bg-gray-300"
-              }`}
+              style={{
+                width: "60px",
+                height: "60px",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "white",
+                fontWeight: "bold",
+                fontSize: "24px",
+                background:
+                  currentStep >= 2
+                    ? "linear-gradient(135deg, #2196F3, #1976D2)"
+                    : "#cccccc",
+                boxShadow:
+                  currentStep >= 2
+                    ? "0 8px 20px rgba(33, 150, 243, 0.4)"
+                    : "none",
+                transition: "all 0.3s ease",
+              }}
             >
-              2
+              {currentStep > 2 ? "✓" : "2"}
             </div>
             <div
-              className={`w-12 h-1 rounded transition-all duration-300 ${
-                currentStep >= 3
-                  ? "bg-gradient-to-r from-blue-500 to-purple-600"
-                  : "bg-gray-300"
-              }`}
+              style={{
+                width: "60px",
+                height: "8px",
+                borderRadius: "4px",
+                background:
+                  currentStep >= 3
+                    ? "linear-gradient(90deg, #2196F3, #1976D2)"
+                    : "#cccccc",
+                transition: "all 0.3s ease",
+              }}
             ></div>
             <div
-              className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg transition-all duration-300 ${
-                currentStep >= 3
-                  ? "bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg"
-                  : "bg-gray-300"
-              }`}
+              style={{
+                width: "60px",
+                height: "60px",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "white",
+                fontWeight: "bold",
+                fontSize: "24px",
+                background:
+                  currentStep >= 3
+                    ? "linear-gradient(135deg, #FF9800, #F57C00)"
+                    : "#cccccc",
+                boxShadow:
+                  currentStep >= 3
+                    ? "0 8px 20px rgba(255, 152, 0, 0.4)"
+                    : "none",
+                transition: "all 0.3s ease",
+              }}
             >
-              3
+              {currentStep > 3 ? "✓" : "3"}
             </div>
           </div>
         </div>
 
         {/* Content */}
-        <div className="p-10 min-h-[500px]">
+        <div style={{ padding: "50px" }}>
           {/* Step 1: Platform Selection */}
           {currentStep === 1 && (
-            <div className="text-center">
-              <h2 className="text-4xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <div style={{ textAlign: "center" }}>
+              <h2
+                style={{
+                  fontSize: "48px",
+                  fontWeight: "bold",
+                  marginBottom: "30px",
+                  background: "linear-gradient(135deg, #667eea, #764ba2)",
+                  backgroundClip: "text",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  lineHeight: "1.2",
+                }}
+              >
                 Choose Your Computer Type
               </h2>
-              <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto">
+              <p
+                style={{
+                  fontSize: "24px",
+                  color: "#666",
+                  marginBottom: "50px",
+                  lineHeight: "1.5",
+                  maxWidth: "600px",
+                  margin: "0 auto 50px",
+                }}
+              >
                 This will help us give you the right instructions for your
                 system
               </p>
 
-              <div className="space-y-6 max-w-lg mx-auto">
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "30px",
+                  maxWidth: "600px",
+                  margin: "0 auto",
+                }}
+              >
                 <button
                   onClick={() => {
                     setSelectedPlatform("mac");
                     setCurrentStep(2);
                   }}
-                  className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-2xl p-8 text-2xl font-bold hover:from-blue-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 hover:shadow-2xl flex items-center justify-center space-x-4 group"
+                  style={{
+                    background: "linear-gradient(135deg, #667eea, #764ba2)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "20px",
+                    padding: "30px 40px",
+                    fontSize: "28px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "20px",
+                    transition: "all 0.3s ease",
+                    boxShadow: "0 8px 30px rgba(102, 126, 234, 0.3)",
+                    transform: "scale(1)",
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.transform = "scale(1.05)";
+                    e.target.style.boxShadow =
+                      "0 12px 40px rgba(102, 126, 234, 0.5)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.transform = "scale(1)";
+                    e.target.style.boxShadow =
+                      "0 8px 30px rgba(102, 126, 234, 0.3)";
+                  }}
                 >
-                  <Apple
-                    size={40}
-                    className="group-hover:scale-110 transition-transform"
-                  />
+                  <Apple size={48} />
                   <span>Mac Computer</span>
                 </button>
 
@@ -556,12 +1134,35 @@ proxyServer.connect(transport);
                     setSelectedPlatform("windows");
                     setCurrentStep(2);
                   }}
-                  className="w-full bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-2xl p-8 text-2xl font-bold hover:from-green-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 hover:shadow-2xl flex items-center justify-center space-x-4 group"
+                  style={{
+                    background: "linear-gradient(135deg, #4CAF50, #45a049)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "20px",
+                    padding: "30px 40px",
+                    fontSize: "28px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "20px",
+                    transition: "all 0.3s ease",
+                    boxShadow: "0 8px 30px rgba(76, 175, 80, 0.3)",
+                    transform: "scale(1)",
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.transform = "scale(1.05)";
+                    e.target.style.boxShadow =
+                      "0 12px 40px rgba(76, 175, 80, 0.5)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.transform = "scale(1)";
+                    e.target.style.boxShadow =
+                      "0 8px 30px rgba(76, 175, 80, 0.3)";
+                  }}
                 >
-                  <Monitor
-                    size={40}
-                    className="group-hover:scale-110 transition-transform"
-                  />
+                  <Monitor size={48} />
                   <span>Windows Computer</span>
                 </button>
 
@@ -570,12 +1171,35 @@ proxyServer.connect(transport);
                     setSelectedPlatform("configured");
                     setCurrentStep(4);
                   }}
-                  className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-2xl p-8 text-2xl font-bold hover:from-emerald-600 hover:to-teal-700 transition-all duration-300 transform hover:scale-105 hover:shadow-2xl flex items-center justify-center space-x-4 group"
+                  style={{
+                    background: "linear-gradient(135deg, #FF9800, #F57C00)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "20px",
+                    padding: "30px 40px",
+                    fontSize: "28px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "20px",
+                    transition: "all 0.3s ease",
+                    boxShadow: "0 8px 30px rgba(255, 152, 0, 0.3)",
+                    transform: "scale(1)",
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.transform = "scale(1.05)";
+                    e.target.style.boxShadow =
+                      "0 12px 40px rgba(255, 152, 0, 0.5)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.transform = "scale(1)";
+                    e.target.style.boxShadow =
+                      "0 8px 30px rgba(255, 152, 0, 0.3)";
+                  }}
                 >
-                  <CheckCircle
-                    size={40}
-                    className="group-hover:scale-110 transition-transform"
-                  />
+                  <CheckCircle size={48} />
                   <span>Already Set Up</span>
                 </button>
               </div>
@@ -586,92 +1210,231 @@ proxyServer.connect(transport);
           {currentStep === 2 &&
             selectedPlatform &&
             selectedPlatform !== "configured" && (
-              <div className="text-center">
-                <h2 className="text-3xl font-bold mb-4">Download Setup File</h2>
-                <p className="text-lg text-gray-600 mb-8">
+              <div style={{ textAlign: "center" }}>
+                <h2
+                  style={{
+                    fontSize: "42px",
+                    fontWeight: "bold",
+                    marginBottom: "20px",
+                    color: "#333",
+                  }}
+                >
+                  Download Setup File
+                </h2>
+                <p
+                  style={{
+                    fontSize: "22px",
+                    color: "#666",
+                    marginBottom: "40px",
+                    lineHeight: "1.5",
+                  }}
+                >
                   We'll create a special file that tells Claude how to connect
                   to your tools
                 </p>
 
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-8 mb-10 border border-blue-200">
-                  <h3 className="text-2xl font-bold mb-6 text-center">
+                <div
+                  style={{
+                    background: "linear-gradient(135deg, #e3f2fd, #bbdefb)",
+                    borderRadius: "20px",
+                    padding: "40px",
+                    marginBottom: "40px",
+                    border: "2px solid #2196F3",
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: "32px",
+                      fontWeight: "bold",
+                      marginBottom: "30px",
+                      color: "#1976D2",
+                    }}
+                  >
                     Step 1: Download the file
                   </h3>
-                  <div className="flex justify-center">
-                    <button
-                      onClick={downloadConfig}
-                      disabled={configDownloaded}
-                      className={`${
-                        configDownloaded
-                          ? "bg-gradient-to-r from-green-500 to-emerald-600"
-                          : "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
-                      } text-white rounded-2xl px-10 py-6 text-2xl font-bold transition-all duration-300 transform hover:scale-105 hover:shadow-2xl flex items-center space-x-4 disabled:transform-none`}
-                    >
-                      {configDownloaded ? (
-                        <>
-                          <CheckCircle size={32} />
-                          <span>Downloaded!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download size={32} />
-                          <span>Download Setup File</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                  <button
+                    onClick={downloadConfig}
+                    disabled={configDownloaded}
+                    style={{
+                      background: configDownloaded
+                        ? "linear-gradient(135deg, #4CAF50, #45a049)"
+                        : "linear-gradient(135deg, #2196F3, #1976D2)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "20px",
+                      padding: "25px 50px",
+                      fontSize: "28px",
+                      fontWeight: "bold",
+                      cursor: configDownloaded ? "default" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "20px",
+                      margin: "0 auto",
+                      transition: "all 0.3s ease",
+                      boxShadow: configDownloaded
+                        ? "0 8px 30px rgba(76, 175, 80, 0.4)"
+                        : "0 8px 30px rgba(33, 150, 243, 0.4)",
+                      transform: "scale(1)",
+                      opacity: configDownloaded ? 0.8 : 1,
+                    }}
+                    onMouseOver={(e) => {
+                      if (!configDownloaded) {
+                        e.target.style.transform = "scale(1.05)";
+                        e.target.style.boxShadow =
+                          "0 12px 40px rgba(33, 150, 243, 0.6)";
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      if (!configDownloaded) {
+                        e.target.style.transform = "scale(1)";
+                        e.target.style.boxShadow =
+                          "0 8px 30px rgba(33, 150, 243, 0.4)";
+                      }
+                    }}
+                  >
+                    {configDownloaded ? (
+                      <>
+                        <CheckCircle size={36} />
+                        <span>Downloaded Successfully!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download size={36} />
+                        <span>Download Setup File</span>
+                      </>
+                    )}
+                  </button>
                 </div>
 
                 {configDownloaded && (
-                  <div className="space-y-6">
-                    <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 mb-6">
-                      <h3 className="text-xl font-bold mb-4">
+                  <div style={{ marginBottom: "40px" }}>
+                    <div
+                      style={{
+                        background: "linear-gradient(135deg, #fff3e0, #ffcc02)",
+                        border: "3px solid #FF9800",
+                        borderRadius: "20px",
+                        padding: "40px",
+                        marginBottom: "30px",
+                      }}
+                    >
+                      <h3
+                        style={{
+                          fontSize: "32px",
+                          fontWeight: "bold",
+                          marginBottom: "25px",
+                          color: "#E65100",
+                        }}
+                      >
                         Step 2: Move the file to the right place
                       </h3>
 
                       {selectedPlatform === "mac" && (
-                        <div className="text-left space-y-3">
-                          <p className="font-semibold">On your Mac:</p>
-                          <ol className="list-decimal list-inside space-y-2 text-lg">
-                            <li>
+                        <div
+                          style={{
+                            textAlign: "left",
+                            fontSize: "20px",
+                            lineHeight: "1.8",
+                          }}
+                        >
+                          <p
+                            style={{
+                              fontWeight: "bold",
+                              fontSize: "24px",
+                              marginBottom: "20px",
+                            }}
+                          >
+                            On your Mac:
+                          </p>
+                          <ol style={{ paddingLeft: "30px", color: "#333" }}>
+                            <li style={{ marginBottom: "15px" }}>
                               Press{" "}
-                              <kbd className="bg-gray-200 px-2 py-1 rounded">
+                              <kbd
+                                style={{
+                                  backgroundColor: "#f0f0f0",
+                                  padding: "8px 12px",
+                                  borderRadius: "8px",
+                                  fontFamily: "monospace",
+                                  fontSize: "18px",
+                                  fontWeight: "bold",
+                                }}
+                              >
                                 Cmd + Shift + G
                               </kbd>{" "}
                               at the same time
                             </li>
-                            <li>
+                            <li style={{ marginBottom: "15px" }}>
                               Type:{" "}
-                              <code className="bg-gray-200 px-2 py-1 rounded">
+                              <code
+                                style={{
+                                  backgroundColor: "#f0f0f0",
+                                  padding: "8px 12px",
+                                  borderRadius: "8px",
+                                  fontFamily: "monospace",
+                                  fontSize: "16px",
+                                }}
+                              >
                                 ~/Library/Application Support/Claude/
                               </code>
                             </li>
-                            <li>Press Enter</li>
+                            <li style={{ marginBottom: "15px" }}>
+                              Press Enter
+                            </li>
                             <li>Drag the downloaded file into this folder</li>
                           </ol>
                         </div>
                       )}
 
                       {selectedPlatform === "windows" && (
-                        <div className="text-left space-y-3">
-                          <p className="font-semibold">
+                        <div
+                          style={{
+                            textAlign: "left",
+                            fontSize: "20px",
+                            lineHeight: "1.8",
+                          }}
+                        >
+                          <p
+                            style={{
+                              fontWeight: "bold",
+                              fontSize: "24px",
+                              marginBottom: "20px",
+                            }}
+                          >
                             On your Windows computer:
                           </p>
-                          <ol className="list-decimal list-inside space-y-2 text-lg">
-                            <li>
+                          <ol style={{ paddingLeft: "30px", color: "#333" }}>
+                            <li style={{ marginBottom: "15px" }}>
                               Press{" "}
-                              <kbd className="bg-gray-200 px-2 py-1 rounded">
+                              <kbd
+                                style={{
+                                  backgroundColor: "#f0f0f0",
+                                  padding: "8px 12px",
+                                  borderRadius: "8px",
+                                  fontFamily: "monospace",
+                                  fontSize: "18px",
+                                  fontWeight: "bold",
+                                }}
+                              >
                                 Windows + R
                               </kbd>{" "}
                               at the same time
                             </li>
-                            <li>
+                            <li style={{ marginBottom: "15px" }}>
                               Type:{" "}
-                              <code className="bg-gray-200 px-2 py-1 rounded">
+                              <code
+                                style={{
+                                  backgroundColor: "#f0f0f0",
+                                  padding: "8px 12px",
+                                  borderRadius: "8px",
+                                  fontFamily: "monospace",
+                                  fontSize: "16px",
+                                }}
+                              >
                                 %APPDATA%\Claude
                               </code>
                             </li>
-                            <li>Press Enter</li>
+                            <li style={{ marginBottom: "15px" }}>
+                              Press Enter
+                            </li>
                             <li>Drag the downloaded file into this folder</li>
                           </ol>
                         </div>
@@ -680,11 +1443,26 @@ proxyServer.connect(transport);
 
                     {/* Visual Screenshot */}
                     {showScreenshot && (
-                      <div className="bg-gray-50 rounded-xl p-6">
-                        <h3 className="text-xl font-bold mb-4 text-center">
+                      <div
+                        style={{
+                          background: "#f8f9fa",
+                          borderRadius: "20px",
+                          padding: "30px",
+                          border: "2px solid #dee2e6",
+                        }}
+                      >
+                        <h3
+                          style={{
+                            fontSize: "28px",
+                            fontWeight: "bold",
+                            marginBottom: "25px",
+                            textAlign: "center",
+                            color: "#495057",
+                          }}
+                        >
                           It should look like this:
                         </h3>
-                        <div className="relative">
+                        <div style={{ position: "relative" }}>
                           {selectedPlatform === "mac" && <MacSetupScreenshot />}
                           {selectedPlatform === "windows" && (
                             <WindowsSetupScreenshot />
@@ -695,22 +1473,70 @@ proxyServer.connect(transport);
                   </div>
                 )}
 
-                <div className="flex justify-between mt-8">
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginTop: "50px",
+                  }}
+                >
                   <button
                     onClick={() => setCurrentStep(1)}
-                    className="bg-gray-500 text-white rounded-xl px-6 py-3 font-bold hover:bg-gray-600 flex items-center space-x-2"
+                    style={{
+                      background: "linear-gradient(135deg, #6c757d, #495057)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "15px",
+                      padding: "20px 30px",
+                      fontSize: "20px",
+                      fontWeight: "bold",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      transition: "all 0.3s ease",
+                    }}
+                    onMouseOver={(e) =>
+                      (e.target.style.transform = "scale(1.05)")
+                    }
+                    onMouseOut={(e) => (e.target.style.transform = "scale(1)")}
                   >
-                    <ArrowLeft size={20} />
+                    <ArrowLeft size={24} />
                     <span>Back</span>
                   </button>
 
                   {configDownloaded && (
                     <button
                       onClick={() => setCurrentStep(3)}
-                      className="bg-blue-500 text-white rounded-xl px-6 py-3 font-bold hover:bg-blue-600 flex items-center space-x-2"
+                      style={{
+                        background: "linear-gradient(135deg, #28a745, #20c997)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "15px",
+                        padding: "20px 30px",
+                        fontSize: "20px",
+                        fontWeight: "bold",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        transition: "all 0.3s ease",
+                        boxShadow: "0 8px 25px rgba(40, 167, 69, 0.4)",
+                      }}
+                      onMouseOver={(e) => {
+                        e.target.style.transform = "scale(1.05)";
+                        e.target.style.boxShadow =
+                          "0 12px 35px rgba(40, 167, 69, 0.6)";
+                      }}
+                      onMouseOut={(e) => {
+                        e.target.style.transform = "scale(1)";
+                        e.target.style.boxShadow =
+                          "0 8px 25px rgba(40, 167, 69, 0.4)";
+                      }}
                     >
                       <span>Next Step</span>
-                      <ArrowRight size={20} />
+                      <ArrowRight size={24} />
                     </button>
                   )}
                 </div>
@@ -719,55 +1545,193 @@ proxyServer.connect(transport);
 
           {/* Step 3: Download Claude Desktop */}
           {currentStep === 3 && (
-            <div className="text-center">
-              <h2 className="text-3xl font-bold mb-4">
+            <div style={{ textAlign: "center" }}>
+              <h2
+                style={{
+                  fontSize: "42px",
+                  fontWeight: "bold",
+                  marginBottom: "20px",
+                  color: "#333",
+                }}
+              >
                 Download Claude Desktop
               </h2>
-              <p className="text-lg text-gray-600 mb-8">
+              <p
+                style={{
+                  fontSize: "22px",
+                  color: "#666",
+                  marginBottom: "40px",
+                  lineHeight: "1.5",
+                }}
+              >
                 Now let's get the Claude Desktop app installed on your computer
               </p>
 
-              <div className="bg-green-50 rounded-xl p-6 mb-8">
-                <div className="flex items-center justify-center space-x-3 mb-4">
-                  <CheckCircle size={32} className="text-green-500" />
-                  <span className="text-xl font-bold">
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #d4edda, #c3e6cb)",
+                  borderRadius: "20px",
+                  padding: "40px",
+                  marginBottom: "40px",
+                  border: "3px solid #28a745",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "20px",
+                    marginBottom: "30px",
+                  }}
+                >
+                  <CheckCircle size={48} style={{ color: "#28a745" }} />
+                  <span
+                    style={{
+                      fontSize: "32px",
+                      fontWeight: "bold",
+                      color: "#155724",
+                    }}
+                  >
                     Setup file is ready!
                   </span>
                 </div>
 
                 <button
                   onClick={downloadClaudeDesktop}
-                  className="bg-green-500 text-white rounded-xl px-8 py-4 text-xl font-bold hover:bg-green-600 transition-all flex items-center space-x-3 mx-auto"
+                  style={{
+                    background: "linear-gradient(135deg, #28a745, #20c997)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "20px",
+                    padding: "25px 50px",
+                    fontSize: "28px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "20px",
+                    margin: "0 auto",
+                    transition: "all 0.3s ease",
+                    boxShadow: "0 8px 30px rgba(40, 167, 69, 0.4)",
+                    transform: "scale(1)",
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.transform = "scale(1.05)";
+                    e.target.style.boxShadow =
+                      "0 12px 40px rgba(40, 167, 69, 0.6)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.transform = "scale(1)";
+                    e.target.style.boxShadow =
+                      "0 8px 30px rgba(40, 167, 69, 0.4)";
+                  }}
                 >
-                  <Smartphone size={24} />
+                  <Smartphone size={36} />
                   <span>Download Claude Desktop</span>
                 </button>
               </div>
 
-              <div className="bg-blue-50 rounded-xl p-6 mb-6">
-                <h3 className="text-xl font-bold mb-4">What to do next:</h3>
-                <ol className="list-decimal list-inside space-y-2 text-lg text-left max-w-md mx-auto">
-                  <li>Install Claude Desktop from the download</li>
-                  <li>Open Claude Desktop</li>
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #e3f2fd, #bbdefb)",
+                  borderRadius: "20px",
+                  padding: "40px",
+                  marginBottom: "40px",
+                  border: "2px solid #2196F3",
+                }}
+              >
+                <h3
+                  style={{
+                    fontSize: "28px",
+                    fontWeight: "bold",
+                    marginBottom: "25px",
+                    color: "#1976D2",
+                  }}
+                >
+                  What to do next:
+                </h3>
+                <ol
+                  style={{
+                    fontSize: "22px",
+                    textAlign: "left",
+                    lineHeight: "1.8",
+                    maxWidth: "500px",
+                    margin: "0 auto",
+                    paddingLeft: "30px",
+                    color: "#333",
+                  }}
+                >
+                  <li style={{ marginBottom: "15px" }}>
+                    Install Claude Desktop from the download
+                  </li>
+                  <li style={{ marginBottom: "15px" }}>Open Claude Desktop</li>
                   <li>Your advanced tools will be ready to use! 🎉</li>
                 </ol>
               </div>
 
-              <div className="flex justify-between">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <button
                   onClick={() => setCurrentStep(2)}
-                  className="bg-gray-500 text-white rounded-xl px-6 py-3 font-bold hover:bg-gray-600 flex items-center space-x-2"
+                  style={{
+                    background: "linear-gradient(135deg, #6c757d, #495057)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "15px",
+                    padding: "20px 30px",
+                    fontSize: "20px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    transition: "all 0.3s ease",
+                  }}
+                  onMouseOver={(e) =>
+                    (e.target.style.transform = "scale(1.05)")
+                  }
+                  onMouseOut={(e) => (e.target.style.transform = "scale(1)")}
                 >
-                  <ArrowLeft size={20} />
+                  <ArrowLeft size={24} />
                   <span>Back</span>
                 </button>
 
                 <button
                   onClick={() => setCurrentStep(4)}
-                  className="bg-blue-500 text-white rounded-xl px-6 py-3 font-bold hover:bg-blue-600 flex items-center space-x-2"
+                  style={{
+                    background: "linear-gradient(135deg, #FF9800, #F57C00)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "15px",
+                    padding: "20px 30px",
+                    fontSize: "20px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    transition: "all 0.3s ease",
+                    boxShadow: "0 8px 25px rgba(255, 152, 0, 0.4)",
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.transform = "scale(1.05)";
+                    e.target.style.boxShadow =
+                      "0 12px 35px rgba(255, 152, 0, 0.6)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.transform = "scale(1)";
+                    e.target.style.boxShadow =
+                      "0 8px 25px rgba(255, 152, 0, 0.4)";
+                  }}
                 >
                   <span>I'm Done!</span>
-                  <ArrowRight size={20} />
+                  <ArrowRight size={24} />
                 </button>
               </div>
             </div>
@@ -775,30 +1739,106 @@ proxyServer.connect(transport);
 
           {/* Step 4: Launch Claude */}
           {currentStep === 4 && (
-            <div className="text-center">
-              <h2 className="text-3xl font-bold mb-4">🎉 You're All Set!</h2>
-              <p className="text-lg text-gray-600 mb-8">
+            <div style={{ textAlign: "center" }}>
+              <h2
+                style={{
+                  fontSize: "48px",
+                  fontWeight: "bold",
+                  marginBottom: "20px",
+                  color: "#333",
+                }}
+              >
+                🎉 You're All Set!
+              </h2>
+              <p
+                style={{
+                  fontSize: "24px",
+                  color: "#666",
+                  marginBottom: "40px",
+                  lineHeight: "1.5",
+                }}
+              >
                 Claude Desktop is ready with your advanced research tools
               </p>
 
-              <div className="bg-purple-50 rounded-xl p-6 mb-8">
-                <h3 className="text-xl font-bold mb-4">
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #f3e5f5, #e1bee7)",
+                  borderRadius: "20px",
+                  padding: "40px",
+                  marginBottom: "40px",
+                  border: "3px solid #9c27b0",
+                }}
+              >
+                <h3
+                  style={{
+                    fontSize: "32px",
+                    fontWeight: "bold",
+                    marginBottom: "25px",
+                    color: "#7b1fa2",
+                  }}
+                >
                   Your new superpowers:
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-                  <div className="bg-white rounded-lg p-4">
-                    <div className="font-bold text-blue-600">
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "25px",
+                    textAlign: "left",
+                  }}
+                >
+                  <div
+                    style={{
+                      background: "white",
+                      borderRadius: "15px",
+                      padding: "25px",
+                      boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: "bold",
+                        color: "#2196F3",
+                        fontSize: "20px",
+                        marginBottom: "8px",
+                      }}
+                    >
                       🔍 Smart Dropbox Search
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div
+                      style={{
+                        fontSize: "16px",
+                        color: "#666",
+                      }}
+                    >
                       Find any image or file instantly
                     </div>
                   </div>
-                  <div className="bg-white rounded-lg p-4">
-                    <div className="font-bold text-green-600">
+                  <div
+                    style={{
+                      background: "white",
+                      borderRadius: "15px",
+                      padding: "25px",
+                      boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: "bold",
+                        color: "#4CAF50",
+                        fontSize: "20px",
+                        marginBottom: "8px",
+                      }}
+                    >
                       📊 Business Reports
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div
+                      style={{
+                        fontSize: "16px",
+                        color: "#666",
+                      }}
+                    >
                       Generate detailed analytics
                     </div>
                   </div>
@@ -807,15 +1847,51 @@ proxyServer.connect(transport);
 
               <button
                 onClick={launchClaude}
-                className="bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-xl px-8 py-4 text-xl font-bold hover:from-purple-600 hover:to-pink-700 transition-all transform hover:scale-105 flex items-center space-x-3 mx-auto mb-6"
+                style={{
+                  background: "linear-gradient(135deg, #9c27b0, #e91e63)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "20px",
+                  padding: "25px 50px",
+                  fontSize: "28px",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "20px",
+                  margin: "0 auto 30px",
+                  transition: "all 0.3s ease",
+                  boxShadow: "0 8px 30px rgba(156, 39, 176, 0.4)",
+                  transform: "scale(1)",
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.transform = "scale(1.05)";
+                  e.target.style.boxShadow =
+                    "0 12px 40px rgba(156, 39, 176, 0.6)";
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.transform = "scale(1)";
+                  e.target.style.boxShadow =
+                    "0 8px 30px rgba(156, 39, 176, 0.4)";
+                }}
               >
-                <Monitor size={24} />
+                <Monitor size={36} />
                 <span>Open Claude Desktop</span>
               </button>
 
               <button
                 onClick={resetSetup}
-                className="text-gray-500 hover:text-gray-700 underline"
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#666",
+                  fontSize: "18px",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  padding: "10px 20px",
+                }}
+                onMouseOver={(e) => (e.target.style.color = "#333")}
+                onMouseOut={(e) => (e.target.style.color = "#666")}
               >
                 Start over
               </button>
