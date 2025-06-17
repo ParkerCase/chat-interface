@@ -47,6 +47,9 @@ const AuthPage = () => {
         
         try {
           // Let Supabase handle the OAuth callback automatically
+          // Add a small delay to ensure session is fully established
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
           const { data, error: authError } = await supabase.auth.getSession();
           
           if (authError) {
@@ -60,12 +63,13 @@ const AuthPage = () => {
             console.log('OAuth login successful:', data.session.user.email);
             setSuccessMessage('Login successful! Redirecting...');
             
-            // Redirect to admin after successful OAuth
+            // Give even more time for auth context to update
             setTimeout(() => {
               navigate('/admin');
-            }, 1000);
+            }, 2000);
           } else {
             // Try the code exchange manually if no session
+            console.log('No immediate session, trying manual code exchange...');
             const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession();
             
             if (exchangeError) {
@@ -74,9 +78,10 @@ const AuthPage = () => {
             } else if (exchangeData?.session) {
               console.log('Manual code exchange successful');
               setSuccessMessage('Login successful! Redirecting...');
+              // Give time for auth context to update
               setTimeout(() => {
                 navigate('/admin');
-              }, 1000);
+              }, 2000);
             } else {
               setError('Authentication failed: Unable to establish session');
             }
@@ -134,9 +139,25 @@ const AuthPage = () => {
           </div>
           <div className="auth-content">
             <div className="sso-callback-container" style={{ textAlign: 'center', padding: '20px' }}>
-              <Loader className="spinner" size={48} style={{ margin: '0 auto 20px' }} />
-              <h2>Completing Google Sign-In</h2>
-              <p>Please wait while we process your authentication...</p>
+              <Loader className="spinner" size={48} style={{ margin: '0 auto 20px', color: '#4f46e5' }} />
+              <h2 style={{ color: '#1f2937', marginBottom: '16px' }}>Completing Google Sign-In</h2>
+              <p style={{ color: '#6b7280', marginBottom: '20px' }}>Please wait while we process your authentication...</p>
+              
+              {process.env.NODE_ENV === 'development' && (
+                <div style={{
+                  background: '#f3f4f6',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  fontSize: '12px',
+                  fontFamily: 'monospace',
+                  color: '#374151',
+                  marginTop: '16px'
+                }}>
+                  <strong>Debug:</strong> Processing OAuth callback...<br/>
+                  URL: {window.location.href}
+                </div>
+              )}
             </div>
           </div>
         </div>

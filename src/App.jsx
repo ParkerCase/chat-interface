@@ -351,7 +351,16 @@ function AppContent() {
   if (!isInitialized || loading) {
     return (
       <div className="auth-loading-screen">
-        <div className="loading-spinner"></div>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100vh",
+            margin: "25%",
+          }}
+        ></div>
         <p>Initializing authentication...</p>
       </div>
     );

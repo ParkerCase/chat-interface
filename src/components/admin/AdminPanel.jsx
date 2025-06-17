@@ -1149,7 +1149,17 @@ const AdminPanel = () => {
 
       {/* Loading state */}
       {isLoading ? (
-        <div className="admin-loading">
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100vh",
+            margin: "25%",
+          }}
+          className="admin-loading"
+        >
           <Loader className="spinner" />
           <p>Loading admin data...</p>
         </div>
