@@ -47,29 +47,44 @@ const AuthPage = () => {
         
         try {
           // Let Supabase handle the OAuth callback automatically
-          // Add a small delay to ensure session is fully established
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          // Add a longer delay to ensure session is fully established
+          console.log('Waiting for session to establish...');
+          await new Promise(resolve => setTimeout(resolve, 2500));
           
-          const { data, error: authError } = await supabase.auth.getSession();
+          // Check for session multiple times with retries
+          let sessionData = null;
+          let attempts = 0;
+          const maxAttempts = 5;
           
-          if (authError) {
-            console.error('OAuth callback error:', authError);
-            setError(`Authentication failed: ${authError.message}`);
-            setIsProcessingOAuth(false);
-            return;
+          while (!sessionData?.session && attempts < maxAttempts) {
+            console.log(`Session check attempt ${attempts + 1}`);
+            const { data, error: authError } = await supabase.auth.getSession();
+            
+            if (authError) {
+              console.error('OAuth callback error:', authError);
+              break;
+            }
+            
+            sessionData = data;
+            if (!sessionData?.session) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              attempts++;
+            }
           }
           
-          if (data?.session) {
-            console.log('OAuth login successful:', data.session.user.email);
+          if (sessionData?.session) {
+            console.log('OAuth login successful:', sessionData.session.user.email);
             setSuccessMessage('Login successful! Redirecting...');
             
-            // Give even more time for auth context to update
-            setTimeout(() => {
-              navigate('/admin');
-            }, 2000);
+            // Wait for auth context to fully update
+            console.log('Waiting for auth context to update...');
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Force navigate to admin
+            console.log('Navigating to /admin');
+            window.location.href = '/admin';
           } else {
-            // Try the code exchange manually if no session
-            console.log('No immediate session, trying manual code exchange...');
+            console.log('No session found, trying manual code exchange...');
             const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession();
             
             if (exchangeError) {
@@ -78,10 +93,8 @@ const AuthPage = () => {
             } else if (exchangeData?.session) {
               console.log('Manual code exchange successful');
               setSuccessMessage('Login successful! Redirecting...');
-              // Give time for auth context to update
-              setTimeout(() => {
-                navigate('/admin');
-              }, 2000);
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              window.location.href = '/admin';
             } else {
               setError('Authentication failed: Unable to establish session');
             }
