@@ -25,6 +25,74 @@ const AuthPage = () => {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [returnUrl, setReturnUrl] = useState("/admin");
+  const [isProcessingOAuth, setIsProcessingOAuth] = useState(false);
+
+  // Handle OAuth callback if we're on the callback route
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      // Check if this is an OAuth callback
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const errorParam = urlParams.get('error');
+      
+      if (code || errorParam) {
+        console.log('OAuth callback detected in AuthPage');
+        setIsProcessingOAuth(true);
+        
+        if (errorParam) {
+          setError(`OAuth error: ${urlParams.get('error_description') || errorParam}`);
+          setIsProcessingOAuth(false);
+          return;
+        }
+        
+        try {
+          // Let Supabase handle the OAuth callback automatically
+          const { data, error: authError } = await supabase.auth.getSession();
+          
+          if (authError) {
+            console.error('OAuth callback error:', authError);
+            setError(`Authentication failed: ${authError.message}`);
+            setIsProcessingOAuth(false);
+            return;
+          }
+          
+          if (data?.session) {
+            console.log('OAuth login successful:', data.session.user.email);
+            setSuccessMessage('Login successful! Redirecting...');
+            
+            // Redirect to admin after successful OAuth
+            setTimeout(() => {
+              navigate('/admin');
+            }, 1000);
+          } else {
+            // Try the code exchange manually if no session
+            const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession();
+            
+            if (exchangeError) {
+              console.error('Manual code exchange failed:', exchangeError);
+              setError(`Authentication failed: ${exchangeError.message}`);
+            } else if (exchangeData?.session) {
+              console.log('Manual code exchange successful');
+              setSuccessMessage('Login successful! Redirecting...');
+              setTimeout(() => {
+                navigate('/admin');
+              }, 1000);
+            } else {
+              setError('Authentication failed: Unable to establish session');
+            }
+          }
+        } catch (err) {
+          console.error('OAuth processing error:', err);
+          setError(`Authentication failed: ${err.message}`);
+        }
+        
+        setIsProcessingOAuth(false);
+        return;
+      }
+    };
+    
+    handleOAuthCallback();
+  }, [navigate]);
 
   // Extract query parameters
   useEffect(() => {
@@ -55,6 +123,26 @@ const AuthPage = () => {
       setSuccessMessage("Your account has been successfully linked.");
     }
   }, [searchParams]);
+
+  // Show OAuth processing state
+  if (isProcessingOAuth) {
+    return (
+      <div className="auth-layout">
+        <div className="auth-container">
+          <div className="auth-branding">
+            <InkOutLogo />
+          </div>
+          <div className="auth-content">
+            <div className="sso-callback-container" style={{ textAlign: 'center', padding: '20px' }}>
+              <Loader className="spinner" size={48} style={{ margin: '0 auto 20px' }} />
+              <h2>Completing Google Sign-In</h2>
+              <p>Please wait while we process your authentication...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-layout">
@@ -128,9 +216,7 @@ const AuthPage = () => {
               },
             }}
             providers={["google", "apple"]}
-            redirectTo={`${
-              window.location.origin
-            }/auth/callback?returnUrl=${encodeURIComponent(returnUrl)}`}
+            redirectTo={`${window.location.origin}/login?oauth=callback&returnUrl=${encodeURIComponent(returnUrl)}`}
             theme="light"
             onlyThirdPartyProviders={true}
           />

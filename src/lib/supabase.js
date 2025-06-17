@@ -18,7 +18,7 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   }
 }
 
-// Create a single Supabase client instance
+// Create a single Supabase client instance with enhanced PKCE configuration
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     autoRefreshToken: true,
@@ -31,13 +31,14 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     cookieOptions: {
       name: "tatt2away_supabase_auth",
       lifetime: 60 * 60 * 24 * 7, // 7 days
-      domain: window.location.hostname,
+      domain: window.location.hostname === 'localhost' ? undefined : window.location.hostname,
       path: "/",
       sameSite: "Lax",
+      secure: window.location.protocol === 'https:',
     },
     oauth: {
-      redirectTo: `${window.location.origin}/auth/callback`,
-      provider_redirect_url: `${window.location.origin}/auth/callback`,
+      redirectTo: `${window.location.origin}/login`,
+      provider_redirect_url: `${window.location.origin}/login`,
       providerRedirectErrorParams: {
         error: "error",
         error_description: "error_description",
@@ -47,6 +48,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   global: {
     headers: {
       "X-Client-Info": "Tatt2Away Admin Panel",
+      "X-Client-Version": "1.0.0",
     },
   },
   realtime: {
@@ -56,16 +58,39 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
-// Development debug helpers
+// Enhanced debugging and PKCE helpers
 if (process.env.NODE_ENV === "development") {
   window.supabase = supabase;
 
+  // Enhanced auth state debugging
   supabase.auth.onAuthStateChange((event, session) => {
     console.log(
       `[Supabase Debug] Auth state changed: ${event}`,
       session ? `User: ${session.user.email}` : "No session"
     );
+    
+    // Log PKCE data when available
+    if (event === 'SIGNED_IN' && session) {
+      console.log('[Supabase Debug] Session details:', {
+        access_token: session.access_token ? 'present' : 'missing',
+        refresh_token: session.refresh_token ? 'present' : 'missing',
+        provider_token: session.provider_token ? 'present' : 'missing',
+        provider_refresh_token: session.provider_refresh_token ? 'present' : 'missing',
+      });
+    }
   });
+  
+  // Debug PKCE storage
+  window.debugPKCE = () => {
+    const authKey = 'tatt2away_supabase_auth';
+    const stored = localStorage.getItem(authKey);
+    console.log('PKCE Storage Debug:', {
+      hasStoredAuth: !!stored,
+      storedData: stored ? JSON.parse(stored) : null,
+      currentURL: window.location.href,
+      urlParams: Object.fromEntries(new URLSearchParams(window.location.search))
+    });
+  };
 }
 
 // Helper to verify MFA code
