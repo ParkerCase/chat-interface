@@ -6,7 +6,7 @@ export const testSupabaseConnection = async () => {
   try {
     // Test 1: Basic connection
     console.log("1. Testing basic connection...");
-    const { data: testData, error: testError } = await supabase
+    const { error: testError } = await supabase
       .from("profiles")
       .select("id")
       .limit(1);
@@ -20,18 +20,18 @@ export const testSupabaseConnection = async () => {
 
     // Test 2: Check if messages table exists
     console.log("2. Testing messages table...");
-    const { data: messagesData, error: messagesError } = await supabase
+    const { error: messagesError } = await supabase
       .from("messages")
       .select("id")
       .limit(1);
 
-    if (messagesError && messagesError.code === '42P01') {
+    if (messagesError && messagesError.code === "42P01") {
       console.error("❌ Messages table does not exist!");
       return {
         success: false,
         error: "Messages table missing - run create_messages_table.sql",
         basicConnection: true,
-        messagesTable: false
+        messagesTable: false,
       };
     }
 
@@ -39,19 +39,17 @@ export const testSupabaseConnection = async () => {
 
     // Test 3: Test realtime connection for messages
     console.log("3. Testing realtime connection for messages...");
-    const channel = supabase
-      .channel('test-messages-connection')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'messages'
-        },
-        (payload) => {
-          console.log('✅ Realtime postgres_changes working:', payload);
-        }
-      );
+    const channel = supabase.channel("test-messages-connection").on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "messages",
+      },
+      (payload) => {
+        console.log("✅ Realtime postgres_changes working:", payload);
+      }
+    );
 
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
@@ -59,7 +57,8 @@ export const testSupabaseConnection = async () => {
         supabase.removeChannel(channel);
         resolve({
           success: false,
-          error: "Realtime connection timeout - check Supabase project settings",
+          error:
+            "Realtime connection timeout - check Supabase project settings",
           basicConnection: true,
           messagesTable: true,
         });
@@ -77,7 +76,7 @@ export const testSupabaseConnection = async () => {
             status: "connected",
             basicConnection: true,
             messagesTable: true,
-            realtime: true
+            realtime: true,
           });
         } else if (
           status === "CHANNEL_ERROR" ||
@@ -92,7 +91,7 @@ export const testSupabaseConnection = async () => {
             error: `Messages realtime connection failed: ${status}`,
             basicConnection: true,
             messagesTable: true,
-            realtime: false
+            realtime: false,
           });
         }
       });

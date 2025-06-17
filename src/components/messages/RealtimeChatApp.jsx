@@ -2,26 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
-import { cn } from "../../utils/api-utils";
-import {
-  testSupabaseConnection,
-  diagnoseSupabaseIssues,
-} from "../../utils/supabaseConnectionTest";
-import {
-  Send,
-  Plus,
-  Search,
-  ArrowLeft,
-  MessageCircle,
-  User,
-  X,
-  Settings,
-  Hash,
-  Menu,
-  Smile,
-  Paperclip,
-  Wifi,
-} from "lucide-react";
+import { diagnoseSupabaseIssues } from "../../utils/supabaseConnectionTest";
+import { Send, Wifi, X } from "lucide-react";
 import "./RealtimeChatApp.css";
 
 // Individual Message Component
@@ -85,38 +67,38 @@ const useRealtimeChat = (roomName, username, onMessage) => {
     const loadMessages = async () => {
       try {
         console.log(`Loading messages for room: ${roomName}`);
-        
-        // First, let's try to understand the table structure
+
+        // Query messages with the correct column name
         const { data, error } = await supabase
-          .from('messages')
-          .select('*')
-          .limit(10);
+          .from("messages")
+          .select("*")
+          .eq("channel_id", roomName)
+          .order("created_at", { ascending: true })
+          .limit(100);
 
         if (error) {
-          console.error('Error loading messages - table structure issue:', error);
-          console.log('Table might not exist or have different columns');
+          console.error("Error loading messages:", error);
           return;
         }
 
-        console.log('Sample messages from table:', data);
-        
-        // For now, just load all messages without filtering by room
-        // until we understand the correct column structure
-        const formattedMessages = (data || []).map(msg => ({
-          id: msg.id || `temp-${Date.now()}-${Math.random()}`,
-          content: msg.content || 'No content',
+        console.log(
+          `Loaded ${data?.length || 0} messages for room: ${roomName}`
+        );
+
+        const formattedMessages = (data || []).map((msg) => ({
+          id: msg.id,
+          content: msg.content,
           user: {
-            name: msg.user_name || msg.username || 'Anonymous User',
-            id: msg.user_id || 'unknown'
+            name: msg.user_name || "Anonymous User",
+            id: msg.user_id || "unknown",
           },
-          createdAt: msg.created_at || new Date().toISOString(),
-          roomName: msg.channel_id || msg.room_name || msg.room || roomName
+          createdAt: msg.created_at,
+          roomName: msg.channel_id || roomName,
         }));
 
         setMessages(formattedMessages);
-        console.log(`Loaded ${formattedMessages.length} messages`);
       } catch (error) {
-        console.error('Error loading messages:', error);
+        console.error("Error loading messages:", error);
       }
     };
 
@@ -145,29 +127,29 @@ const useRealtimeChat = (roomName, username, onMessage) => {
       .channel(`messages-${roomName}`, {
         config: {
           broadcast: { self: false },
-          presence: { key: username }
-        }
+          presence: { key: username },
+        },
       })
       // Listen for new messages in the database
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages'
-          // Remove filter until we know the correct column name
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `channel_id=eq.${roomName}`,
         },
         (payload) => {
-          console.log('New message received via postgres_changes:', payload);
+          console.log("New message received via postgres_changes:", payload);
           const newMessage = {
             id: payload.new.id,
             content: payload.new.content,
             user: {
-              name: payload.new.user_name || payload.new.username || 'Anonymous User',
-              id: payload.new.user_id
+              name: payload.new.user_name || "Anonymous User",
+              id: payload.new.user_id,
             },
             createdAt: payload.new.created_at,
-            roomName: payload.new.channel_id || payload.new.room_name || payload.new.room || roomName
+            roomName: payload.new.channel_id || roomName,
           };
 
           setMessages((prev) => {
@@ -217,10 +199,10 @@ const useRealtimeChat = (roomName, username, onMessage) => {
           setConnectionStatus(`Connection Error (${status})`);
           console.error(`❌ Connection failed for room ${roomName}:`, status);
 
-          // Retry connection with exponential backoff
-          const maxRetries = 5;
+          // Only retry if we haven't reached max retries
+          const maxRetries = 3; // Reduced from 5 to prevent infinite loops
           if (retryCount < maxRetries) {
-            const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Reduced max delay
             console.log(
               `Retrying connection for ${roomName} in ${delay}ms (attempt ${
                 retryCount + 1
@@ -252,78 +234,73 @@ const useRealtimeChat = (roomName, username, onMessage) => {
       setIsConnected(false);
       setConnectionStatus("Disconnected");
     };
-  }, [roomName, username, onMessage, retryCount, currentUser]);
+  }, [roomName, username, onMessage, retryCount]); // Removed currentUser from dependencies
 
   const sendMessage = async (content) => {
     if (!content.trim()) {
-      console.error('Message content is empty');
+      console.error("Message content is empty");
       return;
     }
 
     if (!currentUser) {
-      console.error('No authenticated user');
+      console.error("No authenticated user");
       return;
     }
 
     // Debug: Log current user info
-    console.log('Current user for messaging:', {
+    console.log("Current user for messaging:", {
       id: currentUser?.id,
       email: currentUser?.email,
-      name: currentUser?.name
+      name: currentUser?.name,
     });
 
     if (!currentUser?.id) {
-      console.error('No authenticated user ID available');
+      console.error("No authenticated user ID available");
       return;
     }
 
-    // Simple message data that works with any table structure
+    // Message data that matches our table structure
     const messageData = {
       content: content.trim(),
-      user_id: currentUser.id, // This should match a user in your users table
-      created_at: new Date().toISOString()
+      user_id: currentUser.id,
+      user_name: currentUser.name || currentUser.email || "Anonymous",
+      user_email: currentUser.email,
+      channel_id: roomName,
+      created_at: new Date().toISOString(),
     };
-    
-    // Add optional fields if they exist in the table
-    if (currentUser.name || currentUser.email) {
-      messageData.user_name = currentUser.name || currentUser.email;
-    }
-    if (currentUser.email) {
-      messageData.user_email = currentUser.email;
-    }
 
-    console.log('Sending message to database:', messageData);
+    console.log("Sending message to database:", messageData);
 
     try {
       // Insert message into database - this will trigger the realtime listener
       const { data, error } = await supabase
-        .from('messages')
+        .from("messages")
         .insert([messageData])
         .select()
         .single();
 
       if (error) {
-        console.error('Failed to send message to database:', error);
+        console.error("Failed to send message to database:", error);
         throw error;
       }
 
-      console.log('✅ Message sent successfully:', data);
+      console.log("✅ Message sent successfully:", data);
       return data;
     } catch (error) {
-      console.error('❌ Error sending message:', error);
-      
+      console.error("❌ Error sending message:", error);
+
       // Add message to local state as fallback
       const fallbackMessage = {
         id: `temp-${Date.now()}-${Math.random()}`,
         content: content.trim(),
         user: {
-          name: currentUser.name || currentUser.email || 'Anonymous',
-          id: currentUser.id
+          name: currentUser.name || currentUser.email || "Anonymous",
+          id: currentUser.id,
         },
         createdAt: new Date().toISOString(),
-        roomName: roomName
+        roomName: roomName,
       };
-      
+
       setMessages((prev) => [...prev, fallbackMessage]);
       throw error;
     }
@@ -616,7 +593,6 @@ const RealtimeChatApp = () => {
 
   const [rooms, setRooms] = useState([]);
   const [activeRoom, setActiveRoom] = useState(null);
-  const [showRoomSidebar, setShowRoomSidebar] = useState(true);
   const [showNewRoomDialog, setShowNewRoomDialog] = useState(false);
   const [newRoomName, setNewRoomName] = useState("");
   const [newRoomType, setNewRoomType] = useState("group");
@@ -626,7 +602,7 @@ const RealtimeChatApp = () => {
   // Fetch all users for DMs
   useEffect(() => {
     async function fetchUsers() {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("profiles")
         .select("id, full_name, email");
       if (data) {
@@ -706,197 +682,192 @@ const RealtimeChatApp = () => {
     room.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
   const groupChannels = filteredRooms.filter((room) => room.type === "group");
-  const directMessages = rooms.filter((room) => room.type === "direct");
 
   return (
     <div className="realtime-chat-app">
       {/* Sidebar */}
-      {showRoomSidebar && (
-        <div className="realtime-chat-sidebar">
-          {/* Sidebar Header */}
+      <div className="realtime-chat-sidebar">
+        {/* Sidebar Header */}
+        <div
+          style={{
+            padding: 24,
+            borderBottom: "1px solid #e5e7eb",
+            background: "#fff",
+          }}
+        >
           <div
             style={{
-              padding: 24,
-              borderBottom: "1px solid #e5e7eb",
-              background: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 16,
             }}
           >
-            <div
+            <button
+              onClick={handleBackToAdmin}
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 16,
+                background: "#4f46e5",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "8px 16px",
+                fontWeight: 500,
+                fontSize: 14,
+                cursor: "pointer",
               }}
             >
-              <button
-                onClick={handleBackToAdmin}
-                style={{
-                  background: "#4f46e5",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "8px 16px",
-                  fontWeight: 500,
-                  fontSize: 14,
-                  cursor: "pointer",
-                }}
-              >
-                Back to Admin
-              </button>
-              <button
-                onClick={() => setShowNewRoomDialog(true)}
-                style={{
-                  background: "#4f46e5",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: 8,
-                  fontWeight: 500,
-                  fontSize: 18,
-                  cursor: "pointer",
-                }}
-              >
-                +
-              </button>
-            </div>
-            <input
-              type="text"
-              placeholder="Search conversations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              Back to Admin
+            </button>
+            <button
+              onClick={() => setShowNewRoomDialog(true)}
               style={{
-                width: "100%",
-                padding: "10px 14px",
+                background: "#4f46e5",
+                color: "#fff",
+                border: "none",
                 borderRadius: 8,
-                border: "1px solid #e5e7eb",
-                fontSize: 14,
-                marginBottom: 8,
+                padding: 8,
+                fontWeight: 500,
+                fontSize: 18,
+                cursor: "pointer",
               }}
-            />
+            >
+              +
+            </button>
           </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-            {/* Channels Section */}
-            <div style={{ marginBottom: 32 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: "#64748b",
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                  marginBottom: 12,
-                }}
-              >
-                Channels
-              </div>
-              {groupChannels.map((room) => (
-                <div
-                  key={room.id}
-                  onClick={() => setActiveRoom(room)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    background:
-                      activeRoom?.id === room.id ? "#e0e7ff" : "transparent",
-                    color: activeRoom?.id === room.id ? "#4f46e5" : "#22223b",
-                    cursor: "pointer",
-                    marginBottom: 4,
-                  }}
-                >
-                  <span
-                    style={{ fontWeight: 700, fontSize: 18, color: "#64748b" }}
-                  >
-                    #
-                  </span>
-                  <span style={{ fontWeight: 500 }}>{room.name}</span>
-                </div>
-              ))}
-            </div>
-            {/* Direct Messages Section */}
-            <div>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: "#64748b",
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                  marginBottom: 12,
-                }}
-              >
-                Direct Messages
-              </div>
-              {allUsers.map((user) => (
-                <div
-                  key={user.id}
-                  onClick={() => openDirectMessage(user)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    background:
-                      activeRoom?.type === "direct" &&
-                      activeRoom?.participants.includes(user.id)
-                        ? "#e0e7ff"
-                        : "transparent",
-                    color:
-                      activeRoom?.type === "direct" &&
-                      activeRoom?.participants.includes(user.id)
-                        ? "#4f46e5"
-                        : "#22223b",
-                    cursor: "pointer",
-                    marginBottom: 4,
-                  }}
-                >
-                  <div
-                    className="realtime-chat-avatar"
-                    style={{ width: 32, height: 32, fontSize: 15 }}
-                  >
-                    {user.full_name?.charAt(0).toUpperCase() ||
-                      user.email?.charAt(0).toUpperCase()}
-                  </div>
-                  <span style={{ fontWeight: 500 }}>
-                    {user.full_name || user.email}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-          {/* Sidebar Footer */}
-          <div
+          <input
+            type="text"
+            placeholder="Search conversations..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             style={{
-              padding: 16,
-              borderTop: "1px solid #e5e7eb",
-              background: "#fff",
+              width: "100%",
+              padding: "10px 14px",
+              borderRadius: 8,
+              border: "1px solid #e5e7eb",
+              fontSize: 14,
+              marginBottom: 8,
             }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          />
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+          {/* Channels Section */}
+          <div style={{ marginBottom: 32 }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#64748b",
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                marginBottom: 12,
+              }}
+            >
+              Channels
+            </div>
+            {groupChannels.map((room) => (
               <div
-                className="realtime-chat-avatar"
-                style={{ width: 32, height: 32, fontSize: 15 }}
+                key={room.id}
+                onClick={() => setActiveRoom(room)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  background:
+                    activeRoom?.id === room.id ? "#e0e7ff" : "transparent",
+                  color: activeRoom?.id === room.id ? "#4f46e5" : "#22223b",
+                  cursor: "pointer",
+                  marginBottom: 4,
+                }}
               >
-                {currentUser?.name?.charAt(0)?.toUpperCase() ||
-                  currentUser?.email?.charAt(0)?.toUpperCase() ||
-                  "U"}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div
-                  style={{ fontWeight: 600, color: "#22223b", fontSize: 15 }}
+                <span
+                  style={{ fontWeight: 700, fontSize: 18, color: "#64748b" }}
                 >
-                  {currentUser?.name || currentUser?.email || "User"}
-                </div>
-                <div style={{ fontSize: 12, color: "#64748b" }}>Online</div>
+                  #
+                </span>
+                <span style={{ fontWeight: 500 }}>{room.name}</span>
               </div>
+            ))}
+          </div>
+          {/* Direct Messages Section */}
+          <div>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#64748b",
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                marginBottom: 12,
+              }}
+            >
+              Direct Messages
+            </div>
+            {allUsers.map((user) => (
+              <div
+                key={user.id}
+                onClick={() => openDirectMessage(user)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  background:
+                    activeRoom?.type === "direct" &&
+                    activeRoom?.participants.includes(user.id)
+                      ? "#e0e7ff"
+                      : "transparent",
+                  color:
+                    activeRoom?.type === "direct" &&
+                    activeRoom?.participants.includes(user.id)
+                      ? "#4f46e5"
+                      : "#22223b",
+                  cursor: "pointer",
+                  marginBottom: 4,
+                }}
+              >
+                <div
+                  className="realtime-chat-avatar"
+                  style={{ width: 32, height: 32, fontSize: 15 }}
+                >
+                  {user.full_name?.charAt(0).toUpperCase() ||
+                    user.email?.charAt(0).toUpperCase()}
+                </div>
+                <span style={{ fontWeight: 500 }}>
+                  {user.full_name || user.email}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Sidebar Footer */}
+        <div
+          style={{
+            padding: 16,
+            borderTop: "1px solid #e5e7eb",
+            background: "#fff",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div
+              className="realtime-chat-avatar"
+              style={{ width: 32, height: 32, fontSize: 15 }}
+            >
+              {currentUser?.name?.charAt(0)?.toUpperCase() ||
+                currentUser?.email?.charAt(0)?.toUpperCase() ||
+                "U"}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, color: "#22223b", fontSize: 15 }}>
+                {currentUser?.name || currentUser?.email || "User"}
+              </div>
+              <div style={{ fontSize: 12, color: "#64748b" }}>Online</div>
             </div>
           </div>
         </div>
-      )}
+      </div>
       {/* Main Chat Area */}
       <div className="realtime-chat-main">
         {activeRoom ? (

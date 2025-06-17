@@ -1,8 +1,8 @@
--- Drop existing messages table if it exists (WARNING: This will delete all existing messages)
-DROP TABLE IF EXISTS public.messages CASCADE;
+-- Safe version: Create messages table without dropping existing data
+-- This script will add missing columns and indexes without losing data
 
--- Create messages table for realtime chat
-CREATE TABLE public.messages (
+-- Check if table exists and create if it doesn't
+CREATE TABLE IF NOT EXISTS public.messages (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     content TEXT NOT NULL,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -13,10 +13,44 @@ CREATE TABLE public.messages (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create indexes for better performance
-CREATE INDEX idx_messages_channel_id ON public.messages(channel_id);
-CREATE INDEX idx_messages_user_id ON public.messages(user_id);
-CREATE INDEX idx_messages_created_at ON public.messages(created_at);
+-- Add missing columns if they don't exist
+DO $$ 
+BEGIN
+    -- Add channel_id column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'messages' AND column_name = 'channel_id') THEN
+        ALTER TABLE public.messages ADD COLUMN channel_id TEXT NOT NULL DEFAULT 'general';
+    END IF;
+    
+    -- Add user_name column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'messages' AND column_name = 'user_name') THEN
+        ALTER TABLE public.messages ADD COLUMN user_name TEXT;
+    END IF;
+    
+    -- Add user_email column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'messages' AND column_name = 'user_email') THEN
+        ALTER TABLE public.messages ADD COLUMN user_email TEXT;
+    END IF;
+    
+    -- Add updated_at column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'messages' AND column_name = 'updated_at') THEN
+        ALTER TABLE public.messages ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+    END IF;
+    
+    -- Remove room_name column if it exists (since we're using channel_id)
+    IF EXISTS (SELECT 1 FROM information_schema.columns 
+               WHERE table_name = 'messages' AND column_name = 'room_name') THEN
+        ALTER TABLE public.messages DROP COLUMN room_name;
+    END IF;
+END $$;
+
+-- Create indexes if they don't exist
+CREATE INDEX IF NOT EXISTS idx_messages_channel_id ON public.messages(channel_id);
+CREATE INDEX IF NOT EXISTS idx_messages_user_id ON public.messages(user_id);
+CREATE INDEX IF NOT EXISTS idx_messages_created_at ON public.messages(created_at);
 
 -- Enable Row Level Security
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
@@ -68,4 +102,4 @@ GRANT ALL ON public.messages TO service_role;
 -- Add comments
 COMMENT ON TABLE public.messages IS 'Real-time chat messages for the messaging system';
 COMMENT ON COLUMN public.messages.channel_id IS 'The chat room/channel identifier';
-COMMENT ON COLUMN public.messages.user_name IS 'Display name of the user who sent the message';
+COMMENT ON COLUMN public.messages.user_name IS 'Display name of the user who sent the message'; 
