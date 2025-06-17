@@ -838,17 +838,40 @@ proxyServer.connect(transport);
   };
 
   const launchClaude = () => {
-    // Try to launch Claude Desktop
-    if (selectedPlatform === "mac") {
-      window.location.href = "claude://";
-    } else if (selectedPlatform === "windows") {
-      window.location.href = "claude://";
-    }
+    // Try to launch Claude Desktop with proper protocol
+    try {
+      if (selectedPlatform === "mac" || selectedPlatform === "windows") {
+        // Create a hidden link element to trigger Claude Desktop
+        const link = document.createElement("a");
+        link.href = "claude://";
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
 
-    // Fallback to web version
-    setTimeout(() => {
-      window.open("https://claude.ai/chat", "_blank", "width=1200,height=800");
-    }, 500);
+        // Show success message
+        alert(
+          "Claude Desktop should now be opening! If it doesn't open automatically, please launch Claude Desktop manually from your Applications folder (Mac) or Start Menu (Windows)."
+        );
+      } else {
+        // For "Already Configured" option, also try to launch desktop
+        const link = document.createElement("a");
+        link.href = "claude://";
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        alert(
+          "Claude Desktop should now be opening with your MCP tools ready!"
+        );
+      }
+    } catch (error) {
+      // If desktop launch fails, provide manual instructions
+      alert(
+        "Please manually open Claude Desktop from your Applications folder (Mac) or Start Menu (Windows). Your MCP tools are now configured and ready to use!"
+      );
+    }
   };
 
   const resetSetup = () => {
