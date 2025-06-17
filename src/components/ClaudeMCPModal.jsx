@@ -1,38 +1,281 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom";
 import {
-  Send,
   Loader2,
-  X,
-  Search,
-  Database,
-  Bot,
-  User,
-  Settings,
-  Plus,
-  Mic,
-  ChevronDown,
-  FileText,
-  Image as ImageIcon,
-  Trash,
-  ExternalLink,
-  Download,
-  Copy,
   CheckCircle,
-  AlertCircle,
   Monitor,
+  Apple,
+  Smartphone,
+  Download,
+  ArrowRight,
+  ArrowLeft,
+  X,
+  Folder,
+  Search,
 } from "lucide-react";
-import "./ClaudeMCPModal.css";
+
+// Mac Setup Screenshot Component
+const MacSetupScreenshot = () => (
+  <div className="bg-gray-100 rounded-lg p-4 border">
+    <div className="bg-white rounded-lg shadow-lg overflow-hidden max-w-full">
+      {/* Mac Finder Window */}
+      <div className="bg-gradient-to-b from-gray-100 to-gray-200 px-4 py-3 border-b flex items-center">
+        <div className="flex space-x-2 mr-4">
+          <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+          <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+        </div>
+        <div className="text-sm font-medium text-gray-700">
+          Claude — Application Support
+        </div>
+      </div>
+
+      {/* Toolbar */}
+      <div className="bg-gray-50 px-4 py-2 border-b flex items-center space-x-2">
+        <div className="flex space-x-1">
+          <button className="w-6 h-6 bg-gray-200 rounded text-xs flex items-center justify-center">
+            ←
+          </button>
+          <button className="w-6 h-6 bg-gray-200 rounded text-xs flex items-center justify-center">
+            →
+          </button>
+        </div>
+        <div className="bg-white border rounded px-3 py-1 text-sm text-gray-600 flex-1">
+          ~/Library/Application Support/Claude
+        </div>
+        <div className="bg-white border rounded px-3 py-1 text-sm w-32">
+          <Search size={12} className="inline mr-1" />
+          Search
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex">
+        {/* Sidebar */}
+        <div className="w-48 bg-gray-50 border-r p-3">
+          <div className="space-y-1 text-sm">
+            <div className="text-xs text-gray-500 font-semibold mb-2">
+              FAVORITES
+            </div>
+            <div className="py-1 px-2 hover:bg-gray-200 rounded">
+              📱 AirDrop
+            </div>
+            <div className="py-1 px-2 hover:bg-gray-200 rounded">
+              🔄 Recents
+            </div>
+            <div className="py-1 px-2 hover:bg-gray-200 rounded">
+              📊 Applications
+            </div>
+            <div className="py-1 px-2 hover:bg-gray-200 rounded">
+              🏠 Desktop
+            </div>
+            <div className="py-1 px-2 hover:bg-gray-200 rounded">
+              📁 Documents
+            </div>
+            <div className="text-xs text-gray-500 font-semibold mt-4 mb-2">
+              LOCATIONS
+            </div>
+            <div className="py-1 px-2 bg-blue-100 text-blue-800 rounded">
+              💻 Macintosh HD
+            </div>
+          </div>
+        </div>
+
+        {/* File Area */}
+        <div className="flex-1 p-4">
+          <div className="text-xs text-gray-500 mb-3 bg-gray-100 px-2 py-1 rounded">
+            Home > Library > Application Support > Claude
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            {/* Highlighted config file */}
+            <div className="text-center p-3 bg-yellow-100 border-2 border-yellow-400 rounded-lg animate-pulse">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg mx-auto mb-2 flex items-center justify-center text-white text-lg">
+                📄
+              </div>
+              <div className="text-xs font-medium">
+                claude_desktop_config.json
+              </div>
+            </div>
+
+            {/* Other files */}
+            <div className="text-center p-3">
+              <div className="w-12 h-12 bg-gray-300 rounded-lg mx-auto mb-2 flex items-center justify-center text-gray-600">
+                📁
+              </div>
+              <div className="text-xs">logs</div>
+            </div>
+
+            <div className="text-center p-3">
+              <div className="w-12 h-12 bg-gray-300 rounded-lg mx-auto mb-2 flex items-center justify-center text-gray-600">
+                📄
+              </div>
+              <div className="text-xs">preferences.plist</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* Instruction overlay */}
+    <div className="absolute top-2 right-2 bg-black bg-opacity-80 text-white p-3 rounded-lg text-sm max-w-xs">
+      ✅ Perfect! Your config file is in the right place.
+    </div>
+  </div>
+);
+
+// Windows Setup Screenshot Component
+const WindowsSetupScreenshot = () => (
+  <div className="bg-gray-100 rounded-lg p-4 border">
+    <div className="bg-white rounded-lg shadow-lg overflow-hidden max-w-full">
+      {/* Windows File Explorer */}
+      <div className="bg-white px-4 py-2 border-b flex items-center justify-between">
+        <div className="flex items-center">
+          <div className="w-4 h-4 bg-blue-500 rounded-sm mr-2 flex items-center justify-center text-white text-xs">
+            📁
+          </div>
+          <div className="text-sm font-medium">Claude - File Explorer</div>
+        </div>
+        <div className="flex">
+          <button className="w-8 h-6 hover:bg-gray-100 text-xs">─</button>
+          <button className="w-8 h-6 hover:bg-gray-100 text-xs">☐</button>
+          <button className="w-8 h-6 hover:bg-red-500 hover:text-white text-xs">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {/* Ribbon */}
+      <div className="bg-gray-50 px-4 py-2 border-b">
+        <div className="flex space-x-4 mb-2 text-sm">
+          <div className="bg-blue-500 text-white px-3 py-1 rounded">Home</div>
+          <div className="text-gray-600 px-3 py-1">Share</div>
+          <div className="text-gray-600 px-3 py-1">View</div>
+        </div>
+        <div className="flex space-x-2 text-xs">
+          <button className="bg-white border px-2 py-1 rounded">📋 Copy</button>
+          <button className="bg-white border px-2 py-1 rounded">
+            📁 New folder
+          </button>
+          <button className="bg-white border px-2 py-1 rounded">
+            🗑️ Delete
+          </button>
+        </div>
+      </div>
+
+      {/* Address Bar */}
+      <div className="bg-white px-4 py-2 border-b flex items-center space-x-2">
+        <div className="flex space-x-1">
+          <button className="w-6 h-6 border bg-gray-50 rounded text-xs">
+            ←
+          </button>
+          <button className="w-6 h-6 border bg-gray-50 rounded text-xs">
+            →
+          </button>
+          <button className="w-6 h-6 border bg-gray-50 rounded text-xs">
+            ↑
+          </button>
+        </div>
+        <div className="bg-white border rounded px-3 py-1 text-sm flex-1">
+          C:\Users\%USERNAME%\AppData\Roaming\Claude
+        </div>
+        <div className="bg-white border rounded px-3 py-1 text-sm w-32">
+          Search Claude
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex">
+        {/* Sidebar */}
+        <div className="w-48 bg-gray-50 border-r p-3">
+          <div className="space-y-1 text-sm">
+            <div className="text-xs text-gray-500 font-semibold mb-2">
+              QUICK ACCESS
+            </div>
+            <div className="py-1 px-2 hover:bg-blue-100 rounded">
+              🏠 Desktop
+            </div>
+            <div className="py-1 px-2 hover:bg-blue-100 rounded">
+              ⬇️ Downloads
+            </div>
+            <div className="py-1 px-2 hover:bg-blue-100 rounded">
+              📄 Documents
+            </div>
+            <div className="text-xs text-gray-500 font-semibold mt-4 mb-2">
+              THIS PC
+            </div>
+            <div className="py-1 px-2 bg-blue-100 border-l-2 border-blue-500">
+              💾 Local Disk (C:)
+            </div>
+          </div>
+        </div>
+
+        {/* File Area */}
+        <div className="flex-1">
+          <div className="bg-gray-50 px-4 py-3 border-b">
+            <div className="text-xs text-gray-500">
+              This PC > Local Disk (C:) > Users > AppData > Roaming
+            </div>
+            <div className="text-lg font-semibold">Claude</div>
+          </div>
+
+          <div className="p-4">
+            <div className="flex justify-between items-center mb-4 text-sm">
+              <div className="text-gray-600">3 items</div>
+              <div className="flex space-x-1">
+                <button className="w-6 h-6 bg-blue-500 text-white text-xs">
+                  ⊞
+                </button>
+                <button className="w-6 h-6 border text-xs">≡</button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              {/* Highlighted config file */}
+              <div className="text-center p-3 bg-orange-100 border-2 border-orange-400 rounded-lg animate-pulse">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-700 rounded mx-auto mb-2 flex items-center justify-center text-white text-lg">
+                  📄
+                </div>
+                <div className="text-xs font-medium">
+                  claude_desktop_config.json
+                </div>
+                <div className="text-xs text-gray-500">2 KB • JSON File</div>
+              </div>
+
+              {/* Other files */}
+              <div className="text-center p-3">
+                <div className="w-12 h-12 bg-yellow-400 rounded mx-auto mb-2 flex items-center justify-center text-yellow-800">
+                  📁
+                </div>
+                <div className="text-xs">logs</div>
+                <div className="text-xs text-gray-500">File folder</div>
+              </div>
+
+              <div className="text-center p-3">
+                <div className="w-12 h-12 bg-gray-300 rounded mx-auto mb-2 flex items-center justify-center text-gray-600">
+                  📄
+                </div>
+                <div className="text-xs">preferences.dat</div>
+                <div className="text-xs text-gray-500">1 KB • DAT File</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* Instruction overlay */}
+    <div className="absolute top-2 right-2 bg-black bg-opacity-80 text-white p-3 rounded-lg text-sm max-w-xs">
+      ✅ Perfect! Your config file is in the correct Windows location.
+    </div>
+  </div>
+);
 
 const ClaudeMCPModal = ({ isOpen, onClose, autoSignIn = true }) => {
-  const [setupStep, setSetupStep] = useState("checking"); // checking, configure, downloaded, configured, launched
+  const [currentStep, setCurrentStep] = useState(1);
+  const [selectedPlatform, setSelectedPlatform] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [claudeWindow, setClaudeWindow] = useState(null);
-  const [configCopied, setConfigCopied] = useState(false);
-  const [historyDropdownOpen, setHistoryDropdownOpen] = useState(false);
-  const [claudeHistory, setClaudeHistory] = useState([]);
-  const [selectedPlatform, setSelectedPlatform] = useState("configured");
-  const messagesEndRef = useRef(null);
+  const [configDownloaded, setConfigDownloaded] = useState(false);
+  const [showScreenshot, setShowScreenshot] = useState(false);
 
   // Your MCP backend configuration
   const MCP_BACKEND_URL = "http://147.182.247.128:3000";
@@ -132,726 +375,409 @@ proxyServer.connect(transport);
     },
   };
 
-  // Check setup status on modal open
-  useEffect(() => {
-    if (isOpen && autoSignIn) {
-      checkSetupStatus();
-    }
-  }, [isOpen]);
-
-  // Load chat history
+  // Auto-detect platform
   useEffect(() => {
     if (isOpen) {
-      const stored = localStorage.getItem("claudeMCPHistory");
-      if (stored) {
-        setClaudeHistory(JSON.parse(stored));
+      const platform = navigator.platform.toLowerCase();
+      if (platform.includes("mac")) {
+        // Don't auto-select, let user choose
+      } else if (platform.includes("win")) {
+        // Don't auto-select, let user choose
       }
     }
   }, [isOpen]);
 
-  const checkSetupStatus = async () => {
-    setIsLoading(true);
-    setSetupStep("checking");
-
-    try {
-      // Check if MCP backend is running
-      const healthResponse = await fetch(`${MCP_BACKEND_URL}/health`);
-      if (!healthResponse.ok) {
-        throw new Error("MCP backend not accessible");
-      }
-
-      // Check if Claude Desktop configuration exists (simplified check)
-      const hasConfig =
-        localStorage.getItem("claudeDesktopConfigured") === "true";
-
-      if (hasConfig) {
-        setSetupStep("configured");
-      } else {
-        setSetupStep("configure");
-      }
-    } catch (error) {
-      console.error("Setup check failed:", error);
-      setSetupStep("configure");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const copyConfiguration = async () => {
+  const downloadConfig = () => {
     try {
       const configText = JSON.stringify(mcpConfig, null, 2);
-      await navigator.clipboard.writeText(configText);
-      setConfigCopied(true);
-      setTimeout(() => setConfigCopied(false), 3000);
+      const blob = new Blob([configText], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "claude_desktop_config.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setConfigDownloaded(true);
+
+      // Show screenshot after download
+      setTimeout(() => {
+        setShowScreenshot(true);
+      }, 500);
     } catch (error) {
-      console.error("Failed to copy configuration:", error);
+      console.error("Failed to download config:", error);
     }
   };
 
-  const openSetupInstructions = () => {
-    const instructions = `
-# Claude Desktop MCP Setup for Tatt2Away
-
-## Step 1: Locate Your Claude Desktop Config File
-
-**macOS:**
-~/Library/Application Support/Claude/claude_desktop_config.json
-
-**Windows:**
-%APPDATA%\\Claude\\claude_desktop_config.json
-
-## Step 2: Add This Configuration
-
-${JSON.stringify(mcpConfig, null, 2)}
-
-## Step 3: Restart Claude Desktop
-
-After saving the config file, restart Claude Desktop.
-
-## Step 4: Test Your Connection
-
-Ask Claude: "What MCP tools do you have access to?"
-
-You should see:
-- 🔍 Dropbox search tools (search_dropbox, search_images, etc.)
-- 🏥 Zenoti business tools (natural_language_report, smart_search_clients, etc.)
-
-## Your MCP Backend
-Running at: ${MCP_BACKEND_URL}
-- Dropbox: /mcp/dropbox/sse
-- Zenoti: /mcp/zenoti/sse
-
-## Need Help?
-If you have issues, check that your MCP backend is running and accessible.
-`;
-
-    // Open instructions in new window
-    const instructionsWindow = window.open(
-      "",
-      "_blank",
-      "width=800,height=600"
-    );
-    instructionsWindow.document.write(`
-      <html>
-        <head><title>Claude MCP Setup Instructions</title></head>
-        <body style="font-family: monospace; padding: 20px; line-height: 1.6;">
-          <pre>${instructions}</pre>
-        </body>
-      </html>
-    `);
-  };
-
-  const markAsConfigured = () => {
-    localStorage.setItem("claudeDesktopConfigured", "true");
-    setSetupStep("configured");
+  const downloadClaudeDesktop = () => {
+    window.open("https://claude.ai/download", "_blank");
   };
 
   const launchClaude = () => {
-    setIsLoading(true);
-    setSetupStep("launched");
-
-    // Try to open Claude Desktop first
-    if (navigator.platform.includes("Mac")) {
-      // Try to open Claude Desktop on macOS
+    // Try to launch Claude Desktop
+    if (selectedPlatform === "mac") {
       window.location.href = "claude://";
-    } else if (navigator.platform.includes("Win")) {
-      // Try to open Claude Desktop on Windows
+    } else if (selectedPlatform === "windows") {
       window.location.href = "claude://";
     }
 
     // Fallback to web version
     setTimeout(() => {
-      const claudeWeb = window.open(
-        "https://claude.ai/chat",
-        "claude-mcp",
-        "width=1200,height=800,scrollbars=yes,resizable=yes"
-      );
-      setClaudeWindow(claudeWeb);
-      setIsLoading(false);
-    }, 1000);
+      window.open("https://claude.ai/chat", "_blank", "width=1200,height=800");
+    }, 500);
   };
 
   const resetSetup = () => {
-    localStorage.removeItem("claudeDesktopConfigured");
-    setSetupStep("configure");
-    if (claudeWindow) {
-      claudeWindow.close();
-      setClaudeWindow(null);
-    }
+    setCurrentStep(1);
+    setSelectedPlatform(null);
+    setConfigDownloaded(false);
+    setShowScreenshot(false);
   };
 
   if (!isOpen) return null;
 
-  const modalContent = (
-    <div className="claude-mcp-modal-overlay">
-      <div className="claude-mcp-modal claude-mcp-modern-modal">
-        {/* Close button */}
-        <button
-          className="claude-mcp-close"
-          onClick={onClose}
-          aria-label="Close modal"
-        >
-          ×
-        </button>
-
-        {/* Connection status */}
-        <div className="claude-mcp-modern-connected">
-          {setupStep === "checking" && "Checking Setup..."}
-          {setupStep === "configure" && "Setup Required"}
-          {setupStep === "downloaded" && "📥 Config Downloaded"}
-          {setupStep === "configured" && "✅ Ready to Launch"}
-          {setupStep === "launched" && "🚀 Claude Launched"}
-        </div>
-
-        {/* Title */}
-        <div className="claude-mcp-modern-title">
-          Let's Dive A little Deeper
-        </div>
-
-        {/* Chat history dropdown */}
-        <div className="claude-mcp-history-dropdown-container">
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl max-w-4xl w-full mx-4 max-h-[95vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 border-b">
+          <h1 className="text-2xl font-bold text-gray-800">
+            Set Up Claude with Advanced Tools
+          </h1>
           <button
-            className="claude-mcp-history-dropdown-btn"
-            onClick={() => setHistoryDropdownOpen((v) => !v)}
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 text-2xl"
           >
-            Claude MCP Sessions
-            <ChevronDown size={18} style={{ marginLeft: 8 }} />
+            <X size={24} />
           </button>
-          {historyDropdownOpen && (
-            <div className="claude-mcp-history-dropdown-list">
-              <div
-                className="claude-mcp-history-dropdown-item"
-                onClick={() => setHistoryDropdownOpen(false)}
-              >
-                + New Research Session
-              </div>
-
-              {claudeHistory.length === 0 ? (
-                <div className="claude-mcp-history-dropdown-empty">
-                  No previous sessions
-                </div>
-              ) : (
-                claudeHistory.map((h) => (
-                  <div key={h.id} className="claude-mcp-history-dropdown-item">
-                    {h.title}
-                  </div>
-                ))
-              )}
-            </div>
-          )}
         </div>
 
-        {/* Main Content Area */}
-        <div className="claude-mcp-modern-chat-area">
-          {setupStep === "checking" && (
-            <div style={{ textAlign: "center", padding: "40px 20px" }}>
-              <Loader2
-                className="animate-spin"
-                size={32}
-                style={{ color: "#3b82f6", marginBottom: "16px" }}
-              />
-              <p style={{ color: "#666", margin: 0 }}>
-                Checking your MCP backend connection...
+        {/* Progress Indicator */}
+        <div className="flex justify-center items-center p-4 bg-gray-50">
+          <div className="flex items-center space-x-4">
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold
+              ${currentStep >= 1 ? "bg-blue-500" : "bg-gray-300"}`}
+            >
+              1
+            </div>
+            <div
+              className={`w-8 h-1 ${
+                currentStep >= 2 ? "bg-blue-500" : "bg-gray-300"
+              }`}
+            ></div>
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold
+              ${currentStep >= 2 ? "bg-blue-500" : "bg-gray-300"}`}
+            >
+              2
+            </div>
+            <div
+              className={`w-8 h-1 ${
+                currentStep >= 3 ? "bg-blue-500" : "bg-gray-300"
+              }`}
+            ></div>
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold
+              ${currentStep >= 3 ? "bg-blue-500" : "bg-gray-300"}`}
+            >
+              3
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-8">
+          {/* Step 1: Platform Selection */}
+          {currentStep === 1 && (
+            <div className="text-center">
+              <h2 className="text-3xl font-bold mb-4">
+                Choose Your Computer Type
+              </h2>
+              <p className="text-lg text-gray-600 mb-8">
+                This will help us give you the right instructions
               </p>
+
+              <div className="space-y-4 max-w-md mx-auto">
+                <button
+                  onClick={() => {
+                    setSelectedPlatform("mac");
+                    setCurrentStep(2);
+                  }}
+                  className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl p-6 text-xl font-bold hover:from-blue-600 hover:to-purple-700 transition-all transform hover:scale-105 flex items-center justify-center space-x-3"
+                >
+                  <Apple size={32} />
+                  <span>Mac Computer</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setSelectedPlatform("windows");
+                    setCurrentStep(2);
+                  }}
+                  className="w-full bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-xl p-6 text-xl font-bold hover:from-green-600 hover:to-blue-700 transition-all transform hover:scale-105 flex items-center justify-center space-x-3"
+                >
+                  <Monitor size={32} />
+                  <span>Windows Computer</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setSelectedPlatform("configured");
+                    setCurrentStep(4);
+                  }}
+                  className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl p-6 text-xl font-bold hover:from-emerald-600 hover:to-teal-700 transition-all transform hover:scale-105 flex items-center justify-center space-x-3"
+                >
+                  <CheckCircle size={32} />
+                  <span>Already Set Up</span>
+                </button>
+              </div>
             </div>
           )}
 
-          {setupStep === "configure" && (
-            <div style={{ padding: "20px" }}>
-              <div
-                style={{
-                  backgroundColor: "#fef3c7",
-                  border: "1px solid #fbbf24",
-                  borderRadius: "12px",
-                  padding: "20px",
-                  marginBottom: "20px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <Settings size={20} style={{ color: "#92400e" }} />
-                  <h3 style={{ margin: 0, color: "#92400e" }}>
-                    One-Time Setup Required
+          {/* Step 2: Download Config */}
+          {currentStep === 2 &&
+            selectedPlatform &&
+            selectedPlatform !== "configured" && (
+              <div className="text-center">
+                <h2 className="text-3xl font-bold mb-4">Download Setup File</h2>
+                <p className="text-lg text-gray-600 mb-8">
+                  We'll create a special file that tells Claude how to connect
+                  to your tools
+                </p>
+
+                <div className="bg-blue-50 rounded-xl p-6 mb-8">
+                  <h3 className="text-xl font-bold mb-4">
+                    Step 1: Download the file
                   </h3>
-                </div>
-                <p style={{ margin: 0, color: "#92400e" }}>
-                  Configure Claude Desktop to connect to your MCP backend for
-                  unlimited research capabilities
-                </p>
-              </div>
-
-              <div style={{ marginBottom: "20px" }}>
-                <h4 style={{ color: "#fff", marginBottom: "12px" }}>
-                  🚀 What you'll get with full MCP:
-                </h4>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "12px",
-                  }}
-                >
-                  <div
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "8px",
-                      padding: "12px",
-                    }}
+                  <button
+                    onClick={downloadConfig}
+                    disabled={configDownloaded}
+                    className={`${
+                      configDownloaded
+                        ? "bg-green-500"
+                        : "bg-blue-500 hover:bg-blue-600"
+                    } text-white rounded-xl px-8 py-4 text-xl font-bold transition-all flex items-center space-x-3 mx-auto`}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      <Search size={16} style={{ color: "#3b82f6" }} />
-                      <strong style={{ color: "#fff" }}>
-                        Deep Dropbox Research
-                      </strong>
-                    </div>
-                    <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
-                      Search thousands of images intelligently, multi-step
-                      analysis
-                    </p>
-                  </div>
-                  <div
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "8px",
-                      padding: "12px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      <Database size={16} style={{ color: "#10b981" }} />
-                      <strong style={{ color: "#fff" }}>
-                        Business Intelligence
-                      </strong>
-                    </div>
-                    <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
-                      Natural language reports, smart client search, diagnostics
-                    </p>
-                  </div>
+                    {configDownloaded ? (
+                      <>
+                        <CheckCircle size={24} />
+                        <span>Downloaded!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download size={24} />
+                        <span>Download Setup File</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-              </div>
 
-              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                <button
-                  onClick={copyConfiguration}
-                  style={{
-                    backgroundColor: configCopied ? "#10b981" : "#3b82f6",
-                    color: "white",
-                    border: "none",
-                    padding: "12px 18px",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  {configCopied ? (
-                    <CheckCircle size={16} />
-                  ) : (
-                    <Copy size={16} />
+                {configDownloaded && (
+                  <div className="space-y-6">
+                    <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 mb-6">
+                      <h3 className="text-xl font-bold mb-4">
+                        Step 2: Move the file to the right place
+                      </h3>
+
+                      {selectedPlatform === "mac" && (
+                        <div className="text-left space-y-3">
+                          <p className="font-semibold">On your Mac:</p>
+                          <ol className="list-decimal list-inside space-y-2 text-lg">
+                            <li>
+                              Press{" "}
+                              <kbd className="bg-gray-200 px-2 py-1 rounded">
+                                Cmd + Shift + G
+                              </kbd>{" "}
+                              at the same time
+                            </li>
+                            <li>
+                              Type:{" "}
+                              <code className="bg-gray-200 px-2 py-1 rounded">
+                                ~/Library/Application Support/Claude/
+                              </code>
+                            </li>
+                            <li>Press Enter</li>
+                            <li>Drag the downloaded file into this folder</li>
+                          </ol>
+                        </div>
+                      )}
+
+                      {selectedPlatform === "windows" && (
+                        <div className="text-left space-y-3">
+                          <p className="font-semibold">
+                            On your Windows computer:
+                          </p>
+                          <ol className="list-decimal list-inside space-y-2 text-lg">
+                            <li>
+                              Press{" "}
+                              <kbd className="bg-gray-200 px-2 py-1 rounded">
+                                Windows + R
+                              </kbd>{" "}
+                              at the same time
+                            </li>
+                            <li>
+                              Type:{" "}
+                              <code className="bg-gray-200 px-2 py-1 rounded">
+                                %APPDATA%\Claude
+                              </code>
+                            </li>
+                            <li>Press Enter</li>
+                            <li>Drag the downloaded file into this folder</li>
+                          </ol>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Visual Screenshot */}
+                    {showScreenshot && (
+                      <div className="bg-gray-50 rounded-xl p-6">
+                        <h3 className="text-xl font-bold mb-4 text-center">
+                          It should look like this:
+                        </h3>
+                        <div className="relative">
+                          {selectedPlatform === "mac" && <MacSetupScreenshot />}
+                          {selectedPlatform === "windows" && (
+                            <WindowsSetupScreenshot />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex justify-between mt-8">
+                  <button
+                    onClick={() => setCurrentStep(1)}
+                    className="bg-gray-500 text-white rounded-xl px-6 py-3 font-bold hover:bg-gray-600 flex items-center space-x-2"
+                  >
+                    <ArrowLeft size={20} />
+                    <span>Back</span>
+                  </button>
+
+                  {configDownloaded && (
+                    <button
+                      onClick={() => setCurrentStep(3)}
+                      className="bg-blue-500 text-white rounded-xl px-6 py-3 font-bold hover:bg-blue-600 flex items-center space-x-2"
+                    >
+                      <span>Next Step</span>
+                      <ArrowRight size={20} />
+                    </button>
                   )}
-                  {configCopied
-                    ? "Configuration Copied!"
-                    : "Copy Configuration"}
-                </button>
+                </div>
+              </div>
+            )}
+
+          {/* Step 3: Download Claude Desktop */}
+          {currentStep === 3 && (
+            <div className="text-center">
+              <h2 className="text-3xl font-bold mb-4">
+                Download Claude Desktop
+              </h2>
+              <p className="text-lg text-gray-600 mb-8">
+                Now let's get the Claude Desktop app installed on your computer
+              </p>
+
+              <div className="bg-green-50 rounded-xl p-6 mb-8">
+                <div className="flex items-center justify-center space-x-3 mb-4">
+                  <CheckCircle size={32} className="text-green-500" />
+                  <span className="text-xl font-bold">
+                    Setup file is ready!
+                  </span>
+                </div>
 
                 <button
-                  onClick={openSetupInstructions}
-                  style={{
-                    backgroundColor: "#6b7280",
-                    color: "white",
-                    border: "none",
-                    padding: "12px 18px",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                  }}
+                  onClick={downloadClaudeDesktop}
+                  className="bg-green-500 text-white rounded-xl px-8 py-4 text-xl font-bold hover:bg-green-600 transition-all flex items-center space-x-3 mx-auto"
                 >
-                  <ExternalLink size={16} />
-                  View Instructions
+                  <Smartphone size={24} />
+                  <span>Download Claude Desktop</span>
                 </button>
               </div>
 
-              <div
-                style={{
-                  marginTop: "20px",
-                  padding: "16px",
-                  backgroundColor: "#f0f9ff",
-                  borderRadius: "8px",
-                  border: "1px solid #0ea5e9",
-                }}
-              >
-                <p
-                  style={{
-                    margin: "0 0 8px 0",
-                    fontSize: "12px",
-                    color: "#0c4a6e",
-                    fontWeight: "500",
-                  }}
-                >
-                  Quick Setup Steps:
-                </p>
-                <ol
-                  style={{
-                    margin: 0,
-                    paddingLeft: "16px",
-                    fontSize: "12px",
-                    color: "#0c4a6e",
-                  }}
-                >
-                  <li>Copy the configuration above</li>
-                  <li>Open Claude Desktop config file</li>
-                  <li>Paste the configuration</li>
-                  <li>Restart Claude Desktop</li>
-                  <li>Come back and click "I've Configured Claude"</li>
+              <div className="bg-blue-50 rounded-xl p-6 mb-6">
+                <h3 className="text-xl font-bold mb-4">What to do next:</h3>
+                <ol className="list-decimal list-inside space-y-2 text-lg text-left max-w-md mx-auto">
+                  <li>Install Claude Desktop from the download</li>
+                  <li>Open Claude Desktop</li>
+                  <li>Your advanced tools will be ready to use! 🎉</li>
                 </ol>
               </div>
 
-              <div style={{ marginTop: "16px", textAlign: "center" }}>
+              <div className="flex justify-between">
                 <button
-                  onClick={markAsConfigured}
-                  style={{
-                    backgroundColor: "#10b981",
-                    color: "white",
-                    border: "none",
-                    padding: "10px 16px",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontSize: "12px",
-                    fontWeight: "500",
-                  }}
+                  onClick={() => setCurrentStep(2)}
+                  className="bg-gray-500 text-white rounded-xl px-6 py-3 font-bold hover:bg-gray-600 flex items-center space-x-2"
                 >
-                  I've Configured Claude Desktop ✓
+                  <ArrowLeft size={20} />
+                  <span>Back</span>
+                </button>
+
+                <button
+                  onClick={() => setCurrentStep(4)}
+                  className="bg-blue-500 text-white rounded-xl px-6 py-3 font-bold hover:bg-blue-600 flex items-center space-x-2"
+                >
+                  <span>I'm Done!</span>
+                  <ArrowRight size={20} />
                 </button>
               </div>
             </div>
           )}
 
-          {setupStep === "configured" && (
-            <div style={{ padding: "20px", textAlign: "center" }}>
-              <div
-                style={{
-                  backgroundColor: "#d1fae5",
-                  border: "1px solid #34d399",
-                  borderRadius: "12px",
-                  padding: "20px",
-                  marginBottom: "20px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <CheckCircle size={24} style={{ color: "#065f46" }} />
-                  <h3 style={{ margin: 0, color: "#065f46" }}>
-                    Ready for Deep Research!
-                  </h3>
-                </div>
-                <p style={{ margin: 0, color: "#065f46" }}>
-                  Claude Desktop is configured with your MCP backend. Launch
-                  Claude for unlimited research capabilities.
-                </p>
-              </div>
+          {/* Step 4: Launch Claude */}
+          {currentStep === 4 && (
+            <div className="text-center">
+              <h2 className="text-3xl font-bold mb-4">🎉 You're All Set!</h2>
+              <p className="text-lg text-gray-600 mb-8">
+                Claude Desktop is ready with your advanced research tools
+              </p>
 
-              <div style={{ marginBottom: "20px" }}>
-                <h4 style={{ color: "#1a1a1a", marginBottom: "12px" }}>
-                  🎯 Try these research queries:
-                </h4>
-                <div
-                  style={{
-                    display: "grid",
-                    gap: "8px",
-                    textAlign: "left",
-                    backgroundColor: "#f9fafb",
-                    padding: "16px",
-                    borderRadius: "8px",
-                    fontSize: "13px",
-                  }}
-                >
-                  <div>
-                    "Search my Dropbox for flame tattoo removal before and after
-                    images"
+              <div className="bg-purple-50 rounded-xl p-6 mb-8">
+                <h3 className="text-xl font-bold mb-4">
+                  Your new superpowers:
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                  <div className="bg-white rounded-lg p-4">
+                    <div className="font-bold text-blue-600">
+                      🔍 Smart Dropbox Search
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Find any image or file instantly
+                    </div>
                   </div>
-                  <div>
-                    "Find all client appointments for this week at Draper
-                    location"
-                  </div>
-                  <div>"Generate a comprehensive sales report for Q4 2024"</div>
-                  <div>
-                    "Scan my entire Dropbox and categorize all tattoo-related
-                    images"
+                  <div className="bg-white rounded-lg p-4">
+                    <div className="font-bold text-green-600">
+                      📊 Business Reports
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Generate detailed analytics
+                    </div>
                   </div>
                 </div>
               </div>
 
               <button
                 onClick={launchClaude}
-                disabled={isLoading}
-                style={{
-                  backgroundColor: "#3b82f6",
-                  color: "white",
-                  border: "none",
-                  padding: "14px 24px",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  margin: "0 auto",
-                  boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
-                }}
+                className="bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-xl px-8 py-4 text-xl font-bold hover:from-purple-600 hover:to-pink-700 transition-all transform hover:scale-105 flex items-center space-x-3 mx-auto mb-6"
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="animate-spin" size={18} />
-                    Launching Claude...
-                  </>
-                ) : (
-                  <>
-                    <Monitor size={18} />
-                    Launch Claude with Full MCP
-                  </>
-                )}
+                <Monitor size={24} />
+                <span>Open Claude Desktop</span>
               </button>
 
-              <div style={{ marginTop: "16px" }}>
-                <button
-                  onClick={resetSetup}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "#6b7280",
-                    fontSize: "12px",
-                    cursor: "pointer",
-                    textDecoration: "underline",
-                  }}
-                >
-                  Reset Configuration
-                </button>
-              </div>
+              <button
+                onClick={resetSetup}
+                className="text-gray-500 hover:text-gray-700 underline"
+              >
+                Start over
+              </button>
             </div>
           )}
-
-          {setupStep === "launched" && (
-            <div style={{ padding: "20px", textAlign: "center" }}>
-              <div
-                style={{
-                  backgroundColor: "#ede9fe",
-                  border: "1px solid #8b5cf6",
-                  borderRadius: "12px",
-                  padding: "20px",
-                  marginBottom: "20px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <Bot size={24} style={{ color: "#5b21b6" }} />
-                  <h3 style={{ margin: 0, color: "#5b21b6" }}>
-                    Claude Launched!
-                  </h3>
-                </div>
-                <p style={{ margin: 0, color: "#5b21b6" }}>
-                  Claude should now be open with full access to your MCP
-                  backend. Start your deep research!
-                </p>
-              </div>
-
-              <div
-                style={{
-                  backgroundColor: "#f0f9ff",
-                  border: "1px solid #0ea5e9",
-                  borderRadius: "8px",
-                  padding: "16px",
-                  marginBottom: "20px",
-                  textAlign: "left",
-                }}
-              >
-                <h4 style={{ margin: "0 0 8px 0" }}>
-                  {selectedPlatform === "configured"
-                    ? "💡 Pro Tips:"
-                    : "Final Steps:"}
-                </h4>
-                <ol
-                  style={{
-                    margin: 0,
-                    paddingLeft: "16px",
-                    fontSize: "13px",
-                    lineHeight: "1.6",
-                  }}
-                >
-                  {selectedPlatform === "configured" ? (
-                    <>
-                      <li>
-                        Ask Claude: "What MCP tools do you have?" to verify
-                        connection
-                      </li>
-                      <li>
-                        Try: "Search my Dropbox for [anything]" to test
-                        universal search
-                      </li>
-                      <li>
-                        Use: "Generate a report for [timeframe]" for business
-                        intelligence
-                      </li>
-                      <li>
-                        Claude can chain multiple tool calls for complex
-                        research
-                      </li>
-                    </>
-                  ) : (
-                    <>
-                      <li>Install Claude Desktop from the download</li>
-                      <li>Launch Claude Desktop</li>
-                      <li>
-                        Your MCP tools will be automatically available! 🎉
-                      </li>
-                    </>
-                  )}
-                </ol>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  justifyContent: "center",
-                }}
-              >
-                <button
-                  onClick={launchClaude}
-                  disabled={isLoading}
-                  style={{
-                    background: "#3b82f6",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "8px",
-                    padding: "14px 24px",
-                    fontSize: "16px",
-                    fontWeight: "600",
-                    cursor: isLoading ? "not-allowed" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
-                    opacity: isLoading ? 0.7 : 1,
-                  }}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="animate-spin" size={18} />
-                      Launching Claude...
-                    </>
-                  ) : (
-                    <>
-                      <Bot size={18} />
-                      🚀{" "}
-                      {selectedPlatform === "configured"
-                        ? "Launch Claude Desktop"
-                        : "Launch Claude with Full MCP"}
-                    </>
-                  )}
-                </button>
-
-                {selectedPlatform !== "configured" && (
-                  <button
-                    onClick={() => setSetupStep("download")}
-                    style={{
-                      background: "#6c757d",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "8px",
-                      padding: "10px 16px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    ← Back
-                  </button>
-                )}
-              </div>
-
-              {selectedPlatform === "configured" && (
-                <div style={{ marginTop: "16px" }}>
-                  <button
-                    onClick={resetSetup}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#6b7280",
-                      fontSize: "12px",
-                      cursor: "pointer",
-                      textDecoration: "underline",
-                    }}
-                  >
-                    ← Back to Platform Selection
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Footer with backend status */}
-        <div
-          style={{
-            padding: "12px 16px",
-            borderTop: "1px solid #e5e7eb",
-            backgroundColor: "#1a1a1a",
-            fontSize: "11px",
-            color: "#999",
-            textAlign: "center",
-          }}
-        >
-          🖥️ <strong>MCP Backend:</strong> {MCP_BACKEND_URL} | 🔍{" "}
-          <strong>Dropbox:</strong> Universal Search Ready | 🏥{" "}
-          <strong>Zenoti:</strong> Business Intelligence Active
         </div>
       </div>
     </div>
   );
-
-  return ReactDOM.createPortal(modalContent, document.body);
 };
 
 export default ClaudeMCPModal;
