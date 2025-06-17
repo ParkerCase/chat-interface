@@ -30,24 +30,58 @@ const AuthPage = () => {
   // Handle OAuth callback if we're on the callback route
   useEffect(() => {
     const handleOAuthCallback = async () => {
-      // Check if this is an OAuth callback
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get('code');
-      const errorParam = urlParams.get('error');
+      // Add delay to ensure URL params are available
+      await new Promise(resolve => setTimeout(resolve, 100));
       
-      if (code || errorParam) {
-        console.log('OAuth callback detected in AuthPage');
+      // Check multiple sources for OAuth callback parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+      
+      const code = urlParams.get('code') || hashParams.get('code');
+      const errorParam = urlParams.get('error') || hashParams.get('error');
+      const accessToken = urlParams.get('access_token') || hashParams.get('access_token');
+      
+      console.log('OAuth parameter check:', {
+        url: window.location.href,
+        hasCode: !!code,
+        hasError: !!errorParam,
+        hasAccessToken: !!accessToken,
+        searchParams: urlParams.toString(),
+        hashParams: hashParams.toString()
+      });
+      
+      // Also check if Supabase auto-detected the session
+      let hasSession = false;
+      try {
+        const { data } = await supabase.auth.getSession();
+        hasSession = !!data?.session;
+        console.log('Immediate session check:', { hasSession, email: data?.session?.user?.email });
+      } catch (e) {
+        console.log('Session check failed:', e.message);
+      }
+      
+      if (code || errorParam || accessToken || hasSession) {
+        console.log('OAuth callback detected in AuthPage - Processing...');
         setIsProcessingOAuth(true);
         
         if (errorParam) {
-          setError(`OAuth error: ${urlParams.get('error_description') || errorParam}`);
+          setError(`OAuth error: ${urlParams.get('error_description') || hashParams.get('error_description') || errorParam}`);
           setIsProcessingOAuth(false);
           return;
         }
         
         try {
+          // If we already have a session, use it immediately
+          if (hasSession) {
+            console.log('Session already available, proceeding to admin');
+            setSuccessMessage('Login successful! Redirecting...');
+            setTimeout(() => {
+              window.location.href = '/admin';
+            }, 1000);
+            return;
+          }
+          
           // Let Supabase handle the OAuth callback automatically
-          // Add a longer delay to ensure session is fully established
           console.log('Waiting for session to establish...');
           await new Promise(resolve => setTimeout(resolve, 2500));
           
