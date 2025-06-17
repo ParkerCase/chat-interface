@@ -85,27 +85,32 @@ const useRealtimeChat = (roomName, username, onMessage) => {
     const loadMessages = async () => {
       try {
         console.log(`Loading messages for room: ${roomName}`);
+        
+        // First, let's try to understand the table structure
         const { data, error } = await supabase
           .from('messages')
           .select('*')
-          .eq('channel_id', roomName)
-          .order('created_at', { ascending: true })
-          .limit(100);
+          .limit(10);
 
         if (error) {
-          console.error('Error loading messages:', error);
+          console.error('Error loading messages - table structure issue:', error);
+          console.log('Table might not exist or have different columns');
           return;
         }
 
-        const formattedMessages = data.map(msg => ({
-          id: msg.id,
-          content: msg.content,
+        console.log('Sample messages from table:', data);
+        
+        // For now, just load all messages without filtering by room
+        // until we understand the correct column structure
+        const formattedMessages = (data || []).map(msg => ({
+          id: msg.id || `temp-${Date.now()}-${Math.random()}`,
+          content: msg.content || 'No content',
           user: {
-            name: msg.user_name || 'Anonymous User',
-            id: msg.user_id
+            name: msg.user_name || msg.username || 'Anonymous User',
+            id: msg.user_id || 'unknown'
           },
-          createdAt: msg.created_at,
-          roomName: msg.channel_id
+          createdAt: msg.created_at || new Date().toISOString(),
+          roomName: msg.channel_id || msg.room_name || msg.room || roomName
         }));
 
         setMessages(formattedMessages);
@@ -149,8 +154,8 @@ const useRealtimeChat = (roomName, username, onMessage) => {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'messages',
-          filter: `channel_id=eq.${roomName}`
+          table: 'messages'
+          // Remove filter until we know the correct column name
         },
         (payload) => {
           console.log('New message received via postgres_changes:', payload);
@@ -158,11 +163,11 @@ const useRealtimeChat = (roomName, username, onMessage) => {
             id: payload.new.id,
             content: payload.new.content,
             user: {
-              name: payload.new.user_name || 'Anonymous User',
+              name: payload.new.user_name || payload.new.username || 'Anonymous User',
               id: payload.new.user_id
             },
             createdAt: payload.new.created_at,
-            roomName: payload.new.channel_id
+            roomName: payload.new.channel_id || payload.new.room_name || payload.new.room || roomName
           };
 
           setMessages((prev) => {
@@ -260,14 +265,32 @@ const useRealtimeChat = (roomName, username, onMessage) => {
       return;
     }
 
+    // Debug: Log current user info
+    console.log('Current user for messaging:', {
+      id: currentUser?.id,
+      email: currentUser?.email,
+      name: currentUser?.name
+    });
+
+    if (!currentUser?.id) {
+      console.error('No authenticated user ID available');
+      return;
+    }
+
+    // Simple message data that works with any table structure
     const messageData = {
       content: content.trim(),
-      channel_id: roomName,
-      user_id: currentUser.id,
-      user_name: currentUser.name || currentUser.email || 'Anonymous',
-      user_email: currentUser.email,
+      user_id: currentUser.id, // This should match a user in your users table
       created_at: new Date().toISOString()
     };
+    
+    // Add optional fields if they exist in the table
+    if (currentUser.name || currentUser.email) {
+      messageData.user_name = currentUser.name || currentUser.email;
+    }
+    if (currentUser.email) {
+      messageData.user_email = currentUser.email;
+    }
 
     console.log('Sending message to database:', messageData);
 
