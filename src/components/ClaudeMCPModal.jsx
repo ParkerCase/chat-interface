@@ -31,6 +31,7 @@ const ClaudeMCPModal = ({ isOpen, onClose, autoSignIn = true }) => {
   const [configCopied, setConfigCopied] = useState(false);
   const [historyDropdownOpen, setHistoryDropdownOpen] = useState(false);
   const [claudeHistory, setClaudeHistory] = useState([]);
+  const [selectedPlatform, setSelectedPlatform] = useState("configured");
   const messagesEndRef = useRef(null);
 
   // Your MCP backend configuration
@@ -307,7 +308,7 @@ If you have issues, check that your MCP backend is running and accessible.
           Let's Dive A little Deeper
         </div>
 
-        {/* Chat history dropdown - same as original */}
+        {/* Chat history dropdown */}
         <div className="claude-mcp-history-dropdown-container">
           <button
             className="claude-mcp-history-dropdown-btn"
@@ -324,103 +325,7 @@ If you have issues, check that your MCP backend is running and accessible.
               >
                 + New Research Session
               </div>
-              
-              <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-                <button
-                  onClick={launchClaude}
-                  disabled={isLoading}
-                  style={{
-                    background: "#3b82f6",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "8px",
-                    padding: "14px 24px",
-                    fontSize: "16px",
-                    fontWeight: "600",
-                    cursor: isLoading ? "not-allowed" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
-                    opacity: isLoading ? 0.7 : 1
-                  }}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="animate-spin" size={18} />
-                      Launching Claude...
-                    </>
-                  ) : (
-                    <>
-                      <Bot size={18} />
-                      🚀 {selectedPlatform === "configured" ? "Launch Claude Desktop" : "Launch Claude with Full MCP"}
-                    </>
-                  )}
-                </button>
-                
-                {selectedPlatform !== "configured" && (
-                  <button
-                    onClick={() => setSetupStep("download")}
-                    style={{
-                      background: "#6c757d",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "8px",
-                      padding: "10px 16px",
-                      cursor: "pointer"
-                    }}
-                  >
-                    ← Back
-                  </button>
-                )}
-              </div>
-              
-              {selectedPlatform === "configured" && (
-                <div style={{ marginTop: "16px" }}>
-                  <button
-                    onClick={resetSetup}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#6b7280",
-                      fontSize: "12px",
-                      cursor: "pointer",
-                      textDecoration: "underline"
-                    }}
-                  >
-                    ← Back to Platform Selection
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
 
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Footer with backend status */}
-        <div
-          style={{
-            padding: "12px 16px",
-            borderTop: "1px solid #e5e7eb",
-            backgroundColor: "#1a1a1a",
-            fontSize: "11px",
-            color: "#999",
-            textAlign: "center",
-          }}
-        >
-          🖥️ <strong>MCP Backend:</strong> {MCP_BACKEND_URL} | 🔍{" "}
-          <strong>Dropbox:</strong> Universal Search Ready | 🏥{" "}
-          <strong>Zenoti:</strong> Business Intelligence Active
-        </div>
-      </div>
-    </div>
-  );
-
-  return ReactDOM.createPortal(modalContent, document.body);
-};
-
-export default ClaudeMCPModal;
               {claudeHistory.length === 0 ? (
                 <div className="claude-mcp-history-dropdown-empty">
                   No previous sessions
@@ -802,27 +707,56 @@ export default ClaudeMCPModal;
                 }}
               >
                 <h4 style={{ margin: "0 0 8px 0" }}>
-                  {selectedPlatform === "configured" ? "💡 Pro Tips:" : "Final Steps:"}
+                  {selectedPlatform === "configured"
+                    ? "💡 Pro Tips:"
+                    : "Final Steps:"}
                 </h4>
-                <ol style={{ margin: 0, paddingLeft: "16px", fontSize: "13px", lineHeight: "1.6" }}>
+                <ol
+                  style={{
+                    margin: 0,
+                    paddingLeft: "16px",
+                    fontSize: "13px",
+                    lineHeight: "1.6",
+                  }}
+                >
                   {selectedPlatform === "configured" ? (
                     <>
-                      <li>Ask Claude: "What MCP tools do you have?" to verify connection</li>
-                      <li>Try: "Search my Dropbox for [anything]" to test universal search</li>
-                      <li>Use: "Generate a report for [timeframe]" for business intelligence</li>
-                      <li>Claude can chain multiple tool calls for complex research</li>
+                      <li>
+                        Ask Claude: "What MCP tools do you have?" to verify
+                        connection
+                      </li>
+                      <li>
+                        Try: "Search my Dropbox for [anything]" to test
+                        universal search
+                      </li>
+                      <li>
+                        Use: "Generate a report for [timeframe]" for business
+                        intelligence
+                      </li>
+                      <li>
+                        Claude can chain multiple tool calls for complex
+                        research
+                      </li>
                     </>
                   ) : (
                     <>
                       <li>Install Claude Desktop from the download</li>
                       <li>Launch Claude Desktop</li>
-                      <li>Your MCP tools will be automatically available! 🎉</li>
+                      <li>
+                        Your MCP tools will be automatically available! 🎉
+                      </li>
                     </>
                   )}
                 </ol>
               </div>
-              
-              <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  justifyContent: "center",
+                }}
+              >
                 <button
                   onClick={launchClaude}
                   disabled={isLoading}
@@ -839,7 +773,7 @@ export default ClaudeMCPModal;
                     alignItems: "center",
                     gap: "8px",
                     boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
-                    opacity: isLoading ? 0.7 : 1
+                    opacity: isLoading ? 0.7 : 1,
                   }}
                 >
                   {isLoading ? (
@@ -850,11 +784,14 @@ export default ClaudeMCPModal;
                   ) : (
                     <>
                       <Bot size={18} />
-                      🚀 {selectedPlatform === "configured" ? "Launch Claude Desktop" : "Launch Claude with Full MCP"}
+                      🚀{" "}
+                      {selectedPlatform === "configured"
+                        ? "Launch Claude Desktop"
+                        : "Launch Claude with Full MCP"}
                     </>
                   )}
                 </button>
-                
+
                 {selectedPlatform !== "configured" && (
                   <button
                     onClick={() => setSetupStep("download")}
@@ -864,14 +801,14 @@ export default ClaudeMCPModal;
                       border: "none",
                       borderRadius: "8px",
                       padding: "10px 16px",
-                      cursor: "pointer"
+                      cursor: "pointer",
                     }}
                   >
                     ← Back
                   </button>
                 )}
               </div>
-              
+
               {selectedPlatform === "configured" && (
                 <div style={{ marginTop: "16px" }}>
                   <button
@@ -882,7 +819,7 @@ export default ClaudeMCPModal;
                       color: "#6b7280",
                       fontSize: "12px",
                       cursor: "pointer",
-                      textDecoration: "underline"
+                      textDecoration: "underline",
                     }}
                   >
                     ← Back to Platform Selection
@@ -903,101 +840,6 @@ export default ClaudeMCPModal;
             backgroundColor: "#1a1a1a",
             fontSize: "11px",
             color: "#999",
-            textAlign: "center",
-          }}
-        >
-          🖥️ <strong>MCP Backend:</strong> {MCP_BACKEND_URL} | 🔍{" "}
-          <strong>Dropbox:</strong> Universal Search Ready | 🏥{" "}
-          <strong>Zenoti:</strong> Business Intelligence Active
-        </div>
-      </div>
-    </div>
-  );
-
-  return ReactDOM.createPortal(modalContent, document.body);
-};
-
-export default ClaudeMCPModal;: "0 0 8px 0", color: "#0c4a6e" }}>
-                  💡 Pro Tips:
-                </h4>
-                <ul
-                  style={{
-                    margin: 0,
-                    paddingLeft: "16px",
-                    fontSize: "13px",
-                    color: "#0c4a6e",
-                  }}
-                >
-                  <li>
-                    Ask Claude: "What MCP tools do you have?" to verify
-                    connection
-                  </li>
-                  <li>
-                    Try: "Search my Dropbox for [anything]" to test universal
-                    search
-                  </li>
-                  <li>
-                    Use: "Generate a report for [timeframe]" for business
-                    intelligence
-                  </li>
-                  <li>
-                    Claude can chain multiple tool calls for complex research
-                  </li>
-                </ul>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  justifyContent: "center",
-                }}
-              >
-                <button
-                  onClick={launchClaude}
-                  style={{
-                    backgroundColor: "#3b82f6",
-                    color: "white",
-                    border: "none",
-                    padding: "10px 16px",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                  }}
-                >
-                  Open Claude Again
-                </button>
-                <button
-                  onClick={() => setSetupStep("configured")}
-                  style={{
-                    backgroundColor: "#6b7280",
-                    color: "white",
-                    border: "none",
-                    padding: "10px 16px",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                  }}
-                >
-                  Back to Setup
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Footer with backend status */}
-        <div
-          style={{
-            padding: "12px 16px",
-            borderTop: "1px solid #e5e7eb",
-            backgroundColor: "#f9fafb",
-            fontSize: "11px",
-            color: "#666",
             textAlign: "center",
           }}
         >
