@@ -52,13 +52,6 @@ function useWindowSize() {
   return width;
 }
 
-const isMobile = () =>
-  typeof window !== "undefined" && window.innerWidth <= 600;
-const isTablet = () =>
-  typeof window !== "undefined" &&
-  window.innerWidth > 600 &&
-  window.innerWidth <= 1030;
-
 const ChatbotTabContent = () => {
   const { currentUser } = useAuth();
   const { isFeatureEnabled } = useFeatureFlags();
@@ -3060,6 +3053,16 @@ ${
           isOpen={showClaudeModal}
           onClose={() => setShowClaudeModal(false)}
         />
+      )}
+      {isMobile && (
+        <div style={{ background: "#ff0", padding: 8, fontWeight: 700 }}>
+          MOBILE LAYOUT
+        </div>
+      )}
+      {isTablet && (
+        <div style={{ background: "#0ff", padding: 8, fontWeight: 700 }}>
+          TABLET LAYOUT
+        </div>
       )}
       {typeof window !== "undefined" && window.innerWidth <= 480 && (
         <div className="chatbot-mobile-message">

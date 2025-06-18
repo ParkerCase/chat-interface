@@ -797,13 +797,28 @@ const RealtimeChatApp = () => {
   );
   const groupChannels = filteredRooms.filter((room) => room.type === "group");
 
+  {
+    isMobile && (
+      <div style={{ background: "#ff0", padding: 8, fontWeight: 700 }}>
+        MOBILE LAYOUT
+      </div>
+    );
+  }
+  {
+    isTablet && (
+      <div style={{ background: "#0ff", padding: 8, fontWeight: 700 }}>
+        TABLET LAYOUT
+      </div>
+    );
+  }
+
   return (
     <div
       className="realtime-chat-app"
-      style={{ flexDirection: isMobile() ? "column" : "row" }}
+      style={{ flexDirection: isMobile ? "column" : "row" }}
     >
       {/* Sidebar logic for mobile/tablet */}
-      {isMobile() ? (
+      {isMobile ? (
         <>
           <button
             style={{
@@ -1030,7 +1045,7 @@ const RealtimeChatApp = () => {
             </div>
           )}
         </>
-      ) : isTablet() ? (
+      ) : isTablet ? (
         <div style={{ width: "100%", marginBottom: 8 }}>
           <div
             className="realtime-chat-sidebar"
