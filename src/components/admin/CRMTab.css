@@ -335,40 +335,50 @@
   .MuiPaper-root,
   .MuiTableContainer-root {
     width: 100vw !important;
-    min-width: 0 !important;
     max-width: 100vw !important;
+    min-width: 0 !important;
     box-sizing: border-box !important;
     padding: 0.5rem !important;
     overflow-x: hidden !important;
   }
-  .crm-dashboard-header,
-  .crm-dashboard-content {
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 1rem !important;
-  }
-  .MuiButton-root,
-  .MuiTab-root,
-  .MuiChip-root {
-    width: auto !important;
-    max-width: 320px !important;
-    min-width: 44px !important;
-    margin: 0.25rem auto !important;
-    display: block !important;
-  }
-  .MuiTableCell-root {
-    font-size: 1em !important;
-    padding: 0.5rem 0.25rem !important;
-    text-align: center !important;
-    word-break: break-word !important;
-  }
   .MuiTableContainer-root {
     overflow-x: auto !important;
+    min-width: 320px !important;
   }
   .crm-dashboard-content {
     overflow-y: auto !important;
-    max-height: 70vh !important;
+    max-height: 80vh !important;
     min-height: 200px !important;
+  }
+}
+
+@media (max-width: 540px) {
+  .crm-dashboard-header,
+  .crm-dashboard-content,
+  .MuiBox-root,
+  .MuiPaper-root,
+  .MuiTableContainer-root {
+    font-size: 0.95em !important;
+    padding: 0.25rem !important;
+  }
+  .MuiTableCell-root {
+    font-size: 0.95em !important;
+    padding: 0.25rem 0.1rem !important;
+  }
+}
+
+@media (max-width: 340px) {
+  .crm-dashboard-header,
+  .crm-dashboard-content,
+  .MuiBox-root,
+  .MuiPaper-root,
+  .MuiTableContainer-root {
+    font-size: 0.9em !important;
+    padding: 0.1rem !important;
+  }
+  .MuiTableCell-root {
+    font-size: 0.9em !important;
+    padding: 0.1rem 0.05rem !important;
   }
 }
 
