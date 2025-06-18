@@ -674,4 +674,34 @@
       gap: 0.5rem;
     }
   }
+
+  .admin-section {
+    padding: 1rem !important;
+    margin-bottom: 1rem !important;
+    border-radius: 0.5rem !important;
+  }
+  .users-table-container {
+    overflow-x: auto;
+    width: 100%;
+    border-radius: 0.5rem;
+  }
+  .users-table {
+    min-width: 600px;
+    font-size: 0.95em;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-section {
+    padding: 0.5rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+  .users-table {
+    min-width: 400px;
+    font-size: 0.85em;
+  }
+  .users-table th,
+  .users-table td {
+    padding: 0.5rem 0.25rem;
+  }
 }

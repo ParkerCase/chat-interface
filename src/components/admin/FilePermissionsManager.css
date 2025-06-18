@@ -601,4 +601,38 @@ input:checked + .slider:before {
   .files-table td {
     padding: 0.625rem 0.5rem;
   }
+
+  .admin-section {
+    padding: 1rem !important;
+    margin-bottom: 1rem !important;
+    border-radius: 0.5rem !important;
+  }
+  .files-container {
+    overflow-x: auto;
+    width: 100%;
+    border-radius: 0.5rem;
+  }
+  .files-table-container {
+    overflow-x: auto;
+    width: 100%;
+  }
+  .files-table {
+    min-width: 600px;
+    font-size: 0.95em;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-section {
+    padding: 0.5rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+  .files-table {
+    min-width: 400px;
+    font-size: 0.85em;
+  }
+  .files-table th,
+  .files-table td {
+    padding: 0.5rem 0.25rem;
+  }
 }
