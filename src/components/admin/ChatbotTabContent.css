@@ -1378,6 +1378,56 @@ button svg {
   }
 }
 @media (max-width: 600px) {
+  .chatbot-tab-content,
+  .chatbot-container,
+  .chat-main-area,
+  .chat-toolbar,
+  .chat-messages,
+  .chat-input-area {
+    padding: 16px !important;
+    margin-bottom: 12px !important;
+    font-size: 16px !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+  }
+  .chat-messages .message,
+  .chat-messages .user-message,
+  .chat-messages .assistant-message {
+    margin-bottom: 16px !important;
+    padding: 12px !important;
+    font-size: 16px !important;
+    border-radius: 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .chat-input-area,
+  .chat-input-area textarea {
+    width: 100% !important;
+    padding: 12px !important;
+    font-size: 16px !important;
+    min-height: 48px !important;
+    box-sizing: border-box !important;
+  }
+  .chat-input-area button,
+  .chat-toolbar button {
+    min-height: 48px !important;
+    font-size: 16px !important;
+    width: 100% !important;
+    margin-bottom: 8px !important;
+  }
+  .chat-toolbar,
+  .chat-input-area {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  .mobile-visible-test {
+    display: block !important;
+    background: #ff0;
+    color: #222;
+    font-weight: bold;
+    padding: 8px;
+    margin-bottom: 12px;
+  }
   .chat-history-sidebar {
     display: none !important;
   }
