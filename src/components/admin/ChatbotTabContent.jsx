@@ -42,7 +42,6 @@ import ClaudeMCPModal from "../ClaudeMCPModal";
 import { SupabaseAnalytics } from "../../utils/SupabaseAnalyticsIntegration";
 
 // Add at the top, after imports
-import { useState, useEffect } from "react";
 function useWindowSize() {
   const [width, setWidth] = useState(window.innerWidth);
   useEffect(() => {
