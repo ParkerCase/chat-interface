@@ -329,8 +329,6 @@
 }
 
 @media (max-width: 1024px) {
-  .crm-dashboard-overlay,
-  .crm-dashboard-container,
   .crm-dashboard-header,
   .crm-dashboard-content,
   .MuiBox-root,
@@ -352,10 +350,11 @@
   .MuiButton-root,
   .MuiTab-root,
   .MuiChip-root {
-    width: 100% !important;
-    min-width: 0 !important;
-    margin-bottom: 0.5rem !important;
-    font-size: 1.1em !important;
+    width: auto !important;
+    max-width: 320px !important;
+    min-width: 44px !important;
+    margin: 0.25rem auto !important;
+    display: block !important;
   }
   .MuiTableCell-root {
     font-size: 1em !important;
@@ -365,6 +364,11 @@
   }
   .MuiTableContainer-root {
     overflow-x: auto !important;
+  }
+  .crm-dashboard-content {
+    overflow-y: auto !important;
+    max-height: 70vh !important;
+    min-height: 200px !important;
   }
 }
 
