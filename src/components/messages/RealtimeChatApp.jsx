@@ -186,21 +186,78 @@ const useRealtimeChat = (roomName, username, onMessage) => {
           .on(
             "postgres_changes",
             { event: "*", schema: "public", table: "messages" },
-            ({ payload }) => {
+            (payload) => {
               console.log(
                 "New message received via postgres_changes:",
                 payload
               );
+
+              // Extract the new message data from the payload
+              const newMessageData = payload.new;
+              if (!newMessageData) {
+                console.warn("No new message data in payload:", payload);
+                return;
+              }
+
               const newMessage = {
-                id: payload.id || `temp-${Date.now()}-${Math.random()}`,
-                content: payload.content,
+                id: newMessageData.id || `temp-${Date.now()}-${Math.random()}`,
+                content: newMessageData.content,
                 user: {
                   name:
-                    payload.user_name || payload.user?.name || "Anonymous User",
-                  id: payload.user_id || payload.user?.id,
+                    newMessageData.user_name ||
+                    newMessageData.user?.name ||
+                    "Anonymous User",
+                  id: newMessageData.user_id || newMessageData.user?.id,
                 },
-                createdAt: payload.created_at || new Date().toISOString(),
-                roomName: payload.channel_id || roomName,
+                createdAt:
+                  newMessageData.created_at || new Date().toISOString(),
+                roomName: newMessageData.channel_id || roomName,
+              };
+
+              setMessages((prev) => {
+                // Check if message already exists
+                if (prev.find((msg) => msg.id === newMessage.id)) {
+                  return prev;
+                }
+                const updated = [...prev, newMessage];
+                if (onMessage) {
+                  onMessage(updated);
+                }
+                return updated;
+              });
+            }
+          )
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "direct_messages" },
+            (payload) => {
+              console.log("New DM received via postgres_changes:", payload);
+
+              // Extract the new message data from the payload
+              const newMessageData = payload.new;
+              if (!newMessageData) {
+                console.warn("No new DM data in payload:", payload);
+                return;
+              }
+
+              // Only process DMs for this specific room (DM room name contains both user IDs)
+              const dmRoomName = `dm-${newMessageData.sender_id}-${newMessageData.recipient_id}`;
+              const dmRoomNameReversed = `dm-${newMessageData.recipient_id}-${newMessageData.sender_id}`;
+
+              if (roomName !== dmRoomName && roomName !== dmRoomNameReversed) {
+                return; // Not for this DM room
+              }
+
+              const newMessage = {
+                id: newMessageData.id || `temp-${Date.now()}-${Math.random()}`,
+                content: newMessageData.content,
+                user: {
+                  name: newMessageData.sender_name || "Anonymous User",
+                  id: newMessageData.sender_id,
+                },
+                createdAt:
+                  newMessageData.created_at || new Date().toISOString(),
+                roomName: roomName,
               };
 
               setMessages((prev) => {

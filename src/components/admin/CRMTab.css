@@ -330,43 +330,24 @@
 
 @media (max-width: 1024px) {
   .crm-dashboard-overlay,
-  .crm-dashboard-container {
-    width: 100vw !important;
-    height: 100vh !important;
-    min-width: 0 !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    justify-content: flex-start !important;
-    overflow: auto !important;
-  }
-  .crm-dashboard-header {
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    padding: 1rem !important;
-    gap: 1rem !important;
-  }
-  .crm-dashboard-header h3 {
-    font-size: 1.2rem !important;
-    margin-bottom: 0.5rem !important;
-  }
-  .crm-dashboard-content {
-    padding: 0.5rem !important;
-    overflow-x: hidden !important;
-    width: 100vw !important;
-    min-width: 0 !important;
-  }
+  .crm-dashboard-container,
+  .crm-dashboard-header,
+  .crm-dashboard-content,
   .MuiBox-root,
   .MuiPaper-root,
   .MuiTableContainer-root {
-    width: 100% !important;
+    width: 100vw !important;
     min-width: 0 !important;
+    max-width: 100vw !important;
     box-sizing: border-box !important;
     padding: 0.5rem !important;
+    overflow-x: hidden !important;
+  }
+  .crm-dashboard-header,
+  .crm-dashboard-content {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1rem !important;
   }
   .MuiButton-root,
   .MuiTab-root,
@@ -380,6 +361,10 @@
     font-size: 1em !important;
     padding: 0.5rem 0.25rem !important;
     text-align: center !important;
+    word-break: break-word !important;
+  }
+  .MuiTableContainer-root {
+    overflow-x: auto !important;
   }
 }
 
