@@ -570,7 +570,7 @@ const CRMDashboard = ({
                   )}
                 </Box>
               ) : isMobile || isTablet ? (
-                <Box sx={{ p: 2 }}>
+                <div className="crm-mobile">
                   {contacts.map((contact) => (
                     <Paper
                       key={contact.id}
@@ -625,51 +625,53 @@ const CRMDashboard = ({
                       </Box>
                     </Paper>
                   ))}
-                </Box>
+                </div>
               ) : (
-                <TableContainer sx={{ height: "100%" }}>
-                  <Table stickyHeader>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Name</TableCell>
-                        <TableCell>Email</TableCell>
-                        <TableCell>Phone</TableCell>
-                        <TableCell>Center</TableCell>
-                        <TableCell>Guest Code</TableCell>
-                        <TableCell>Created</TableCell>
-                        <TableCell>Actions</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {contacts.map((contact) => (
-                        <TableRow key={contact.id} hover>
-                          <TableCell>{contact.name}</TableCell>
-                          <TableCell>{contact.email}</TableCell>
-                          <TableCell>{contact.phone}</TableCell>
-                          <TableCell>
-                            <Chip
-                              label={contact.center_code}
-                              size="small"
-                              variant="outlined"
-                            />
-                          </TableCell>
-                          <TableCell>{contact.guest_code}</TableCell>
-                          <TableCell>
-                            {formatDate(contact.created_date)}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="small"
-                              onClick={() => setSelectedContact(contact)}
-                            >
-                              View
-                            </Button>
-                          </TableCell>
+                <div className="crm-tablet">
+                  <TableContainer sx={{ height: "100%" }}>
+                    <Table stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Name</TableCell>
+                          <TableCell>Email</TableCell>
+                          <TableCell>Phone</TableCell>
+                          <TableCell>Center</TableCell>
+                          <TableCell>Guest Code</TableCell>
+                          <TableCell>Created</TableCell>
+                          <TableCell>Actions</TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                      </TableHead>
+                      <TableBody>
+                        {contacts.map((contact) => (
+                          <TableRow key={contact.id} hover>
+                            <TableCell>{contact.name}</TableCell>
+                            <TableCell>{contact.email}</TableCell>
+                            <TableCell>{contact.phone}</TableCell>
+                            <TableCell>
+                              <Chip
+                                label={contact.center_code}
+                                size="small"
+                                variant="outlined"
+                              />
+                            </TableCell>
+                            <TableCell>{contact.guest_code}</TableCell>
+                            <TableCell>
+                              {formatDate(contact.created_date)}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                size="small"
+                                onClick={() => setSelectedContact(contact)}
+                              >
+                                View
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </div>
               )}
             </Box>
 
@@ -741,7 +743,7 @@ const CRMDashboard = ({
                   <CircularProgress />
                 </Box>
               ) : isMobile || isTablet ? (
-                <Box sx={{ p: 2 }}>
+                <div className="crm-mobile">
                   {appointments.map((appointment) => (
                     <Paper
                       key={appointment.id}
@@ -808,65 +810,67 @@ const CRMDashboard = ({
                       </Box>
                     </Paper>
                   ))}
-                </Box>
+                </div>
               ) : (
-                <TableContainer sx={{ height: "100%" }}>
-                  <Table stickyHeader>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Guest</TableCell>
-                        <TableCell>Service</TableCell>
-                        <TableCell>Therapist</TableCell>
-                        <TableCell>Start Time</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Center</TableCell>
-                        <TableCell>Actions</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {appointments.map((appointment) => (
-                        <TableRow key={appointment.id} hover>
-                          <TableCell>{appointment.guest_name}</TableCell>
-                          <TableCell>{appointment.service_name}</TableCell>
-                          <TableCell>{appointment.therapist_name}</TableCell>
-                          <TableCell>
-                            {formatDateTime(appointment.start_time)}
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={appointment.status}
-                              size="small"
-                              color={
-                                appointment.status === "Closed"
-                                  ? "success"
-                                  : appointment.status === "Deleted"
-                                  ? "error"
-                                  : "default"
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={appointment.center_code}
-                              size="small"
-                              variant="outlined"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="small"
-                              onClick={() =>
-                                setSelectedAppointment(appointment)
-                              }
-                            >
-                              View
-                            </Button>
-                          </TableCell>
+                <div className="crm-tablet">
+                  <TableContainer sx={{ height: "100%" }}>
+                    <Table stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Guest</TableCell>
+                          <TableCell>Service</TableCell>
+                          <TableCell>Therapist</TableCell>
+                          <TableCell>Start Time</TableCell>
+                          <TableCell>Status</TableCell>
+                          <TableCell>Center</TableCell>
+                          <TableCell>Actions</TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                      </TableHead>
+                      <TableBody>
+                        {appointments.map((appointment) => (
+                          <TableRow key={appointment.id} hover>
+                            <TableCell>{appointment.guest_name}</TableCell>
+                            <TableCell>{appointment.service_name}</TableCell>
+                            <TableCell>{appointment.therapist_name}</TableCell>
+                            <TableCell>
+                              {formatDateTime(appointment.start_time)}
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={appointment.status}
+                                size="small"
+                                color={
+                                  appointment.status === "Closed"
+                                    ? "success"
+                                    : appointment.status === "Deleted"
+                                    ? "error"
+                                    : "default"
+                                }
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={appointment.center_code}
+                                size="small"
+                                variant="outlined"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                size="small"
+                                onClick={() =>
+                                  setSelectedAppointment(appointment)
+                                }
+                              >
+                                View
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </div>
               )}
             </Box>
 
