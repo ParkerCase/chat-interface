@@ -655,6 +655,8 @@ input:checked + .slider:before {
     position: relative;
     min-width: 0;
     white-space: normal;
+    text-align: center !important;
+    justify-content: center !important;
   }
   .files-table td:last-child {
     border-bottom: none;
@@ -667,5 +669,8 @@ input:checked + .slider:before {
     margin-right: 1rem;
     flex-shrink: 0;
     display: block;
+    text-align: center !important;
+    justify-content: center !important;
+    margin: 0 auto 0.25rem auto !important;
   }
 }

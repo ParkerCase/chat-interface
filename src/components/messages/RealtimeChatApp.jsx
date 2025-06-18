@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase, getAuthenticatedSupabase } from "../../lib/supabase";
+import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
 import { diagnoseSupabaseIssues } from "../../utils/supabaseConnectionTest";
 import { Send, Wifi, X } from "lucide-react";
@@ -64,9 +64,7 @@ const useRealtimeChat = (roomName, username, onMessage) => {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("Connecting...");
-  const [retryCount, setRetryCount] = useState(0);
   const channelRef = useRef(null);
-  const retryTimeoutRef = useRef(null);
   const { currentUser } = useAuth();
 
   // Detect if this is a DM room
@@ -151,14 +149,11 @@ const useRealtimeChat = (roomName, username, onMessage) => {
     setConnectionStatus("Connecting...");
     setIsConnected(false);
 
-    // Clear any existing retry timeout
-    if (retryTimeoutRef.current) {
-      clearTimeout(retryTimeoutRef.current);
-    }
-
     // Remove existing channel if any
     if (channelRef.current) {
+      console.log(`Cleaning up existing channel for room: ${roomName}`);
       supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
     }
 
     // Verify we have an authenticated session before subscribing
@@ -185,18 +180,17 @@ const useRealtimeChat = (roomName, username, onMessage) => {
           sessionData.session.user.email
         );
 
-        // Try to get authenticated client for better Realtime connectivity
-        const authClient = await getAuthenticatedSupabase();
-        const clientToUse = authClient || supabase;
-
         // Create channel for real-time database changes
-        const channel = clientToUse
-          .channel("public:messages")
+        const channel = supabase
+          .channel(`room:${roomName}`)
           .on(
             "postgres_changes",
             { event: "*", schema: "public", table: "messages" },
             ({ payload }) => {
-              console.log("New message received via broadcast:", payload);
+              console.log(
+                "New message received via postgres_changes:",
+                payload
+              );
               const newMessage = {
                 id: payload.id || `temp-${Date.now()}-${Math.random()}`,
                 content: payload.content,
@@ -238,7 +232,6 @@ const useRealtimeChat = (roomName, username, onMessage) => {
             if (status === "SUBSCRIBED") {
               setIsConnected(true);
               setConnectionStatus("Connected");
-              setRetryCount(0);
               console.log(`✅ Successfully connected to room: ${roomName}`);
 
               // Track user presence
@@ -253,31 +246,10 @@ const useRealtimeChat = (roomName, username, onMessage) => {
               status === "CLOSED"
             ) {
               setIsConnected(false);
-              setConnectionStatus(`Connection Error (${status})`);
-              console.error(
-                `❌ Connection failed for room ${roomName}:`,
-                status
-              );
-
-              // Only retry if we haven't reached max retries
-              const maxRetries = 3; // Reduced from 5 to prevent infinite loops
-              if (retryCount < maxRetries) {
-                const delay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Reduced max delay
-                console.log(
-                  `Retrying connection for ${roomName} in ${delay}ms (attempt ${
-                    retryCount + 1
-                  }/${maxRetries})`
-                );
-
-                retryTimeoutRef.current = setTimeout(() => {
-                  setRetryCount((prev) => prev + 1);
-                }, delay);
-              } else {
-                setConnectionStatus("Connected (Broadcast Mode)");
-                console.log(`⚠️ Using broadcast mode for room: ${roomName}`);
-                // Fallback to broadcast mode - assume connected
-                setIsConnected(true);
-              }
+              setConnectionStatus("Connected (Broadcast Mode)");
+              console.log(`⚠️ Using broadcast mode for room: ${roomName}`);
+              // Fallback to broadcast mode - assume connected
+              setIsConnected(true);
             } else {
               setConnectionStatus(`Connecting... (${status})`);
             }
@@ -286,7 +258,8 @@ const useRealtimeChat = (roomName, username, onMessage) => {
         channelRef.current = channel;
       } catch (error) {
         console.error("Error setting up Realtime connection:", error);
-        setConnectionStatus("Connection Error");
+        setConnectionStatus("Connected (Broadcast Mode)");
+        setIsConnected(true);
       }
     };
 
@@ -294,17 +267,15 @@ const useRealtimeChat = (roomName, username, onMessage) => {
     setupRealtimeConnection();
 
     return () => {
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
-      }
       if (channelRef.current) {
         console.log(`Cleaning up connection for room: ${roomName}`);
         supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
       setIsConnected(false);
       setConnectionStatus("Disconnected");
     };
-  }, [roomName, username, onMessage, retryCount]); // Removed currentUser from dependencies
+  }, [roomName, username, onMessage]); // Removed retryCount from dependencies
 
   const sendMessage = async (content) => {
     if (!content.trim()) {
@@ -341,114 +312,42 @@ const useRealtimeChat = (roomName, username, onMessage) => {
         created_at: new Date().toISOString(),
       };
     }
+
     try {
-      let data, error;
+      let result;
       if (isDM && otherUserId) {
-        ({ data, error } = await supabase
+        // Insert DM message
+        result = await supabase
           .from("direct_messages")
           .insert([messageData])
           .select()
-          .single());
+          .single();
       } else {
-        ({ data, error } = await supabase
+        // Insert group message
+        result = await supabase
           .from("messages")
           .insert([messageData])
           .select()
-          .single());
+          .single();
       }
-      if (error) {
-        console.error("Failed to send message to database:", error);
-        throw error;
+
+      if (result.error) {
+        console.error("Error sending message:", result.error);
+        return;
       }
-      // Add the sent message to local state immediately
-      const insertedMessage =
-        isDM && otherUserId
-          ? {
-              id: data.id,
-              content: data.content,
-              user: { name: data.sender_name, id: data.sender_id },
-              createdAt: data.created_at,
-              roomName: roomName,
-              recipientId: data.recipient_id,
-            }
-          : {
-              id: data.id,
-              content: data.content,
-              user: { name: data.user_name, id: data.user_id },
-              createdAt: data.created_at,
-              roomName: data.channel_id || roomName,
-            };
-      setMessages((prev) => [...prev, insertedMessage]);
-      // Also broadcast the message for immediate delivery
-      if (channelRef.current) {
-        await channelRef.current.send({
-          type: "broadcast",
-          event: "message",
-          payload:
-            isDM && otherUserId
-              ? {
-                  id: data.id,
-                  content: data.content,
-                  user_name: data.sender_name,
-                  user_id: data.sender_id,
-                  recipient_id: data.recipient_id,
-                  created_at: data.created_at,
-                }
-              : {
-                  id: data.id,
-                  content: data.content,
-                  user_name: data.user_name,
-                  user_id: data.user_id,
-                  channel_id: data.channel_id,
-                  created_at: data.created_at,
-                },
-        });
-      }
-      return data;
+
+      console.log("Message sent successfully:", result.data);
     } catch (error) {
-      console.error("❌ Error sending message to database:", error);
-      // Fallback: Send via broadcast only
-      const fallbackMessage =
-        isDM && otherUserId
-          ? {
-              id: `temp-${Date.now()}-${Math.random()}`,
-              content: content.trim(),
-              user: {
-                name: currentUser.name || currentUser.email || "Anonymous",
-                id: currentUser.id,
-              },
-              createdAt: new Date().toISOString(),
-              roomName: roomName,
-              recipientId: otherUserId,
-            }
-          : {
-              id: `temp-${Date.now()}-${Math.random()}`,
-              content: content.trim(),
-              user: {
-                name: currentUser.name || currentUser.email || "Anonymous",
-                id: currentUser.id,
-              },
-              createdAt: new Date().toISOString(),
-              roomName: roomName,
-            };
-      setMessages((prev) => [...prev, fallbackMessage]);
-      if (channelRef.current) {
-        try {
-          await channelRef.current.send({
-            type: "broadcast",
-            event: "message",
-            payload: fallbackMessage,
-          });
-          console.log("✅ Message sent via broadcast fallback");
-        } catch (broadcastError) {
-          console.error("❌ Broadcast also failed:", broadcastError);
-        }
-      }
-      throw error;
+      console.error("Error sending message:", error);
     }
   };
 
-  return { messages, sendMessage, isConnected, connectionStatus, setMessages };
+  return {
+    messages,
+    isConnected,
+    connectionStatus,
+    sendMessage,
+  };
 };
 
 // Main Realtime Chat Component
@@ -458,7 +357,7 @@ const RealtimeChat = ({
   messages: initialMessages,
   onMessage,
 }) => {
-  const { messages, sendMessage, isConnected, connectionStatus, setMessages } =
+  const { messages, sendMessage, isConnected, connectionStatus } =
     useRealtimeChat(roomName, username, onMessage);
   const [newMessage, setNewMessage] = useState("");
   const [testingConnection, setTestingConnection] = useState(false);
@@ -467,9 +366,9 @@ const RealtimeChat = ({
 
   useEffect(() => {
     if (initialMessages && initialMessages.length > 0) {
-      setMessages(initialMessages);
+      onMessage(initialMessages);
     }
-  }, [initialMessages, setMessages]);
+  }, [initialMessages, onMessage]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

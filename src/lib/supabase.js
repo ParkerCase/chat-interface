@@ -58,10 +58,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     params: {
       eventsPerSecond: 10,
     },
-    // Ensure Realtime uses the authenticated session
-    headers: {
-      // This will be automatically populated with the session access token
-    },
   },
 });
 
@@ -210,45 +206,6 @@ export const upsertUserProfile = async (userId, userData) => {
   } catch (error) {
     console.error("Error upserting profile:", error);
     return { success: false, error };
-  }
-};
-
-// Helper function to get authenticated Supabase client for Realtime
-export const getAuthenticatedSupabase = async () => {
-  try {
-    const { data: sessionData, error: sessionError } =
-      await supabase.auth.getSession();
-
-    if (sessionError || !sessionData?.session) {
-      console.error("No authenticated session available for Realtime");
-      return null;
-    }
-
-    // Create a new client instance with the user's access token
-    const authenticatedClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        storage: window.localStorage,
-        storageKey: "tatt2away_supabase_auth",
-      },
-      global: {
-        headers: {
-          Authorization: `Bearer ${sessionData.session.access_token}`,
-          "X-Client-Info": "Tatt2Away Admin Panel",
-        },
-      },
-      realtime: {
-        params: {
-          eventsPerSecond: 10,
-        },
-      },
-    });
-
-    return authenticatedClient;
-  } catch (error) {
-    console.error("Error creating authenticated Supabase client:", error);
-    return null;
   }
 };
 

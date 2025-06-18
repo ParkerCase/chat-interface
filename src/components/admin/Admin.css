@@ -1204,6 +1204,16 @@
     font-size: 0.85em;
     padding: 0.5rem 0.25rem;
   }
+
+  .admin-table td {
+    text-align: center !important;
+    justify-content: center !important;
+  }
+  .admin-table td:before {
+    text-align: center !important;
+    justify-content: center !important;
+    margin: 0 auto 0.25rem auto !important;
+  }
 }
 
 /* Modals */
