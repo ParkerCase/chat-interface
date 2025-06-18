@@ -37,8 +37,15 @@ import {
   Close as CloseIcon,
 } from "@mui/icons-material";
 
-const isMobile = () =>
-  typeof window !== "undefined" && window.innerWidth <= 600;
+function useWindowSize() {
+  const [width, setWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const handleResize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+  return width;
+}
 
 const CRMDashboard = ({
   onClose,
@@ -382,6 +389,10 @@ const CRMDashboard = ({
     }
   };
 
+  const width = useWindowSize();
+  const isMobile = width <= 600;
+  const isTablet = width > 600 && width <= 1030;
+
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {/* Header */}
@@ -558,12 +569,18 @@ const CRMDashboard = ({
                     </Button>
                   )}
                 </Box>
-              ) : isMobile() ? (
+              ) : isMobile || isTablet ? (
                 <Box sx={{ p: 2 }}>
                   {contacts.map((contact) => (
                     <Paper
                       key={contact.id}
-                      sx={{ mb: 2, p: 2, borderRadius: 2, boxShadow: 1 }}
+                      sx={{
+                        mb: 2,
+                        p: 2,
+                        borderRadius: 2,
+                        boxShadow: 1,
+                        width: "100%",
+                      }}
                     >
                       <Box
                         sx={{
@@ -723,12 +740,18 @@ const CRMDashboard = ({
                 >
                   <CircularProgress />
                 </Box>
-              ) : isMobile() ? (
+              ) : isMobile || isTablet ? (
                 <Box sx={{ p: 2 }}>
                   {appointments.map((appointment) => (
                     <Paper
                       key={appointment.id}
-                      sx={{ mb: 2, p: 2, borderRadius: 2, boxShadow: 1 }}
+                      sx={{
+                        mb: 2,
+                        p: 2,
+                        borderRadius: 2,
+                        boxShadow: 1,
+                        width: "100%",
+                      }}
                     >
                       <Box
                         sx={{

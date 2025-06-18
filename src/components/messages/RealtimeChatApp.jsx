@@ -7,12 +7,15 @@ import { Send, Wifi, X } from "lucide-react";
 import "./RealtimeChatApp.css";
 
 // Add at the top, after imports
-const isMobile = () =>
-  typeof window !== "undefined" && window.innerWidth <= 600;
-const isTablet = () =>
-  typeof window !== "undefined" &&
-  window.innerWidth > 600 &&
-  window.innerWidth <= 1030;
+function useWindowSize() {
+  const [width, setWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const handleResize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+  return width;
+}
 
 // Individual Message Component
 const ChatMessageItem = ({ message, isOwnMessage, showHeader }) => {
@@ -705,6 +708,10 @@ const RealtimeChatApp = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [allUsers, setAllUsers] = useState([]);
   const [showSidebar, setShowSidebar] = useState(true);
+
+  const width = useWindowSize();
+  const isMobile = width <= 600;
+  const isTablet = width > 600 && width <= 1030;
 
   // Fetch all users for DMs
   useEffect(() => {

@@ -42,6 +42,17 @@ import ClaudeMCPModal from "../ClaudeMCPModal";
 import { SupabaseAnalytics } from "../../utils/SupabaseAnalyticsIntegration";
 
 // Add at the top, after imports
+import { useState, useEffect } from "react";
+function useWindowSize() {
+  const [width, setWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const handleResize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+  return width;
+}
+
 const isMobile = () =>
   typeof window !== "undefined" && window.innerWidth <= 600;
 const isTablet = () =>
@@ -2387,11 +2398,15 @@ ${
   // After fetching messages
   console.log("Fetched messages:", currentMessages);
 
+  const width = useWindowSize();
+  const isMobile = width <= 600;
+  const isTablet = width > 600 && width <= 1030;
+
   return (
     <div className="chatbot-tab-content">
       <div className="chatbot-container">
         {/* Sidebar logic for mobile/tablet */}
-        {isMobile() ? null : isTablet() ? (
+        {isMobile ? null : isTablet ? (
           <div style={{ width: "100%", marginBottom: 8 }}>
             <div
               className="chat-history-sidebar"
