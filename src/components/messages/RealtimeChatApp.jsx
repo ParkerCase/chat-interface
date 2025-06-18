@@ -322,6 +322,25 @@ const useRealtimeChat = (roomName, username, onMessage) => {
         console.error("Failed to send message to database:", error);
         throw error;
       }
+      // Add the sent message to local state immediately
+      const insertedMessage =
+        isDM && otherUserId
+          ? {
+              id: data.id,
+              content: data.content,
+              user: { name: data.sender_name, id: data.sender_id },
+              createdAt: data.created_at,
+              roomName: roomName,
+              recipientId: data.recipient_id,
+            }
+          : {
+              id: data.id,
+              content: data.content,
+              user: { name: data.user_name, id: data.user_id },
+              createdAt: data.created_at,
+              roomName: data.channel_id || roomName,
+            };
+      setMessages((prev) => [...prev, insertedMessage]);
       // Also broadcast the message for immediate delivery
       if (channelRef.current) {
         await channelRef.current.send({
