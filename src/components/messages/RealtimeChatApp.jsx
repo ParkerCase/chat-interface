@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../../lib/supabase";
+import { supabase, getAuthenticatedSupabase } from "../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
 import { diagnoseSupabaseIssues } from "../../utils/supabaseConnectionTest";
 import { Send, Wifi, X } from "lucide-react";
@@ -161,97 +161,137 @@ const useRealtimeChat = (roomName, username, onMessage) => {
       supabase.removeChannel(channelRef.current);
     }
 
-    // Create channel for real-time database changes
-    const channel = supabase
-      .channel("public:messages")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "messages" },
-        ({ payload }) => {
-          console.log("New message received via broadcast:", payload);
-          const newMessage = {
-            id: payload.id || `temp-${Date.now()}-${Math.random()}`,
-            content: payload.content,
-            user: {
-              name: payload.user_name || payload.user?.name || "Anonymous User",
-              id: payload.user_id || payload.user?.id,
-            },
-            createdAt: payload.created_at || new Date().toISOString(),
-            roomName: payload.channel_id || roomName,
-          };
+    // Verify we have an authenticated session before subscribing
+    const setupRealtimeConnection = async () => {
+      try {
+        // Get current session to ensure we're authenticated
+        const { data: sessionData, error: sessionError } =
+          await supabase.auth.getSession();
 
-          setMessages((prev) => {
-            // Check if message already exists
-            if (prev.find((msg) => msg.id === newMessage.id)) {
-              return prev;
-            }
-            const updated = [...prev, newMessage];
-            if (onMessage) {
-              onMessage(updated);
-            }
-            return updated;
-          });
+        if (sessionError) {
+          console.error("Session error:", sessionError);
+          setConnectionStatus("Authentication Error");
+          return;
         }
-      )
-      // Listen for presence changes
-      .on("presence", { event: "sync" }, () => {
-        console.log("Presence sync for room:", roomName);
-      })
-      .on("presence", { event: "join" }, ({ key, newPresences }) => {
-        console.log("User joined room:", key, roomName);
-      })
-      .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
-        console.log("User left room:", key, roomName);
-      })
-      .subscribe(async (status) => {
-        console.log(`Channel status for ${roomName}:`, status);
 
-        if (status === "SUBSCRIBED") {
-          setIsConnected(true);
-          setConnectionStatus("Connected");
-          setRetryCount(0);
-          console.log(`✅ Successfully connected to room: ${roomName}`);
-
-          // Track user presence
-          await channel.track({
-            user: username,
-            room: roomName,
-            online_at: new Date().toISOString(),
-          });
-        } else if (
-          status === "CHANNEL_ERROR" ||
-          status === "TIMED_OUT" ||
-          status === "CLOSED"
-        ) {
-          setIsConnected(false);
-          setConnectionStatus(`Connection Error (${status})`);
-          console.error(`❌ Connection failed for room ${roomName}:`, status);
-
-          // Only retry if we haven't reached max retries
-          const maxRetries = 3; // Reduced from 5 to prevent infinite loops
-          if (retryCount < maxRetries) {
-            const delay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Reduced max delay
-            console.log(
-              `Retrying connection for ${roomName} in ${delay}ms (attempt ${
-                retryCount + 1
-              }/${maxRetries})`
-            );
-
-            retryTimeoutRef.current = setTimeout(() => {
-              setRetryCount((prev) => prev + 1);
-            }, delay);
-          } else {
-            setConnectionStatus("Connected (Broadcast Mode)");
-            console.log(`⚠️ Using broadcast mode for room: ${roomName}`);
-            // Fallback to broadcast mode - assume connected
-            setIsConnected(true);
-          }
-        } else {
-          setConnectionStatus(`Connecting... (${status})`);
+        if (!sessionData?.session) {
+          console.error("No authenticated session found");
+          setConnectionStatus("Not Authenticated");
+          return;
         }
-      });
 
-    channelRef.current = channel;
+        console.log(
+          "Using authenticated session for Realtime:",
+          sessionData.session.user.email
+        );
+
+        // Try to get authenticated client for better Realtime connectivity
+        const authClient = await getAuthenticatedSupabase();
+        const clientToUse = authClient || supabase;
+
+        // Create channel for real-time database changes
+        const channel = clientToUse
+          .channel("public:messages")
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "messages" },
+            ({ payload }) => {
+              console.log("New message received via broadcast:", payload);
+              const newMessage = {
+                id: payload.id || `temp-${Date.now()}-${Math.random()}`,
+                content: payload.content,
+                user: {
+                  name:
+                    payload.user_name || payload.user?.name || "Anonymous User",
+                  id: payload.user_id || payload.user?.id,
+                },
+                createdAt: payload.created_at || new Date().toISOString(),
+                roomName: payload.channel_id || roomName,
+              };
+
+              setMessages((prev) => {
+                // Check if message already exists
+                if (prev.find((msg) => msg.id === newMessage.id)) {
+                  return prev;
+                }
+                const updated = [...prev, newMessage];
+                if (onMessage) {
+                  onMessage(updated);
+                }
+                return updated;
+              });
+            }
+          )
+          // Listen for presence changes
+          .on("presence", { event: "sync" }, () => {
+            console.log("Presence sync for room:", roomName);
+          })
+          .on("presence", { event: "join" }, ({ key, newPresences }) => {
+            console.log("User joined room:", key, roomName);
+          })
+          .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
+            console.log("User left room:", key, roomName);
+          })
+          .subscribe(async (status) => {
+            console.log(`Channel status for ${roomName}:`, status);
+
+            if (status === "SUBSCRIBED") {
+              setIsConnected(true);
+              setConnectionStatus("Connected");
+              setRetryCount(0);
+              console.log(`✅ Successfully connected to room: ${roomName}`);
+
+              // Track user presence
+              await channel.track({
+                user: username,
+                room: roomName,
+                online_at: new Date().toISOString(),
+              });
+            } else if (
+              status === "CHANNEL_ERROR" ||
+              status === "TIMED_OUT" ||
+              status === "CLOSED"
+            ) {
+              setIsConnected(false);
+              setConnectionStatus(`Connection Error (${status})`);
+              console.error(
+                `❌ Connection failed for room ${roomName}:`,
+                status
+              );
+
+              // Only retry if we haven't reached max retries
+              const maxRetries = 3; // Reduced from 5 to prevent infinite loops
+              if (retryCount < maxRetries) {
+                const delay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Reduced max delay
+                console.log(
+                  `Retrying connection for ${roomName} in ${delay}ms (attempt ${
+                    retryCount + 1
+                  }/${maxRetries})`
+                );
+
+                retryTimeoutRef.current = setTimeout(() => {
+                  setRetryCount((prev) => prev + 1);
+                }, delay);
+              } else {
+                setConnectionStatus("Connected (Broadcast Mode)");
+                console.log(`⚠️ Using broadcast mode for room: ${roomName}`);
+                // Fallback to broadcast mode - assume connected
+                setIsConnected(true);
+              }
+            } else {
+              setConnectionStatus(`Connecting... (${status})`);
+            }
+          });
+
+        channelRef.current = channel;
+      } catch (error) {
+        console.error("Error setting up Realtime connection:", error);
+        setConnectionStatus("Connection Error");
+      }
+    };
+
+    // Start the connection setup
+    setupRealtimeConnection();
 
     return () => {
       if (retryTimeoutRef.current) {

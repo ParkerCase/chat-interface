@@ -1330,3 +1330,51 @@ button svg {
     padding: 10px;
   }
 }
+
+@media (max-width: 480px) {
+  .chatbot-tab-content,
+  .chatbot-container,
+  .chat-main-area {
+    width: 100vw !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .chat-history-sidebar {
+    display: none !important;
+  }
+  .chat-toolbar,
+  .chat-input-area {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.5rem !important;
+    padding: 0.5rem 0.5rem !important;
+  }
+  .chat-input-area button,
+  .chat-input-area .send-btn,
+  .chat-input-area .internet-toggle {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 44px !important;
+    font-size: 1.1em !important;
+    margin-bottom: 0.5rem !important;
+  }
+  .chat-input-area .input-wrapper,
+  .chat-input-area textarea {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 1.1em !important;
+    padding: 0.5rem !important;
+  }
+  .chatbot-mobile-message {
+    display: block !important;
+    color: #ef4444;
+    font-size: 1em;
+    text-align: center;
+    margin: 0.5rem 0 1rem 0;
+    font-weight: 600;
+  }
+}

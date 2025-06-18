@@ -623,16 +623,49 @@ input:checked + .slider:before {
 }
 
 @media (max-width: 480px) {
-  .admin-section {
-    padding: 0.5rem !important;
-    margin-bottom: 0.75rem !important;
+  .files-table,
+  .files-table thead,
+  .files-table tbody,
+  .files-table tr {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: visible !important;
   }
-  .files-table {
-    min-width: 400px;
-    font-size: 0.85em;
+  .files-table thead {
+    display: none !important;
   }
-  .files-table th,
+  .files-table tr {
+    background: #fff;
+    margin-bottom: 1rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e5e7eb;
+  }
   .files-table td {
-    padding: 0.5rem 0.25rem;
+    display: flex !important;
+    width: 100% !important;
+    box-sizing: border-box;
+    align-items: flex-start;
+    padding: 0.5rem 0.5rem !important;
+    font-size: 1em;
+    border: none;
+    border-bottom: 1px solid #f3f4f6;
+    position: relative;
+    min-width: 0;
+    white-space: normal;
+  }
+  .files-table td:last-child {
+    border-bottom: none;
+  }
+  .files-table td:before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #6366f1;
+    min-width: 110px;
+    margin-right: 1rem;
+    flex-shrink: 0;
+    display: block;
   }
 }

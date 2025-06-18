@@ -31,10 +31,13 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     cookieOptions: {
       name: "tatt2away_supabase_auth",
       lifetime: 60 * 60 * 24 * 7, // 7 days
-      domain: window.location.hostname === 'localhost' ? undefined : window.location.hostname,
+      domain:
+        window.location.hostname === "localhost"
+          ? undefined
+          : window.location.hostname,
       path: "/",
       sameSite: "Lax",
-      secure: window.location.protocol === 'https:',
+      secure: window.location.protocol === "https:",
     },
     oauth: {
       redirectTo: `${window.location.origin}/login`,
@@ -55,6 +58,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     params: {
       eventsPerSecond: 10,
     },
+    // Ensure Realtime uses the authenticated session
+    headers: {
+      // This will be automatically populated with the session access token
+    },
   },
 });
 
@@ -68,27 +75,31 @@ if (process.env.NODE_ENV === "development") {
       `[Supabase Debug] Auth state changed: ${event}`,
       session ? `User: ${session.user.email}` : "No session"
     );
-    
+
     // Log PKCE data when available
-    if (event === 'SIGNED_IN' && session) {
-      console.log('[Supabase Debug] Session details:', {
-        access_token: session.access_token ? 'present' : 'missing',
-        refresh_token: session.refresh_token ? 'present' : 'missing',
-        provider_token: session.provider_token ? 'present' : 'missing',
-        provider_refresh_token: session.provider_refresh_token ? 'present' : 'missing',
+    if (event === "SIGNED_IN" && session) {
+      console.log("[Supabase Debug] Session details:", {
+        access_token: session.access_token ? "present" : "missing",
+        refresh_token: session.refresh_token ? "present" : "missing",
+        provider_token: session.provider_token ? "present" : "missing",
+        provider_refresh_token: session.provider_refresh_token
+          ? "present"
+          : "missing",
       });
     }
   });
-  
+
   // Debug PKCE storage
   window.debugPKCE = () => {
-    const authKey = 'tatt2away_supabase_auth';
+    const authKey = "tatt2away_supabase_auth";
     const stored = localStorage.getItem(authKey);
-    console.log('PKCE Storage Debug:', {
+    console.log("PKCE Storage Debug:", {
       hasStoredAuth: !!stored,
       storedData: stored ? JSON.parse(stored) : null,
       currentURL: window.location.href,
-      urlParams: Object.fromEntries(new URLSearchParams(window.location.search))
+      urlParams: Object.fromEntries(
+        new URLSearchParams(window.location.search)
+      ),
     });
   };
 }
@@ -199,6 +210,45 @@ export const upsertUserProfile = async (userId, userData) => {
   } catch (error) {
     console.error("Error upserting profile:", error);
     return { success: false, error };
+  }
+};
+
+// Helper function to get authenticated Supabase client for Realtime
+export const getAuthenticatedSupabase = async () => {
+  try {
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
+
+    if (sessionError || !sessionData?.session) {
+      console.error("No authenticated session available for Realtime");
+      return null;
+    }
+
+    // Create a new client instance with the user's access token
+    const authenticatedClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        storage: window.localStorage,
+        storageKey: "tatt2away_supabase_auth",
+      },
+      global: {
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`,
+          "X-Client-Info": "Tatt2Away Admin Panel",
+        },
+      },
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
+        },
+      },
+    });
+
+    return authenticatedClient;
+  } catch (error) {
+    console.error("Error creating authenticated Supabase client:", error);
+    return null;
   }
 };
 

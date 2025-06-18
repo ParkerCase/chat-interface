@@ -2992,6 +2992,11 @@ ${
           onClose={() => setShowClaudeModal(false)}
         />
       )}
+      {typeof window !== "undefined" && window.innerWidth <= 480 && (
+        <div className="chatbot-mobile-message">
+          For Deep Research Open this app on a desktop
+        </div>
+      )}
     </div>
   );
 };

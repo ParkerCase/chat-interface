@@ -37,8 +37,51 @@ export const testSupabaseConnection = async () => {
 
     console.log("✅ Messages table exists");
 
-    // Test 3: Test realtime connection for messages
-    console.log("3. Testing realtime connection for messages...");
+    // Test 3: Test RLS policies for authenticated users
+    console.log("3. Testing RLS policies...");
+    const { data: sessionData } = await supabase.auth.getSession();
+
+    if (sessionData?.session) {
+      console.log("✅ User is authenticated:", sessionData.session.user.email);
+
+      // Test INSERT permission
+      const testMessage = {
+        content: "Test message for RLS verification",
+        user_id: sessionData.session.user.id,
+        user_name: sessionData.session.user.email,
+        channel_id: "test-channel",
+        created_at: new Date().toISOString(),
+      };
+
+      const { data: insertData, error: insertError } = await supabase
+        .from("messages")
+        .insert([testMessage])
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("❌ RLS INSERT policy failed:", insertError);
+        return {
+          success: false,
+          error: `RLS INSERT policy failed: ${insertError.message}`,
+          basicConnection: true,
+          messagesTable: true,
+          rlsPolicies: false,
+        };
+      }
+
+      console.log("✅ RLS INSERT policy working");
+
+      // Clean up test message
+      if (insertData?.id) {
+        await supabase.from("messages").delete().eq("id", insertData.id);
+      }
+    } else {
+      console.log("⚠️ No authenticated session - skipping RLS test");
+    }
+
+    // Test 4: Test realtime connection for messages
+    console.log("4. Testing realtime connection for messages...");
     const channel = supabase.channel("test-messages-connection").on(
       "postgres_changes",
       {
@@ -61,6 +104,7 @@ export const testSupabaseConnection = async () => {
             "Realtime connection timeout - check Supabase project settings",
           basicConnection: true,
           messagesTable: true,
+          rlsPolicies: sessionData?.session ? true : "skipped",
         });
       }, 15000);
 
@@ -76,6 +120,7 @@ export const testSupabaseConnection = async () => {
             status: "connected",
             basicConnection: true,
             messagesTable: true,
+            rlsPolicies: sessionData?.session ? true : "skipped",
             realtime: true,
           });
         } else if (
@@ -91,6 +136,7 @@ export const testSupabaseConnection = async () => {
             error: `Messages realtime connection failed: ${status}`,
             basicConnection: true,
             messagesTable: true,
+            rlsPolicies: sessionData?.session ? true : "skipped",
             realtime: false,
           });
         }
@@ -140,6 +186,19 @@ export const diagnoseSupabaseIssues = async () => {
       results.recommendations.push(
         "Execute: create_messages_table.sql in your Supabase SQL editor"
       );
+    } else if (results.connection.error?.includes("RLS INSERT policy failed")) {
+      results.recommendations.push(
+        "❗ CRITICAL: RLS policies are blocking access to the messages table"
+      );
+      results.recommendations.push(
+        "Add these policies in your Supabase SQL editor:"
+      );
+      results.recommendations.push(
+        'CREATE POLICY "Enable read access for all users" ON messages FOR SELECT USING (true);'
+      );
+      results.recommendations.push(
+        'CREATE POLICY "Enable insert for authenticated users only" ON messages FOR INSERT WITH CHECK (auth.uid() = user_id);'
+      );
     } else if (results.connection.error?.includes("timeout")) {
       results.recommendations.push(
         "Realtime connection timeout - check Supabase project settings"
@@ -152,7 +211,10 @@ export const diagnoseSupabaseIssues = async () => {
       );
     } else if (results.connection.error?.includes("unauthorized")) {
       results.recommendations.push(
-        "Authentication error - check your API keys"
+        "Authentication error - check your API keys and session"
+      );
+      results.recommendations.push(
+        "Ensure you're signed in and have a valid session"
       );
     } else {
       results.recommendations.push(
@@ -163,6 +225,19 @@ export const diagnoseSupabaseIssues = async () => {
     results.recommendations.push(
       "✅ Connection successful! Your messaging setup should work."
     );
+
+    // Additional recommendations based on test results
+    if (results.connection.rlsPolicies === "skipped") {
+      results.recommendations.push(
+        "⚠️ RLS test skipped - ensure you're signed in for full functionality"
+      );
+    }
+
+    if (!results.connection.realtime) {
+      results.recommendations.push(
+        "⚠️ Realtime connection failed - messages will work but not in real-time"
+      );
+    }
   }
 
   console.log("📊 Diagnosis results:", results);
