@@ -163,38 +163,36 @@ const useRealtimeChat = (roomName, username, onMessage) => {
 
     // Create channel for real-time database changes
     const channel = supabase
-      .channel(`messages-${roomName}`, {
-        config: {
-          broadcast: { self: false },
-          presence: { key: username },
-        },
-      })
-      // Listen for new messages via broadcast (fallback)
-      .on("broadcast", { event: "message" }, ({ payload }) => {
-        console.log("New message received via broadcast:", payload);
-        const newMessage = {
-          id: payload.id || `temp-${Date.now()}-${Math.random()}`,
-          content: payload.content,
-          user: {
-            name: payload.user_name || payload.user?.name || "Anonymous User",
-            id: payload.user_id || payload.user?.id,
-          },
-          createdAt: payload.created_at || new Date().toISOString(),
-          roomName: payload.channel_id || roomName,
-        };
+      .channel("public:messages")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "messages" },
+        ({ payload }) => {
+          console.log("New message received via broadcast:", payload);
+          const newMessage = {
+            id: payload.id || `temp-${Date.now()}-${Math.random()}`,
+            content: payload.content,
+            user: {
+              name: payload.user_name || payload.user?.name || "Anonymous User",
+              id: payload.user_id || payload.user?.id,
+            },
+            createdAt: payload.created_at || new Date().toISOString(),
+            roomName: payload.channel_id || roomName,
+          };
 
-        setMessages((prev) => {
-          // Check if message already exists
-          if (prev.find((msg) => msg.id === newMessage.id)) {
-            return prev;
-          }
-          const updated = [...prev, newMessage];
-          if (onMessage) {
-            onMessage(updated);
-          }
-          return updated;
-        });
-      })
+          setMessages((prev) => {
+            // Check if message already exists
+            if (prev.find((msg) => msg.id === newMessage.id)) {
+              return prev;
+            }
+            const updated = [...prev, newMessage];
+            if (onMessage) {
+              onMessage(updated);
+            }
+            return updated;
+          });
+        }
+      )
       // Listen for presence changes
       .on("presence", { event: "sync" }, () => {
         console.log("Presence sync for room:", roomName);
