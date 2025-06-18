@@ -41,6 +41,14 @@ import "./ChatbotTabContent.css";
 import ClaudeMCPModal from "../ClaudeMCPModal";
 import { SupabaseAnalytics } from "../../utils/SupabaseAnalyticsIntegration";
 
+// Add at the top, after imports
+const isMobile = () =>
+  typeof window !== "undefined" && window.innerWidth <= 600;
+const isTablet = () =>
+  typeof window !== "undefined" &&
+  window.innerWidth > 600 &&
+  window.innerWidth <= 1030;
+
 const ChatbotTabContent = () => {
   const { currentUser } = useAuth();
   const { isFeatureEnabled } = useFeatureFlags();
@@ -2382,75 +2390,122 @@ ${
   return (
     <div className="chatbot-tab-content">
       <div className="chatbot-container">
-        {/* Chat history sidebar */}
-        <div
-          className={`chat-history-sidebar ${
-            !showChatHistory ? "collapsed" : ""
-          }`}
-        >
-          {/* Always render the history header, but conditionally show/hide its contents */}
-          <div
-            className="history-header"
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "10px 16px",
-              borderBottom: "1px solid var(--color-border, #e5e7eb)",
-            }}
-          >
-            {showChatHistory ? (
-              <h3>Chat History</h3>
-            ) : (
-              <span style={{ width: "0", overflow: "hidden" }}></span>
-            )}
-
-            {/* Always show New Chat button, regardless of sidebar state */}
-            <button
-              className="new-chat-btn"
-              onClick={createNewThread}
+        {/* Sidebar logic for mobile/tablet */}
+        {isMobile() ? null : isTablet() ? (
+          <div style={{ width: "100%", marginBottom: 8 }}>
+            <div
+              className="chat-history-sidebar"
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "8px 12px",
-                backgroundColor: "var(--primary, #4f46e5)",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "14px",
-                fontWeight: "500",
+                width: "100%",
+                maxWidth: "100vw",
+                minWidth: 0,
+                boxSizing: "border-box",
+                borderRight: "none",
+                borderBottom: "1px solid #e5e7eb",
               }}
             >
-              <PlusCircle size={14} />
-              New Chat
+              <div
+                className="history-header"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 16px",
+                  borderBottom: "1px solid var(--color-border, #e5e7eb)",
+                }}
+              >
+                <h3>Chat History</h3>
+                <button
+                  className="new-chat-btn"
+                  onClick={createNewThread}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "8px 12px",
+                    backgroundColor: "var(--primary, #4f46e5)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                  }}
+                >
+                  <PlusCircle size={14} /> New Chat
+                </button>
+              </div>
+              <ChatHistory
+                onSelectThread={handleSelectThread}
+                selectedThreadId={selectedThreadId}
+              />
+            </div>
+          </div>
+        ) : (
+          <div
+            className={`chat-history-sidebar ${
+              !showChatHistory ? "collapsed" : ""
+            }`}
+          >
+            <div
+              className="history-header"
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "10px 16px",
+                borderBottom: "1px solid var(--color-border, #e5e7eb)",
+              }}
+            >
+              {showChatHistory ? (
+                <h3>Chat History</h3>
+              ) : (
+                <span style={{ width: "0", overflow: "hidden" }}></span>
+              )}
+              <button
+                className="new-chat-btn"
+                onClick={createNewThread}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "8px 12px",
+                  backgroundColor: "var(--primary, #4f46e5)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                }}
+              >
+                <PlusCircle size={14} /> New Chat
+              </button>
+            </div>
+            {showChatHistory && (
+              <ChatHistory
+                onSelectThread={handleSelectThread}
+                selectedThreadId={selectedThreadId}
+              />
+            )}
+            <button
+              className="toggle-history-btn"
+              onClick={toggleChatHistory}
+              title={
+                showChatHistory ? "Hide chat history" : "Show chat history"
+              }
+              aria-label={
+                showChatHistory ? "Hide chat history" : "Show chat history"
+              }
+            >
+              {showChatHistory ? (
+                <ChevronLeft size={16} />
+              ) : (
+                <ChevronRight size={16} />
+              )}
             </button>
           </div>
-
-          {/* Show chat history only if expanded */}
-          {showChatHistory && (
-            <ChatHistory
-              onSelectThread={handleSelectThread}
-              selectedThreadId={selectedThreadId}
-            />
-          )}
-
-          <button
-            className="toggle-history-btn"
-            onClick={toggleChatHistory}
-            title={showChatHistory ? "Hide chat history" : "Show chat history"}
-            aria-label={
-              showChatHistory ? "Hide chat history" : "Show chat history"
-            }
-          >
-            {showChatHistory ? (
-              <ChevronLeft size={16} />
-            ) : (
-              <ChevronRight size={16} />
-            )}
-          </button>
-        </div>
+        )}
 
         {/* Main chat area */}
         <div className="chat-main-area">

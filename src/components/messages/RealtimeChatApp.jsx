@@ -6,6 +6,14 @@ import { diagnoseSupabaseIssues } from "../../utils/supabaseConnectionTest";
 import { Send, Wifi, X } from "lucide-react";
 import "./RealtimeChatApp.css";
 
+// Add at the top, after imports
+const isMobile = () =>
+  typeof window !== "undefined" && window.innerWidth <= 600;
+const isTablet = () =>
+  typeof window !== "undefined" &&
+  window.innerWidth > 600 &&
+  window.innerWidth <= 1030;
+
 // Individual Message Component
 const ChatMessageItem = ({ message, isOwnMessage, showHeader }) => {
   return (
@@ -696,6 +704,7 @@ const RealtimeChatApp = () => {
   const [newRoomType, setNewRoomType] = useState("group");
   const [searchQuery, setSearchQuery] = useState("");
   const [allUsers, setAllUsers] = useState([]);
+  const [showSidebar, setShowSidebar] = useState(true);
 
   // Fetch all users for DMs
   useEffect(() => {
@@ -782,192 +791,635 @@ const RealtimeChatApp = () => {
   const groupChannels = filteredRooms.filter((room) => room.type === "group");
 
   return (
-    <div className="realtime-chat-app">
-      {/* Sidebar */}
-      <div className="realtime-chat-sidebar">
-        {/* Sidebar Header */}
-        <div
-          style={{
-            padding: 24,
-            borderBottom: "1px solid #e5e7eb",
-            background: "#fff",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 16,
-            }}
-          >
-            <button
-              onClick={handleBackToAdmin}
-              style={{
-                background: "#4f46e5",
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-                padding: "8px 16px",
-                fontWeight: 500,
-                fontSize: 14,
-                cursor: "pointer",
-              }}
-            >
-              Back to Admin
-            </button>
-            <button
-              onClick={() => setShowNewRoomDialog(true)}
-              style={{
-                background: "#4f46e5",
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-                padding: 8,
-                fontWeight: 500,
-                fontSize: 18,
-                cursor: "pointer",
-              }}
-            >
-              +
-            </button>
-          </div>
-          <input
-            type="text"
-            placeholder="Search conversations..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+    <div
+      className="realtime-chat-app"
+      style={{ flexDirection: isMobile() ? "column" : "row" }}
+    >
+      {/* Sidebar logic for mobile/tablet */}
+      {isMobile() ? (
+        <>
+          <button
             style={{
               width: "100%",
-              padding: "10px 14px",
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              fontSize: 14,
-              marginBottom: 8,
+              padding: "12px",
+              background: "#4f46e5",
+              color: "#fff",
+              border: "none",
+              borderRadius: 0,
+              fontWeight: 600,
+              fontSize: 16,
+              cursor: "pointer",
+              marginBottom: 4,
             }}
-          />
-        </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-          {/* Channels Section */}
-          <div style={{ marginBottom: 32 }}>
+            onClick={() => setShowSidebar((prev) => !prev)}
+          >
+            {showSidebar ? "Hide Conversations" : "Show Conversations"}
+          </button>
+          {showSidebar && (
             <div
+              className="realtime-chat-sidebar"
               style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: "#64748b",
-                textTransform: "uppercase",
-                letterSpacing: 1,
-                marginBottom: 12,
+                width: "100vw",
+                minWidth: 0,
+                maxWidth: "100vw",
+                position: "relative",
+                borderRight: "none",
+                borderBottom: "1px solid #e5e7eb",
               }}
             >
-              Channels
-            </div>
-            {groupChannels.map((room) => (
+              {/* Sidebar Header */}
               <div
-                key={room.id}
-                onClick={() => setActiveRoom(room)}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "10px 12px",
-                  borderRadius: 8,
-                  background:
-                    activeRoom?.id === room.id ? "#e0e7ff" : "transparent",
-                  color: activeRoom?.id === room.id ? "#4f46e5" : "#22223b",
-                  cursor: "pointer",
-                  marginBottom: 4,
+                  padding: 24,
+                  borderBottom: "1px solid #e5e7eb",
+                  background: "#fff",
                 }}
               >
-                <span
-                  style={{ fontWeight: 700, fontSize: 18, color: "#64748b" }}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 16,
+                  }}
                 >
-                  #
-                </span>
-                <span style={{ fontWeight: 500 }}>{room.name}</span>
+                  <button
+                    onClick={handleBackToAdmin}
+                    style={{
+                      background: "#4f46e5",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 8,
+                      padding: "8px 16px",
+                      fontWeight: 500,
+                      fontSize: 14,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Back to Admin
+                  </button>
+                  <button
+                    onClick={() => setShowNewRoomDialog(true)}
+                    style={{
+                      background: "#4f46e5",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 8,
+                      padding: 8,
+                      fontWeight: 500,
+                      fontSize: 18,
+                      cursor: "pointer",
+                    }}
+                  >
+                    +
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search conversations..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: 8,
+                    border: "1px solid #e5e7eb",
+                    fontSize: 14,
+                    marginBottom: 8,
+                  }}
+                />
               </div>
-            ))}
-          </div>
-          {/* Direct Messages Section */}
-          <div>
+              <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+                {/* Channels Section */}
+                <div style={{ marginBottom: 32 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                      letterSpacing: 1,
+                      marginBottom: 12,
+                    }}
+                  >
+                    Channels
+                  </div>
+                  {groupChannels.map((room) => (
+                    <div
+                      key={room.id}
+                      onClick={() => setActiveRoom(room)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "10px 12px",
+                        borderRadius: 8,
+                        background:
+                          activeRoom?.id === room.id
+                            ? "#e0e7ff"
+                            : "transparent",
+                        color:
+                          activeRoom?.id === room.id ? "#4f46e5" : "#22223b",
+                        cursor: "pointer",
+                        marginBottom: 4,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontWeight: 700,
+                          fontSize: 18,
+                          color: "#64748b",
+                        }}
+                      >
+                        #
+                      </span>
+                      <span style={{ fontWeight: 500 }}>{room.name}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Direct Messages Section */}
+                <div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                      letterSpacing: 1,
+                      marginBottom: 12,
+                    }}
+                  >
+                    Direct Messages
+                  </div>
+                  {allUsers.map((user) => (
+                    <div
+                      key={user.id}
+                      onClick={() => openDirectMessage(user)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "10px 12px",
+                        borderRadius: 8,
+                        background:
+                          activeRoom?.type === "direct" &&
+                          activeRoom?.participants.includes(user.id)
+                            ? "#e0e7ff"
+                            : "transparent",
+                        color:
+                          activeRoom?.type === "direct" &&
+                          activeRoom?.participants.includes(user.id)
+                            ? "#4f46e5"
+                            : "#22223b",
+                        cursor: "pointer",
+                        marginBottom: 4,
+                      }}
+                    >
+                      <div
+                        className="realtime-chat-avatar"
+                        style={{ width: 32, height: 32, fontSize: 15 }}
+                      >
+                        {user.full_name?.charAt(0).toUpperCase() ||
+                          user.email?.charAt(0).toUpperCase()}
+                      </div>
+                      <span style={{ fontWeight: 500 }}>
+                        {user.full_name || user.email}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Sidebar Footer */}
+              <div
+                style={{
+                  padding: 16,
+                  borderTop: "1px solid #e5e7eb",
+                  background: "#fff",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div
+                    className="realtime-chat-avatar"
+                    style={{ width: 32, height: 32, fontSize: 15 }}
+                  >
+                    {currentUser?.name?.charAt(0)?.toUpperCase() ||
+                      currentUser?.email?.charAt(0)?.toUpperCase() ||
+                      "U"}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        color: "#22223b",
+                        fontSize: 15,
+                      }}
+                    >
+                      {currentUser?.name || currentUser?.email || "User"}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#64748b" }}>Online</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      ) : isTablet() ? (
+        <div style={{ width: "100%", marginBottom: 8 }}>
+          <div
+            className="realtime-chat-sidebar"
+            style={{
+              width: "100%",
+              maxWidth: "100vw",
+              minWidth: 0,
+              boxSizing: "border-box",
+              borderRight: "none",
+              borderBottom: "1px solid #e5e7eb",
+            }}
+          >
+            {/* Sidebar Header */}
             <div
               style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: "#64748b",
-                textTransform: "uppercase",
-                letterSpacing: 1,
-                marginBottom: 12,
+                padding: 24,
+                borderBottom: "1px solid #e5e7eb",
+                background: "#fff",
               }}
             >
-              Direct Messages
-            </div>
-            {allUsers.map((user) => (
               <div
-                key={user.id}
-                onClick={() => openDirectMessage(user)}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 12,
-                  padding: "10px 12px",
-                  borderRadius: 8,
-                  background:
-                    activeRoom?.type === "direct" &&
-                    activeRoom?.participants.includes(user.id)
-                      ? "#e0e7ff"
-                      : "transparent",
-                  color:
-                    activeRoom?.type === "direct" &&
-                    activeRoom?.participants.includes(user.id)
-                      ? "#4f46e5"
-                      : "#22223b",
-                  cursor: "pointer",
-                  marginBottom: 4,
+                  justifyContent: "space-between",
+                  marginBottom: 16,
                 }}
               >
+                <button
+                  onClick={handleBackToAdmin}
+                  style={{
+                    background: "#4f46e5",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "8px 16px",
+                    fontWeight: 500,
+                    fontSize: 14,
+                    cursor: "pointer",
+                  }}
+                >
+                  Back to Admin
+                </button>
+                <button
+                  onClick={() => setShowNewRoomDialog(true)}
+                  style={{
+                    background: "#4f46e5",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: 8,
+                    fontWeight: 500,
+                    fontSize: 18,
+                    cursor: "pointer",
+                  }}
+                >
+                  +
+                </button>
+              </div>
+              <input
+                type="text"
+                placeholder="Search conversations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb",
+                  fontSize: 14,
+                  marginBottom: 8,
+                }}
+              />
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+              {/* Channels Section */}
+              <div style={{ marginBottom: 32 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#64748b",
+                    textTransform: "uppercase",
+                    letterSpacing: 1,
+                    marginBottom: 12,
+                  }}
+                >
+                  Channels
+                </div>
+                {groupChannels.map((room) => (
+                  <div
+                    key={room.id}
+                    onClick={() => setActiveRoom(room)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "10px 12px",
+                      borderRadius: 8,
+                      background:
+                        activeRoom?.id === room.id ? "#e0e7ff" : "transparent",
+                      color: activeRoom?.id === room.id ? "#4f46e5" : "#22223b",
+                      cursor: "pointer",
+                      marginBottom: 4,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 18,
+                        color: "#64748b",
+                      }}
+                    >
+                      #
+                    </span>
+                    <span style={{ fontWeight: 500 }}>{room.name}</span>
+                  </div>
+                ))}
+              </div>
+              {/* Direct Messages Section */}
+              <div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#64748b",
+                    textTransform: "uppercase",
+                    letterSpacing: 1,
+                    marginBottom: 12,
+                  }}
+                >
+                  Direct Messages
+                </div>
+                {allUsers.map((user) => (
+                  <div
+                    key={user.id}
+                    onClick={() => openDirectMessage(user)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "10px 12px",
+                      borderRadius: 8,
+                      background:
+                        activeRoom?.type === "direct" &&
+                        activeRoom?.participants.includes(user.id)
+                          ? "#e0e7ff"
+                          : "transparent",
+                      color:
+                        activeRoom?.type === "direct" &&
+                        activeRoom?.participants.includes(user.id)
+                          ? "#4f46e5"
+                          : "#22223b",
+                      cursor: "pointer",
+                      marginBottom: 4,
+                    }}
+                  >
+                    <div
+                      className="realtime-chat-avatar"
+                      style={{ width: 32, height: 32, fontSize: 15 }}
+                    >
+                      {user.full_name?.charAt(0).toUpperCase() ||
+                        user.email?.charAt(0).toUpperCase()}
+                    </div>
+                    <span style={{ fontWeight: 500 }}>
+                      {user.full_name || user.email}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Sidebar Footer */}
+            <div
+              style={{
+                padding: 16,
+                borderTop: "1px solid #e5e7eb",
+                background: "#fff",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div
                   className="realtime-chat-avatar"
                   style={{ width: 32, height: 32, fontSize: 15 }}
                 >
-                  {user.full_name?.charAt(0).toUpperCase() ||
-                    user.email?.charAt(0).toUpperCase()}
+                  {currentUser?.name?.charAt(0)?.toUpperCase() ||
+                    currentUser?.email?.charAt(0)?.toUpperCase() ||
+                    "U"}
                 </div>
-                <span style={{ fontWeight: 500 }}>
-                  {user.full_name || user.email}
-                </span>
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{ fontWeight: 600, color: "#22223b", fontSize: 15 }}
+                  >
+                    {currentUser?.name || currentUser?.email || "User"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>Online</div>
+                </div>
               </div>
-            ))}
+            </div>
           </div>
         </div>
-        {/* Sidebar Footer */}
-        <div
-          style={{
-            padding: 16,
-            borderTop: "1px solid #e5e7eb",
-            background: "#fff",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      ) : (
+        <div className="realtime-chat-sidebar">
+          {/* Sidebar Header */}
+          <div
+            style={{
+              padding: 24,
+              borderBottom: "1px solid #e5e7eb",
+              background: "#fff",
+            }}
+          >
             <div
-              className="realtime-chat-avatar"
-              style={{ width: 32, height: 32, fontSize: 15 }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 16,
+              }}
             >
-              {currentUser?.name?.charAt(0)?.toUpperCase() ||
-                currentUser?.email?.charAt(0)?.toUpperCase() ||
-                "U"}
+              <button
+                onClick={handleBackToAdmin}
+                style={{
+                  background: "#4f46e5",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 16px",
+                  fontWeight: 500,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                Back to Admin
+              </button>
+              <button
+                onClick={() => setShowNewRoomDialog(true)}
+                style={{
+                  background: "#4f46e5",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: 8,
+                  fontWeight: 500,
+                  fontSize: 18,
+                  cursor: "pointer",
+                }}
+              >
+                +
+              </button>
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, color: "#22223b", fontSize: 15 }}>
-                {currentUser?.name || currentUser?.email || "User"}
+            <input
+              type="text"
+              placeholder="Search conversations..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: "1px solid #e5e7eb",
+                fontSize: 14,
+                marginBottom: 8,
+              }}
+            />
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+            {/* Channels Section */}
+            <div style={{ marginBottom: 32 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "#64748b",
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                  marginBottom: 12,
+                }}
+              >
+                Channels
               </div>
-              <div style={{ fontSize: 12, color: "#64748b" }}>Online</div>
+              {groupChannels.map((room) => (
+                <div
+                  key={room.id}
+                  onClick={() => setActiveRoom(room)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    background:
+                      activeRoom?.id === room.id ? "#e0e7ff" : "transparent",
+                    color: activeRoom?.id === room.id ? "#4f46e5" : "#22223b",
+                    cursor: "pointer",
+                    marginBottom: 4,
+                  }}
+                >
+                  <span
+                    style={{ fontWeight: 700, fontSize: 18, color: "#64748b" }}
+                  >
+                    #
+                  </span>
+                  <span style={{ fontWeight: 500 }}>{room.name}</span>
+                </div>
+              ))}
+            </div>
+            {/* Direct Messages Section */}
+            <div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "#64748b",
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                  marginBottom: 12,
+                }}
+              >
+                Direct Messages
+              </div>
+              {allUsers.map((user) => (
+                <div
+                  key={user.id}
+                  onClick={() => openDirectMessage(user)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    background:
+                      activeRoom?.type === "direct" &&
+                      activeRoom?.participants.includes(user.id)
+                        ? "#e0e7ff"
+                        : "transparent",
+                    color:
+                      activeRoom?.type === "direct" &&
+                      activeRoom?.participants.includes(user.id)
+                        ? "#4f46e5"
+                        : "#22223b",
+                    cursor: "pointer",
+                    marginBottom: 4,
+                  }}
+                >
+                  <div
+                    className="realtime-chat-avatar"
+                    style={{ width: 32, height: 32, fontSize: 15 }}
+                  >
+                    {user.full_name?.charAt(0).toUpperCase() ||
+                      user.email?.charAt(0).toUpperCase()}
+                  </div>
+                  <span style={{ fontWeight: 500 }}>
+                    {user.full_name || user.email}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Sidebar Footer */}
+          <div
+            style={{
+              padding: 16,
+              borderTop: "1px solid #e5e7eb",
+              background: "#fff",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div
+                className="realtime-chat-avatar"
+                style={{ width: 32, height: 32, fontSize: 15 }}
+              >
+                {currentUser?.name?.charAt(0)?.toUpperCase() ||
+                  currentUser?.email?.charAt(0)?.toUpperCase() ||
+                  "U"}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{ fontWeight: 600, color: "#22223b", fontSize: 15 }}
+                >
+                  {currentUser?.name || currentUser?.email || "User"}
+                </div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>Online</div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
       {/* Main Chat Area */}
-      <div className="realtime-chat-main">
+      <div
+        className="realtime-chat-main"
+        style={{
+          width: "100%",
+          maxWidth: "100vw",
+          minWidth: 0,
+          boxSizing: "border-box",
+        }}
+      >
         {activeRoom ? (
           <RealtimeChat
             roomName={activeRoom.id}

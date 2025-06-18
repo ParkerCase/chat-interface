@@ -37,6 +37,9 @@ import {
   Close as CloseIcon,
 } from "@mui/icons-material";
 
+const isMobile = () =>
+  typeof window !== "undefined" && window.innerWidth <= 600;
+
 const CRMDashboard = ({
   onClose,
   onRefresh,
@@ -555,6 +558,57 @@ const CRMDashboard = ({
                     </Button>
                   )}
                 </Box>
+              ) : isMobile() ? (
+                <Box sx={{ p: 2 }}>
+                  {contacts.map((contact) => (
+                    <Paper
+                      key={contact.id}
+                      sx={{ mb: 2, p: 2, borderRadius: 2, boxShadow: 1 }}
+                    >
+                      <Box
+                        sx={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 1,
+                        }}
+                      >
+                        <Box>
+                          <strong>Name:</strong> {contact.name}
+                        </Box>
+                        <Box>
+                          <strong>Email:</strong> {contact.email}
+                        </Box>
+                        <Box>
+                          <strong>Phone:</strong> {contact.phone}
+                        </Box>
+                        <Box>
+                          <strong>Center:</strong>{" "}
+                          <Chip
+                            label={contact.center_code}
+                            size="small"
+                            variant="outlined"
+                          />
+                        </Box>
+                        <Box>
+                          <strong>Guest Code:</strong> {contact.guest_code}
+                        </Box>
+                        <Box>
+                          <strong>Created:</strong>{" "}
+                          {formatDate(contact.created_date)}
+                        </Box>
+                        <Box>
+                          <Button
+                            size="small"
+                            fullWidth
+                            onClick={() => setSelectedContact(contact)}
+                          >
+                            View
+                          </Button>
+                        </Box>
+                      </Box>
+                    </Paper>
+                  ))}
+                </Box>
               ) : (
                 <TableContainer sx={{ height: "100%" }}>
                   <Table stickyHeader>
@@ -668,6 +722,69 @@ const CRMDashboard = ({
                   }}
                 >
                   <CircularProgress />
+                </Box>
+              ) : isMobile() ? (
+                <Box sx={{ p: 2 }}>
+                  {appointments.map((appointment) => (
+                    <Paper
+                      key={appointment.id}
+                      sx={{ mb: 2, p: 2, borderRadius: 2, boxShadow: 1 }}
+                    >
+                      <Box
+                        sx={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 1,
+                        }}
+                      >
+                        <Box>
+                          <strong>Guest:</strong> {appointment.guest_name}
+                        </Box>
+                        <Box>
+                          <strong>Service:</strong> {appointment.service_name}
+                        </Box>
+                        <Box>
+                          <strong>Therapist:</strong>{" "}
+                          {appointment.therapist_name}
+                        </Box>
+                        <Box>
+                          <strong>Start Time:</strong>{" "}
+                          {formatDateTime(appointment.start_time)}
+                        </Box>
+                        <Box>
+                          <strong>Status:</strong>{" "}
+                          <Chip
+                            label={appointment.status}
+                            size="small"
+                            color={
+                              appointment.status === "Closed"
+                                ? "success"
+                                : appointment.status === "Deleted"
+                                ? "error"
+                                : "default"
+                            }
+                          />
+                        </Box>
+                        <Box>
+                          <strong>Center:</strong>{" "}
+                          <Chip
+                            label={appointment.center_code}
+                            size="small"
+                            variant="outlined"
+                          />
+                        </Box>
+                        <Box>
+                          <Button
+                            size="small"
+                            fullWidth
+                            onClick={() => setSelectedAppointment(appointment)}
+                          >
+                            View
+                          </Button>
+                        </Box>
+                      </Box>
+                    </Paper>
+                  ))}
                 </Box>
               ) : (
                 <TableContainer sx={{ height: "100%" }}>
