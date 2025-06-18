@@ -1276,27 +1276,79 @@ button svg {
 
 /* Responsive styles */
 @media (max-width: 1030px) {
-  .chat-toolbar,
-  .chat-input-area {
+  .chatbot-tab-content,
+  .chatbot-container {
     flex-direction: column !important;
-    align-items: center !important;
-    gap: 0.5rem !important;
-    padding: 0.5rem 0.25rem !important;
-    width: 100% !important;
+    width: 100vw !important;
     max-width: 100vw !important;
     min-width: 0 !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+  .chat-history-sidebar {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    margin-bottom: 1rem !important;
+    border-right: none !important;
+    border-bottom: 1px solid #e5e7eb !important;
+  }
+  .chat-main-area {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    padding: 0.5rem !important;
+  }
+  .chat-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.5rem !important;
+    width: 100% !important;
+    margin-bottom: 0.5rem !important;
+  }
+  .chat-toolbar > * {
+    width: 100% !important;
+    margin-bottom: 0.25rem !important;
     box-sizing: border-box !important;
   }
-  .chat-toolbar > *,
-  .chat-input-area button,
-  .chat-input-area .send-btn,
-  .chat-input-area .internet-toggle {
-    width: 100% !important;
+  .chat-messages {
+    width: 100vw !important;
     max-width: 100vw !important;
     min-width: 0 !important;
-    margin: 0.15rem 0 !important;
-    display: block !important;
     box-sizing: border-box !important;
+    padding: 0.5rem 0 !important;
+    background: #f9fafb !important;
+    border-radius: 0 !important;
+    min-height: 200px !important;
+    max-height: 50vh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+  .message {
+    width: 100% !important;
+    margin: 0.5rem 0 !important;
+    border-radius: 1rem !important;
+    padding: 0.75rem 1rem !important;
+    text-align: left !important;
+    background: #fff !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+  .chat-input-area {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    padding: 0.5rem 0 !important;
+    background: #fff !important;
+    border-radius: 0 0 1rem 1rem !important;
+    box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.04);
   }
   .chat-input-area .input-wrapper,
   .chat-input-area textarea {
@@ -1309,24 +1361,50 @@ button svg {
     background: #f9fafb !important;
     box-sizing: border-box !important;
   }
-  .chat-messages {
-    padding: 0.5rem !important;
-    background: #f9fafb !important;
-    border-radius: 0 !important;
-    min-height: 200px !important;
-    max-height: 50vh !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
+  .chat-input-area button,
+  .chat-input-area .send-btn,
+  .chat-input-area .internet-toggle {
+    width: auto !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    height: 44px !important;
+    margin: 0 0.25rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     box-sizing: border-box !important;
   }
+}
+@media (max-width: 600px) {
+  .chat-history-sidebar {
+    display: none !important;
+  }
+  .chat-main-area,
+  .chat-messages,
   .chatbot-tab-content,
-  .chatbot-container,
-  .chat-main-area {
-    overflow-x: hidden !important;
-    min-width: 0 !important;
+  .chatbot-container {
     width: 100vw !important;
     max-width: 100vw !important;
+    min-width: 0 !important;
     box-sizing: border-box !important;
+    padding: 0 !important;
+  }
+  .chat-toolbar {
+    gap: 0.25rem !important;
+    margin-bottom: 0.25rem !important;
+  }
+  .message {
+    font-size: 0.95em !important;
+    padding: 0.5rem 0.5rem !important;
+  }
+  .chat-input-area {
+    gap: 0.25rem !important;
+    padding: 0.25rem 0 !important;
+  }
+  .chat-input-area .input-wrapper,
+  .chat-input-area textarea {
+    font-size: 0.95em !important;
+    padding: 0.25rem !important;
   }
 }
 @media (max-width: 540px) {

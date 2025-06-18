@@ -328,7 +328,7 @@
   }
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1030px) {
   .crm-dashboard-header,
   .crm-dashboard-content,
   .MuiBox-root,
@@ -340,15 +340,86 @@
     box-sizing: border-box !important;
     padding: 0.5rem !important;
     overflow-x: hidden !important;
+    display: block !important;
+  }
+  .crm-dashboard-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.5rem !important;
+    padding: 0.5rem 0.5rem 0 0.5rem !important;
+  }
+  .MuiButton-root,
+  .MuiTab-root,
+  .MuiChip-root {
+    width: 100% !important;
+    max-width: 400px !important;
+    min-width: 44px !important;
+    margin: 0.25rem 0 !important;
+    display: block !important;
+    font-size: 1.1em !important;
+    box-sizing: border-box !important;
   }
   .MuiTableContainer-root {
     overflow-x: auto !important;
     min-width: 320px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    position: relative;
   }
-  .crm-dashboard-content {
-    overflow-y: auto !important;
-    max-height: 80vh !important;
-    min-height: 200px !important;
+  .MuiTableContainer-root::-webkit-scrollbar {
+    height: 8px;
+  }
+  .MuiTableContainer-root::-webkit-scrollbar-thumb {
+    background: #e5e7eb;
+    border-radius: 4px;
+  }
+  .MuiTableCell-root {
+    font-size: 1em !important;
+    padding: 0.5rem 0.25rem !important;
+    text-align: center !important;
+    word-break: break-word !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .MuiTableContainer-root,
+  .MuiTable-root,
+  .MuiTableBody-root,
+  .MuiTableRow-root {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+  }
+  .MuiTableRow-root {
+    background: #fff;
+    margin-bottom: 1rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e5e7eb;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+  .MuiTableCell-root {
+    display: flex !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    align-items: flex-start;
+    padding: 0.5rem 0.5rem !important;
+    font-size: 1em;
+    border: none;
+    border-bottom: 1px solid #f3f4f6;
+    position: relative;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+  }
+  .MuiTableCell-root:last-child {
+    border-bottom: none;
   }
 }
 
