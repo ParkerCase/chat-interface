@@ -356,7 +356,7 @@
     min-width: 44px !important;
     margin: 0.25rem 0 !important;
     display: block !important;
-    font-size: 1.1em !important;
+    font-size: 1em !important;
     box-sizing: border-box !important;
   }
   .MuiTableContainer-root {
@@ -408,7 +408,7 @@
     box-sizing: border-box !important;
     align-items: flex-start;
     padding: 0.5rem 0.5rem !important;
-    font-size: 1em;
+    font-size: 1em !important;
     border: none;
     border-bottom: 1px solid #f3f4f6;
     position: relative;
@@ -421,6 +421,13 @@
   .MuiTableCell-root:last-child {
     border-bottom: none;
   }
+  .admin-section,
+  .admin-section-title,
+  .admin-table,
+  .admin-table td,
+  .admin-table th {
+    font-size: 14px !important;
+  }
 }
 
 @media (max-width: 540px) {
@@ -429,108 +436,40 @@
   .MuiBox-root,
   .MuiPaper-root,
   .MuiTableContainer-root {
-    font-size: 0.95em !important;
+    font-size: 14px !important;
     padding: 0.25rem !important;
   }
   .MuiTableCell-root {
-    font-size: 0.95em !important;
+    font-size: 14px !important;
     padding: 0.25rem 0.1rem !important;
   }
-}
-
-@media (max-width: 340px) {
-  .crm-dashboard-header,
-  .crm-dashboard-content,
-  .MuiBox-root,
-  .MuiPaper-root,
-  .MuiTableContainer-root {
-    font-size: 0.9em !important;
-    padding: 0.1rem !important;
-  }
-  .MuiTableCell-root {
-    font-size: 0.9em !important;
-    padding: 0.1rem 0.05rem !important;
-  }
-}
-
-@media (max-width: 480px) {
+  .admin-section,
+  .admin-section-title,
   .admin-table,
-  .admin-table thead,
-  .admin-table tbody,
-  .admin-table tr {
-    display: block !important;
-    width: 100% !important;
+  .admin-table td,
+  .admin-table th {
+    font-size: 14px !important;
+  }
+}
+
+@media (max-width: 440px) {
+  .MuiTableContainer-root,
+  .MuiTable-root,
+  .MuiTableBody-root,
+  .MuiTableRow-root,
+  .MuiTableCell-root {
+    font-size: 14px !important;
     min-width: 0 !important;
-    overflow-x: visible !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    padding: 0.1rem !important;
+    overflow-x: auto !important;
   }
-  .admin-table thead {
-    display: none !important;
-  }
-  .admin-table tr {
-    background: #fff;
-    margin-bottom: 1rem;
-    border-radius: 0.75rem;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-    padding: 0.5rem 0.75rem;
-    border: 1px solid #e5e7eb;
-  }
-  .admin-table td {
-    display: flex !important;
-    width: 100% !important;
-    box-sizing: border-box;
-    align-items: flex-start;
-    padding: 0.5rem 0.5rem !important;
-    font-size: 1em;
-    border: none;
-    border-bottom: 1px solid #f3f4f6;
-    position: relative;
-    min-width: 0;
-    white-space: normal;
-  }
-  .admin-table td:last-child {
-    border-bottom: none;
-  }
-  .admin-table td:before {
-    content: attr(data-label);
-    font-weight: 600;
-    color: #6366f1;
-    min-width: 110px;
-    margin-right: 1rem;
-    flex-shrink: 0;
-    display: block;
-  }
-  .crm-dashboard-overlay,
-  .crm-dashboard-container {
-    width: 100vw !important;
-    height: 100vh !important;
-    min-width: 0 !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    justify-content: flex-start !important;
-  }
-  .crm-dashboard-content {
-    padding: 0.5rem !important;
-    overflow-x: hidden !important;
-  }
-  .empty-table-message,
-  .empty-state {
-    text-align: center;
-    color: #6b7280;
-    padding: 2rem 0.5rem;
-    font-size: 1.1em;
-  }
-  .admin-table td {
-    text-align: center !important;
-    justify-content: center !important;
-  }
-  .admin-table td:before {
-    text-align: center !important;
-    justify-content: center !important;
-    margin: 0 auto 0.25rem auto !important;
+  .admin-section,
+  .admin-section-title,
+  .admin-table,
+  .admin-table td,
+  .admin-table th {
+    font-size: 14px !important;
   }
 }

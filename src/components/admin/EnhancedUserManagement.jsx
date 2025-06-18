@@ -1043,6 +1043,23 @@ const EnhancedUserManagement = ({
                       : "1px solid #e5e7eb",
                     position: "relative",
                     cursor: "pointer",
+                    width: "100%",
+                    minWidth: 0,
+                    maxWidth: "100%",
+                    boxSizing: "border-box",
+                    overflowWrap: "break-word",
+                    margin: "0 auto 16px auto",
+                    ...(window.innerWidth <= 440
+                      ? {
+                          width: "100%",
+                          minWidth: 0,
+                          maxWidth: "100%",
+                          boxSizing: "border-box",
+                          overflowX: "hidden",
+                          overflowWrap: "break-word",
+                          margin: "0 0 16px 0",
+                        }
+                      : {}),
                     ...(selectedUsers.includes(user.id) && {
                       boxShadow:
                         "0 0 0 2px rgba(79, 70, 229, 0.1), 0 2px 8px rgba(0, 0, 0, 0.08)",
