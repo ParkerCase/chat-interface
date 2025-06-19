@@ -777,11 +777,22 @@
   .user-management-controls,
   .user-management-actions,
   .user-management-filters {
+    display: flex !important;
     flex-wrap: wrap !important;
+    min-width: 0 !important;
   }
   .user-management-actions > *,
-  .user-management-filters > * {
+  .user-management-filters > *,
+  .user-management-controls > * {
+    flex: 1 1 0 !important;
     min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .status-badge,
+  .last-active,
+  .mfa-status {
+    word-break: break-word !important;
+    white-space: pre-wrap !important;
   }
   .users-table-container,
   .users-table,

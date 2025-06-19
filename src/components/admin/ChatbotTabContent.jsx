@@ -2576,6 +2576,7 @@ ${
           border: "1px solid #e5e7eb",
           boxSizing: "border-box",
           overflowX: "hidden",
+          maxWidth: "100vw",
         }}
       >
         {currentMessages.length === 0 ? (
@@ -2630,6 +2631,8 @@ ${
           flexDirection: "column",
           gap: 8,
           boxSizing: "border-box",
+          maxWidth: "100vw", // <-- add this
+          overflowX: "hidden", // <-- add this
         }}
       >
         <textarea
@@ -3020,6 +3023,7 @@ ${
           border: "1px solid #e5e7eb",
           boxSizing: "border-box",
           overflowX: "hidden",
+          maxWidth: "100vw",
         }}
       >
         {currentMessages.length === 0 ? (
@@ -3074,6 +3078,8 @@ ${
           flexDirection: "column",
           gap: 12,
           boxSizing: "border-box",
+          maxWidth: "100vw",
+          overflowX: "hidden",
         }}
       >
         <textarea
