@@ -405,10 +405,12 @@ const CRMDashboard = ({
       {isMobile || isTablet ? (
         <div
           style={{
+            height: "100vh",
+            overflowY: "auto",
+            maxWidth: "100vw",
             width: "100vw",
-            minHeight: "100vh",
-            background: "#f9fafb",
             boxSizing: "border-box",
+            background: "#f9fafb",
             padding: 8,
           }}
         >
@@ -492,14 +494,28 @@ const CRMDashboard = ({
             }}
           >
             {activeSection === "contacts" && (
-              <div>
-                {/* Contacts Table with Pagination */}
+              <div
+                style={{
+                  width: "100%",
+                  maxWidth: "100vw",
+                  overflowX: "auto",
+                  boxSizing: "border-box",
+                }}
+              >
                 <TableContainer
-                  style={{ maxWidth: "100vw", overflowX: "auto" }}
+                  style={{
+                    display: "block",
+                    minWidth: 600,
+                    maxWidth: "100vw",
+                    overflowX: "auto",
+                  }}
                 >
-                  <Table size="small">
+                  <Table
+                    size="small"
+                    style={{ width: "100%", minWidth: 600, display: "block" }}
+                  >
                     <TableHead>
-                      <TableRow>
+                      <TableRow style={{ display: "table-row", width: "100%" }}>
                         <TableCell>Name</TableCell>
                         <TableCell>Email</TableCell>
                         <TableCell>Phone</TableCell>
@@ -510,7 +526,10 @@ const CRMDashboard = ({
                     </TableHead>
                     <TableBody>
                       {contacts.map((contact) => (
-                        <TableRow key={contact.id}>
+                        <TableRow
+                          key={contact.id}
+                          style={{ display: "table-row", width: "100%" }}
+                        >
                           <TableCell>{contact.name}</TableCell>
                           <TableCell>{contact.email}</TableCell>
                           <TableCell>{contact.phone}</TableCell>
@@ -546,14 +565,28 @@ const CRMDashboard = ({
               </div>
             )}
             {activeSection === "appointments" && (
-              <div>
-                {/* Appointments Table with Pagination */}
+              <div
+                style={{
+                  width: "100%",
+                  maxWidth: "100vw",
+                  overflowX: "auto",
+                  boxSizing: "border-box",
+                }}
+              >
                 <TableContainer
-                  style={{ maxWidth: "100vw", overflowX: "auto" }}
+                  style={{
+                    display: "block",
+                    minWidth: 600,
+                    maxWidth: "100vw",
+                    overflowX: "auto",
+                  }}
                 >
-                  <Table size="small">
+                  <Table
+                    size="small"
+                    style={{ width: "100%", minWidth: 600, display: "block" }}
+                  >
                     <TableHead>
-                      <TableRow>
+                      <TableRow style={{ display: "table-row", width: "100%" }}>
                         <TableCell>Service</TableCell>
                         <TableCell>Guest</TableCell>
                         <TableCell>Therapist</TableCell>
@@ -564,7 +597,10 @@ const CRMDashboard = ({
                     </TableHead>
                     <TableBody>
                       {appointments.map((appointment) => (
-                        <TableRow key={appointment.id}>
+                        <TableRow
+                          key={appointment.id}
+                          style={{ display: "table-row", width: "100%" }}
+                        >
                           <TableCell>{appointment.service_name}</TableCell>
                           <TableCell>{appointment.guest_name}</TableCell>
                           <TableCell>{appointment.therapist_name}</TableCell>
@@ -600,7 +636,15 @@ const CRMDashboard = ({
               </div>
             )}
             {activeSection === "services" && (
-              <div style={{ marginTop: 16 }}>
+              <div
+                style={{
+                  marginTop: 16,
+                  width: "100%",
+                  maxWidth: "100vw",
+                  overflowX: "auto",
+                  boxSizing: "border-box",
+                }}
+              >
                 <ZenotiServicesSection
                   selectedCenter={selectedCenter}
                   centerMapping={centerMapping}
@@ -609,7 +653,15 @@ const CRMDashboard = ({
               </div>
             )}
             {activeSection === "packages" && (
-              <div style={{ marginTop: 16 }}>
+              <div
+                style={{
+                  marginTop: 16,
+                  width: "100%",
+                  maxWidth: "100vw",
+                  overflowX: "auto",
+                  boxSizing: "border-box",
+                }}
+              >
                 <ZenotiPackagesSection
                   selectedCenter={selectedCenter}
                   centerMapping={centerMapping}
@@ -618,7 +670,15 @@ const CRMDashboard = ({
               </div>
             )}
             {activeSection === "analytics" && (
-              <div style={{ marginTop: 16 }}>
+              <div
+                style={{
+                  marginTop: 16,
+                  width: "100%",
+                  maxWidth: "100vw",
+                  overflowX: "auto",
+                  boxSizing: "border-box",
+                }}
+              >
                 <CRMAnalyticsDashboard
                   selectedCenter={selectedCenter}
                   centerMapping={centerMapping}
