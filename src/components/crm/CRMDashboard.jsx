@@ -631,6 +631,8 @@ const CRMDashboard = ({
               padding: "16px",
               background: "#f8fafc",
               minHeight: "calc(100vh - 200px)",
+              overflowY: "auto",
+              paddingBottom: "100px",
             }}
           >
             {/* Contacts Section */}
@@ -819,6 +821,10 @@ const CRMDashboard = ({
                       alignItems: "center",
                       padding: "16px 0",
                       borderTop: "1px solid #e5e7eb",
+                      marginTop: "16px",
+                      background: "#ffffff",
+                      borderRadius: "8px",
+                      padding: "16px",
                       marginTop: "16px",
                     }}
                   >
@@ -1096,6 +1102,10 @@ const CRMDashboard = ({
                       padding: "16px 0",
                       borderTop: "1px solid #e5e7eb",
                       marginTop: "16px",
+                      background: "#ffffff",
+                      borderRadius: "8px",
+                      padding: "16px",
+                      marginTop: "16px",
                     }}
                   >
                     <div style={{ fontSize: "14px", color: "#6b7280" }}>
@@ -1167,13 +1177,17 @@ const CRMDashboard = ({
                   borderRadius: "8px",
                   border: "1px solid #e5e7eb",
                   padding: "16px",
+                  overflowX: "auto",
+                  maxWidth: "100%",
                 }}
               >
-                <ZenotiServicesSection
-                  selectedCenter={selectedCenter}
-                  centerMapping={centerMapping}
-                  onRefresh={refreshData}
-                />
+                <div style={{ minWidth: "600px" }}>
+                  <ZenotiServicesSection
+                    selectedCenter={selectedCenter}
+                    centerMapping={centerMapping}
+                    onRefresh={refreshData}
+                  />
+                </div>
               </div>
             )}
 
@@ -1185,13 +1199,17 @@ const CRMDashboard = ({
                   borderRadius: "8px",
                   border: "1px solid #e5e7eb",
                   padding: "16px",
+                  overflowX: "auto",
+                  maxWidth: "100%",
                 }}
               >
-                <ZenotiPackagesSection
-                  selectedCenter={selectedCenter}
-                  centerMapping={centerMapping}
-                  onRefresh={refreshData}
-                />
+                <div style={{ minWidth: "600px" }}>
+                  <ZenotiPackagesSection
+                    selectedCenter={selectedCenter}
+                    centerMapping={centerMapping}
+                    onRefresh={refreshData}
+                  />
+                </div>
               </div>
             )}
 
@@ -1203,13 +1221,17 @@ const CRMDashboard = ({
                   borderRadius: "8px",
                   border: "1px solid #e5e7eb",
                   padding: "16px",
+                  overflowX: "auto",
+                  maxWidth: "100%",
                 }}
               >
-                <CRMAnalyticsDashboard
-                  selectedCenter={selectedCenter}
-                  centerMapping={centerMapping}
-                  onRefresh={refreshData}
-                />
+                <div style={{ minWidth: "600px" }}>
+                  <CRMAnalyticsDashboard
+                    selectedCenter={selectedCenter}
+                    centerMapping={centerMapping}
+                    onRefresh={refreshData}
+                  />
+                </div>
               </div>
             )}
           </div>
