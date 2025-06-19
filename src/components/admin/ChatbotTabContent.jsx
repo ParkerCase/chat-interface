@@ -2398,13 +2398,12 @@ ${
     <div
       className="chatbot-mobile"
       style={{
-        width: "100vw",
         minHeight: "100vh",
         padding: 16,
         boxSizing: "border-box",
         background: "#f9fafb",
         overflowX: "hidden",
-        maxWidth: "100vw",
+        maxWidth: "100vw !important",
       }}
     >
       {/* Header with Chat History Button */}
@@ -2511,6 +2510,7 @@ ${
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
                 width: "100%",
+                borderRadius: "5px",
                 boxSizing: "border-box",
               }}
             >
@@ -2644,8 +2644,8 @@ ${
           flexDirection: "column",
           gap: 8,
           boxSizing: "border-box",
-          maxWidth: "100vw",
-          overflowX: "hidden",
+          maxWidth: "100vw !important",
+          // overflowX: "hidden",
         }}
       >
         <textarea
@@ -2672,7 +2672,7 @@ ${
           onClick={handleSendMessage}
           disabled={isLoading || (!inputText.trim() && !file)}
           style={{
-            width: "100%",
+            width: "80vw",
             minHeight: 48,
             fontSize: 18,
             borderRadius: 8,
