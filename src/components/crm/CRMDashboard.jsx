@@ -35,6 +35,39 @@ import {
   Business,
   Analytics,
   Close as CloseIcon,
+  Work,
+  Inventory,
+  Assessment,
+  Visibility,
+  Email,
+  Phone,
+  LocationOn,
+  Label,
+  Schedule,
+  PersonAdd,
+  CheckCircle,
+  Cancel,
+  TrendingUp,
+  AttachMoney,
+  Receipt,
+  Payment,
+  AccountBalance,
+  CalendarToday,
+  Group,
+  Assignment,
+  Description,
+  Code,
+  Category,
+  AccessTime,
+  MonetizationOn,
+  Package,
+  LocalOffer,
+  BarChart,
+  PieChart,
+  Timeline,
+  GetApp,
+  FilterList,
+  MoreVert,
 } from "@mui/icons-material";
 
 // Add CSS for loading animation
@@ -1372,11 +1405,11 @@ const CRMDashboard = ({
               }}
             >
               {[
-                { id: "contacts", label: "Contacts", icon: "👥" },
-                { id: "appointments", label: "Appointments", icon: "📅" },
-                { id: "services", label: "Services", icon: "💼" },
-                { id: "packages", label: "Packages", icon: "📦" },
-                { id: "analytics", label: "Analytics", icon: "📊" },
+                { id: "contacts", label: "Contacts", icon: <Person /> },
+                { id: "appointments", label: "Appointments", icon: <Event /> },
+                { id: "services", label: "Services", icon: <Work /> },
+                { id: "packages", label: "Packages", icon: <Inventory /> },
+                { id: "analytics", label: "Analytics", icon: <Assessment /> },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -1401,7 +1434,15 @@ const CRMDashboard = ({
                     gap: "4px",
                   }}
                 >
-                  <span style={{ fontSize: "16px" }}>{tab.icon}</span>
+                  <span
+                    style={{
+                      fontSize: "16px",
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    {tab.icon}
+                  </span>
                   <span>{tab.label}</span>
                 </button>
               ))}
@@ -1583,30 +1624,51 @@ const CRMDashboard = ({
                             fontSize: "14px",
                             color: "#6b7280",
                             marginBottom: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
                           }}
                         >
-                          📧 {contact.email || "No email"}
+                          <Email style={{ fontSize: "16px" }} />
+                          {contact.email || "No email"}
                         </div>
                         <div
                           style={{
                             fontSize: "14px",
                             color: "#6b7280",
                             marginBottom: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
                           }}
                         >
-                          📞 {contact.phone || "No phone"}
+                          <Phone style={{ fontSize: "16px" }} />
+                          {contact.phone || "No phone"}
                         </div>
                         <div
                           style={{
                             fontSize: "14px",
                             color: "#6b7280",
                             marginBottom: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
                           }}
                         >
-                          🏢 {contact.center_name}
+                          <LocationOn style={{ fontSize: "16px" }} />
+                          {contact.center_name}
                         </div>
-                        <div style={{ fontSize: "14px", color: "#6b7280" }}>
-                          🏷️ Code: {contact.guest_code || "N/A"}
+                        <div
+                          style={{
+                            fontSize: "14px",
+                            color: "#6b7280",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}
+                        >
+                          <Label style={{ fontSize: "16px" }} />
+                          Code: {contact.guest_code || "N/A"}
                         </div>
                       </div>
                     ))}
@@ -1833,36 +1895,52 @@ const CRMDashboard = ({
                             fontSize: "14px",
                             color: "#6b7280",
                             marginBottom: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
                           }}
                         >
-                          👤 {appointment.guest_name}
+                          <Person style={{ fontSize: "16px" }} />
+                          {appointment.guest_name}
                         </div>
                         <div
                           style={{
                             fontSize: "14px",
                             color: "#6b7280",
                             marginBottom: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
                           }}
                         >
-                          👨‍⚕️ {appointment.therapist_name}
+                          <PersonAdd style={{ fontSize: "16px" }} />
+                          {appointment.therapist_name}
                         </div>
                         <div
                           style={{
                             fontSize: "14px",
                             color: "#6b7280",
                             marginBottom: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
                           }}
                         >
-                          🕐 {formatDateTime(appointment.start_time)}
+                          <Schedule style={{ fontSize: "16px" }} />
+                          {formatDateTime(appointment.start_time)}
                         </div>
                         <div
                           style={{
                             fontSize: "14px",
                             color: "#6b7280",
                             marginBottom: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
                           }}
                         >
-                          🏢 {appointment.center_name}
+                          <LocationOn style={{ fontSize: "16px" }} />
+                          {appointment.center_name}
                         </div>
                         <div style={{ fontSize: "14px", color: "#6b7280" }}>
                           <span
@@ -1997,9 +2075,13 @@ const CRMDashboard = ({
                         fontWeight: 600,
                         color: "#111827",
                         margin: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
                       }}
                     >
-                      💼 Services Overview
+                      <Work style={{ fontSize: "20px" }} />
+                      Services Overview
                     </h3>
                     <button
                       onClick={refreshData}
@@ -2011,9 +2093,13 @@ const CRMDashboard = ({
                         border: "none",
                         borderRadius: "6px",
                         fontWeight: 500,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
                       }}
                     >
-                      🔄 Refresh
+                      <Refresh style={{ fontSize: "16px" }} />
+                      Refresh
                     </button>
                   </div>
 
@@ -3573,9 +3659,9 @@ const CRMDashboard = ({
               {[
                 { id: "contacts", label: "Contacts", icon: <Person /> },
                 { id: "appointments", label: "Appointments", icon: <Event /> },
-                { id: "services", label: "Services", icon: <Business /> },
-                { id: "packages", label: "Packages", icon: <Business /> },
-                { id: "analytics", label: "Analytics", icon: <Analytics /> },
+                { id: "services", label: "Services", icon: <Work /> },
+                { id: "packages", label: "Packages", icon: <Inventory /> },
+                { id: "analytics", label: "Analytics", icon: <Assessment /> },
               ].map((tab) => (
                 <Button
                   key={tab.id}
