@@ -1171,66 +1171,862 @@ const CRMDashboard = ({
 
             {/* Services Section */}
             {activeSection === "services" && (
-              <div
-                style={{
-                  background: "#ffffff",
-                  borderRadius: "8px",
-                  border: "1px solid #e5e7eb",
-                  padding: "16px",
-                  overflowX: "auto",
-                  maxWidth: "100%",
-                }}
-              >
-                <div style={{ minWidth: "600px" }}>
-                  <ZenotiServicesSection
-                    selectedCenter={selectedCenter}
-                    centerMapping={centerMapping}
-                    onRefresh={refreshData}
-                  />
+              <div>
+                {/* Mobile Services Layout */}
+                <div
+                  style={{
+                    background: "#ffffff",
+                    borderRadius: "8px",
+                    border: "1px solid #e5e7eb",
+                    padding: "16px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <h3
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: 600,
+                        color: "#111827",
+                        margin: 0,
+                      }}
+                    >
+                      💼 Services Overview
+                    </h3>
+                    <button
+                      onClick={refreshData}
+                      style={{
+                        padding: "8px 12px",
+                        fontSize: "14px",
+                        background: "#4f46e5",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "6px",
+                        fontWeight: 500,
+                      }}
+                    >
+                      🔄 Refresh
+                    </button>
+                  </div>
+
+                  {/* Summary Cards */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(140px, 1fr))",
+                      gap: "12px",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "24px",
+                          fontWeight: 700,
+                          color: "#4f46e5",
+                        }}
+                      >
+                        12
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        Total Services
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "24px",
+                          fontWeight: 700,
+                          color: "#10b981",
+                        }}
+                      >
+                        10
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        Active
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "24px",
+                          fontWeight: 700,
+                          color: "#f59e0b",
+                        }}
+                      >
+                        $150
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        Avg Price
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "24px",
+                          fontWeight: 700,
+                          color: "#8b5cf6",
+                        }}
+                      >
+                        75m
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        Avg Duration
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div style={{ marginBottom: "16px" }}>
+                    <div
+                      style={{
+                        position: "relative",
+                        background: "#ffffff",
+                        borderRadius: "8px",
+                        border: "1px solid #d1d5db",
+                      }}
+                    >
+                      <input
+                        type="text"
+                        placeholder="Search services..."
+                        style={{
+                          width: "100%",
+                          padding: "12px 16px 12px 40px",
+                          border: "none",
+                          borderRadius: "8px",
+                          fontSize: "14px",
+                          outline: "none",
+                        }}
+                      />
+                      <span
+                        style={{
+                          position: "absolute",
+                          left: "12px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          color: "#9ca3af",
+                          fontSize: "16px",
+                        }}
+                      >
+                        🔍
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Services List */}
+                  <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                    {[
+                      {
+                        code: "Serv-18",
+                        name: "Brows",
+                        category: "Tattoo Removal",
+                        duration: "75m",
+                        price: "$350",
+                        status: "Active",
+                      },
+                      {
+                        code: "Serv-09",
+                        name: "Clean-Up Session",
+                        category: "Tattoo Removal",
+                        duration: "75m",
+                        price: "$150",
+                        status: "Active",
+                      },
+                      {
+                        code: "Serv-02",
+                        name: "Follow Up",
+                        category: "Consultation",
+                        duration: "15m",
+                        price: "Free",
+                        status: "Active",
+                      },
+                      {
+                        code: "Serv-03",
+                        name: "Microneedling",
+                        category: "Skin Treatment",
+                        duration: "75m",
+                        price: "$150",
+                        status: "Active",
+                      },
+                    ].map((service, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          background: "#ffffff",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "8px",
+                          padding: "16px",
+                          marginBottom: "12px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                            marginBottom: "8px",
+                          }}
+                        >
+                          <div>
+                            <div
+                              style={{
+                                fontSize: "16px",
+                                fontWeight: 600,
+                                color: "#111827",
+                              }}
+                            >
+                              {service.name}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                color: "#6b7280",
+                                fontFamily: "monospace",
+                              }}
+                            >
+                              {service.code}
+                            </div>
+                          </div>
+                          <span
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: "12px",
+                              fontSize: "12px",
+                              fontWeight: 500,
+                              background:
+                                service.status === "Active"
+                                  ? "#dcfce7"
+                                  : "#fef2f2",
+                              color:
+                                service.status === "Active"
+                                  ? "#166534"
+                                  : "#dc2626",
+                            }}
+                          >
+                            {service.status}
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "8px",
+                            marginBottom: "8px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: "12px",
+                              fontSize: "12px",
+                              background: "#f3f4f6",
+                              color: "#374151",
+                            }}
+                          >
+                            {service.category}
+                          </span>
+                          <span
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: "12px",
+                              fontSize: "12px",
+                              background: "#eff6ff",
+                              color: "#1d4ed8",
+                            }}
+                          >
+                            ⏱️ {service.duration}
+                          </span>
+                          <span
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: "12px",
+                              fontSize: "12px",
+                              background: "#fef3c7",
+                              color: "#92400e",
+                            }}
+                          >
+                            💰 {service.price}
+                          </span>
+                        </div>
+                        <button
+                          style={{
+                            padding: "6px 12px",
+                            fontSize: "12px",
+                            background: "#4f46e5",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "4px",
+                            fontWeight: 500,
+                          }}
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
 
             {/* Packages Section */}
             {activeSection === "packages" && (
-              <div
-                style={{
-                  background: "#ffffff",
-                  borderRadius: "8px",
-                  border: "1px solid #e5e7eb",
-                  padding: "16px",
-                  overflowX: "auto",
-                  maxWidth: "100%",
-                }}
-              >
-                <div style={{ minWidth: "600px" }}>
-                  <ZenotiPackagesSection
-                    selectedCenter={selectedCenter}
-                    centerMapping={centerMapping}
-                    onRefresh={refreshData}
-                  />
+              <div>
+                {/* Mobile Packages Layout */}
+                <div
+                  style={{
+                    background: "#ffffff",
+                    borderRadius: "8px",
+                    border: "1px solid #e5e7eb",
+                    padding: "16px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <h3
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: 600,
+                        color: "#111827",
+                        margin: 0,
+                      }}
+                    >
+                      📦 Packages Overview
+                    </h3>
+                    <button
+                      onClick={refreshData}
+                      style={{
+                        padding: "8px 12px",
+                        fontSize: "14px",
+                        background: "#4f46e5",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "6px",
+                        fontWeight: 500,
+                      }}
+                    >
+                      🔄 Refresh
+                    </button>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div style={{ marginBottom: "16px" }}>
+                    <div
+                      style={{
+                        position: "relative",
+                        background: "#ffffff",
+                        borderRadius: "8px",
+                        border: "1px solid #d1d5db",
+                      }}
+                    >
+                      <input
+                        type="text"
+                        placeholder="Search packages..."
+                        style={{
+                          width: "100%",
+                          padding: "12px 16px 12px 40px",
+                          border: "none",
+                          borderRadius: "8px",
+                          fontSize: "14px",
+                          outline: "none",
+                        }}
+                      />
+                      <span
+                        style={{
+                          position: "absolute",
+                          left: "12px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          color: "#9ca3af",
+                          fontSize: "16px",
+                        }}
+                      >
+                        🔍
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Packages List */}
+                  <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                    {[
+                      {
+                        name: "Starter Package",
+                        price: "$299",
+                        services: 3,
+                        duration: "3 months",
+                        status: "Active",
+                      },
+                      {
+                        name: "Premium Package",
+                        price: "$599",
+                        services: 6,
+                        duration: "6 months",
+                        status: "Active",
+                      },
+                      {
+                        name: "VIP Package",
+                        price: "$999",
+                        services: 10,
+                        duration: "12 months",
+                        status: "Active",
+                      },
+                    ].map((pkg, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          background: "#ffffff",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "8px",
+                          padding: "16px",
+                          marginBottom: "12px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                            marginBottom: "8px",
+                          }}
+                        >
+                          <div>
+                            <div
+                              style={{
+                                fontSize: "16px",
+                                fontWeight: 600,
+                                color: "#111827",
+                              }}
+                            >
+                              {pkg.name}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "14px",
+                                fontWeight: 600,
+                                color: "#059669",
+                              }}
+                            >
+                              {pkg.price}
+                            </div>
+                          </div>
+                          <span
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: "12px",
+                              fontSize: "12px",
+                              fontWeight: 500,
+                              background:
+                                pkg.status === "Active" ? "#dcfce7" : "#fef2f2",
+                              color:
+                                pkg.status === "Active" ? "#166534" : "#dc2626",
+                            }}
+                          >
+                            {pkg.status}
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "8px",
+                            marginBottom: "8px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: "12px",
+                              fontSize: "12px",
+                              background: "#eff6ff",
+                              color: "#1d4ed8",
+                            }}
+                          >
+                            📋 {pkg.services} services
+                          </span>
+                          <span
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: "12px",
+                              fontSize: "12px",
+                              background: "#fef3c7",
+                              color: "#92400e",
+                            }}
+                          >
+                            ⏱️ {pkg.duration}
+                          </span>
+                        </div>
+                        <button
+                          style={{
+                            padding: "6px 12px",
+                            fontSize: "12px",
+                            background: "#4f46e5",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "4px",
+                            fontWeight: 500,
+                          }}
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
 
             {/* Analytics Section */}
             {activeSection === "analytics" && (
-              <div
-                style={{
-                  background: "#ffffff",
-                  borderRadius: "8px",
-                  border: "1px solid #e5e7eb",
-                  padding: "16px",
-                  overflowX: "auto",
-                  maxWidth: "100%",
-                }}
-              >
-                <div style={{ minWidth: "600px" }}>
-                  <CRMAnalyticsDashboard
-                    selectedCenter={selectedCenter}
-                    centerMapping={centerMapping}
-                    onRefresh={refreshData}
-                  />
+              <div>
+                {/* Mobile Analytics Layout */}
+                <div
+                  style={{
+                    background: "#ffffff",
+                    borderRadius: "8px",
+                    border: "1px solid #e5e7eb",
+                    padding: "16px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <h3
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: 600,
+                        color: "#111827",
+                        margin: 0,
+                      }}
+                    >
+                      📊 Analytics Overview
+                    </h3>
+                    <button
+                      onClick={refreshData}
+                      style={{
+                        padding: "8px 12px",
+                        fontSize: "14px",
+                        background: "#4f46e5",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "6px",
+                        fontWeight: 500,
+                      }}
+                    >
+                      🔄 Refresh
+                    </button>
+                  </div>
+
+                  {/* Time Period Selector */}
+                  <div style={{ marginBottom: "16px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        background: "#f3f4f6",
+                        borderRadius: "8px",
+                        padding: "4px",
+                      }}
+                    >
+                      {["Day", "Week", "Month", "Year"].map((period) => (
+                        <button
+                          key={period}
+                          style={{
+                            flex: 1,
+                            padding: "8px 12px",
+                            fontSize: "14px",
+                            background:
+                              period === "Month" ? "#4f46e5" : "transparent",
+                            color: period === "Month" ? "#fff" : "#6b7280",
+                            border: "none",
+                            borderRadius: "6px",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {period}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Summary Cards */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(140px, 1fr))",
+                      gap: "12px",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "24px",
+                          fontWeight: 700,
+                          color: "#4f46e5",
+                        }}
+                      >
+                        1,234
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        Total Contacts
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "24px",
+                          fontWeight: 700,
+                          color: "#10b981",
+                        }}
+                      >
+                        567
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        Appointments
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "24px",
+                          fontWeight: 700,
+                          color: "#f59e0b",
+                        }}
+                      >
+                        89%
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        Show Rate
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "24px",
+                          fontWeight: 700,
+                          color: "#8b5cf6",
+                        }}
+                      >
+                        $12.5K
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        Revenue
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Chart Placeholder */}
+                  <div
+                    style={{
+                      background: "#f8fafc",
+                      border: "2px dashed #d1d5db",
+                      borderRadius: "8px",
+                      padding: "40px 20px",
+                      textAlign: "center",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <div style={{ fontSize: "48px", marginBottom: "16px" }}>
+                      📈
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: 600,
+                        color: "#374151",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Analytics Charts
+                    </div>
+                    <div style={{ fontSize: "14px", color: "#6b7280" }}>
+                      Interactive charts and graphs will be displayed here
+                    </div>
+                  </div>
+
+                  {/* Quick Stats */}
+                  <div style={{ marginBottom: "16px" }}>
+                    <h4
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: 600,
+                        color: "#111827",
+                        marginBottom: "12px",
+                      }}
+                    >
+                      Quick Statistics
+                    </h4>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "8px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          padding: "8px 12px",
+                          background: "#f8fafc",
+                          borderRadius: "6px",
+                        }}
+                      >
+                        <span style={{ fontSize: "14px", color: "#6b7280" }}>
+                          New Contacts This Month
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: 600,
+                            color: "#111827",
+                          }}
+                        >
+                          +45
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          padding: "8px 12px",
+                          background: "#f8fafc",
+                          borderRadius: "6px",
+                        }}
+                      >
+                        <span style={{ fontSize: "14px", color: "#6b7280" }}>
+                          Completed Appointments
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: 600,
+                            color: "#111827",
+                          }}
+                        >
+                          234
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          padding: "8px 12px",
+                          background: "#f8fafc",
+                          borderRadius: "6px",
+                        }}
+                      >
+                        <span style={{ fontSize: "14px", color: "#6b7280" }}>
+                          Average Session Value
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: 600,
+                            color: "#111827",
+                          }}
+                        >
+                          $85
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Export Button */}
+                  <button
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      fontSize: "14px",
+                      background: "#10b981",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "8px",
+                      fontWeight: 600,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    📊 Export Report
+                  </button>
                 </div>
               </div>
             )}
@@ -1687,78 +2483,6 @@ const CRMDashboard = ({
                     >
                       <CircularProgress />
                     </Box>
-                  ) : isMobile || isTablet ? (
-                    <div className="crm-mobile">
-                      {appointments.map((appointment) => (
-                        <Paper
-                          key={appointment.id}
-                          sx={{
-                            mb: 2,
-                            p: 2,
-                            borderRadius: 2,
-                            boxShadow: 1,
-                            width: "100%",
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: 1,
-                            }}
-                          >
-                            <Box>
-                              <strong>Guest:</strong> {appointment.guest_name}
-                            </Box>
-                            <Box>
-                              <strong>Service:</strong>{" "}
-                              {appointment.service_name}
-                            </Box>
-                            <Box>
-                              <strong>Therapist:</strong>{" "}
-                              {appointment.therapist_name}
-                            </Box>
-                            <Box>
-                              <strong>Start Time:</strong>{" "}
-                              {formatDateTime(appointment.start_time)}
-                            </Box>
-                            <Box>
-                              <strong>Status:</strong>{" "}
-                              <Chip
-                                label={appointment.status}
-                                size="small"
-                                color={
-                                  appointment.status === "Closed"
-                                    ? "success"
-                                    : appointment.status === "Deleted"
-                                    ? "error"
-                                    : "default"
-                                }
-                              />
-                            </Box>
-                            <Box>
-                              <strong>Center:</strong>{" "}
-                              <Chip
-                                label={appointment.center_code}
-                                size="small"
-                                variant="outlined"
-                              />
-                            </Box>
-                            <Box>
-                              <Button
-                                size="small"
-                                fullWidth
-                                onClick={() =>
-                                  setSelectedAppointment(appointment)
-                                }
-                              >
-                                View
-                              </Button>
-                            </Box>
-                          </Box>
-                        </Paper>
-                      ))}
-                    </div>
                   ) : (
                     <div className="crm-tablet">
                       <TableContainer sx={{ height: "100%" }}>
