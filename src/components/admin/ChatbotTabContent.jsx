@@ -2398,46 +2398,38 @@ ${
     <div
       className="chatbot-mobile"
       style={{
-        width: "100vw !important",
-        minHeight: "100vh !important",
-        padding: "16px !important",
-        boxSizing: "border-box !important",
-        background: "#f9fafb !important",
-        overflowX: "hidden !important",
-        maxWidth: "100vw !important",
-        display: "flex !important",
-        flexDirection: "column !important",
-        position: "fixed !important",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 1000,
+        width: "100vw",
+        minHeight: "100vh",
+        padding: 16,
+        boxSizing: "border-box",
+        background: "#f9fafb",
+        overflowX: "hidden",
+        maxWidth: "100vw",
       }}
     >
       {/* Header with Chat History Button */}
       <div
         style={{
-          width: "100% !important",
-          display: "flex !important",
-          justifyContent: "space-between !important",
-          alignItems: "center !important",
-          marginBottom: "16px !important",
-          boxSizing: "border-box !important",
-          flexShrink: 0,
+          width: "100%",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 16,
+          boxSizing: "border-box",
+          overflow: "hidden",
         }}
       >
         <h2
           style={{
-            fontSize: "20px !important",
-            fontWeight: "700 !important",
-            color: "#1f2937 !important",
-            margin: "0 !important",
+            fontSize: 20,
+            fontWeight: 700,
+            color: "#1f2937",
+            margin: 0,
             flex: 1,
             minWidth: 0,
-            overflow: "hidden !important",
-            textOverflow: "ellipsis !important",
-            whiteSpace: "nowrap !important",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
           Tatt2Away AI Chat
@@ -2445,15 +2437,16 @@ ${
         <button
           onClick={() => setShowChatHistory(!showChatHistory)}
           style={{
-            padding: "8px !important",
-            fontSize: "14px !important",
-            borderRadius: "6px !important",
-            border: "1px solid #d1d5db !important",
-            background: "#fff !important",
-            color: "#374151 !important",
-            fontWeight: "500 !important",
+            padding: 8,
+            fontSize: 14,
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            background: "#fff",
+            color: "#374151",
+            fontWeight: 500,
             flexShrink: 0,
-            marginLeft: "8px !important",
+            marginLeft: 8,
+            whiteSpace: "nowrap",
           }}
         >
           {showChatHistory ? "Hide" : "History"}
@@ -2464,24 +2457,24 @@ ${
       {showChatHistory && (
         <div
           style={{
-            width: "100% !important",
-            background: "#fff !important",
-            borderRadius: "8px !important",
-            padding: "12px !important",
-            marginBottom: "16px !important",
-            border: "1px solid #e5e7eb !important",
-            maxHeight: "200px !important",
-            overflowY: "auto !important",
-            boxSizing: "border-box !important",
-            flexShrink: 0,
+            width: "100%",
+            background: "#fff",
+            borderRadius: 8,
+            padding: 12,
+            marginBottom: 16,
+            border: "1px solid #e5e7eb",
+            maxHeight: 200,
+            overflowY: "auto",
+            overflowX: "hidden",
+            boxSizing: "border-box",
           }}
         >
           <div
             style={{
-              fontSize: "14px !important",
-              fontWeight: "600 !important",
-              color: "#374151 !important",
-              marginBottom: "8px !important",
+              fontSize: 14,
+              fontWeight: 600,
+              color: "#374151",
+              marginBottom: 8,
             }}
           >
             Chat History
@@ -2489,15 +2482,15 @@ ${
           <button
             onClick={createNewThread}
             style={{
-              width: "100% !important",
-              padding: "8px !important",
-              fontSize: "14px !important",
-              borderRadius: "6px !important",
-              border: "1px solid #4f46e5 !important",
-              background: "#4f46e5 !important",
-              color: "#fff !important",
-              marginBottom: "8px !important",
-              boxSizing: "border-box !important",
+              width: "100%",
+              padding: 8,
+              fontSize: 14,
+              borderRadius: 6,
+              border: "1px solid #4f46e5",
+              background: "#4f46e5",
+              color: "#fff",
+              marginBottom: 8,
+              boxSizing: "border-box",
             }}
           >
             New Chat
@@ -2507,18 +2500,18 @@ ${
               key={thread.id}
               onClick={() => handleSelectThread(thread.id)}
               style={{
-                padding: "8px !important",
-                fontSize: "14px !important",
-                color: "#374151 !important",
-                borderBottom: "1px solid #f3f4f6 !important",
-                cursor: "pointer !important",
+                padding: 8,
+                fontSize: 14,
+                color: "#374151",
+                borderBottom: "1px solid #f3f4f6",
+                cursor: "pointer",
                 background:
-                  selectedThreadId === thread.id
-                    ? "#f3f4f6 !important"
-                    : "transparent !important",
-                overflow: "hidden !important",
-                textOverflow: "ellipsis !important",
-                whiteSpace: "nowrap !important",
+                  selectedThreadId === thread.id ? "#f3f4f6" : "transparent",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                width: "100%",
+                boxSizing: "border-box",
               }}
             >
               {thread.title || "Untitled Chat"}
@@ -2530,12 +2523,12 @@ ${
       {/* Toolbar */}
       <div
         style={{
-          width: "100% !important",
-          display: "flex !important",
-          gap: "8px !important",
-          marginBottom: "16px !important",
-          boxSizing: "border-box !important",
-          flexShrink: 0,
+          width: "100%",
+          display: "flex",
+          gap: 8,
+          marginBottom: 16,
+          boxSizing: "border-box",
+          overflow: "hidden",
         }}
       >
         <button
@@ -2543,14 +2536,17 @@ ${
           onClick={toggleSettings}
           style={{
             flex: 1,
-            minHeight: "44px !important",
-            fontSize: "16px !important",
-            borderRadius: "8px !important",
-            border: "2px solid #6366f1 !important",
-            background: "#fff !important",
-            color: "#6366f1 !important",
-            fontWeight: "600 !important",
-            boxSizing: "border-box !important",
+            minHeight: 44,
+            fontSize: 16,
+            borderRadius: 8,
+            border: "2px solid #6366f1",
+            background: "#fff",
+            color: "#6366f1",
+            fontWeight: 600,
+            boxSizing: "border-box",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
           Settings
@@ -2561,14 +2557,17 @@ ${
             analysisResult={analysisResult}
             style={{
               flex: 1,
-              minHeight: "44px !important",
-              fontSize: "16px !important",
-              borderRadius: "8px !important",
-              border: "2px solid #10b981 !important",
-              background: "#fff !important",
-              color: "#10b981 !important",
-              fontWeight: "600 !important",
-              boxSizing: "border-box !important",
+              minHeight: 44,
+              fontSize: 16,
+              borderRadius: 8,
+              border: "2px solid #10b981",
+              background: "#fff",
+              color: "#10b981",
+              fontWeight: 600,
+              boxSizing: "border-box",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           />
         )}
@@ -2578,28 +2577,28 @@ ${
       <div
         style={{
           flex: 1,
-          width: "100% !important",
-          minHeight: "300px !important",
-          maxHeight: "50vh !important",
-          overflowY: "auto !important",
-          background: "#fff !important",
-          borderRadius: "12px !important",
-          padding: "16px !important",
-          marginBottom: "16px !important",
-          border: "1px solid #e5e7eb !important",
-          boxSizing: "border-box !important",
-          overflowX: "hidden !important",
-          maxWidth: "100vw !important",
+          width: "100%",
+          minHeight: 300,
+          maxHeight: "50vh",
+          overflowY: "auto",
+          overflowX: "hidden",
+          background: "#fff",
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 16,
+          border: "1px solid #e5e7eb",
+          boxSizing: "border-box",
+          maxWidth: "100vw",
         }}
       >
         {currentMessages.length === 0 ? (
           <div
             style={{
-              textAlign: "center !important",
-              color: "#4f46e5 !important",
-              fontWeight: "700 !important",
-              fontSize: "20px !important",
-              margin: "2rem 0 !important",
+              textAlign: "center",
+              color: "#4f46e5",
+              fontWeight: 700,
+              fontSize: 20,
+              margin: "2rem 0",
             }}
           >
             Welcome to Tatt2Away AI
@@ -2609,30 +2608,22 @@ ${
             <div
               key={index}
               style={{
-                width: "100% !important",
-                marginBottom: "16px !important",
-                padding: "12px !important",
-                fontSize: "16px !important",
-                borderRadius: "12px !important",
-                background:
-                  message.sender === "user"
-                    ? "#e0e7ef !important"
-                    : "#f4f7fd !important",
-                color: "#222 !important",
-                wordBreak: "break-word !important",
-                overflowWrap: "break-word !important",
-                boxSizing: "border-box !important",
+                width: "100%",
+                marginBottom: 16,
+                padding: 12,
+                fontSize: 16,
+                borderRadius: 12,
+                background: message.sender === "user" ? "#e0e7ef" : "#f4f7fd",
+                color: "#222",
+                wordBreak: "break-word",
+                overflowWrap: "break-word",
+                boxSizing: "border-box",
+                overflow: "hidden",
               }}
             >
               {renderMessageContent(message)}
               {message.created_at && chatSettings.showTimestamps && (
-                <div
-                  style={{
-                    fontSize: "12px !important",
-                    color: "#888 !important",
-                    marginTop: "4px !important",
-                  }}
-                >
+                <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
                   {new Date(message.created_at).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -2648,14 +2639,13 @@ ${
       {/* Input area */}
       <div
         style={{
-          width: "100% !important",
-          display: "flex !important",
-          flexDirection: "column !important",
-          gap: "8px !important",
-          boxSizing: "border-box !important",
-          maxWidth: "100vw !important",
-          overflowX: "hidden !important",
-          flexShrink: 0,
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          boxSizing: "border-box",
+          maxWidth: "100vw",
+          overflowX: "hidden",
         }}
       >
         <textarea
@@ -2665,15 +2655,16 @@ ${
           disabled={isLoading}
           rows={3}
           style={{
-            width: "100% !important",
-            minHeight: "60px !important",
-            fontSize: "16px !important",
-            borderRadius: "8px !important",
-            border: "1px solid #e5e7eb !important",
-            padding: "12px !important",
-            boxSizing: "border-box !important",
-            resize: "none !important",
-            maxWidth: "100% !important",
+            width: "100%",
+            minHeight: 60,
+            fontSize: 16,
+            borderRadius: 8,
+            border: "1px solid #e5e7eb",
+            padding: 12,
+            boxSizing: "border-box",
+            resize: "none",
+            maxWidth: "100%",
+            overflowX: "hidden",
           }}
         />
         <button
@@ -2681,15 +2672,18 @@ ${
           onClick={handleSendMessage}
           disabled={isLoading || (!inputText.trim() && !file)}
           style={{
-            width: "100% !important",
-            minHeight: "48px !important",
-            fontSize: "18px !important",
-            borderRadius: "8px !important",
-            background: "#6366f1 !important",
-            color: "#fff !important",
-            fontWeight: "700 !important",
-            border: "none !important",
-            boxSizing: "border-box !important",
+            width: "100%",
+            minHeight: 48,
+            fontSize: 18,
+            borderRadius: 8,
+            background: "#6366f1",
+            color: "#fff",
+            fontWeight: 700,
+            border: "none",
+            boxSizing: "border-box",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
           {isLoading ? "Sending..." : "Send Message"}
@@ -2868,46 +2862,38 @@ ${
     <div
       className="chatbot-tablet"
       style={{
-        width: "100vw !important",
-        minHeight: "100vh !important",
-        padding: "20px !important",
-        boxSizing: "border-box !important",
-        background: "#f9fafb !important",
-        overflowX: "hidden !important",
-        maxWidth: "100vw !important",
-        display: "flex !important",
-        flexDirection: "column !important",
-        position: "fixed !important",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 1000,
+        width: "100vw",
+        minHeight: "100vh",
+        padding: 20,
+        boxSizing: "border-box",
+        background: "#f9fafb",
+        overflowX: "hidden",
+        maxWidth: "100vw",
       }}
     >
       {/* Header with Chat History Button */}
       <div
         style={{
-          width: "100% !important",
-          display: "flex !important",
-          justifyContent: "space-between !important",
-          alignItems: "center !important",
-          marginBottom: "20px !important",
-          boxSizing: "border-box !important",
-          flexShrink: 0,
+          width: "100%",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 20,
+          boxSizing: "border-box",
+          overflow: "hidden",
         }}
       >
         <h2
           style={{
-            fontSize: "24px !important",
-            fontWeight: "700 !important",
-            color: "#1f2937 !important",
-            margin: "0 !important",
+            fontSize: 24,
+            fontWeight: 700,
+            color: "#1f2937",
+            margin: 0,
             flex: 1,
             minWidth: 0,
-            overflow: "hidden !important",
-            textOverflow: "ellipsis !important",
-            whiteSpace: "nowrap !important",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
           Tatt2Away AI Chat
@@ -2915,15 +2901,16 @@ ${
         <button
           onClick={() => setShowChatHistory(!showChatHistory)}
           style={{
-            padding: "10px !important",
-            fontSize: "16px !important",
-            borderRadius: "8px !important",
-            border: "1px solid #d1d5db !important",
-            background: "#fff !important",
-            color: "#374151 !important",
-            fontWeight: "500 !important",
+            padding: 10,
+            fontSize: 16,
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+            background: "#fff",
+            color: "#374151",
+            fontWeight: 500,
             flexShrink: 0,
-            marginLeft: "12px !important",
+            marginLeft: 12,
+            whiteSpace: "nowrap",
           }}
         >
           {showChatHistory ? "Hide" : "History"}
@@ -2934,24 +2921,24 @@ ${
       {showChatHistory && (
         <div
           style={{
-            width: "100% !important",
-            background: "#fff !important",
-            borderRadius: "12px !important",
-            padding: "16px !important",
-            marginBottom: "20px !important",
-            border: "1px solid #e5e7eb !important",
-            maxHeight: "250px !important",
-            overflowY: "auto !important",
-            boxSizing: "border-box !important",
-            flexShrink: 0,
+            width: "100%",
+            background: "#fff",
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 20,
+            border: "1px solid #e5e7eb",
+            maxHeight: 250,
+            overflowY: "auto",
+            overflowX: "hidden",
+            boxSizing: "border-box",
           }}
         >
           <div
             style={{
-              fontSize: "16px !important",
-              fontWeight: "600 !important",
-              color: "#374151 !important",
-              marginBottom: "12px !important",
+              fontSize: 16,
+              fontWeight: 600,
+              color: "#374151",
+              marginBottom: 12,
             }}
           >
             Chat History
@@ -2959,15 +2946,15 @@ ${
           <button
             onClick={createNewThread}
             style={{
-              width: "100% !important",
-              padding: "10px !important",
-              fontSize: "16px !important",
-              borderRadius: "8px !important",
-              border: "1px solid #4f46e5 !important",
-              background: "#4f46e5 !important",
-              color: "#fff !important",
-              marginBottom: "12px !important",
-              boxSizing: "border-box !important",
+              width: "100%",
+              padding: 10,
+              fontSize: 16,
+              borderRadius: 8,
+              border: "1px solid #4f46e5",
+              background: "#4f46e5",
+              color: "#fff",
+              marginBottom: 12,
+              boxSizing: "border-box",
             }}
           >
             New Chat
@@ -2977,18 +2964,18 @@ ${
               key={thread.id}
               onClick={() => handleSelectThread(thread.id)}
               style={{
-                padding: "10px !important",
-                fontSize: "16px !important",
-                color: "#374151 !important",
-                borderBottom: "1px solid #f3f4f6 !important",
-                cursor: "pointer !important",
+                padding: 10,
+                fontSize: 16,
+                color: "#374151",
+                borderBottom: "1px solid #f3f4f6",
+                cursor: "pointer",
                 background:
-                  selectedThreadId === thread.id
-                    ? "#f3f4f6 !important"
-                    : "transparent !important",
-                overflow: "hidden !important",
-                textOverflow: "ellipsis !important",
-                whiteSpace: "nowrap !important",
+                  selectedThreadId === thread.id ? "#f3f4f6" : "transparent",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                width: "100%",
+                boxSizing: "border-box",
               }}
             >
               {thread.title || "Untitled Chat"}
@@ -3000,12 +2987,12 @@ ${
       {/* Toolbar */}
       <div
         style={{
-          width: "100% !important",
-          display: "flex !important",
-          gap: "12px !important",
-          marginBottom: "20px !important",
-          boxSizing: "border-box !important",
-          flexShrink: 0,
+          width: "100%",
+          display: "flex",
+          gap: 12,
+          marginBottom: 20,
+          boxSizing: "border-box",
+          overflow: "hidden",
         }}
       >
         <button
@@ -3013,14 +3000,17 @@ ${
           onClick={toggleSettings}
           style={{
             flex: 1,
-            minHeight: "48px !important",
-            fontSize: "18px !important",
-            borderRadius: "8px !important",
-            border: "2px solid #6366f1 !important",
-            background: "#fff !important",
-            color: "#6366f1 !important",
-            fontWeight: "600 !important",
-            boxSizing: "border-box !important",
+            minHeight: 48,
+            fontSize: 18,
+            borderRadius: 8,
+            border: "2px solid #6366f1",
+            background: "#fff",
+            color: "#6366f1",
+            fontWeight: 600,
+            boxSizing: "border-box",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
           Settings
@@ -3031,14 +3021,17 @@ ${
             analysisResult={analysisResult}
             style={{
               flex: 1,
-              minHeight: "48px !important",
-              fontSize: "18px !important",
-              borderRadius: "8px !important",
-              border: "2px solid #10b981 !important",
-              background: "#fff !important",
-              color: "#10b981 !important",
-              fontWeight: "600 !important",
-              boxSizing: "border-box !important",
+              minHeight: 48,
+              fontSize: 18,
+              borderRadius: 8,
+              border: "2px solid #10b981",
+              background: "#fff",
+              color: "#10b981",
+              fontWeight: 600,
+              boxSizing: "border-box",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           />
         )}
@@ -3048,28 +3041,28 @@ ${
       <div
         style={{
           flex: 1,
-          width: "100% !important",
-          minHeight: "400px !important",
-          maxHeight: "60vh !important",
-          overflowY: "auto !important",
-          background: "#fff !important",
-          borderRadius: "12px !important",
-          padding: "20px !important",
-          marginBottom: "20px !important",
-          border: "1px solid #e5e7eb !important",
-          boxSizing: "border-box !important",
-          overflowX: "hidden !important",
-          maxWidth: "100vw !important",
+          width: "100%",
+          minHeight: 400,
+          maxHeight: "60vh",
+          overflowY: "auto",
+          overflowX: "hidden",
+          background: "#fff",
+          borderRadius: 12,
+          padding: 20,
+          marginBottom: 20,
+          border: "1px solid #e5e7eb",
+          boxSizing: "border-box",
+          maxWidth: "100vw",
         }}
       >
         {currentMessages.length === 0 ? (
           <div
             style={{
-              textAlign: "center !important",
-              color: "#4f46e5 !important",
-              fontWeight: "700 !important",
-              fontSize: "24px !important",
-              margin: "3rem 0 !important",
+              textAlign: "center",
+              color: "#4f46e5",
+              fontWeight: 700,
+              fontSize: 24,
+              margin: "3rem 0",
             }}
           >
             Welcome to Tatt2Away AI
@@ -3079,30 +3072,22 @@ ${
             <div
               key={index}
               style={{
-                width: "100% !important",
-                marginBottom: "20px !important",
-                padding: "16px !important",
-                fontSize: "18px !important",
-                borderRadius: "12px !important",
-                background:
-                  message.sender === "user"
-                    ? "#e0e7ef !important"
-                    : "#f4f7fd !important",
-                color: "#222 !important",
-                wordBreak: "break-word !important",
-                overflowWrap: "break-word !important",
-                boxSizing: "border-box !important",
+                width: "100%",
+                marginBottom: 20,
+                padding: 16,
+                fontSize: 18,
+                borderRadius: 12,
+                background: message.sender === "user" ? "#e0e7ef" : "#f4f7fd",
+                color: "#222",
+                wordBreak: "break-word",
+                overflowWrap: "break-word",
+                boxSizing: "border-box",
+                overflow: "hidden",
               }}
             >
               {renderMessageContent(message)}
               {message.created_at && chatSettings.showTimestamps && (
-                <div
-                  style={{
-                    fontSize: "14px !important",
-                    color: "#888 !important",
-                    marginTop: "6px !important",
-                  }}
-                >
+                <div style={{ fontSize: 14, color: "#888", marginTop: 6 }}>
                   {new Date(message.created_at).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -3118,14 +3103,13 @@ ${
       {/* Input area */}
       <div
         style={{
-          width: "100% !important",
-          display: "flex !important",
-          flexDirection: "column !important",
-          gap: "12px !important",
-          boxSizing: "border-box !important",
-          maxWidth: "100vw !important",
-          overflowX: "hidden !important",
-          flexShrink: 0,
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          boxSizing: "border-box",
+          maxWidth: "100vw",
+          overflowX: "hidden",
         }}
       >
         <textarea
@@ -3135,15 +3119,16 @@ ${
           disabled={isLoading}
           rows={3}
           style={{
-            width: "100% !important",
-            minHeight: "70px !important",
-            fontSize: "18px !important",
-            borderRadius: "8px !important",
-            border: "1px solid #e5e7eb !important",
-            padding: "14px !important",
-            boxSizing: "border-box !important",
-            resize: "none !important",
-            maxWidth: "100% !important",
+            width: "100%",
+            minHeight: 70,
+            fontSize: 18,
+            borderRadius: 8,
+            border: "1px solid #e5e7eb",
+            padding: 14,
+            boxSizing: "border-box",
+            resize: "none",
+            maxWidth: "100%",
+            overflowX: "hidden",
           }}
         />
         <button
@@ -3151,15 +3136,18 @@ ${
           onClick={handleSendMessage}
           disabled={isLoading || (!inputText.trim() && !file)}
           style={{
-            width: "100% !important",
-            minHeight: "52px !important",
-            fontSize: "20px !important",
-            borderRadius: "8px !important",
-            background: "#6366f1 !important",
-            color: "#fff !important",
-            fontWeight: "700 !important",
-            border: "none !important",
-            boxSizing: "border-box !important",
+            width: "100%",
+            minHeight: 52,
+            fontSize: 20,
+            borderRadius: 8,
+            background: "#6366f1",
+            color: "#fff",
+            fontWeight: 700,
+            border: "none",
+            boxSizing: "border-box",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
           {isLoading ? "Sending..." : "Send Message"}
@@ -3947,6 +3935,16 @@ ${
           isOpen={showClaudeModal}
           onClose={() => setShowClaudeModal(false)}
         />
+      )}
+      {isMobile && (
+        <div style={{ background: "#ff0", padding: 8, fontWeight: 700 }}>
+          MOBILE LAYOUT
+        </div>
+      )}
+      {isTablet && (
+        <div style={{ background: "#0ff", padding: 8, fontWeight: 700 }}>
+          TABLET LAYOUT
+        </div>
       )}
       {typeof window !== "undefined" && window.innerWidth <= 480 && (
         <div className="chatbot-mobile-message">
