@@ -68,7 +68,6 @@ import {
   GetApp,
   FilterList,
   MoreVert,
-  Mail,
 } from "@mui/icons-material";
 
 // Add CSS for loading animation
@@ -1244,10 +1243,6 @@ const CRMDashboard = ({
     );
   }, [packagesSearch]);
 
-  // State for mobile detail modals
-  const [selectedService, setSelectedService] = useState(null);
-  const [selectedPackage, setSelectedPackage] = useState(null);
-
   return (
     <div
       className="crm-dashboard"
@@ -1519,7 +1514,7 @@ const CRMDashboard = ({
                         fontSize: "16px",
                       }}
                     >
-                      <Search style={{ fontSize: "16px" }} />
+                      🔍
                     </span>
                   </div>
                 </div>
@@ -1559,7 +1554,7 @@ const CRMDashboard = ({
                     }}
                   >
                     <div style={{ fontSize: "48px", marginBottom: "16px" }}>
-                      <Mail style={{ fontSize: "48px" }} />
+                      📭
                     </div>
                     <div
                       style={{
@@ -1790,7 +1785,7 @@ const CRMDashboard = ({
                         fontSize: "16px",
                       }}
                     >
-                      <Search style={{ fontSize: "16px" }} />
+                      🔍
                     </span>
                   </div>
                 </div>
@@ -1830,7 +1825,7 @@ const CRMDashboard = ({
                     }}
                   >
                     <div style={{ fontSize: "48px", marginBottom: "16px" }}>
-                      <Event style={{ fontSize: "48px" }} />
+                      📅
                     </div>
                     <div
                       style={{
@@ -2238,7 +2233,7 @@ const CRMDashboard = ({
                           fontSize: "16px",
                         }}
                       >
-                        <Search style={{ fontSize: "16px" }} />
+                        🔍
                       </span>
                     </div>
                   </div>
@@ -2256,7 +2251,7 @@ const CRMDashboard = ({
                         }}
                       >
                         <div style={{ fontSize: "48px", marginBottom: "16px" }}>
-                          <Search style={{ fontSize: "16px" }} />
+                          🔍
                         </div>
                         <div
                           style={{
@@ -2359,8 +2354,7 @@ const CRMDashboard = ({
                                 color: "#1d4ed8",
                               }}
                             >
-                              <AccessTime style={{ fontSize: "16px" }} />{" "}
-                              {formatDuration(service.duration)}
+                              ⏱️ {formatDuration(service.duration)}
                             </span>
                             <span
                               style={{
@@ -2371,8 +2365,7 @@ const CRMDashboard = ({
                                 color: "#92400e",
                               }}
                             >
-                              <AttachMoney style={{ fontSize: "16px" }} />{" "}
-                              {formatCurrency(service.price)}
+                              💰 {formatCurrency(service.price)}
                             </span>
                           </div>
                           {service.description && (
@@ -2387,7 +2380,6 @@ const CRMDashboard = ({
                             </div>
                           )}
                           <button
-                            onClick={() => setSelectedService(service)}
                             style={{
                               padding: "6px 12px",
                               fontSize: "12px",
@@ -2437,8 +2429,7 @@ const CRMDashboard = ({
                         margin: 0,
                       }}
                     >
-                      <Inventory style={{ fontSize: "20px" }} /> Packages
-                      Overview
+                      📦 Packages Overview
                     </h3>
                     <button
                       onClick={refreshData}
@@ -2452,7 +2443,7 @@ const CRMDashboard = ({
                         fontWeight: 500,
                       }}
                     >
-                      <Refresh style={{ fontSize: "16px" }} /> Refresh
+                      🔄 Refresh
                     </button>
                   </div>
 
@@ -2586,7 +2577,7 @@ const CRMDashboard = ({
                           fontSize: "16px",
                         }}
                       >
-                        <Search style={{ fontSize: "16px" }} />
+                        🔍
                       </span>
                     </div>
                   </div>
@@ -2604,7 +2595,7 @@ const CRMDashboard = ({
                         }}
                       >
                         <div style={{ fontSize: "48px", marginBottom: "16px" }}>
-                          <Search style={{ fontSize: "16px" }} />
+                          🔍
                         </div>
                         <div
                           style={{
@@ -2694,8 +2685,7 @@ const CRMDashboard = ({
                                 color: "#1d4ed8",
                               }}
                             >
-                              <Assignment style={{ fontSize: "16px" }} />{" "}
-                              {pkg.type_label}
+                              📋 {pkg.type_label}
                             </span>
                             <span
                               style={{
@@ -2706,8 +2696,7 @@ const CRMDashboard = ({
                                 color: "#92400e",
                               }}
                             >
-                              <AccessTime style={{ fontSize: "16px" }} />{" "}
-                              {formatDuration(pkg.time)}
+                              ⏱️ {formatDuration(pkg.time)}
                             </span>
                             <span
                               style={{
@@ -2718,8 +2707,7 @@ const CRMDashboard = ({
                                 color: "#374151",
                               }}
                             >
-                              <Payment style={{ fontSize: "16px" }} />{" "}
-                              {pkg.instalments} installments
+                              💳 {pkg.instalments} installments
                             </span>
                           </div>
                           {pkg.description && (
@@ -2746,7 +2734,6 @@ const CRMDashboard = ({
                               : "No expiry"}
                           </div>
                           <button
-                            onClick={() => setSelectedPackage(pkg)}
                             style={{
                               padding: "6px 12px",
                               fontSize: "12px",
@@ -2796,8 +2783,7 @@ const CRMDashboard = ({
                         margin: 0,
                       }}
                     >
-                      <Assessment style={{ fontSize: "20px" }} /> Analytics
-                      Overview
+                      📊 Analytics Overview
                     </h3>
                     <button
                       onClick={refreshData}
@@ -2811,7 +2797,7 @@ const CRMDashboard = ({
                         fontWeight: 500,
                       }}
                     >
-                      <Refresh style={{ fontSize: "16px" }} /> Refresh
+                      🔄 Refresh
                     </button>
                   </div>
 
@@ -2836,20 +2822,12 @@ const CRMDashboard = ({
                       }}
                     >
                       {[
-                        {
-                          id: "accrual",
-                          label: "Accrual",
-                          icon: <AttachMoney style={{ fontSize: "16px" }} />,
-                        },
-                        {
-                          id: "cash_basis",
-                          label: "Cash",
-                          icon: <Payment style={{ fontSize: "16px" }} />,
-                        },
+                        { id: "accrual", label: "Accrual", icon: "💰" },
+                        { id: "cash_basis", label: "Cash", icon: "💳" },
                         {
                           id: "appointments",
                           label: "Appointments",
-                          icon: <Event style={{ fontSize: "16px" }} />,
+                          icon: "📅",
                         },
                       ].map((type) => (
                         <button
@@ -3191,7 +3169,7 @@ const CRMDashboard = ({
                       }}
                     >
                       <div style={{ fontSize: "48px", marginBottom: "16px" }}>
-                        <TrendingUp style={{ fontSize: "48px" }} />
+                        📈
                       </div>
                       <div
                         style={{
@@ -3490,7 +3468,7 @@ const CRMDashboard = ({
                       gap: "8px",
                     }}
                   >
-                    <Assessment style={{ fontSize: "20px" }} /> Export Report
+                    📊 Export Report
                   </button>
                 </div>
               </div>
@@ -3646,170 +3624,6 @@ const CRMDashboard = ({
               <Button onClick={() => setSelectedAppointment(null)}>
                 Close
               </Button>
-            </DialogActions>
-          </Dialog>
-
-          {/* Service Detail Modal */}
-          <Dialog
-            open={!!selectedService}
-            onClose={() => setSelectedService(null)}
-            maxWidth="sm"
-            fullWidth
-          >
-            <DialogTitle>Service Details</DialogTitle>
-            <DialogContent>
-              {selectedService && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: 2,
-                    }}
-                  >
-                    <Box>
-                      <strong>Name:</strong> {selectedService.name}
-                    </Box>
-                    <Box>
-                      <strong>Code:</strong> {selectedService.code}
-                    </Box>
-                    <Box>
-                      <strong>Category:</strong> {selectedService.category}
-                    </Box>
-                    <Box>
-                      <strong>Duration:</strong>{" "}
-                      {formatDuration(selectedService.duration)}
-                    </Box>
-                    <Box>
-                      <strong>Price:</strong>{" "}
-                      {formatCurrency(selectedService.price)}
-                    </Box>
-                    <Box>
-                      <strong>Recovery Time:</strong>{" "}
-                      {selectedService.recovery_time} days
-                    </Box>
-                    <Box>
-                      <strong>Status:</strong>{" "}
-                      <Chip
-                        label={
-                          selectedService.is_active ? "Active" : "Inactive"
-                        }
-                        color={selectedService.is_active ? "success" : "error"}
-                        size="small"
-                      />
-                    </Box>
-                    <Box>
-                      <strong>Couple Service:</strong>{" "}
-                      <Chip
-                        label={selectedService.is_couple_service ? "Yes" : "No"}
-                        color={
-                          selectedService.is_couple_service
-                            ? "primary"
-                            : "default"
-                        }
-                        size="small"
-                      />
-                    </Box>
-                  </Box>
-                  {selectedService.description && (
-                    <Box>
-                      <Typography variant="h6" sx={{ mb: 1 }}>
-                        Description
-                      </Typography>
-                      <Typography>{selectedService.description}</Typography>
-                    </Box>
-                  )}
-                </Box>
-              )}
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setSelectedService(null)}>Close</Button>
-            </DialogActions>
-          </Dialog>
-
-          {/* Package Detail Modal */}
-          <Dialog
-            open={!!selectedPackage}
-            onClose={() => setSelectedPackage(null)}
-            maxWidth="sm"
-            fullWidth
-          >
-            <DialogTitle>Package Details</DialogTitle>
-            <DialogContent>
-              {selectedPackage && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: 2,
-                    }}
-                  >
-                    <Box>
-                      <strong>Name:</strong> {selectedPackage.name}
-                    </Box>
-                    <Box>
-                      <strong>Code:</strong> {selectedPackage.code}
-                    </Box>
-                    <Box>
-                      <strong>Type:</strong> {selectedPackage.type_label}
-                    </Box>
-                    <Box>
-                      <strong>Duration:</strong>{" "}
-                      {formatDuration(selectedPackage.time)}
-                    </Box>
-                    <Box>
-                      <strong>Price:</strong>{" "}
-                      {formatCurrency(selectedPackage.price)}
-                    </Box>
-                    <Box>
-                      <strong>Installments:</strong>{" "}
-                      {selectedPackage.instalments}
-                    </Box>
-                    <Box>
-                      <strong>Payment Frequency:</strong>{" "}
-                      {selectedPackage.payment_frequency} days
-                    </Box>
-                    <Box>
-                      <strong>Validity:</strong>{" "}
-                      {selectedPackage.validity_expiry > 0
-                        ? `${selectedPackage.validity_expiry} days`
-                        : "No expiry"}
-                    </Box>
-                    <Box>
-                      <strong>Status:</strong>{" "}
-                      <Chip
-                        label={
-                          selectedPackage.is_active ? "Active" : "Inactive"
-                        }
-                        color={selectedPackage.is_active ? "success" : "error"}
-                        size="small"
-                      />
-                    </Box>
-                  </Box>
-                  {selectedPackage.description && (
-                    <Box>
-                      <Typography variant="h6" sx={{ mb: 1 }}>
-                        Description
-                      </Typography>
-                      <Typography>{selectedPackage.description}</Typography>
-                    </Box>
-                  )}
-                  {selectedPackage.terms_and_conditions && (
-                    <Box>
-                      <Typography variant="h6" sx={{ mb: 1 }}>
-                        Terms & Conditions
-                      </Typography>
-                      <Typography>
-                        {selectedPackage.terms_and_conditions}
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
-              )}
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setSelectedPackage(null)}>Close</Button>
             </DialogActions>
           </Dialog>
         </div>
@@ -4380,84 +4194,6 @@ const CRMDashboard = ({
               <Button onClick={() => setSelectedAppointment(null)}>
                 Close
               </Button>
-            </DialogActions>
-          </Dialog>
-
-          {/* Service Detail Modal */}
-          <Dialog
-            open={!!selectedService}
-            onClose={() => setSelectedService(null)}
-            maxWidth="sm"
-            fullWidth
-          >
-            <DialogTitle>Service Details</DialogTitle>
-            <DialogContent>
-              {selectedService && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: 2,
-                    }}
-                  >
-                    <Box>
-                      <strong>Name:</strong> {selectedService.name}
-                    </Box>
-                    <Box>
-                      <strong>Code:</strong> {selectedService.code}
-                    </Box>
-                    <Box>
-                      <strong>Category:</strong> {selectedService.category}
-                    </Box>
-                    <Box>
-                      <strong>Duration:</strong>{" "}
-                      {formatDuration(selectedService.duration)}
-                    </Box>
-                    <Box>
-                      <strong>Price:</strong>{" "}
-                      {formatCurrency(selectedService.price)}
-                    </Box>
-                    <Box>
-                      <strong>Recovery Time:</strong>{" "}
-                      {selectedService.recovery_time} days
-                    </Box>
-                    <Box>
-                      <strong>Status:</strong>{" "}
-                      <Chip
-                        label={
-                          selectedService.is_active ? "Active" : "Inactive"
-                        }
-                        color={selectedService.is_active ? "success" : "error"}
-                        size="small"
-                      />
-                    </Box>
-                    <Box>
-                      <strong>Couple Service:</strong>{" "}
-                      <Chip
-                        label={selectedService.is_couple_service ? "Yes" : "No"}
-                        color={
-                          selectedService.is_couple_service
-                            ? "primary"
-                            : "default"
-                        }
-                        size="small"
-                      />
-                    </Box>
-                  </Box>
-                  {selectedService.description && (
-                    <Box>
-                      <Typography variant="h6" sx={{ mb: 1 }}>
-                        Description
-                      </Typography>
-                      <Typography>{selectedService.description}</Typography>
-                    </Box>
-                  )}
-                </Box>
-              )}
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setSelectedService(null)}>Close</Button>
             </DialogActions>
           </Dialog>
         </Box>
