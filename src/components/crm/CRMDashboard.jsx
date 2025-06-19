@@ -789,6 +789,400 @@ const CRMDashboard = ({
   const [servicesSearch, setServicesSearch] = useState("");
   const [packagesSearch, setPackagesSearch] = useState("");
 
+  // Analytics state for mobile
+  const [analyticsReportType, setAnalyticsReportType] = useState("accrual");
+  const [analyticsDateRange, setAnalyticsDateRange] = useState("30days");
+  const [analyticsData, setAnalyticsData] = useState({
+    accrualReports: [],
+    cashReports: [],
+    appointmentReports: [],
+    summaryStats: {
+      totalSales: 0,
+      totalRefunds: 0,
+      netSales: 0,
+      totalAppointments: 0,
+      completedAppointments: 0,
+      cancellationRate: 0,
+      averageValue: 0,
+      topService: "",
+      totalRevenue: 0,
+    },
+    chartData: [],
+    rawReportData: [],
+  });
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState(null);
+
+  // Utility to safely parse JSON data
+  const safeJsonParse = useCallback((jsonString) => {
+    if (!jsonString) return [];
+    if (Array.isArray(jsonString)) return jsonString;
+    if (typeof jsonString === "object") return [jsonString];
+
+    try {
+      const parsed = JSON.parse(jsonString);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch (e) {
+      console.error("Error parsing JSON:", e);
+      return [];
+    }
+  }, []);
+
+  // Calculate date range
+  const getDateRange = useCallback(() => {
+    const now = new Date();
+    const start = new Date();
+
+    switch (analyticsDateRange) {
+      case "7days":
+        start.setDate(now.getDate() - 7);
+        break;
+      case "30days":
+        start.setDate(now.getDate() - 30);
+        break;
+      case "90days":
+        start.setDate(now.getDate() - 90);
+        break;
+      case "1year":
+        start.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        start.setDate(now.getDate() - 30);
+    }
+
+    return {
+      startDate: start.toISOString().split("T")[0],
+      endDate: now.toISOString().split("T")[0],
+    };
+  }, [analyticsDateRange]);
+
+  // Fetch analytics data
+  const fetchAnalyticsData = useCallback(async () => {
+    setAnalyticsLoading(true);
+    setAnalyticsError(null);
+
+    try {
+      const { startDate: filterStartDate, endDate: filterEndDate } =
+        getDateRange();
+
+      console.log("Fetching analytics data:", {
+        analyticsReportType,
+        selectedCenter,
+        dateRange: { filterStartDate, filterEndDate },
+      });
+
+      // Build base queries
+      let accrualQuery = supabase
+        .from("zenoti_sales_accrual_reports")
+        .select("*")
+        .gte("start_date", filterStartDate)
+        .lte("end_date", filterEndDate)
+        .order("start_date", { ascending: false });
+
+      let cashQuery = supabase
+        .from("zenoti_sales_cash_reports")
+        .select("*")
+        .gte("start_date", filterStartDate)
+        .lte("end_date", filterEndDate)
+        .order("start_date", { ascending: false });
+
+      let appointmentQuery = supabase
+        .from("zenoti_appointments_reports")
+        .select("*")
+        .gte("start_date", filterStartDate)
+        .lte("end_date", filterEndDate)
+        .order("start_date", { ascending: false });
+
+      // Apply center filter if selected
+      if (selectedCenter !== "ALL") {
+        const centerCode = selectedCenter.split(" - ")[0];
+        const centerId = centerCodeToId[centerCode];
+
+        if (centerId) {
+          accrualQuery = accrualQuery.eq("center_id", centerId);
+          cashQuery = cashQuery.eq("center_id", centerId);
+          appointmentQuery = appointmentQuery.eq("center_id", centerId);
+        }
+      }
+
+      // Execute queries
+      const [accrualResult, cashResult, appointmentResult] = await Promise.all([
+        accrualQuery,
+        cashQuery,
+        appointmentQuery,
+      ]);
+
+      if (accrualResult.error) throw accrualResult.error;
+      if (cashResult.error) throw cashResult.error;
+      if (appointmentResult.error) throw appointmentResult.error;
+
+      console.log("Query results:", {
+        accrual: accrualResult.data?.length,
+        cash: cashResult.data?.length,
+        appointments: appointmentResult.data?.length,
+      });
+
+      // Process the data based on selected report type
+      processAnalyticsData(
+        accrualResult.data || [],
+        cashResult.data || [],
+        appointmentResult.data || []
+      );
+    } catch (err) {
+      console.error("Error fetching analytics data:", err);
+      setAnalyticsError(`Failed to fetch analytics data: ${err.message}`);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, [selectedCenter, centerCodeToId, getDateRange, analyticsReportType]);
+
+  // Process analytics data based on selected report type
+  const processAnalyticsData = useCallback(
+    (accrualData, cashData, appointmentData) => {
+      let processedData = [];
+      let stats = {
+        totalSales: 0,
+        totalRefunds: 0,
+        netSales: 0,
+        totalAppointments: 0,
+        completedAppointments: 0,
+        cancellationRate: 0,
+        averageValue: 0,
+        topService: "",
+        totalRevenue: 0,
+      };
+
+      let serviceCount = {};
+      let dailyData = {};
+
+      // Process based on report type
+      if (analyticsReportType === "accrual") {
+        // Process accrual data only
+        accrualData.forEach((report) => {
+          const salesItems = safeJsonParse(report.data);
+          salesItems.forEach((item) => {
+            // Apply center filter at item level if needed
+            if (selectedCenter !== "ALL") {
+              const centerCode = selectedCenter.split(" - ")[0];
+              const centerId = centerCodeToId[centerCode];
+              if (item.center_id !== centerId) {
+                return;
+              }
+            }
+
+            const saleAmount = parseFloat(item.sales_inc_tax || 0);
+            const isRefund = saleAmount < 0;
+
+            if (isRefund) {
+              stats.totalRefunds += Math.abs(saleAmount);
+            } else {
+              stats.totalSales += saleAmount;
+              stats.totalRevenue += saleAmount;
+            }
+
+            // Track services
+            const serviceName = item.item_name || "Unknown";
+            serviceCount[serviceName] = (serviceCount[serviceName] || 0) + 1;
+
+            // Track daily data
+            const date =
+              item.sale_date?.split("T")[0] ||
+              new Date().toISOString().split("T")[0];
+            if (!dailyData[date]) {
+              dailyData[date] = { date, sales: 0, refunds: 0, transactions: 0 };
+            }
+            if (isRefund) {
+              dailyData[date].refunds += Math.abs(saleAmount);
+            } else {
+              dailyData[date].sales += saleAmount;
+            }
+            dailyData[date].transactions += 1;
+
+            processedData.push({
+              sale_date: item.sale_date,
+              guest_name: item.guest_name,
+              item_name: item.item_name,
+              sales_inc_tax: saleAmount,
+              center_name: item.center_name,
+              invoice_no: item.invoice_no,
+              payment_type: item.payment_type || "",
+              sold_by: item.sold_by,
+              status: item.status,
+              report_type: "Accrual Basis",
+            });
+          });
+        });
+        stats.netSales = stats.totalSales - stats.totalRefunds;
+        stats.averageValue =
+          processedData.length > 0
+            ? stats.totalSales / processedData.length
+            : 0;
+      } else if (analyticsReportType === "cash_basis") {
+        // Process cash data only
+        cashData.forEach((report) => {
+          const salesItems = safeJsonParse(report.data);
+          salesItems.forEach((item) => {
+            // Apply center filter at item level if needed
+            if (selectedCenter !== "ALL") {
+              const centerCode = selectedCenter.split(" - ")[0];
+              const centerId = centerCodeToId[centerCode];
+              if (item.center_id !== centerId) {
+                return;
+              }
+            }
+
+            const collectedAmount = parseFloat(
+              item.sales_collected_inc_tax || 0
+            );
+            stats.totalSales += collectedAmount;
+            stats.totalRevenue += collectedAmount;
+
+            // Track services
+            const serviceName = item.item_name || "Unknown";
+            serviceCount[serviceName] = (serviceCount[serviceName] || 0) + 1;
+
+            // Track daily data
+            const date =
+              item.sale_date?.split("T")[0] ||
+              new Date().toISOString().split("T")[0];
+            if (!dailyData[date]) {
+              dailyData[date] = { date, collected: 0, transactions: 0 };
+            }
+            dailyData[date].collected += collectedAmount;
+            dailyData[date].transactions += 1;
+
+            processedData.push({
+              sale_date: item.sale_date,
+              guest_name: item.guest_name,
+              item_name: item.item_name,
+              sales_collected_inc_tax: collectedAmount,
+              center_name: item.center_name,
+              invoice_no: item.invoice_no,
+              payment_type: item.payment_type || "",
+              created_by: item.created_by,
+              report_type: "Cash Basis",
+            });
+          });
+        });
+        stats.netSales = stats.totalSales;
+        stats.averageValue =
+          processedData.length > 0
+            ? stats.totalSales / processedData.length
+            : 0;
+      } else if (analyticsReportType === "appointments") {
+        // Process appointment data only
+        appointmentData.forEach((report) => {
+          const appointments = safeJsonParse(report.data);
+          appointments.forEach((appointment) => {
+            // Apply center filter at item level if needed
+            if (selectedCenter !== "ALL") {
+              const centerCode = selectedCenter.split(" - ")[0];
+              const centerId = centerCodeToId[centerCode];
+              if (appointment.center_id !== centerId) {
+                return;
+              }
+            }
+
+            stats.totalAppointments += 1;
+            if ((appointment.status || "").toLowerCase() === "completed") {
+              stats.completedAppointments += 1;
+            }
+
+            // Track services
+            const serviceName = appointment.service_name || "Unknown";
+            serviceCount[serviceName] = (serviceCount[serviceName] || 0) + 1;
+
+            // Track daily data
+            const date =
+              appointment.appointment_date?.split("T")[0] ||
+              new Date().toISOString().split("T")[0];
+            if (!dailyData[date]) {
+              dailyData[date] = { date, appointments: 0, completed: 0 };
+            }
+            dailyData[date].appointments += 1;
+            if ((appointment.status || "").toLowerCase() === "completed") {
+              dailyData[date].completed += 1;
+            }
+
+            processedData.push({
+              appointment_date: appointment.appointment_date,
+              guest_name: appointment.guest_name,
+              service_name: appointment.service_name,
+              serviced_by: appointment.serviced_by,
+              status: appointment.status,
+              center_name: appointment.center_name,
+              start_time: appointment.start_time,
+              end_time: appointment.end_time,
+              guest_code: appointment.guest_code,
+              report_type: "Appointments",
+            });
+          });
+        });
+        stats.cancellationRate =
+          stats.totalAppointments > 0
+            ? ((stats.totalAppointments - stats.completedAppointments) /
+                stats.totalAppointments) *
+              100
+            : 0;
+      }
+
+      // Find top service
+      const topServiceEntry = Object.entries(serviceCount).sort(
+        ([, a], [, b]) => b - a
+      )[0];
+      stats.topService = topServiceEntry ? topServiceEntry[0] : "N/A";
+
+      // Create chart data
+      let chartData = Object.values(dailyData).sort(
+        (a, b) => new Date(a.date) - new Date(b.date)
+      );
+
+      setAnalyticsData({
+        accrualReports: accrualData,
+        cashReports: cashData,
+        appointmentReports: appointmentData,
+        summaryStats: stats,
+        chartData,
+        rawReportData: processedData,
+      });
+
+      console.log("Processed analytics data:", {
+        records: processedData.length,
+        stats,
+        chartPoints: chartData.length,
+      });
+    },
+    [analyticsReportType, selectedCenter, centerCodeToId, safeJsonParse]
+  );
+
+  // Load analytics data when dependencies change
+  useEffect(() => {
+    if (activeSection === "analytics") {
+      fetchAnalyticsData();
+    }
+  }, [activeSection, fetchAnalyticsData]);
+
+  // Reprocess data when report type changes
+  useEffect(() => {
+    if (
+      analyticsData.accrualReports.length > 0 ||
+      analyticsData.cashReports.length > 0 ||
+      analyticsData.appointmentReports.length > 0
+    ) {
+      processAnalyticsData(
+        analyticsData.accrualReports,
+        analyticsData.cashReports,
+        analyticsData.appointmentReports
+      );
+    }
+  }, [
+    analyticsReportType,
+    processAnalyticsData,
+    analyticsData.accrualReports,
+    analyticsData.cashReports,
+    analyticsData.appointmentReports,
+  ]);
+
   // Filter services based on search
   const filteredServices = useMemo(() => {
     if (!servicesSearch.trim()) return allServices;
@@ -2321,8 +2715,18 @@ const CRMDashboard = ({
                     </button>
                   </div>
 
-                  {/* Time Period Selector */}
+                  {/* Report Type Selector */}
                   <div style={{ marginBottom: "16px" }}>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        color: "#374151",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Report Type
+                    </div>
                     <div
                       style={{
                         display: "flex",
@@ -2331,283 +2735,635 @@ const CRMDashboard = ({
                         padding: "4px",
                       }}
                     >
-                      {["Day", "Week", "Month", "Year"].map((period) => (
+                      {[
+                        { id: "accrual", label: "Accrual", icon: "💰" },
+                        { id: "cash_basis", label: "Cash", icon: "💳" },
+                        {
+                          id: "appointments",
+                          label: "Appointments",
+                          icon: "📅",
+                        },
+                      ].map((type) => (
                         <button
-                          key={period}
+                          key={type.id}
+                          onClick={() => setAnalyticsReportType(type.id)}
                           style={{
                             flex: 1,
                             padding: "8px 12px",
                             fontSize: "14px",
                             background:
-                              period === "Month" ? "#4f46e5" : "transparent",
-                            color: period === "Month" ? "#fff" : "#6b7280",
+                              analyticsReportType === type.id
+                                ? "#4f46e5"
+                                : "transparent",
+                            color:
+                              analyticsReportType === type.id
+                                ? "#fff"
+                                : "#6b7280",
                             border: "none",
                             borderRadius: "6px",
                             fontWeight: 500,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "4px",
                           }}
                         >
-                          {period}
+                          <span>{type.icon}</span>
+                          <span>{type.label}</span>
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Summary Cards */}
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "repeat(auto-fit, minmax(140px, 1fr))",
-                      gap: "12px",
-                      marginBottom: "16px",
-                    }}
-                  >
+                  {/* Time Period Selector */}
+                  <div style={{ marginBottom: "16px" }}>
                     <div
                       style={{
-                        background: "#f8fafc",
-                        padding: "12px",
-                        borderRadius: "8px",
-                        textAlign: "center",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "24px",
-                          fontWeight: 700,
-                          color: "#4f46e5",
-                        }}
-                      >
-                        {totalContacts.toLocaleString()}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
-                        Total Contacts
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        background: "#f8fafc",
-                        padding: "12px",
-                        borderRadius: "8px",
-                        textAlign: "center",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "24px",
-                          fontWeight: 700,
-                          color: "#10b981",
-                        }}
-                      >
-                        {totalAppointments.toLocaleString()}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
-                        Appointments
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        background: "#f8fafc",
-                        padding: "12px",
-                        borderRadius: "8px",
-                        textAlign: "center",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "24px",
-                          fontWeight: 700,
-                          color: "#f59e0b",
-                        }}
-                      >
-                        {servicesSummaryStats.total}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
-                        Services
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        background: "#f8fafc",
-                        padding: "12px",
-                        borderRadius: "8px",
-                        textAlign: "center",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "24px",
-                          fontWeight: 700,
-                          color: "#8b5cf6",
-                        }}
-                      >
-                        {packagesSummaryStats.total}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
-                        Packages
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Chart Placeholder */}
-                  <div
-                    style={{
-                      background: "#f8fafc",
-                      border: "2px dashed #d1d5db",
-                      borderRadius: "8px",
-                      padding: "40px 20px",
-                      textAlign: "center",
-                      marginBottom: "16px",
-                    }}
-                  >
-                    <div style={{ fontSize: "48px", marginBottom: "16px" }}>
-                      📈
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "16px",
+                        fontSize: "14px",
                         fontWeight: 600,
                         color: "#374151",
                         marginBottom: "8px",
                       }}
                     >
-                      Analytics Charts
+                      Date Range
                     </div>
-                    <div style={{ fontSize: "14px", color: "#6b7280" }}>
-                      Interactive charts and graphs will be displayed here
-                    </div>
-                  </div>
-
-                  {/* Quick Stats */}
-                  <div style={{ marginBottom: "16px" }}>
-                    <h4
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: 600,
-                        color: "#111827",
-                        marginBottom: "12px",
-                      }}
-                    >
-                      Quick Statistics
-                    </h4>
                     <div
                       style={{
                         display: "flex",
-                        flexDirection: "column",
-                        gap: "8px",
+                        background: "#f3f4f6",
+                        borderRadius: "8px",
+                        padding: "4px",
+                      }}
+                    >
+                      {[
+                        { id: "7days", label: "7 Days" },
+                        { id: "30days", label: "30 Days" },
+                        { id: "90days", label: "90 Days" },
+                        { id: "1year", label: "1 Year" },
+                      ].map((period) => (
+                        <button
+                          key={period.id}
+                          onClick={() => setAnalyticsDateRange(period.id)}
+                          style={{
+                            flex: 1,
+                            padding: "8px 12px",
+                            fontSize: "14px",
+                            background:
+                              analyticsDateRange === period.id
+                                ? "#4f46e5"
+                                : "transparent",
+                            color:
+                              analyticsDateRange === period.id
+                                ? "#fff"
+                                : "#6b7280",
+                            border: "none",
+                            borderRadius: "6px",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {period.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Loading State */}
+                  {analyticsLoading && (
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        padding: "40px",
                       }}
                     >
                       <div
                         style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          padding: "8px 12px",
-                          background: "#f8fafc",
-                          borderRadius: "6px",
+                          width: "32px",
+                          height: "32px",
+                          border: "3px solid #e5e7eb",
+                          borderTop: "3px solid #4f46e5",
+                          borderRadius: "50%",
+                          animation: "spin 1s linear infinite",
                         }}
-                      >
-                        <span style={{ fontSize: "14px", color: "#6b7280" }}>
-                          Active Services
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "14px",
-                            fontWeight: 600,
-                            color: "#111827",
-                          }}
-                        >
-                          {servicesSummaryStats.active}
-                        </span>
+                      />
+                    </div>
+                  )}
+
+                  {/* Error State */}
+                  {analyticsError && (
+                    <div
+                      style={{
+                        background: "#fef2f2",
+                        border: "1px solid #fecaca",
+                        color: "#dc2626",
+                        padding: "12px 16px",
+                        marginBottom: "16px",
+                        borderRadius: "8px",
+                        fontSize: "14px",
+                      }}
+                    >
+                      {analyticsError}
+                    </div>
+                  )}
+
+                  {/* Summary Cards */}
+                  {!analyticsLoading && !analyticsError && (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fit, minmax(140px, 1fr))",
+                        gap: "12px",
+                        marginBottom: "16px",
+                      }}
+                    >
+                      {analyticsReportType === "appointments" ? (
+                        <>
+                          <div
+                            style={{
+                              background: "#f8fafc",
+                              padding: "12px",
+                              borderRadius: "8px",
+                              textAlign: "center",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "24px",
+                                fontWeight: 700,
+                                color: "#4f46e5",
+                              }}
+                            >
+                              {analyticsData.summaryStats.totalAppointments.toLocaleString()}
+                            </div>
+                            <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                              Total Appointments
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              background: "#f8fafc",
+                              padding: "12px",
+                              borderRadius: "8px",
+                              textAlign: "center",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "24px",
+                                fontWeight: 700,
+                                color: "#10b981",
+                              }}
+                            >
+                              {analyticsData.summaryStats.completedAppointments.toLocaleString()}
+                            </div>
+                            <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                              Completed
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              background: "#f8fafc",
+                              padding: "12px",
+                              borderRadius: "8px",
+                              textAlign: "center",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "24px",
+                                fontWeight: 700,
+                                color: "#f59e0b",
+                              }}
+                            >
+                              {analyticsData.summaryStats.cancellationRate.toFixed(
+                                1
+                              )}
+                              %
+                            </div>
+                            <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                              Cancellation Rate
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              background: "#f8fafc",
+                              padding: "12px",
+                              borderRadius: "8px",
+                              textAlign: "center",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "24px",
+                                fontWeight: 700,
+                                color: "#8b5cf6",
+                              }}
+                            >
+                              {analyticsData.summaryStats.topService.length > 10
+                                ? `${analyticsData.summaryStats.topService.substring(
+                                    0,
+                                    10
+                                  )}...`
+                                : analyticsData.summaryStats.topService}
+                            </div>
+                            <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                              Top Service
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div
+                            style={{
+                              background: "#f8fafc",
+                              padding: "12px",
+                              borderRadius: "8px",
+                              textAlign: "center",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "24px",
+                                fontWeight: 700,
+                                color: "#4f46e5",
+                              }}
+                            >
+                              {formatCurrency(
+                                analyticsData.summaryStats.totalSales
+                              )}
+                            </div>
+                            <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                              Total Sales
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              background: "#f8fafc",
+                              padding: "12px",
+                              borderRadius: "8px",
+                              textAlign: "center",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "24px",
+                                fontWeight: 700,
+                                color: "#10b981",
+                              }}
+                            >
+                              {formatCurrency(
+                                analyticsData.summaryStats.netSales
+                              )}
+                            </div>
+                            <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                              Net Sales
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              background: "#f8fafc",
+                              padding: "12px",
+                              borderRadius: "8px",
+                              textAlign: "center",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "24px",
+                                fontWeight: 700,
+                                color: "#f59e0b",
+                              }}
+                            >
+                              {formatCurrency(
+                                analyticsData.summaryStats.averageValue
+                              )}
+                            </div>
+                            <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                              Avg Value
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              background: "#f8fafc",
+                              padding: "12px",
+                              borderRadius: "8px",
+                              textAlign: "center",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "24px",
+                                fontWeight: 700,
+                                color: "#8b5cf6",
+                              }}
+                            >
+                              {analyticsData.rawReportData.length.toLocaleString()}
+                            </div>
+                            <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                              Transactions
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Chart Placeholder */}
+                  {!analyticsLoading && !analyticsError && (
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        border: "2px dashed #d1d5db",
+                        borderRadius: "8px",
+                        padding: "40px 20px",
+                        textAlign: "center",
+                        marginBottom: "16px",
+                      }}
+                    >
+                      <div style={{ fontSize: "48px", marginBottom: "16px" }}>
+                        📈
                       </div>
                       <div
                         style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          padding: "8px 12px",
-                          background: "#f8fafc",
-                          borderRadius: "6px",
+                          fontSize: "16px",
+                          fontWeight: 600,
+                          color: "#374151",
+                          marginBottom: "8px",
                         }}
                       >
-                        <span style={{ fontSize: "14px", color: "#6b7280" }}>
-                          Active Packages
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "14px",
-                            fontWeight: 600,
-                            color: "#111827",
-                          }}
-                        >
-                          {packagesSummaryStats.active}
-                        </span>
+                        {analyticsReportType === "appointments"
+                          ? "Appointment Analytics"
+                          : "Sales Analytics"}
                       </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          padding: "8px 12px",
-                          background: "#f8fafc",
-                          borderRadius: "6px",
-                        }}
-                      >
-                        <span style={{ fontSize: "14px", color: "#6b7280" }}>
-                          Average Service Price
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "14px",
-                            fontWeight: 600,
-                            color: "#111827",
-                          }}
-                        >
-                          {formatCurrency(servicesSummaryStats.avgPrice)}
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          padding: "8px 12px",
-                          background: "#f8fafc",
-                          borderRadius: "6px",
-                        }}
-                      >
-                        <span style={{ fontSize: "14px", color: "#6b7280" }}>
-                          Service Categories
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "14px",
-                            fontWeight: 600,
-                            color: "#111827",
-                          }}
-                        >
-                          {servicesSummaryStats.categories}
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          padding: "8px 12px",
-                          background: "#f8fafc",
-                          borderRadius: "6px",
-                        }}
-                      >
-                        <span style={{ fontSize: "14px", color: "#6b7280" }}>
-                          Package Types
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "14px",
-                            fontWeight: 600,
-                            color: "#111827",
-                          }}
-                        >
-                          {packagesSummaryStats.types}
-                        </span>
+                      <div style={{ fontSize: "14px", color: "#6b7280" }}>
+                        {analyticsData.chartData.length > 0
+                          ? `${analyticsData.chartData.length} data points available`
+                          : "No chart data available for selected period"}
                       </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Quick Stats */}
+                  {!analyticsLoading && !analyticsError && (
+                    <div style={{ marginBottom: "16px" }}>
+                      <h4
+                        style={{
+                          fontSize: "16px",
+                          fontWeight: 600,
+                          color: "#111827",
+                          marginBottom: "12px",
+                        }}
+                      >
+                        Report Summary
+                      </h4>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "8px",
+                        }}
+                      >
+                        {analyticsReportType === "appointments" ? (
+                          <>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                padding: "8px 12px",
+                                background: "#f8fafc",
+                                borderRadius: "6px",
+                              }}
+                            >
+                              <span
+                                style={{ fontSize: "14px", color: "#6b7280" }}
+                              >
+                                Total Appointments
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "14px",
+                                  fontWeight: 600,
+                                  color: "#111827",
+                                }}
+                              >
+                                {analyticsData.summaryStats.totalAppointments.toLocaleString()}
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                padding: "8px 12px",
+                                background: "#f8fafc",
+                                borderRadius: "6px",
+                              }}
+                            >
+                              <span
+                                style={{ fontSize: "14px", color: "#6b7280" }}
+                              >
+                                Completed
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "14px",
+                                  fontWeight: 600,
+                                  color: "#111827",
+                                }}
+                              >
+                                {analyticsData.summaryStats.completedAppointments.toLocaleString()}
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                padding: "8px 12px",
+                                background: "#f8fafc",
+                                borderRadius: "6px",
+                              }}
+                            >
+                              <span
+                                style={{ fontSize: "14px", color: "#6b7280" }}
+                              >
+                                Cancellation Rate
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "14px",
+                                  fontWeight: 600,
+                                  color: "#111827",
+                                }}
+                              >
+                                {analyticsData.summaryStats.cancellationRate.toFixed(
+                                  1
+                                )}
+                                %
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                padding: "8px 12px",
+                                background: "#f8fafc",
+                                borderRadius: "6px",
+                              }}
+                            >
+                              <span
+                                style={{ fontSize: "14px", color: "#6b7280" }}
+                              >
+                                Top Service
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "14px",
+                                  fontWeight: 600,
+                                  color: "#111827",
+                                }}
+                              >
+                                {analyticsData.summaryStats.topService}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                padding: "8px 12px",
+                                background: "#f8fafc",
+                                borderRadius: "6px",
+                              }}
+                            >
+                              <span
+                                style={{ fontSize: "14px", color: "#6b7280" }}
+                              >
+                                Total Sales
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "14px",
+                                  fontWeight: 600,
+                                  color: "#111827",
+                                }}
+                              >
+                                {formatCurrency(
+                                  analyticsData.summaryStats.totalSales
+                                )}
+                              </span>
+                            </div>
+                            {analyticsReportType === "accrual" && (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  padding: "8px 12px",
+                                  background: "#f8fafc",
+                                  borderRadius: "6px",
+                                }}
+                              >
+                                <span
+                                  style={{ fontSize: "14px", color: "#6b7280" }}
+                                >
+                                  Total Refunds
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: "14px",
+                                    fontWeight: 600,
+                                    color: "#111827",
+                                  }}
+                                >
+                                  {formatCurrency(
+                                    analyticsData.summaryStats.totalRefunds
+                                  )}
+                                </span>
+                              </div>
+                            )}
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                padding: "8px 12px",
+                                background: "#f8fafc",
+                                borderRadius: "6px",
+                              }}
+                            >
+                              <span
+                                style={{ fontSize: "14px", color: "#6b7280" }}
+                              >
+                                Net Sales
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "14px",
+                                  fontWeight: 600,
+                                  color: "#111827",
+                                }}
+                              >
+                                {formatCurrency(
+                                  analyticsData.summaryStats.netSales
+                                )}
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                padding: "8px 12px",
+                                background: "#f8fafc",
+                                borderRadius: "6px",
+                              }}
+                            >
+                              <span
+                                style={{ fontSize: "14px", color: "#6b7280" }}
+                              >
+                                Average Value
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "14px",
+                                  fontWeight: 600,
+                                  color: "#111827",
+                                }}
+                              >
+                                {formatCurrency(
+                                  analyticsData.summaryStats.averageValue
+                                )}
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                padding: "8px 12px",
+                                background: "#f8fafc",
+                                borderRadius: "6px",
+                              }}
+                            >
+                              <span
+                                style={{ fontSize: "14px", color: "#6b7280" }}
+                              >
+                                Total Transactions
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "14px",
+                                  fontWeight: 600,
+                                  color: "#111827",
+                                }}
+                              >
+                                {analyticsData.rawReportData.length.toLocaleString()}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Export Button */}
                   <button
