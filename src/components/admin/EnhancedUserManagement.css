@@ -763,6 +763,13 @@
 }
 
 @media (max-width: 1030px) {
+  .user-card,
+  .enhanced-user-management,
+  .admin-section {
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
   .users-table-container,
   .users-table,
   .users-table tr {

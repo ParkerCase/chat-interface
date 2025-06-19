@@ -394,26 +394,50 @@ const CRMDashboard = ({
   const isTablet = width > 600 && width <= 1030;
 
   return (
-    <div className="crm-dashboard">
-      {isMobile ? (
+    <div
+      className="crm-dashboard"
+      style={{
+        maxWidth: "100vw",
+        overflowX: "hidden",
+        boxSizing: "border-box",
+      }}
+    >
+      {isMobile || isTablet ? (
         <div
-          className="crm-mobile"
           style={{
             width: "100vw",
-            padding: 16,
-            boxSizing: "border-box",
-            background: "#f9fafb",
             minHeight: "100vh",
+            background: "#f9fafb",
+            boxSizing: "border-box",
+            padding: 8,
           }}
         >
-          {/* Header */}
-          <div style={{ width: "100%", marginBottom: 20 }}>
+          {onClose && (
+            <button
+              onClick={onClose}
+              style={{
+                width: "100%",
+                marginBottom: 16,
+                fontSize: 18,
+                padding: 12,
+                borderRadius: 8,
+                background: "#ef4444",
+                color: "#fff",
+                border: "none",
+                fontWeight: 700,
+                letterSpacing: 1,
+              }}
+            >
+              Close
+            </button>
+          )}
+          <div style={{ width: "100%", marginBottom: 16 }}>
             <h1
               style={{
                 fontSize: 24,
                 fontWeight: 700,
                 color: "#1f2937",
-                marginBottom: 12,
+                marginBottom: 8,
               }}
             >
               CRM Dashboard
@@ -422,431 +446,187 @@ const CRMDashboard = ({
               Manage your contacts and appointments
             </p>
           </div>
-
-          {/* Stats Cards */}
+          {/* Tabs for all sections */}
           <div
             style={{
               display: "flex",
-              flexDirection: "column",
-              gap: 12,
-              marginBottom: 24,
+              flexWrap: "wrap",
+              gap: 8,
+              marginBottom: 16,
             }}
           >
-            <div
-              style={{
-                background: "#fff",
-                borderRadius: 12,
-                padding: 16,
-                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-              }}
-            >
-              <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 4 }}>
-                Total Contacts
-              </div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: "#1f2937" }}>
-                {contacts.length}
-              </div>
-            </div>
-            <div
-              style={{
-                background: "#fff",
-                borderRadius: 12,
-                padding: 16,
-                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-              }}
-            >
-              <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 4 }}>
-                Total Appointments
-              </div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: "#1f2937" }}>
-                {appointments.length}
-              </div>
-            </div>
+            {[
+              { id: "contacts", label: "Contacts" },
+              { id: "appointments", label: "Appointments" },
+              { id: "services", label: "Services" },
+              { id: "packages", label: "Packages" },
+              { id: "analytics", label: "Analytics" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveSection(tab.id)}
+                style={{
+                  flex: 1,
+                  minWidth: 120,
+                  padding: 10,
+                  fontSize: 15,
+                  fontWeight: 600,
+                  background: activeSection === tab.id ? "#4f46e5" : "#f3f4f6",
+                  color: activeSection === tab.id ? "#fff" : "#374151",
+                  border: "none",
+                  borderRadius: 8,
+                  transition: "background 0.2s",
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
-
-          {/* Tabs */}
-          <div style={{ display: "flex", width: "100%", marginBottom: 20 }}>
-            <button
-              onClick={() => setActiveSection("contacts")}
-              style={{
-                flex: 1,
-                padding: 12,
-                fontSize: 16,
-                fontWeight: 600,
-                background:
-                  activeSection === "contacts" ? "#4f46e5" : "#f3f4f6",
-                color: activeSection === "contacts" ? "#fff" : "#374151",
-                border: "none",
-                borderRadius: 8,
-                marginRight: 8,
-              }}
-            >
-              Contacts
-            </button>
-            <button
-              onClick={() => setActiveSection("appointments")}
-              style={{
-                flex: 1,
-                padding: 12,
-                fontSize: 16,
-                fontWeight: 600,
-                background:
-                  activeSection === "appointments" ? "#4f46e5" : "#f3f4f6",
-                color: activeSection === "appointments" ? "#fff" : "#374151",
-                border: "none",
-                borderRadius: 8,
-                marginLeft: 8,
-              }}
-            >
-              Appointments
-            </button>
-          </div>
-
-          {/* Content */}
-          {activeSection === "contacts" ? (
-            <div style={{ width: "100%" }}>
-              {/* Contact Cards */}
-              {contacts.map((contact) => (
-                <div
-                  key={contact.id}
-                  style={{
-                    background: "#fff",
-                    borderRadius: 12,
-                    padding: 16,
-                    marginBottom: 12,
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                    border: "1px solid #e5e7eb",
-                  }}
+          {/* Section Content */}
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "100vw",
+              overflowX: "hidden",
+              boxSizing: "border-box",
+            }}
+          >
+            {activeSection === "contacts" && (
+              <div>
+                {/* Contacts Table with Pagination */}
+                <TableContainer
+                  style={{ maxWidth: "100vw", overflowX: "auto" }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 18,
-                        fontWeight: 600,
-                        color: "#1f2937",
-                      }}
-                    >
-                      {contact.name}
-                    </div>
-                    <div style={{ fontSize: 14, color: "#6b7280" }}>
-                      {contact.center_code}
-                    </div>
-                  </div>
-                  <div
-                    style={{ fontSize: 16, color: "#374151", marginBottom: 6 }}
-                  >
-                    📧 {contact.email || "No email"}
-                  </div>
-                  <div
-                    style={{ fontSize: 16, color: "#374151", marginBottom: 6 }}
-                  >
-                    📞 {contact.phone || "No phone"}
-                  </div>
-                  <div style={{ fontSize: 14, color: "#6b7280" }}>
-                    🏢 {contact.center_name}
-                  </div>
-                  <div style={{ fontSize: 14, color: "#6b7280" }}>
-                    👤 Guest Code: {contact.guest_code || "N/A"}
-                  </div>
-                  <div style={{ fontSize: 14, color: "#6b7280" }}>
-                    📅 Created: {formatDate(contact.created_date)}
-                  </div>
-                  {contact.last_visit_date && (
-                    <div style={{ fontSize: 14, color: "#6b7280" }}>
-                      🕒 Last Visit: {formatDate(contact.last_visit_date)}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {contacts.length === 0 && !isLoading && (
-                <div
-                  style={{ textAlign: "center", padding: 40, color: "#6b7280" }}
-                >
-                  No contacts found
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ width: "100%" }}>
-              {/* Appointment Cards */}
-              {appointments.map((appointment) => (
-                <div
-                  key={appointment.id}
-                  style={{
-                    background: "#fff",
-                    borderRadius: 12,
-                    padding: 16,
-                    marginBottom: 12,
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                    border: "1px solid #e5e7eb",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 18,
-                        fontWeight: 600,
-                        color: "#1f2937",
-                      }}
-                    >
-                      {appointment.service_name}
-                    </div>
-                    <div style={{ fontSize: 14, color: "#6b7280" }}>
-                      {appointment.status}
-                    </div>
-                  </div>
-                  <div
-                    style={{ fontSize: 16, color: "#374151", marginBottom: 6 }}
-                  >
-                    👤 {appointment.guest_name}
-                  </div>
-                  <div
-                    style={{ fontSize: 16, color: "#374151", marginBottom: 6 }}
-                  >
-                    👨‍⚕️ {appointment.therapist_name}
-                  </div>
-                  <div
-                    style={{ fontSize: 16, color: "#374151", marginBottom: 6 }}
-                  >
-                    📅 {formatDateTime(appointment.start_time)}
-                  </div>
-                  <div style={{ fontSize: 14, color: "#6b7280" }}>
-                    🏢 {appointment.center_name}
-                  </div>
-                  {appointment.invoice_no && (
-                    <div style={{ fontSize: 14, color: "#6b7280" }}>
-                      🧾 Invoice: {appointment.invoice_no}
-                    </div>
-                  )}
-                  {appointment.appointment_notes && (
-                    <div style={{ fontSize: 14, color: "#6b7280" }}>
-                      📝 Notes: {appointment.appointment_notes}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {appointments.length === 0 && !isLoading && (
-                <div
-                  style={{ textAlign: "center", padding: 40, color: "#6b7280" }}
-                >
-                  No appointments found
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      ) : isTablet ? (
-        <div
-          className="crm-tablet"
-          style={{
-            width: "100vw",
-            padding: 20,
-            boxSizing: "border-box",
-            background: "#f9fafb",
-            minHeight: "100vh",
-          }}
-        >
-          {/* Header */}
-          <div style={{ width: "100%", marginBottom: 24 }}>
-            <h1
-              style={{
-                fontSize: 28,
-                fontWeight: 700,
-                color: "#1f2937",
-                marginBottom: 12,
-              }}
-            >
-              CRM Dashboard
-            </h1>
-            <p style={{ fontSize: 18, color: "#6b7280", margin: 0 }}>
-              Manage your contacts and appointments
-            </p>
-          </div>
-
-          {/* Stats Cards */}
-          <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
-            <div
-              style={{
-                flex: 1,
-                background: "#fff",
-                borderRadius: 12,
-                padding: 20,
-                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-              }}
-            >
-              <div style={{ fontSize: 16, color: "#6b7280", marginBottom: 8 }}>
-                Total Contacts
-              </div>
-              <div style={{ fontSize: 32, fontWeight: 700, color: "#1f2937" }}>
-                {contacts.length}
-              </div>
-            </div>
-            <div
-              style={{
-                flex: 1,
-                background: "#fff",
-                borderRadius: 12,
-                padding: 20,
-                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-              }}
-            >
-              <div style={{ fontSize: 16, color: "#6b7280", marginBottom: 8 }}>
-                Total Appointments
-              </div>
-              <div style={{ fontSize: 32, fontWeight: 700, color: "#1f2937" }}>
-                {appointments.length}
-              </div>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div style={{ display: "flex", width: "100%", marginBottom: 24 }}>
-            <button
-              onClick={() => setActiveSection("contacts")}
-              style={{
-                flex: 1,
-                padding: 16,
-                fontSize: 18,
-                fontWeight: 600,
-                background:
-                  activeSection === "contacts" ? "#4f46e5" : "#f3f4f6",
-                color: activeSection === "contacts" ? "#fff" : "#374151",
-                border: "none",
-                borderRadius: 8,
-                marginRight: 12,
-              }}
-            >
-              Contacts
-            </button>
-            <button
-              onClick={() => setActiveSection("appointments")}
-              style={{
-                flex: 1,
-                padding: 16,
-                fontSize: 18,
-                fontWeight: 600,
-                background:
-                  activeSection === "appointments" ? "#4f46e5" : "#f3f4f6",
-                color: activeSection === "appointments" ? "#fff" : "#374151",
-                border: "none",
-                borderRadius: 8,
-                marginLeft: 12,
-              }}
-            >
-              Appointments
-            </button>
-          </div>
-
-          {/* Content */}
-          {activeSection === "contacts" ? (
-            <div style={{ width: "100%", overflowX: "auto" }}>
-              <TableContainer sx={{ minWidth: 600 }}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
-                        Name
-                      </TableCell>
-                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
-                        Email
-                      </TableCell>
-                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
-                        Phone
-                      </TableCell>
-                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
-                        Company
-                      </TableCell>
-                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
-                        Status
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {contacts.map((contact) => (
-                      <TableRow key={contact.id}>
-                        <TableCell style={{ fontSize: 16 }}>
-                          {contact.name}
-                        </TableCell>
-                        <TableCell style={{ fontSize: 16 }}>
-                          {contact.email}
-                        </TableCell>
-                        <TableCell style={{ fontSize: 16 }}>
-                          {contact.phone}
-                        </TableCell>
-                        <TableCell style={{ fontSize: 16 }}>
-                          {contact.center_name}
-                        </TableCell>
-                        <TableCell style={{ fontSize: 16 }}>
-                          {contact.status}
-                        </TableCell>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Name</TableCell>
+                        <TableCell>Email</TableCell>
+                        <TableCell>Phone</TableCell>
+                        <TableCell>Center</TableCell>
+                        <TableCell>Guest Code</TableCell>
+                        <TableCell>Created</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </div>
-          ) : (
-            <div style={{ width: "100%", overflowX: "auto" }}>
-              <TableContainer sx={{ minWidth: 600 }}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
-                        Title
-                      </TableCell>
-                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
-                        Client
-                      </TableCell>
-                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
-                        Date
-                      </TableCell>
-                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
-                        Time
-                      </TableCell>
-                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
-                        Status
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {appointments.map((appointment) => (
-                      <TableRow key={appointment.id}>
-                        <TableCell style={{ fontSize: 16 }}>
-                          {appointment.service_name}
-                        </TableCell>
-                        <TableCell style={{ fontSize: 16 }}>
-                          {appointment.guest_name}
-                        </TableCell>
-                        <TableCell style={{ fontSize: 16 }}>
-                          {appointment.date}
-                        </TableCell>
-                        <TableCell style={{ fontSize: 16 }}>
-                          {appointment.time}
-                        </TableCell>
-                        <TableCell style={{ fontSize: 16 }}>
-                          {appointment.status}
-                        </TableCell>
+                    </TableHead>
+                    <TableBody>
+                      {contacts.map((contact) => (
+                        <TableRow key={contact.id}>
+                          <TableCell>{contact.name}</TableCell>
+                          <TableCell>{contact.email}</TableCell>
+                          <TableCell>{contact.phone}</TableCell>
+                          <TableCell>{contact.center_name}</TableCell>
+                          <TableCell>{contact.guest_code}</TableCell>
+                          <TableCell>
+                            {formatDate(contact.created_date)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <TablePagination
+                  component="div"
+                  count={totalContacts}
+                  page={contactsPage}
+                  onPageChange={(e, newPage) => setContactsPage(newPage)}
+                  rowsPerPage={contactsRowsPerPage}
+                  onRowsPerPageChange={(e) => {
+                    setContactsRowsPerPage(parseInt(e.target.value, 10));
+                    setContactsPage(0);
+                  }}
+                  rowsPerPageOptions={[5, 10, 25, 50]}
+                  labelDisplayedRows={({ from, to, count }) =>
+                    `${from}–${to} of ${
+                      count !== -1 ? count.toLocaleString() : `more than ${to}`
+                    }`
+                  }
+                  showFirstButton
+                  showLastButton
+                />
+              </div>
+            )}
+            {activeSection === "appointments" && (
+              <div>
+                {/* Appointments Table with Pagination */}
+                <TableContainer
+                  style={{ maxWidth: "100vw", overflowX: "auto" }}
+                >
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Service</TableCell>
+                        <TableCell>Guest</TableCell>
+                        <TableCell>Therapist</TableCell>
+                        <TableCell>Start Time</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell>Center</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </div>
-          )}
+                    </TableHead>
+                    <TableBody>
+                      {appointments.map((appointment) => (
+                        <TableRow key={appointment.id}>
+                          <TableCell>{appointment.service_name}</TableCell>
+                          <TableCell>{appointment.guest_name}</TableCell>
+                          <TableCell>{appointment.therapist_name}</TableCell>
+                          <TableCell>
+                            {formatDateTime(appointment.start_time)}
+                          </TableCell>
+                          <TableCell>{appointment.status}</TableCell>
+                          <TableCell>{appointment.center_name}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <TablePagination
+                  component="div"
+                  count={totalAppointments}
+                  page={appointmentsPage}
+                  onPageChange={(e, newPage) => setAppointmentsPage(newPage)}
+                  rowsPerPage={appointmentsRowsPerPage}
+                  onRowsPerPageChange={(e) => {
+                    setAppointmentsRowsPerPage(parseInt(e.target.value, 10));
+                    setAppointmentsPage(0);
+                  }}
+                  rowsPerPageOptions={[5, 10, 25, 50]}
+                  labelDisplayedRows={({ from, to, count }) =>
+                    `${from}–${to} of ${
+                      count !== -1 ? count.toLocaleString() : `more than ${to}`
+                    }`
+                  }
+                  showFirstButton
+                  showLastButton
+                />
+              </div>
+            )}
+            {activeSection === "services" && (
+              <div style={{ marginTop: 16 }}>
+                <ZenotiServicesSection
+                  selectedCenter={selectedCenter}
+                  centerMapping={centerMapping}
+                  onRefresh={refreshData}
+                />
+              </div>
+            )}
+            {activeSection === "packages" && (
+              <div style={{ marginTop: 16 }}>
+                <ZenotiPackagesSection
+                  selectedCenter={selectedCenter}
+                  centerMapping={centerMapping}
+                  onRefresh={refreshData}
+                />
+              </div>
+            )}
+            {activeSection === "analytics" && (
+              <div style={{ marginTop: 16 }}>
+                <CRMAnalyticsDashboard
+                  selectedCenter={selectedCenter}
+                  centerMapping={centerMapping}
+                  onRefresh={refreshData}
+                />
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>

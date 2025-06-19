@@ -3284,7 +3284,14 @@ ${
     </div>
   ) : (
     // Desktop layout with Research button
-    <div className="chatbot-tab-content">
+    <div
+      className="chatbot-tab-content"
+      style={{
+        maxWidth: "100vw",
+        overflowX: "hidden",
+        boxSizing: "border-box",
+      }}
+    >
       <div className="chatbot-container">
         {/* Sidebar logic for desktop */}
         <div
