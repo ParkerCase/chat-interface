@@ -63,6 +63,324 @@ function useWindowSize() {
   return width;
 }
 
+// Services data from ZenotiServicesSection
+const allServices = [
+  {
+    id: "e4852445-973d-4a4e-9a49-399210f23afb",
+    code: "Serv-18",
+    name: "Brows",
+    description: "",
+    category: "Tattoo Removal",
+    duration: 75,
+    price: 350,
+    recovery_time: 15,
+    is_active: true,
+    is_couple_service: false,
+  },
+  {
+    id: "276150c6-7b79-4642-8587-2c378bc61e58",
+    code: "Serv-09",
+    name: "Clean-Up Session",
+    description: "",
+    category: "Tattoo Removal",
+    duration: 75,
+    price: 150,
+    recovery_time: 15,
+    is_active: true,
+    is_couple_service: false,
+  },
+  {
+    id: "9c3f9ea0-2a84-4f97-846d-4d572b68809c",
+    code: "Serv-02",
+    name: "Follow Up",
+    description: "",
+    category: "Consultation",
+    duration: 15,
+    price: 0,
+    recovery_time: 0,
+    is_active: true,
+    is_couple_service: false,
+  },
+  {
+    id: "2dc5cbc4-0001-46c6-a832-07432906559e",
+    code: "Serv-03",
+    name: "Microneedling",
+    description: "",
+    category: "Skin Treatment",
+    duration: 75,
+    price: 150,
+    recovery_time: 15,
+    is_active: true,
+    is_couple_service: false,
+  },
+  {
+    id: "4eede2f1-3776-4de8-b055-04640fb898f9",
+    code: "Packages",
+    name: "Packages",
+    description: "",
+    category: "Package Category",
+    duration: 15,
+    price: 0,
+    recovery_time: 0,
+    is_active: true,
+    is_couple_service: false,
+  },
+  {
+    id: "80d479d3-d562-4443-87d7-cd49767a86c1",
+    code: "Serv-10",
+    name: "Partial Session",
+    description: "",
+    category: "Tattoo Removal",
+    duration: 0,
+    price: 0,
+    recovery_time: 0,
+    is_active: true,
+    is_couple_service: false,
+  },
+  {
+    id: "49832dfb-138f-4749-873b-fd357484e8ea",
+    code: "Single Sessions",
+    name: "Single Sessions",
+    description: "",
+    category: "Session Category",
+    duration: 15,
+    price: 0,
+    recovery_time: 0,
+    is_active: true,
+    is_couple_service: false,
+  },
+  {
+    id: "38a914cb-a14e-4d2e-b351-2ffefb19c756",
+    code: "Serv-04",
+    name: "SS (Large)",
+    description: "2 templates (276 dots)",
+    category: "Tattoo Removal",
+    duration: 180,
+    price: 600,
+    recovery_time: 15,
+    is_active: true,
+    is_couple_service: false,
+  },
+  {
+    id: "55b8853d-8d82-4830-939a-a1961a85d5c9",
+    code: "Serv-05",
+    name: "SS (Medium)",
+    description: "1.5 templates (207 dots)",
+    category: "Tattoo Removal",
+    duration: 150,
+    price: 500,
+    recovery_time: 15,
+    is_active: true,
+    is_couple_service: false,
+  },
+  {
+    id: "aee62eef-bfff-4d37-ac6f-7cc7cebd6a68",
+    code: "Serv-06",
+    name: "SS (Small)",
+    description: "1 Template (138 dots)",
+    category: "Tattoo Removal",
+    duration: 120,
+    price: 400,
+    recovery_time: 15,
+    is_active: true,
+    is_couple_service: false,
+  },
+];
+
+// Packages data from ZenotiPackagesSection
+const allPackages = [
+  {
+    id: "a447ce61-ad06-4c78-b391-50034ea6eb14",
+    code: "Pkg1",
+    name: "(Large-2tx) Removal Package",
+    description: "2 Templates",
+    type: 2,
+    type_label: "Series",
+    time: 15,
+    is_active: true,
+    validity_expiry: 730,
+    validity_expiry_date: null,
+    freeze_count: -2,
+    cost_to_center: 0,
+    terms_and_conditions: "",
+    price: 0,
+    commission: { type: 0, value: 0, factor: 100, eligible: false },
+    instalments: 12,
+    payment_frequency: 30,
+  },
+  {
+    id: "91a39ae0-bfad-4a44-b3c2-f88cde7d681d",
+    code: "Pkg2",
+    name: "(Large-4tx) Removal Package",
+    description: "2 templates",
+    type: 2,
+    type_label: "Series",
+    time: 15,
+    is_active: true,
+    validity_expiry: 730,
+    validity_expiry_date: null,
+    freeze_count: -2,
+    cost_to_center: 0,
+    terms_and_conditions: "",
+    price: 0,
+    commission: { type: 0, value: 0, factor: 100, eligible: false },
+    instalments: 18,
+    payment_frequency: 30,
+  },
+  {
+    id: "e887cf78-e008-45e9-a1d0-b574be64c680",
+    code: "Pkg3",
+    name: "(Medium-2tx) Removal Package",
+    description: "",
+    type: 2,
+    type_label: "Series",
+    time: 15,
+    is_active: true,
+    validity_expiry: 730,
+    validity_expiry_date: null,
+    freeze_count: -2,
+    cost_to_center: 0,
+    terms_and_conditions: "",
+    price: 0,
+    commission: { type: 0, value: 0, factor: 100, eligible: false },
+    instalments: 12,
+    payment_frequency: 30,
+  },
+  {
+    id: "a390244e-f380-42a8-ac84-345b647238d6",
+    code: "Pkg4",
+    name: "(Medium-4tx) Removal Package",
+    description: "1.5 templates, 4 treatments",
+    type: 2,
+    type_label: "Series",
+    time: 15,
+    is_active: true,
+    validity_expiry: 730,
+    validity_expiry_date: null,
+    freeze_count: -2,
+    cost_to_center: 0,
+    terms_and_conditions: "",
+    price: 0,
+    commission: { type: 0, value: 0, factor: 100, eligible: false },
+    instalments: 18,
+    payment_frequency: 30,
+  },
+  {
+    id: "2e1ee9c3-742f-4a06-8b7e-2443231137eb",
+    code: "Pkg5",
+    name: "(Small-2tx) Removal Package",
+    description: "1 template, 2 treatments",
+    type: 2,
+    type_label: "Series",
+    time: 15,
+    is_active: true,
+    validity_expiry: 0,
+    validity_expiry_date: "2100-01-01",
+    freeze_count: -2,
+    cost_to_center: 0,
+    terms_and_conditions: "",
+    price: 0,
+    commission: { type: 0, value: 0, factor: 100, eligible: false },
+    instalments: 6,
+    payment_frequency: 30,
+  },
+  {
+    id: "f36451a0-391b-4d4a-85da-ee895186ac99",
+    code: "Pkg6",
+    name: "(Small-4tx) Removal Package",
+    description: "1 template, 4 treatments",
+    type: 2,
+    type_label: "Series",
+    time: 15,
+    is_active: true,
+    validity_expiry: 0,
+    validity_expiry_date: "2100-01-01",
+    freeze_count: -2,
+    cost_to_center: 0,
+    terms_and_conditions: "",
+    price: 0,
+    commission: { type: 0, value: 0, factor: 100, eligible: false },
+    instalments: 12,
+    payment_frequency: 30,
+  },
+  {
+    id: "e99adfb0-7dc3-48c3-bdd4-466b6475f984",
+    code: "Pkg7",
+    name: "(XS-2tx) Removal Package",
+    description: "1/2 template, 2 treatments",
+    type: 2,
+    type_label: "Series",
+    time: 15,
+    is_active: true,
+    validity_expiry: 730,
+    validity_expiry_date: null,
+    freeze_count: -2,
+    cost_to_center: 0,
+    terms_and_conditions: "",
+    price: 0,
+    commission: { type: 0, value: 0, factor: 100, eligible: false },
+    instalments: 6,
+    payment_frequency: 30,
+  },
+  {
+    id: "c45543a3-8acb-40a9-84d5-ff784f7fc124",
+    code: "Pkg8",
+    name: "(XS-4tx) Removal Package",
+    description: "1/2 template, 4 treatments",
+    type: 2,
+    type_label: "Series",
+    time: 15,
+    is_active: true,
+    validity_expiry: 0,
+    validity_expiry_date: "2100-01-01",
+    freeze_count: -2,
+    cost_to_center: 0,
+    terms_and_conditions: "",
+    price: 0,
+    commission: { type: 0, value: 0, factor: 100, eligible: false },
+    instalments: 12,
+    payment_frequency: 30,
+  },
+  {
+    id: "3713d7aa-bf42-499f-9c4a-9ba8296a358b",
+    code: "Pkg9",
+    name: "(XXS-2tx) Removal Package",
+    description: "Minimum pricing, 20 dots or less",
+    type: 2,
+    type_label: "Series",
+    time: 15,
+    is_active: true,
+    validity_expiry: 0,
+    validity_expiry_date: "2100-01-01",
+    freeze_count: -2,
+    cost_to_center: 0,
+    terms_and_conditions: "",
+    price: 0,
+    commission: { type: 0, value: 0, factor: 100, eligible: false },
+    instalments: 6,
+    payment_frequency: 30,
+  },
+  {
+    id: "8bfd92d1-72c2-469e-a8d5-9e9a346742e7",
+    code: "Pkg11",
+    name: "(Brows-2tx) Removal Package",
+    description: "Two treatments on brows",
+    type: 2,
+    type_label: "Series",
+    time: 15,
+    is_active: true,
+    validity_expiry: 365,
+    validity_expiry_date: null,
+    freeze_count: -2,
+    cost_to_center: 0,
+    terms_and_conditions: "",
+    price: 0,
+    commission: { type: 0, value: 0, factor: 100, eligible: false },
+    instalments: 6,
+    payment_frequency: 30,
+  },
+];
+
 const CRMDashboard = ({
   onClose,
   onRefresh,
@@ -408,6 +726,95 @@ const CRMDashboard = ({
   const width = useWindowSize();
   const isMobile = width <= 600;
   const isTablet = width > 600 && width <= 1030;
+
+  // Utility functions for mobile sections
+  const formatCurrency = (amount) => {
+    if (!amount && amount !== 0) return "N/A";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount);
+  };
+
+  const formatDuration = (minutes) => {
+    if (!minutes && minutes !== 0) return "N/A";
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  };
+
+  // Calculate services summary stats
+  const servicesSummaryStats = useMemo(() => {
+    const totalActive = allServices.filter((s) => s.is_active).length;
+    const avgPrice =
+      allServices.length > 0
+        ? allServices.reduce((sum, s) => sum + (s.price || 0), 0) /
+          allServices.length
+        : 0;
+    const avgDuration =
+      allServices.length > 0
+        ? allServices.reduce((sum, s) => sum + (s.duration || 0), 0) /
+          allServices.length
+        : 0;
+    const categories = new Set(allServices.map((s) => s.category)).size;
+
+    return {
+      total: allServices.length,
+      active: totalActive,
+      avgPrice,
+      avgDuration,
+      categories,
+    };
+  }, []);
+
+  // Calculate packages summary stats
+  const packagesSummaryStats = useMemo(() => {
+    const totalActive = allPackages.filter((p) => p.is_active).length;
+    const typeGroups = allPackages.reduce((acc, pkg) => {
+      acc[pkg.type_label] = (acc[pkg.type_label] || 0) + 1;
+      return acc;
+    }, {});
+
+    return {
+      total: allPackages.length,
+      active: totalActive,
+      inactive: allPackages.length - totalActive,
+      types: Object.keys(typeGroups).length,
+      typeGroups,
+    };
+  }, []);
+
+  // State for mobile search
+  const [servicesSearch, setServicesSearch] = useState("");
+  const [packagesSearch, setPackagesSearch] = useState("");
+
+  // Filter services based on search
+  const filteredServices = useMemo(() => {
+    if (!servicesSearch.trim()) return allServices;
+
+    const search = servicesSearch.toLowerCase().trim();
+    return allServices.filter(
+      (service) =>
+        service.name.toLowerCase().includes(search) ||
+        service.code.toLowerCase().includes(search) ||
+        service.description.toLowerCase().includes(search) ||
+        service.category.toLowerCase().includes(search)
+    );
+  }, [servicesSearch]);
+
+  // Filter packages based on search
+  const filteredPackages = useMemo(() => {
+    if (!packagesSearch.trim()) return allPackages;
+
+    const search = packagesSearch.toLowerCase().trim();
+    return allPackages.filter(
+      (pkg) =>
+        pkg.name.toLowerCase().includes(search) ||
+        pkg.code.toLowerCase().includes(search) ||
+        pkg.description.toLowerCase().includes(search)
+    );
+  }, [packagesSearch]);
 
   return (
     <div
@@ -1241,7 +1648,7 @@ const CRMDashboard = ({
                           color: "#4f46e5",
                         }}
                       >
-                        12
+                        {servicesSummaryStats.total}
                       </div>
                       <div style={{ fontSize: "12px", color: "#6b7280" }}>
                         Total Services
@@ -1262,7 +1669,7 @@ const CRMDashboard = ({
                           color: "#10b981",
                         }}
                       >
-                        10
+                        {servicesSummaryStats.active}
                       </div>
                       <div style={{ fontSize: "12px", color: "#6b7280" }}>
                         Active
@@ -1283,7 +1690,7 @@ const CRMDashboard = ({
                           color: "#f59e0b",
                         }}
                       >
-                        $150
+                        {formatCurrency(servicesSummaryStats.avgPrice)}
                       </div>
                       <div style={{ fontSize: "12px", color: "#6b7280" }}>
                         Avg Price
@@ -1304,7 +1711,7 @@ const CRMDashboard = ({
                           color: "#8b5cf6",
                         }}
                       >
-                        75m
+                        {formatDuration(servicesSummaryStats.avgDuration)}
                       </div>
                       <div style={{ fontSize: "12px", color: "#6b7280" }}>
                         Avg Duration
@@ -1325,6 +1732,8 @@ const CRMDashboard = ({
                       <input
                         type="text"
                         placeholder="Search services..."
+                        value={servicesSearch}
+                        onChange={(e) => setServicesSearch(e.target.value)}
                         style={{
                           width: "100%",
                           padding: "12px 16px 12px 40px",
@@ -1351,154 +1760,161 @@ const CRMDashboard = ({
 
                   {/* Services List */}
                   <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-                    {[
-                      {
-                        code: "Serv-18",
-                        name: "Brows",
-                        category: "Tattoo Removal",
-                        duration: "75m",
-                        price: "$350",
-                        status: "Active",
-                      },
-                      {
-                        code: "Serv-09",
-                        name: "Clean-Up Session",
-                        category: "Tattoo Removal",
-                        duration: "75m",
-                        price: "$150",
-                        status: "Active",
-                      },
-                      {
-                        code: "Serv-02",
-                        name: "Follow Up",
-                        category: "Consultation",
-                        duration: "15m",
-                        price: "Free",
-                        status: "Active",
-                      },
-                      {
-                        code: "Serv-03",
-                        name: "Microneedling",
-                        category: "Skin Treatment",
-                        duration: "75m",
-                        price: "$150",
-                        status: "Active",
-                      },
-                    ].map((service, index) => (
+                    {filteredServices.length === 0 ? (
                       <div
-                        key={index}
                         style={{
+                          textAlign: "center",
+                          padding: "40px 20px",
                           background: "#ffffff",
-                          border: "1px solid #e5e7eb",
                           borderRadius: "8px",
-                          padding: "16px",
-                          marginBottom: "12px",
+                          border: "1px solid #e5e7eb",
                         }}
                       >
+                        <div style={{ fontSize: "48px", marginBottom: "16px" }}>
+                          🔍
+                        </div>
                         <div
                           style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "flex-start",
+                            fontSize: "16px",
+                            fontWeight: 600,
+                            color: "#374151",
                             marginBottom: "8px",
                           }}
                         >
-                          <div>
-                            <div
-                              style={{
-                                fontSize: "16px",
-                                fontWeight: 600,
-                                color: "#111827",
-                              }}
-                            >
-                              {service.name}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                color: "#6b7280",
-                                fontFamily: "monospace",
-                              }}
-                            >
-                              {service.code}
-                            </div>
-                          </div>
-                          <span
+                          No services found
+                        </div>
+                        <div style={{ fontSize: "14px", color: "#6b7280" }}>
+                          {servicesSearch
+                            ? "No services match your search criteria."
+                            : "No services are available."}
+                        </div>
+                      </div>
+                    ) : (
+                      filteredServices.map((service) => (
+                        <div
+                          key={service.id}
+                          style={{
+                            background: "#ffffff",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "8px",
+                            padding: "16px",
+                            marginBottom: "12px",
+                          }}
+                        >
+                          <div
                             style={{
-                              padding: "4px 8px",
-                              borderRadius: "12px",
-                              fontSize: "12px",
-                              fontWeight: 500,
-                              background:
-                                service.status === "Active"
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "flex-start",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            <div>
+                              <div
+                                style={{
+                                  fontSize: "16px",
+                                  fontWeight: 600,
+                                  color: "#111827",
+                                }}
+                              >
+                                {service.name}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "12px",
+                                  color: "#6b7280",
+                                  fontFamily: "monospace",
+                                }}
+                              >
+                                {service.code}
+                              </div>
+                            </div>
+                            <span
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: "12px",
+                                fontSize: "12px",
+                                fontWeight: 500,
+                                background: service.is_active
                                   ? "#dcfce7"
                                   : "#fef2f2",
-                              color:
-                                service.status === "Active"
+                                color: service.is_active
                                   ? "#166534"
                                   : "#dc2626",
+                              }}
+                            >
+                              {service.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "8px",
+                              marginBottom: "8px",
                             }}
                           >
-                            {service.status}
-                          </span>
+                            <span
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: "12px",
+                                fontSize: "12px",
+                                background: "#f3f4f6",
+                                color: "#374151",
+                              }}
+                            >
+                              {service.category}
+                            </span>
+                            <span
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: "12px",
+                                fontSize: "12px",
+                                background: "#eff6ff",
+                                color: "#1d4ed8",
+                              }}
+                            >
+                              ⏱️ {formatDuration(service.duration)}
+                            </span>
+                            <span
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: "12px",
+                                fontSize: "12px",
+                                background: "#fef3c7",
+                                color: "#92400e",
+                              }}
+                            >
+                              💰 {formatCurrency(service.price)}
+                            </span>
+                          </div>
+                          {service.description && (
+                            <div
+                              style={{
+                                fontSize: "14px",
+                                color: "#6b7280",
+                                marginBottom: "8px",
+                              }}
+                            >
+                              {service.description}
+                            </div>
+                          )}
+                          <button
+                            style={{
+                              padding: "6px 12px",
+                              fontSize: "12px",
+                              background: "#4f46e5",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: "4px",
+                              fontWeight: 500,
+                            }}
+                          >
+                            View Details
+                          </button>
                         </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: "8px",
-                            marginBottom: "8px",
-                          }}
-                        >
-                          <span
-                            style={{
-                              padding: "4px 8px",
-                              borderRadius: "12px",
-                              fontSize: "12px",
-                              background: "#f3f4f6",
-                              color: "#374151",
-                            }}
-                          >
-                            {service.category}
-                          </span>
-                          <span
-                            style={{
-                              padding: "4px 8px",
-                              borderRadius: "12px",
-                              fontSize: "12px",
-                              background: "#eff6ff",
-                              color: "#1d4ed8",
-                            }}
-                          >
-                            ⏱️ {service.duration}
-                          </span>
-                          <span
-                            style={{
-                              padding: "4px 8px",
-                              borderRadius: "12px",
-                              fontSize: "12px",
-                              background: "#fef3c7",
-                              color: "#92400e",
-                            }}
-                          >
-                            💰 {service.price}
-                          </span>
-                        </div>
-                        <button
-                          style={{
-                            padding: "6px 12px",
-                            fontSize: "12px",
-                            background: "#4f46e5",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: "4px",
-                            fontWeight: 500,
-                          }}
-                        >
-                          View Details
-                        </button>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -1551,6 +1967,102 @@ const CRMDashboard = ({
                     </button>
                   </div>
 
+                  {/* Summary Cards */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(140px, 1fr))",
+                      gap: "12px",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "24px",
+                          fontWeight: 700,
+                          color: "#4f46e5",
+                        }}
+                      >
+                        {packagesSummaryStats.total}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        Total Packages
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "24px",
+                          fontWeight: 700,
+                          color: "#10b981",
+                        }}
+                      >
+                        {packagesSummaryStats.active}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        Active
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "24px",
+                          fontWeight: 700,
+                          color: "#ef4444",
+                        }}
+                      >
+                        {packagesSummaryStats.inactive}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        Inactive
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "24px",
+                          fontWeight: 700,
+                          color: "#8b5cf6",
+                        }}
+                      >
+                        {packagesSummaryStats.types}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        Types
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Search Bar */}
                   <div style={{ marginBottom: "16px" }}>
                     <div
@@ -1564,6 +2076,8 @@ const CRMDashboard = ({
                       <input
                         type="text"
                         placeholder="Search packages..."
+                        value={packagesSearch}
+                        onChange={(e) => setPackagesSearch(e.target.value)}
                         style={{
                           width: "100%",
                           padding: "12px 16px 12px 40px",
@@ -1590,128 +2104,171 @@ const CRMDashboard = ({
 
                   {/* Packages List */}
                   <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-                    {[
-                      {
-                        name: "Starter Package",
-                        price: "$299",
-                        services: 3,
-                        duration: "3 months",
-                        status: "Active",
-                      },
-                      {
-                        name: "Premium Package",
-                        price: "$599",
-                        services: 6,
-                        duration: "6 months",
-                        status: "Active",
-                      },
-                      {
-                        name: "VIP Package",
-                        price: "$999",
-                        services: 10,
-                        duration: "12 months",
-                        status: "Active",
-                      },
-                    ].map((pkg, index) => (
+                    {filteredPackages.length === 0 ? (
                       <div
-                        key={index}
                         style={{
+                          textAlign: "center",
+                          padding: "40px 20px",
                           background: "#ffffff",
-                          border: "1px solid #e5e7eb",
                           borderRadius: "8px",
-                          padding: "16px",
-                          marginBottom: "12px",
+                          border: "1px solid #e5e7eb",
                         }}
                       >
+                        <div style={{ fontSize: "48px", marginBottom: "16px" }}>
+                          🔍
+                        </div>
                         <div
                           style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "flex-start",
+                            fontSize: "16px",
+                            fontWeight: 600,
+                            color: "#374151",
                             marginBottom: "8px",
                           }}
                         >
-                          <div>
-                            <div
+                          No packages found
+                        </div>
+                        <div style={{ fontSize: "14px", color: "#6b7280" }}>
+                          {packagesSearch
+                            ? "No packages match your search criteria."
+                            : "No packages are available."}
+                        </div>
+                      </div>
+                    ) : (
+                      filteredPackages.map((pkg) => (
+                        <div
+                          key={pkg.id}
+                          style={{
+                            background: "#ffffff",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "8px",
+                            padding: "16px",
+                            marginBottom: "12px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "flex-start",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            <div>
+                              <div
+                                style={{
+                                  fontSize: "16px",
+                                  fontWeight: 600,
+                                  color: "#111827",
+                                }}
+                              >
+                                {pkg.name}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "12px",
+                                  color: "#6b7280",
+                                  fontFamily: "monospace",
+                                }}
+                              >
+                                {pkg.code}
+                              </div>
+                            </div>
+                            <span
                               style={{
-                                fontSize: "16px",
-                                fontWeight: 600,
-                                color: "#111827",
+                                padding: "4px 8px",
+                                borderRadius: "12px",
+                                fontSize: "12px",
+                                fontWeight: 500,
+                                background: pkg.is_active
+                                  ? "#dcfce7"
+                                  : "#fef2f2",
+                                color: pkg.is_active ? "#166534" : "#dc2626",
                               }}
                             >
-                              {pkg.name}
-                            </div>
+                              {pkg.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "8px",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: "12px",
+                                fontSize: "12px",
+                                background: "#eff6ff",
+                                color: "#1d4ed8",
+                              }}
+                            >
+                              📋 {pkg.type_label}
+                            </span>
+                            <span
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: "12px",
+                                fontSize: "12px",
+                                background: "#fef3c7",
+                                color: "#92400e",
+                              }}
+                            >
+                              ⏱️ {formatDuration(pkg.time)}
+                            </span>
+                            <span
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: "12px",
+                                fontSize: "12px",
+                                background: "#f3f4f6",
+                                color: "#374151",
+                              }}
+                            >
+                              💳 {pkg.instalments} installments
+                            </span>
+                          </div>
+                          {pkg.description && (
                             <div
                               style={{
                                 fontSize: "14px",
-                                fontWeight: 600,
-                                color: "#059669",
+                                color: "#6b7280",
+                                marginBottom: "8px",
                               }}
                             >
-                              {pkg.price}
+                              {pkg.description}
                             </div>
+                          )}
+                          <div
+                            style={{
+                              fontSize: "14px",
+                              color: "#6b7280",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            <strong>Validity:</strong>{" "}
+                            {pkg.validity_expiry > 0
+                              ? `${pkg.validity_expiry} days`
+                              : "No expiry"}
                           </div>
-                          <span
+                          <button
                             style={{
-                              padding: "4px 8px",
-                              borderRadius: "12px",
+                              padding: "6px 12px",
                               fontSize: "12px",
+                              background: "#4f46e5",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: "4px",
                               fontWeight: 500,
-                              background:
-                                pkg.status === "Active" ? "#dcfce7" : "#fef2f2",
-                              color:
-                                pkg.status === "Active" ? "#166534" : "#dc2626",
                             }}
                           >
-                            {pkg.status}
-                          </span>
+                            View Details
+                          </button>
                         </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: "8px",
-                            marginBottom: "8px",
-                          }}
-                        >
-                          <span
-                            style={{
-                              padding: "4px 8px",
-                              borderRadius: "12px",
-                              fontSize: "12px",
-                              background: "#eff6ff",
-                              color: "#1d4ed8",
-                            }}
-                          >
-                            📋 {pkg.services} services
-                          </span>
-                          <span
-                            style={{
-                              padding: "4px 8px",
-                              borderRadius: "12px",
-                              fontSize: "12px",
-                              background: "#fef3c7",
-                              color: "#92400e",
-                            }}
-                          >
-                            ⏱️ {pkg.duration}
-                          </span>
-                        </div>
-                        <button
-                          style={{
-                            padding: "6px 12px",
-                            fontSize: "12px",
-                            background: "#4f46e5",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: "4px",
-                            fontWeight: 500,
-                          }}
-                        >
-                          View Details
-                        </button>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -1820,7 +2377,7 @@ const CRMDashboard = ({
                           color: "#4f46e5",
                         }}
                       >
-                        1,234
+                        {totalContacts.toLocaleString()}
                       </div>
                       <div style={{ fontSize: "12px", color: "#6b7280" }}>
                         Total Contacts
@@ -1841,7 +2398,7 @@ const CRMDashboard = ({
                           color: "#10b981",
                         }}
                       >
-                        567
+                        {totalAppointments.toLocaleString()}
                       </div>
                       <div style={{ fontSize: "12px", color: "#6b7280" }}>
                         Appointments
@@ -1862,10 +2419,10 @@ const CRMDashboard = ({
                           color: "#f59e0b",
                         }}
                       >
-                        89%
+                        {servicesSummaryStats.total}
                       </div>
                       <div style={{ fontSize: "12px", color: "#6b7280" }}>
-                        Show Rate
+                        Services
                       </div>
                     </div>
                     <div
@@ -1883,10 +2440,10 @@ const CRMDashboard = ({
                           color: "#8b5cf6",
                         }}
                       >
-                        $12.5K
+                        {packagesSummaryStats.total}
                       </div>
                       <div style={{ fontSize: "12px", color: "#6b7280" }}>
-                        Revenue
+                        Packages
                       </div>
                     </div>
                   </div>
@@ -1949,7 +2506,7 @@ const CRMDashboard = ({
                         }}
                       >
                         <span style={{ fontSize: "14px", color: "#6b7280" }}>
-                          New Contacts This Month
+                          Active Services
                         </span>
                         <span
                           style={{
@@ -1958,7 +2515,7 @@ const CRMDashboard = ({
                             color: "#111827",
                           }}
                         >
-                          +45
+                          {servicesSummaryStats.active}
                         </span>
                       </div>
                       <div
@@ -1971,7 +2528,7 @@ const CRMDashboard = ({
                         }}
                       >
                         <span style={{ fontSize: "14px", color: "#6b7280" }}>
-                          Completed Appointments
+                          Active Packages
                         </span>
                         <span
                           style={{
@@ -1980,7 +2537,7 @@ const CRMDashboard = ({
                             color: "#111827",
                           }}
                         >
-                          234
+                          {packagesSummaryStats.active}
                         </span>
                       </div>
                       <div
@@ -1993,7 +2550,7 @@ const CRMDashboard = ({
                         }}
                       >
                         <span style={{ fontSize: "14px", color: "#6b7280" }}>
-                          Average Session Value
+                          Average Service Price
                         </span>
                         <span
                           style={{
@@ -2002,7 +2559,51 @@ const CRMDashboard = ({
                             color: "#111827",
                           }}
                         >
-                          $85
+                          {formatCurrency(servicesSummaryStats.avgPrice)}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          padding: "8px 12px",
+                          background: "#f8fafc",
+                          borderRadius: "6px",
+                        }}
+                      >
+                        <span style={{ fontSize: "14px", color: "#6b7280" }}>
+                          Service Categories
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: 600,
+                            color: "#111827",
+                          }}
+                        >
+                          {servicesSummaryStats.categories}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          padding: "8px 12px",
+                          background: "#f8fafc",
+                          borderRadius: "6px",
+                        }}
+                      >
+                        <span style={{ fontSize: "14px", color: "#6b7280" }}>
+                          Package Types
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: 600,
+                            color: "#111827",
+                          }}
+                        >
+                          {packagesSummaryStats.types}
                         </span>
                       </div>
                     </div>
