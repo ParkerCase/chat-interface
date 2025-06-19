@@ -394,448 +394,761 @@ const CRMDashboard = ({
   const isTablet = width > 600 && width <= 1030;
 
   return (
-    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      {/* Header */}
-      <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            mb: 2,
+    <div className="crm-dashboard">
+      {isMobile ? (
+        <div
+          className="crm-mobile"
+          style={{
+            width: "100vw",
+            padding: 16,
+            boxSizing: "border-box",
+            background: "#f9fafb",
+            minHeight: "100vh",
           }}
         >
-          <Typography variant="h5" component="h1">
-            CRM Dashboard
-          </Typography>
-          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-            <IconButton onClick={refreshData} disabled={isLoading}>
-              <Refresh />
-            </IconButton>
-            {onClose && (
-              <IconButton onClick={onClose}>
-                <CloseIcon />
-              </IconButton>
-            )}
-          </Box>
-        </Box>
-
-        {/* Navigation Tabs */}
-        <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
-          {[
-            { id: "contacts", label: "Contacts", icon: <Person /> },
-            { id: "appointments", label: "Appointments", icon: <Event /> },
-            { id: "services", label: "Services", icon: <Business /> },
-            { id: "packages", label: "Packages", icon: <Business /> },
-            { id: "analytics", label: "Analytics", icon: <Analytics /> },
-          ].map((tab) => (
-            <Button
-              key={tab.id}
-              variant={activeSection === tab.id ? "contained" : "outlined"}
-              startIcon={tab.icon}
-              onClick={() => setActiveSection(tab.id)}
-              size="small"
+          {/* Header */}
+          <div style={{ width: "100%", marginBottom: 20 }}>
+            <h1
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                color: "#1f2937",
+                marginBottom: 12,
+              }}
             >
-              {tab.label}
-            </Button>
-          ))}
-        </Box>
+              CRM Dashboard
+            </h1>
+            <p style={{ fontSize: 16, color: "#6b7280", margin: 0 }}>
+              Manage your contacts and appointments
+            </p>
+          </div>
 
-        {/* Center Filter */}
-        {centers.length > 0 && (
-          <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-            <Typography variant="body2">Center:</Typography>
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-              <Chip
-                label="All Centers"
-                variant={selectedCenter === "ALL" ? "filled" : "outlined"}
-                onClick={() => handleCenterChange("ALL")}
-                size="small"
-                color={selectedCenter === "ALL" ? "primary" : "default"}
-              />
-              {centers.map((center) => (
-                <Chip
-                  key={center.center_id}
-                  label={`${center.center_code} - ${center.name}`}
-                  variant={
-                    selectedCenter === center.center_id ? "filled" : "outlined"
-                  }
-                  onClick={() => handleCenterChange(center.center_id)}
+          {/* Stats Cards */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              marginBottom: 24,
+            }}
+          >
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: 12,
+                padding: 16,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              }}
+            >
+              <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 4 }}>
+                Total Contacts
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: "#1f2937" }}>
+                {contacts.length}
+              </div>
+            </div>
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: 12,
+                padding: 16,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              }}
+            >
+              <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 4 }}>
+                Total Appointments
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: "#1f2937" }}>
+                {appointments.length}
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display: "flex", width: "100%", marginBottom: 20 }}>
+            <button
+              onClick={() => setActiveSection("contacts")}
+              style={{
+                flex: 1,
+                padding: 12,
+                fontSize: 16,
+                fontWeight: 600,
+                background:
+                  activeSection === "contacts" ? "#4f46e5" : "#f3f4f6",
+                color: activeSection === "contacts" ? "#fff" : "#374151",
+                border: "none",
+                borderRadius: 8,
+                marginRight: 8,
+              }}
+            >
+              Contacts
+            </button>
+            <button
+              onClick={() => setActiveSection("appointments")}
+              style={{
+                flex: 1,
+                padding: 12,
+                fontSize: 16,
+                fontWeight: 600,
+                background:
+                  activeSection === "appointments" ? "#4f46e5" : "#f3f4f6",
+                color: activeSection === "appointments" ? "#fff" : "#374151",
+                border: "none",
+                borderRadius: 8,
+                marginLeft: 8,
+              }}
+            >
+              Appointments
+            </button>
+          </div>
+
+          {/* Content */}
+          {activeSection === "contacts" ? (
+            <div style={{ width: "100%" }}>
+              {/* Contact Cards */}
+              {contacts.map((contact) => (
+                <div
+                  key={contact.id}
+                  style={{
+                    background: "#fff",
+                    borderRadius: 12,
+                    padding: 16,
+                    marginBottom: 12,
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                    border: "1px solid #e5e7eb",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 18,
+                        fontWeight: 600,
+                        color: "#1f2937",
+                      }}
+                    >
+                      {contact.name}
+                    </div>
+                    <div style={{ fontSize: 14, color: "#6b7280" }}>
+                      {contact.status}
+                    </div>
+                  </div>
+                  <div
+                    style={{ fontSize: 16, color: "#374151", marginBottom: 8 }}
+                  >
+                    {contact.email}
+                  </div>
+                  <div
+                    style={{ fontSize: 16, color: "#374151", marginBottom: 8 }}
+                  >
+                    {contact.phone}
+                  </div>
+                  <div style={{ fontSize: 14, color: "#6b7280" }}>
+                    Company: {contact.company}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ width: "100%" }}>
+              {/* Appointment Cards */}
+              {appointments.map((appointment) => (
+                <div
+                  key={appointment.id}
+                  style={{
+                    background: "#fff",
+                    borderRadius: 12,
+                    padding: 16,
+                    marginBottom: 12,
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                    border: "1px solid #e5e7eb",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 18,
+                        fontWeight: 600,
+                        color: "#1f2937",
+                      }}
+                    >
+                      {appointment.title}
+                    </div>
+                    <div style={{ fontSize: 14, color: "#6b7280" }}>
+                      {appointment.status}
+                    </div>
+                  </div>
+                  <div
+                    style={{ fontSize: 16, color: "#374151", marginBottom: 8 }}
+                  >
+                    Client: {appointment.client}
+                  </div>
+                  <div
+                    style={{ fontSize: 16, color: "#374151", marginBottom: 8 }}
+                  >
+                    Date: {appointment.date}
+                  </div>
+                  <div
+                    style={{ fontSize: 16, color: "#374151", marginBottom: 8 }}
+                  >
+                    Time: {appointment.time}
+                  </div>
+                  <div style={{ fontSize: 14, color: "#6b7280" }}>
+                    Notes: {appointment.notes}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : isTablet ? (
+        <div
+          className="crm-tablet"
+          style={{
+            width: "100vw",
+            padding: 20,
+            boxSizing: "border-box",
+            background: "#f9fafb",
+            minHeight: "100vh",
+          }}
+        >
+          {/* Header */}
+          <div style={{ width: "100%", marginBottom: 24 }}>
+            <h1
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                color: "#1f2937",
+                marginBottom: 12,
+              }}
+            >
+              CRM Dashboard
+            </h1>
+            <p style={{ fontSize: 18, color: "#6b7280", margin: 0 }}>
+              Manage your contacts and appointments
+            </p>
+          </div>
+
+          {/* Stats Cards */}
+          <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
+            <div
+              style={{
+                flex: 1,
+                background: "#fff",
+                borderRadius: 12,
+                padding: 20,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              }}
+            >
+              <div style={{ fontSize: 16, color: "#6b7280", marginBottom: 8 }}>
+                Total Contacts
+              </div>
+              <div style={{ fontSize: 32, fontWeight: 700, color: "#1f2937" }}>
+                {contacts.length}
+              </div>
+            </div>
+            <div
+              style={{
+                flex: 1,
+                background: "#fff",
+                borderRadius: 12,
+                padding: 20,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              }}
+            >
+              <div style={{ fontSize: 16, color: "#6b7280", marginBottom: 8 }}>
+                Total Appointments
+              </div>
+              <div style={{ fontSize: 32, fontWeight: 700, color: "#1f2937" }}>
+                {appointments.length}
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display: "flex", width: "100%", marginBottom: 24 }}>
+            <button
+              onClick={() => setActiveSection("contacts")}
+              style={{
+                flex: 1,
+                padding: 16,
+                fontSize: 18,
+                fontWeight: 600,
+                background:
+                  activeSection === "contacts" ? "#4f46e5" : "#f3f4f6",
+                color: activeSection === "contacts" ? "#fff" : "#374151",
+                border: "none",
+                borderRadius: 8,
+                marginRight: 12,
+              }}
+            >
+              Contacts
+            </button>
+            <button
+              onClick={() => setActiveSection("appointments")}
+              style={{
+                flex: 1,
+                padding: 16,
+                fontSize: 18,
+                fontWeight: 600,
+                background:
+                  activeSection === "appointments" ? "#4f46e5" : "#f3f4f6",
+                color: activeSection === "appointments" ? "#fff" : "#374151",
+                border: "none",
+                borderRadius: 8,
+                marginLeft: 12,
+              }}
+            >
+              Appointments
+            </button>
+          </div>
+
+          {/* Content */}
+          {activeSection === "contacts" ? (
+            <div style={{ width: "100%", overflowX: "auto" }}>
+              <TableContainer sx={{ minWidth: 600 }}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
+                        Name
+                      </TableCell>
+                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
+                        Email
+                      </TableCell>
+                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
+                        Phone
+                      </TableCell>
+                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
+                        Company
+                      </TableCell>
+                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
+                        Status
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {contacts.map((contact) => (
+                      <TableRow key={contact.id}>
+                        <TableCell style={{ fontSize: 16 }}>
+                          {contact.name}
+                        </TableCell>
+                        <TableCell style={{ fontSize: 16 }}>
+                          {contact.email}
+                        </TableCell>
+                        <TableCell style={{ fontSize: 16 }}>
+                          {contact.phone}
+                        </TableCell>
+                        <TableCell style={{ fontSize: 16 }}>
+                          {contact.company}
+                        </TableCell>
+                        <TableCell style={{ fontSize: 16 }}>
+                          {contact.status}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </div>
+          ) : (
+            <div style={{ width: "100%", overflowX: "auto" }}>
+              <TableContainer sx={{ minWidth: 600 }}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
+                        Title
+                      </TableCell>
+                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
+                        Client
+                      </TableCell>
+                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
+                        Date
+                      </TableCell>
+                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
+                        Time
+                      </TableCell>
+                      <TableCell style={{ fontSize: 16, fontWeight: 600 }}>
+                        Status
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {appointments.map((appointment) => (
+                      <TableRow key={appointment.id}>
+                        <TableCell style={{ fontSize: 16 }}>
+                          {appointment.title}
+                        </TableCell>
+                        <TableCell style={{ fontSize: 16 }}>
+                          {appointment.client}
+                        </TableCell>
+                        <TableCell style={{ fontSize: 16 }}>
+                          {appointment.date}
+                        </TableCell>
+                        <TableCell style={{ fontSize: 16 }}>
+                          {appointment.time}
+                        </TableCell>
+                        <TableCell style={{ fontSize: 16 }}>
+                          {appointment.status}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </div>
+          )}
+        </div>
+      ) : (
+        <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+          {/* Header */}
+          <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mb: 2,
+              }}
+            >
+              <Typography variant="h5" component="h1">
+                CRM Dashboard
+              </Typography>
+              <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                <IconButton onClick={refreshData} disabled={isLoading}>
+                  <Refresh />
+                </IconButton>
+                {onClose && (
+                  <IconButton onClick={onClose}>
+                    <CloseIcon />
+                  </IconButton>
+                )}
+              </Box>
+            </Box>
+
+            {/* Navigation Tabs */}
+            <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
+              {[
+                { id: "contacts", label: "Contacts", icon: <Person /> },
+                { id: "appointments", label: "Appointments", icon: <Event /> },
+                { id: "services", label: "Services", icon: <Business /> },
+                { id: "packages", label: "Packages", icon: <Business /> },
+                { id: "analytics", label: "Analytics", icon: <Analytics /> },
+              ].map((tab) => (
+                <Button
+                  key={tab.id}
+                  variant={activeSection === tab.id ? "contained" : "outlined"}
+                  startIcon={tab.icon}
+                  onClick={() => setActiveSection(tab.id)}
                   size="small"
-                  color={
-                    selectedCenter === center.center_id ? "primary" : "default"
-                  }
-                />
+                >
+                  {tab.label}
+                </Button>
               ))}
             </Box>
-          </Box>
-        )}
-      </Paper>
 
-      {/* Error Display */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+            {/* Center Filter */}
+            {centers.length > 0 && (
+              <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+                <Typography variant="body2">Center:</Typography>
+                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                  <Chip
+                    label="All Centers"
+                    variant={selectedCenter === "ALL" ? "filled" : "outlined"}
+                    onClick={() => handleCenterChange("ALL")}
+                    size="small"
+                    color={selectedCenter === "ALL" ? "primary" : "default"}
+                  />
+                  {centers.map((center) => (
+                    <Chip
+                      key={center.center_id}
+                      label={`${center.center_code} - ${center.name}`}
+                      variant={
+                        selectedCenter === center.center_id
+                          ? "filled"
+                          : "outlined"
+                      }
+                      onClick={() => handleCenterChange(center.center_id)}
+                      size="small"
+                      color={
+                        selectedCenter === center.center_id
+                          ? "primary"
+                          : "default"
+                      }
+                    />
+                  ))}
+                </Box>
+              </Box>
+            )}
+          </Paper>
 
-      {/* Content */}
-      <Box sx={{ flex: 1, overflow: "hidden" }}>
-        {/* Contacts Section */}
-        {activeSection === "contacts" && (
-          <Paper
-            elevation={1}
-            sx={{ height: "100%", display: "flex", flexDirection: "column" }}
-          >
-            <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
-              <Box
+          {/* Error Display */}
+          {error && (
+            <Alert
+              severity="error"
+              sx={{ mb: 2 }}
+              onClose={() => setError(null)}
+            >
+              {error}
+            </Alert>
+          )}
+
+          {/* Content */}
+          <Box sx={{ flex: 1, overflow: "hidden" }}>
+            {/* Contacts Section */}
+            {activeSection === "contacts" && (
+              <Paper
+                elevation={1}
                 sx={{
+                  height: "100%",
                   display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  mb: 2,
+                  flexDirection: "column",
                 }}
               >
-                <Typography variant="h6">Contacts</Typography>
-                <TextField
-                  size="small"
-                  placeholder="Search contacts..."
-                  value={contactsSearch}
-                  onChange={(e) => setContactsSearch(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Search />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{ width: 300 }}
-                />
-              </Box>
-
-              {/* {process.env.NODE_ENV === "development" && (
-                <Box sx={{ mb: 2, p: 1, bgcolor: "#f5f5f5", borderRadius: 1 }}>
-                  <Typography variant="caption" display="block">
-                    Debug: Selected Center: {selectedCenter} | Found Contacts:{" "}
-                    {totalContacts}
-                  </Typography>
-                </Box>
-              )} */}
-            </Box>
-
-            <Box sx={{ flex: 1, overflow: "hidden" }}>
-              {isLoading ? (
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    height: "100%",
-                  }}
-                >
-                  <CircularProgress />
-                </Box>
-              ) : contacts.length === 0 ? (
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    height: "100%",
-                    flexDirection: "column",
-                    gap: 2,
-                  }}
-                >
-                  <Typography variant="h6" color="textSecondary">
-                    No contacts found
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    textAlign="center"
+                <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      mb: 2,
+                    }}
                   >
-                    {selectedCenter !== "ALL"
-                      ? `No contacts found for ${selectedCenter} center. Try selecting "All Centers" to see all contacts.`
-                      : contactsSearch
-                      ? "No contacts match your search criteria. Try adjusting your search terms."
-                      : "No contacts are available."}
-                  </Typography>
-                  {selectedCenter !== "ALL" && (
-                    <Button
-                      variant="outlined"
-                      onClick={() => handleCenterChange("ALL")}
+                    <Typography variant="h6">Contacts</Typography>
+                    <TextField
+                      size="small"
+                      placeholder="Search contacts..."
+                      value={contactsSearch}
+                      onChange={(e) => setContactsSearch(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Search />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ width: 300 }}
+                    />
+                  </Box>
+                </Box>
+
+                <Box sx={{ flex: 1, overflow: "hidden" }}>
+                  {isLoading ? (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        height: "100%",
+                      }}
                     >
-                      View All Centers
-                    </Button>
+                      <CircularProgress />
+                    </Box>
+                  ) : contacts.length === 0 ? (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        height: "100%",
+                        flexDirection: "column",
+                        gap: 2,
+                      }}
+                    >
+                      <Typography variant="h6" color="textSecondary">
+                        No contacts found
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        color="textSecondary"
+                        textAlign="center"
+                      >
+                        {selectedCenter !== "ALL"
+                          ? `No contacts found for ${selectedCenter} center. Try selecting "All Centers" to see all contacts.`
+                          : contactsSearch
+                          ? "No contacts match your search criteria. Try adjusting your search terms."
+                          : "No contacts are available."}
+                      </Typography>
+                      {selectedCenter !== "ALL" && (
+                        <Button
+                          variant="outlined"
+                          onClick={() => handleCenterChange("ALL")}
+                        >
+                          View All Centers
+                        </Button>
+                      )}
+                    </Box>
+                  ) : (
+                    <div className="crm-tablet">
+                      <TableContainer sx={{ height: "100%" }}>
+                        <Table stickyHeader>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Name</TableCell>
+                              <TableCell>Email</TableCell>
+                              <TableCell>Phone</TableCell>
+                              <TableCell>Center</TableCell>
+                              <TableCell>Guest Code</TableCell>
+                              <TableCell>Created</TableCell>
+                              <TableCell>Actions</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {contacts.map((contact) => (
+                              <TableRow key={contact.id} hover>
+                                <TableCell>{contact.name}</TableCell>
+                                <TableCell>{contact.email}</TableCell>
+                                <TableCell>{contact.phone}</TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={contact.center_code}
+                                    size="small"
+                                    variant="outlined"
+                                  />
+                                </TableCell>
+                                <TableCell>{contact.guest_code}</TableCell>
+                                <TableCell>
+                                  {formatDate(contact.created_date)}
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    size="small"
+                                    onClick={() => setSelectedContact(contact)}
+                                  >
+                                    View
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </div>
                   )}
                 </Box>
-              ) : isMobile || isTablet ? (
-                <div className="crm-mobile">
-                  {contacts.map((contact) => (
-                    <Paper
-                      key={contact.id}
-                      sx={{
-                        mb: 2,
-                        p: 2,
-                        borderRadius: 2,
-                        boxShadow: 1,
-                        width: "100%",
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 1,
-                        }}
-                      >
-                        <Box>
-                          <strong>Name:</strong> {contact.name}
-                        </Box>
-                        <Box>
-                          <strong>Email:</strong> {contact.email}
-                        </Box>
-                        <Box>
-                          <strong>Phone:</strong> {contact.phone}
-                        </Box>
-                        <Box>
-                          <strong>Center:</strong>{" "}
-                          <Chip
-                            label={contact.center_code}
-                            size="small"
-                            variant="outlined"
-                          />
-                        </Box>
-                        <Box>
-                          <strong>Guest Code:</strong> {contact.guest_code}
-                        </Box>
-                        <Box>
-                          <strong>Created:</strong>{" "}
-                          {formatDate(contact.created_date)}
-                        </Box>
-                        <Box>
-                          <Button
-                            size="small"
-                            fullWidth
-                            onClick={() => setSelectedContact(contact)}
-                          >
-                            View
-                          </Button>
-                        </Box>
-                      </Box>
-                    </Paper>
-                  ))}
-                </div>
-              ) : (
-                <div className="crm-tablet">
-                  <TableContainer sx={{ height: "100%" }}>
-                    <Table stickyHeader>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Name</TableCell>
-                          <TableCell>Email</TableCell>
-                          <TableCell>Phone</TableCell>
-                          <TableCell>Center</TableCell>
-                          <TableCell>Guest Code</TableCell>
-                          <TableCell>Created</TableCell>
-                          <TableCell>Actions</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {contacts.map((contact) => (
-                          <TableRow key={contact.id} hover>
-                            <TableCell>{contact.name}</TableCell>
-                            <TableCell>{contact.email}</TableCell>
-                            <TableCell>{contact.phone}</TableCell>
-                            <TableCell>
-                              <Chip
-                                label={contact.center_code}
-                                size="small"
-                                variant="outlined"
-                              />
-                            </TableCell>
-                            <TableCell>{contact.guest_code}</TableCell>
-                            <TableCell>
-                              {formatDate(contact.created_date)}
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                size="small"
-                                onClick={() => setSelectedContact(contact)}
-                              >
-                                View
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </div>
-              )}
-            </Box>
 
-            <TablePagination
-              component="div"
-              count={totalContacts}
-              page={contactsPage}
-              onPageChange={(e, newPage) => setContactsPage(newPage)}
-              rowsPerPage={contactsRowsPerPage}
-              onRowsPerPageChange={(e) => {
-                setContactsRowsPerPage(parseInt(e.target.value, 10));
-                setContactsPage(0);
-              }}
-              rowsPerPageOptions={[5, 10, 25, 50]}
-              labelDisplayedRows={({ from, to, count }) =>
-                `${from}–${to} of ${
-                  count !== -1 ? count.toLocaleString() : `more than ${to}`
-                }`
-              }
-              showFirstButton
-              showLastButton
-            />
-          </Paper>
-        )}
+                <TablePagination
+                  component="div"
+                  count={totalContacts}
+                  page={contactsPage}
+                  onPageChange={(e, newPage) => setContactsPage(newPage)}
+                  rowsPerPage={contactsRowsPerPage}
+                  onRowsPerPageChange={(e) => {
+                    setContactsRowsPerPage(parseInt(e.target.value, 10));
+                    setContactsPage(0);
+                  }}
+                  rowsPerPageOptions={[5, 10, 25, 50]}
+                  labelDisplayedRows={({ from, to, count }) =>
+                    `${from}–${to} of ${
+                      count !== -1 ? count.toLocaleString() : `more than ${to}`
+                    }`
+                  }
+                  showFirstButton
+                  showLastButton
+                />
+              </Paper>
+            )}
 
-        {/* Appointments Section */}
-        {activeSection === "appointments" && (
-          <Paper
-            elevation={1}
-            sx={{ height: "100%", display: "flex", flexDirection: "column" }}
-          >
-            <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
-              <Box
+            {/* Appointments Section */}
+            {activeSection === "appointments" && (
+              <Paper
+                elevation={1}
                 sx={{
+                  height: "100%",
                   display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  mb: 2,
+                  flexDirection: "column",
                 }}
               >
-                <Typography variant="h6">Appointments</Typography>
-                <TextField
-                  size="small"
-                  placeholder="Search appointments..."
-                  value={appointmentsSearch}
-                  onChange={(e) => setAppointmentsSearch(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Search />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{ width: 300 }}
-                />
-              </Box>
-            </Box>
-
-            <Box sx={{ flex: 1, overflow: "hidden" }}>
-              {isLoading ? (
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    height: "100%",
-                  }}
-                >
-                  <CircularProgress />
+                <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      mb: 2,
+                    }}
+                  >
+                    <Typography variant="h6">Appointments</Typography>
+                    <TextField
+                      size="small"
+                      placeholder="Search appointments..."
+                      value={appointmentsSearch}
+                      onChange={(e) => setAppointmentsSearch(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Search />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ width: 300 }}
+                    />
+                  </Box>
                 </Box>
-              ) : isMobile || isTablet ? (
-                <div className="crm-mobile">
-                  {appointments.map((appointment) => (
-                    <Paper
-                      key={appointment.id}
+
+                <Box sx={{ flex: 1, overflow: "hidden" }}>
+                  {isLoading ? (
+                    <Box
                       sx={{
-                        mb: 2,
-                        p: 2,
-                        borderRadius: 2,
-                        boxShadow: 1,
-                        width: "100%",
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        height: "100%",
                       }}
                     >
-                      <Box
-                        sx={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 1,
-                        }}
-                      >
-                        <Box>
-                          <strong>Guest:</strong> {appointment.guest_name}
-                        </Box>
-                        <Box>
-                          <strong>Service:</strong> {appointment.service_name}
-                        </Box>
-                        <Box>
-                          <strong>Therapist:</strong>{" "}
-                          {appointment.therapist_name}
-                        </Box>
-                        <Box>
-                          <strong>Start Time:</strong>{" "}
-                          {formatDateTime(appointment.start_time)}
-                        </Box>
-                        <Box>
-                          <strong>Status:</strong>{" "}
-                          <Chip
-                            label={appointment.status}
-                            size="small"
-                            color={
-                              appointment.status === "Closed"
-                                ? "success"
-                                : appointment.status === "Deleted"
-                                ? "error"
-                                : "default"
-                            }
-                          />
-                        </Box>
-                        <Box>
-                          <strong>Center:</strong>{" "}
-                          <Chip
-                            label={appointment.center_code}
-                            size="small"
-                            variant="outlined"
-                          />
-                        </Box>
-                        <Box>
-                          <Button
-                            size="small"
-                            fullWidth
-                            onClick={() => setSelectedAppointment(appointment)}
+                      <CircularProgress />
+                    </Box>
+                  ) : isMobile || isTablet ? (
+                    <div className="crm-mobile">
+                      {appointments.map((appointment) => (
+                        <Paper
+                          key={appointment.id}
+                          sx={{
+                            mb: 2,
+                            p: 2,
+                            borderRadius: 2,
+                            boxShadow: 1,
+                            width: "100%",
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 1,
+                            }}
                           >
-                            View
-                          </Button>
-                        </Box>
-                      </Box>
-                    </Paper>
-                  ))}
-                </div>
-              ) : (
-                <div className="crm-tablet">
-                  <TableContainer sx={{ height: "100%" }}>
-                    <Table stickyHeader>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Guest</TableCell>
-                          <TableCell>Service</TableCell>
-                          <TableCell>Therapist</TableCell>
-                          <TableCell>Start Time</TableCell>
-                          <TableCell>Status</TableCell>
-                          <TableCell>Center</TableCell>
-                          <TableCell>Actions</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {appointments.map((appointment) => (
-                          <TableRow key={appointment.id} hover>
-                            <TableCell>{appointment.guest_name}</TableCell>
-                            <TableCell>{appointment.service_name}</TableCell>
-                            <TableCell>{appointment.therapist_name}</TableCell>
-                            <TableCell>
+                            <Box>
+                              <strong>Guest:</strong> {appointment.guest_name}
+                            </Box>
+                            <Box>
+                              <strong>Service:</strong>{" "}
+                              {appointment.service_name}
+                            </Box>
+                            <Box>
+                              <strong>Therapist:</strong>{" "}
+                              {appointment.therapist_name}
+                            </Box>
+                            <Box>
+                              <strong>Start Time:</strong>{" "}
                               {formatDateTime(appointment.start_time)}
-                            </TableCell>
-                            <TableCell>
+                            </Box>
+                            <Box>
+                              <strong>Status:</strong>{" "}
                               <Chip
                                 label={appointment.status}
                                 size="small"
@@ -847,232 +1160,303 @@ const CRMDashboard = ({
                                     : "default"
                                 }
                               />
-                            </TableCell>
-                            <TableCell>
+                            </Box>
+                            <Box>
+                              <strong>Center:</strong>{" "}
                               <Chip
                                 label={appointment.center_code}
                                 size="small"
                                 variant="outlined"
                               />
-                            </TableCell>
-                            <TableCell>
+                            </Box>
+                            <Box>
                               <Button
                                 size="small"
+                                fullWidth
                                 onClick={() =>
                                   setSelectedAppointment(appointment)
                                 }
                               >
                                 View
                               </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </div>
-              )}
-            </Box>
+                            </Box>
+                          </Box>
+                        </Paper>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="crm-tablet">
+                      <TableContainer sx={{ height: "100%" }}>
+                        <Table stickyHeader>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Guest</TableCell>
+                              <TableCell>Service</TableCell>
+                              <TableCell>Therapist</TableCell>
+                              <TableCell>Start Time</TableCell>
+                              <TableCell>Status</TableCell>
+                              <TableCell>Center</TableCell>
+                              <TableCell>Actions</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {appointments.map((appointment) => (
+                              <TableRow key={appointment.id} hover>
+                                <TableCell>{appointment.guest_name}</TableCell>
+                                <TableCell>
+                                  {appointment.service_name}
+                                </TableCell>
+                                <TableCell>
+                                  {appointment.therapist_name}
+                                </TableCell>
+                                <TableCell>
+                                  {formatDateTime(appointment.start_time)}
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={appointment.status}
+                                    size="small"
+                                    color={
+                                      appointment.status === "Closed"
+                                        ? "success"
+                                        : appointment.status === "Deleted"
+                                        ? "error"
+                                        : "default"
+                                    }
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={appointment.center_code}
+                                    size="small"
+                                    variant="outlined"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    size="small"
+                                    onClick={() =>
+                                      setSelectedAppointment(appointment)
+                                    }
+                                  >
+                                    View
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </div>
+                  )}
+                </Box>
 
-            <TablePagination
-              component="div"
-              count={totalAppointments}
-              page={appointmentsPage}
-              onPageChange={(e, newPage) => setAppointmentsPage(newPage)}
-              rowsPerPage={appointmentsRowsPerPage}
-              onRowsPerPageChange={(e) => {
-                setAppointmentsRowsPerPage(parseInt(e.target.value, 10));
-                setAppointmentsPage(0);
-              }}
-              rowsPerPageOptions={[5, 10, 25, 50]}
-              labelDisplayedRows={({ from, to, count }) =>
-                `${from}–${to} of ${
-                  count !== -1 ? count.toLocaleString() : `more than ${to}`
-                }`
-              }
-              showFirstButton
-              showLastButton
-            />
-          </Paper>
-        )}
-
-        {/* Services Section */}
-        {activeSection === "services" && (
-          <ZenotiServicesSection
-            selectedCenter={selectedCenter}
-            centerMapping={centerMapping}
-            onRefresh={refreshData}
-          />
-        )}
-
-        {/* Packages Section */}
-        {activeSection === "packages" && (
-          <ZenotiPackagesSection
-            selectedCenter={selectedCenter}
-            centerMapping={centerMapping}
-            onRefresh={refreshData}
-          />
-        )}
-
-        {/* Analytics Section */}
-        {activeSection === "analytics" && (
-          <CRMAnalyticsDashboard
-            selectedCenter={selectedCenter}
-            centerMapping={centerMapping}
-            onRefresh={refreshData}
-          />
-        )}
-      </Box>
-
-      {/* Contact Detail Modal */}
-      <Dialog
-        open={!!selectedContact}
-        onClose={() => setSelectedContact(null)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>Contact Details</DialogTitle>
-        <DialogContent>
-          {selectedContact && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                  gap: 2,
-                }}
-              >
-                <Box>
-                  <strong>Name:</strong> {selectedContact.name}
-                </Box>
-                <Box>
-                  <strong>Email:</strong> {selectedContact.email || "N/A"}
-                </Box>
-                <Box>
-                  <strong>Phone:</strong> {selectedContact.phone || "N/A"}
-                </Box>
-                <Box>
-                  <strong>Center:</strong> {selectedContact.center_code} -{" "}
-                  {selectedContact.center_name}
-                </Box>
-                <Box>
-                  <strong>Guest Code:</strong>{" "}
-                  {selectedContact.guest_code || "N/A"}
-                </Box>
-                <Box>
-                  <strong>Gender:</strong> {selectedContact.gender}
-                </Box>
-              </Box>
-              <Box>
-                <Typography variant="h6" sx={{ mb: 1 }}>
-                  Raw Data
-                </Typography>
-                <Box
-                  component="pre"
-                  sx={{
-                    backgroundColor: "#f5f5f5",
-                    p: 2,
-                    borderRadius: 1,
-                    maxHeight: 300,
-                    overflow: "auto",
-                    fontSize: "12px",
+                <TablePagination
+                  component="div"
+                  count={totalAppointments}
+                  page={appointmentsPage}
+                  onPageChange={(e, newPage) => setAppointmentsPage(newPage)}
+                  rowsPerPage={appointmentsRowsPerPage}
+                  onRowsPerPageChange={(e) => {
+                    setAppointmentsRowsPerPage(parseInt(e.target.value, 10));
+                    setAppointmentsPage(0);
                   }}
-                >
-                  {JSON.stringify(selectedContact._raw, null, 2)}
-                </Box>
-              </Box>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSelectedContact(null)}>Close</Button>
-        </DialogActions>
-      </Dialog>
+                  rowsPerPageOptions={[5, 10, 25, 50]}
+                  labelDisplayedRows={({ from, to, count }) =>
+                    `${from}–${to} of ${
+                      count !== -1 ? count.toLocaleString() : `more than ${to}`
+                    }`
+                  }
+                  showFirstButton
+                  showLastButton
+                />
+              </Paper>
+            )}
 
-      {/* Appointment Detail Modal */}
-      <Dialog
-        open={!!selectedAppointment}
-        onClose={() => setSelectedAppointment(null)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>Appointment Details</DialogTitle>
-        <DialogContent>
-          {selectedAppointment && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                  gap: 2,
-                }}
-              >
-                <Box>
-                  <strong>Guest:</strong> {selectedAppointment.guest_name}
-                </Box>
-                <Box>
-                  <strong>Service:</strong> {selectedAppointment.service_name}
-                </Box>
-                <Box>
-                  <strong>Therapist:</strong>{" "}
-                  {selectedAppointment.therapist_name}
-                </Box>
-                <Box>
-                  <strong>Start Time:</strong>{" "}
-                  {formatDateTime(selectedAppointment.start_time)}
-                </Box>
-                <Box>
-                  <strong>End Time:</strong>{" "}
-                  {formatDateTime(selectedAppointment.end_time)}
-                </Box>
-                <Box>
-                  <strong>Status:</strong> {selectedAppointment.status}
-                </Box>
-                <Box>
-                  <strong>Center:</strong> {selectedAppointment.center_code} -{" "}
-                  {selectedAppointment.center_name}
-                </Box>
-                <Box>
-                  <strong>Invoice:</strong>{" "}
-                  {selectedAppointment.invoice_no || "N/A"}
-                </Box>
-              </Box>
-              {selectedAppointment.appointment_notes && (
-                <Box>
-                  <Typography variant="h6" sx={{ mb: 1 }}>
-                    Notes
-                  </Typography>
-                  <Typography>
-                    {selectedAppointment.appointment_notes}
-                  </Typography>
+            {/* Services Section */}
+            {activeSection === "services" && (
+              <ZenotiServicesSection
+                selectedCenter={selectedCenter}
+                centerMapping={centerMapping}
+                onRefresh={refreshData}
+              />
+            )}
+
+            {/* Packages Section */}
+            {activeSection === "packages" && (
+              <ZenotiPackagesSection
+                selectedCenter={selectedCenter}
+                centerMapping={centerMapping}
+                onRefresh={refreshData}
+              />
+            )}
+
+            {/* Analytics Section */}
+            {activeSection === "analytics" && (
+              <CRMAnalyticsDashboard
+                selectedCenter={selectedCenter}
+                centerMapping={centerMapping}
+                onRefresh={refreshData}
+              />
+            )}
+          </Box>
+
+          {/* Contact Detail Modal */}
+          <Dialog
+            open={!!selectedContact}
+            onClose={() => setSelectedContact(null)}
+            maxWidth="md"
+            fullWidth
+          >
+            <DialogTitle>Contact Details</DialogTitle>
+            <DialogContent>
+              {selectedContact && (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(250px, 1fr))",
+                      gap: 2,
+                    }}
+                  >
+                    <Box>
+                      <strong>Name:</strong> {selectedContact.name}
+                    </Box>
+                    <Box>
+                      <strong>Email:</strong> {selectedContact.email || "N/A"}
+                    </Box>
+                    <Box>
+                      <strong>Phone:</strong> {selectedContact.phone || "N/A"}
+                    </Box>
+                    <Box>
+                      <strong>Center:</strong> {selectedContact.center_code} -{" "}
+                      {selectedContact.center_name}
+                    </Box>
+                    <Box>
+                      <strong>Guest Code:</strong>{" "}
+                      {selectedContact.guest_code || "N/A"}
+                    </Box>
+                    <Box>
+                      <strong>Gender:</strong> {selectedContact.gender}
+                    </Box>
+                  </Box>
+                  <Box>
+                    <Typography variant="h6" sx={{ mb: 1 }}>
+                      Raw Data
+                    </Typography>
+                    <Box
+                      component="pre"
+                      sx={{
+                        backgroundColor: "#f5f5f5",
+                        p: 2,
+                        borderRadius: 1,
+                        maxHeight: 300,
+                        overflow: "auto",
+                        fontSize: "12px",
+                      }}
+                    >
+                      {JSON.stringify(selectedContact._raw, null, 2)}
+                    </Box>
+                  </Box>
                 </Box>
               )}
-              <Box>
-                <Typography variant="h6" sx={{ mb: 1 }}>
-                  Raw Data
-                </Typography>
-                <Box
-                  component="pre"
-                  sx={{
-                    backgroundColor: "#f5f5f5",
-                    p: 2,
-                    borderRadius: 1,
-                    maxHeight: 300,
-                    overflow: "auto",
-                    fontSize: "12px",
-                  }}
-                >
-                  {JSON.stringify(selectedAppointment._raw, null, 2)}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setSelectedContact(null)}>Close</Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Appointment Detail Modal */}
+          <Dialog
+            open={!!selectedAppointment}
+            onClose={() => setSelectedAppointment(null)}
+            maxWidth="md"
+            fullWidth
+          >
+            <DialogTitle>Appointment Details</DialogTitle>
+            <DialogContent>
+              {selectedAppointment && (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(250px, 1fr))",
+                      gap: 2,
+                    }}
+                  >
+                    <Box>
+                      <strong>Guest:</strong> {selectedAppointment.guest_name}
+                    </Box>
+                    <Box>
+                      <strong>Service:</strong>{" "}
+                      {selectedAppointment.service_name}
+                    </Box>
+                    <Box>
+                      <strong>Therapist:</strong>{" "}
+                      {selectedAppointment.therapist_name}
+                    </Box>
+                    <Box>
+                      <strong>Start Time:</strong>{" "}
+                      {formatDateTime(selectedAppointment.start_time)}
+                    </Box>
+                    <Box>
+                      <strong>End Time:</strong>{" "}
+                      {formatDateTime(selectedAppointment.end_time)}
+                    </Box>
+                    <Box>
+                      <strong>Status:</strong> {selectedAppointment.status}
+                    </Box>
+                    <Box>
+                      <strong>Center:</strong> {selectedAppointment.center_code}{" "}
+                      - {selectedAppointment.center_name}
+                    </Box>
+                    <Box>
+                      <strong>Invoice:</strong>{" "}
+                      {selectedAppointment.invoice_no || "N/A"}
+                    </Box>
+                  </Box>
+                  {selectedAppointment.appointment_notes && (
+                    <Box>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
+                        Notes
+                      </Typography>
+                      <Typography>
+                        {selectedAppointment.appointment_notes}
+                      </Typography>
+                    </Box>
+                  )}
+                  <Box>
+                    <Typography variant="h6" sx={{ mb: 1 }}>
+                      Raw Data
+                    </Typography>
+                    <Box
+                      component="pre"
+                      sx={{
+                        backgroundColor: "#f5f5f5",
+                        p: 2,
+                        borderRadius: 1,
+                        maxHeight: 300,
+                        overflow: "auto",
+                        fontSize: "12px",
+                      }}
+                    >
+                      {JSON.stringify(selectedAppointment._raw, null, 2)}
+                    </Box>
+                  </Box>
                 </Box>
-              </Box>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSelectedAppointment(null)}>Close</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setSelectedAppointment(null)}>
+                Close
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </Box>
+      )}
+    </div>
   );
 };
 

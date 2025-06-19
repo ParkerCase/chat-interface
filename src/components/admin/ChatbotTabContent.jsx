@@ -2400,83 +2400,162 @@ ${
       style={{
         width: "100vw",
         minHeight: "100vh",
-        padding: 12,
+        padding: 16,
         boxSizing: "border-box",
         background: "#f9fafb",
       }}
     >
+      {/* Header with Chat History Button */}
+      <div
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 16,
+        }}
+      >
+        <h2
+          style={{
+            fontSize: 20,
+            fontWeight: 700,
+            color: "#1f2937",
+            margin: 0,
+          }}
+        >
+          Tatt2Away AI Chat
+        </h2>
+        <button
+          onClick={() => setShowChatHistory(!showChatHistory)}
+          style={{
+            padding: 8,
+            fontSize: 14,
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            background: "#fff",
+            color: "#374151",
+            fontWeight: 500,
+          }}
+        >
+          {showChatHistory ? "Hide History" : "Show History"}
+        </button>
+      </div>
+
+      {/* Chat History (if shown) */}
+      {showChatHistory && (
+        <div
+          style={{
+            width: "100%",
+            background: "#fff",
+            borderRadius: 8,
+            padding: 12,
+            marginBottom: 16,
+            border: "1px solid #e5e7eb",
+            maxHeight: 200,
+            overflowY: "auto",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: "#374151",
+              marginBottom: 8,
+            }}
+          >
+            Chat History
+          </div>
+          <button
+            onClick={createNewThread}
+            style={{
+              width: "100%",
+              padding: 8,
+              fontSize: 14,
+              borderRadius: 6,
+              border: "1px solid #4f46e5",
+              background: "#4f46e5",
+              color: "#fff",
+              marginBottom: 8,
+            }}
+          >
+            New Chat
+          </button>
+          {threads.slice(0, 5).map((thread) => (
+            <div
+              key={thread.id}
+              onClick={() => handleSelectThread(thread.id)}
+              style={{
+                padding: 8,
+                fontSize: 14,
+                color: "#374151",
+                borderBottom: "1px solid #f3f4f6",
+                cursor: "pointer",
+                background:
+                  selectedThreadId === thread.id ? "#f3f4f6" : "transparent",
+              }}
+            >
+              {thread.title || "Untitled Chat"}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Toolbar */}
       <div
         style={{
           width: "100%",
           display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          marginBottom: 12,
+          gap: 8,
+          marginBottom: 16,
         }}
       >
-        {/* Settings and Research buttons */}
-        <div style={{ display: "flex", width: "100%", gap: 8 }}>
-          <button
-            className="settings-btn"
-            onClick={toggleSettings}
-            style={{
-              flex: 1,
-              minHeight: 48,
-              fontSize: 18,
-              borderRadius: 8,
-              border: "2px solid #6366f1",
-              background: "#fff",
-              color: "#6366f1",
-              fontWeight: 600,
-            }}
-          >
-            Settings
-          </button>
-          <button
-            className="claude-mcp-btn"
-            onClick={() => setShowClaudeModal(true)}
-            style={{
-              flex: 1,
-              minHeight: 48,
-              fontSize: 18,
-              borderRadius: 8,
-              border: "2px solid #10BFA6",
-              background: "#fff",
-              color: "#10BFA6",
-              fontWeight: 600,
-            }}
-          >
-            Research
-          </button>
-        </div>
-        {/* Export button if enabled */}
+        <button
+          className="settings-btn"
+          onClick={toggleSettings}
+          style={{
+            flex: 1,
+            minHeight: 44,
+            fontSize: 16,
+            borderRadius: 8,
+            border: "2px solid #6366f1",
+            background: "#fff",
+            color: "#6366f1",
+            fontWeight: 600,
+          }}
+        >
+          Settings
+        </button>
         {isFeatureEnabled("data_export") && (
           <ExportButton
             messages={currentMessages}
             analysisResult={analysisResult}
             style={{
-              width: "100%",
-              minHeight: 48,
-              fontSize: 18,
+              flex: 1,
+              minHeight: 44,
+              fontSize: 16,
               borderRadius: 8,
-              marginTop: 8,
+              border: "2px solid #10b981",
+              background: "#fff",
+              color: "#10b981",
+              fontWeight: 600,
             }}
           />
         )}
       </div>
+
       {/* Messages */}
       <div
         style={{
           flex: 1,
           width: "100%",
-          minHeight: 200,
+          minHeight: 300,
           maxHeight: "50vh",
           overflowY: "auto",
           background: "#fff",
           borderRadius: 12,
-          padding: 12,
-          marginBottom: 12,
+          padding: 16,
+          marginBottom: 16,
+          border: "1px solid #e5e7eb",
         }}
       >
         {currentMessages.length === 0 ? (
@@ -2485,7 +2564,7 @@ ${
               textAlign: "center",
               color: "#4f46e5",
               fontWeight: 700,
-              fontSize: 22,
+              fontSize: 20,
               margin: "2rem 0",
             }}
           >
@@ -2503,6 +2582,7 @@ ${
                 borderRadius: 12,
                 background: message.sender === "user" ? "#e0e7ef" : "#f4f7fd",
                 color: "#222",
+                wordBreak: "break-word",
               }}
             >
               {renderMessageContent(message)}
@@ -2519,6 +2599,7 @@ ${
         )}
         <div ref={messagesEndRef} />
       </div>
+
       {/* Input area */}
       <div
         style={{
@@ -2533,16 +2614,16 @@ ${
           onChange={(e) => setInputText(e.target.value)}
           placeholder="Type your message here..."
           disabled={isLoading}
-          rows={2}
+          rows={3}
           style={{
             width: "100%",
-            minHeight: 48,
+            minHeight: 60,
             fontSize: 16,
             borderRadius: 8,
             border: "1px solid #e5e7eb",
-            padding: 10,
-            marginBottom: 8,
+            padding: 12,
             boxSizing: "border-box",
+            resize: "none",
           }}
         />
         <button
@@ -2557,26 +2638,28 @@ ${
             background: "#6366f1",
             color: "#fff",
             fontWeight: 700,
+            border: "none",
           }}
         >
-          Send
+          {isLoading ? "Sending..." : "Send Message"}
         </button>
       </div>
-      {/* Settings panel/modal, modals, etc. */}
+
+      {/* Settings Modal */}
       {showSettings && (
         <div
-          className="settings-panel"
           style={{
             position: "fixed",
             top: 0,
             left: 0,
             width: "100vw",
             height: "100vh",
-            background: "rgba(0,0,0,0.3)",
+            background: "rgba(0,0,0,0.5)",
             zIndex: 1000,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            padding: 16,
           }}
         >
           <div
@@ -2584,8 +2667,10 @@ ${
               background: "#fff",
               borderRadius: 12,
               padding: 24,
-              width: "90vw",
+              width: "100%",
               maxWidth: 400,
+              maxHeight: "80vh",
+              overflowY: "auto",
             }}
           >
             <div
@@ -2593,27 +2678,124 @@ ${
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: 16,
+                marginBottom: 20,
               }}
             >
-              <h3 style={{ margin: 0 }}>Chat Settings</h3>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>
+                Chat Settings
+              </h3>
               <button
                 onClick={toggleSettings}
                 style={{
                   background: "none",
                   border: "none",
-                  fontSize: 20,
+                  fontSize: 24,
                   cursor: "pointer",
+                  color: "#6b7280",
                 }}
               >
                 ✕
               </button>
             </div>
-            {/* Settings content here (reuse existing JSX) */}
-            {/* ... */}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 16,
+                    marginBottom: 8,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={chatSettings.darkMode}
+                    onChange={(e) =>
+                      updateSetting("darkMode", e.target.checked)
+                    }
+                    style={{ width: 18, height: 18 }}
+                  />
+                  Dark Mode
+                </label>
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 16,
+                    marginBottom: 8,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={chatSettings.showTimestamps}
+                    onChange={(e) =>
+                      updateSetting("showTimestamps", e.target.checked)
+                    }
+                    style={{ width: 18, height: 18 }}
+                  />
+                  Show Timestamps
+                </label>
+              </div>
+
+              <div>
+                <label
+                  style={{ fontSize: 16, marginBottom: 8, display: "block" }}
+                >
+                  Message Size
+                </label>
+                <select
+                  value={chatSettings.messageSize}
+                  onChange={(e) => updateSetting("messageSize", e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: 8,
+                    fontSize: 16,
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                  }}
+                >
+                  <option value="small">Small</option>
+                  <option value="medium">Medium</option>
+                  <option value="large">Large</option>
+                </select>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Are you sure you want to clear all messages? This cannot be undone."
+                    )
+                  ) {
+                    setCurrentMessages([]);
+                    setSelectedThreadId(null);
+                  }
+                }}
+                style={{
+                  padding: 12,
+                  fontSize: 16,
+                  borderRadius: 8,
+                  border: "1px solid #ef4444",
+                  background: "#fff",
+                  color: "#ef4444",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Clear All Messages
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Other modals */}
       {showClaudeModal && (
         <ClaudeMCPModal
           isOpen={showClaudeModal}
@@ -2622,21 +2804,9 @@ ${
       )}
       {showSearchModal && (
         <div className="modal-overlay">
-          <div className="modal-content search-modal">{/* ... */}</div>
-        </div>
-      )}
-      {typeof window !== "undefined" && window.innerWidth <= 480 && (
-        <div
-          className="chatbot-mobile-message"
-          style={{
-            background: "#ffe",
-            color: "#222",
-            fontWeight: 700,
-            padding: 8,
-            marginTop: 12,
-          }}
-        >
-          For Deep Research Open this app on a desktop
+          <div className="modal-content search-modal">
+            {/* ... existing search modal content ... */}
+          </div>
         </div>
       )}
     </div>
@@ -2646,24 +2816,425 @@ ${
       style={{
         width: "100vw",
         minHeight: "100vh",
-        padding: 18,
+        padding: 20,
         boxSizing: "border-box",
         background: "#f9fafb",
       }}
     >
-      {/* Sidebar above chat */}
-      <div style={{ width: "100%", marginBottom: 16 }}>
+      {/* Header with Chat History Button */}
+      <div
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 20,
+        }}
+      >
+        <h2
+          style={{
+            fontSize: 24,
+            fontWeight: 700,
+            color: "#1f2937",
+            margin: 0,
+          }}
+        >
+          Tatt2Away AI Chat
+        </h2>
+        <button
+          onClick={() => setShowChatHistory(!showChatHistory)}
+          style={{
+            padding: 10,
+            fontSize: 16,
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+            background: "#fff",
+            color: "#374151",
+            fontWeight: 500,
+          }}
+        >
+          {showChatHistory ? "Hide History" : "Show History"}
+        </button>
+      </div>
+
+      {/* Chat History (if shown) */}
+      {showChatHistory && (
         <div
-          className="chat-history-sidebar"
           style={{
             width: "100%",
-            maxWidth: "100vw",
-            minWidth: 0,
-            boxSizing: "border-box",
-            borderRight: "none",
-            borderBottom: "1px solid #e5e7eb",
-            marginBottom: 8,
+            background: "#fff",
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 20,
+            border: "1px solid #e5e7eb",
+            maxHeight: 250,
+            overflowY: "auto",
           }}
+        >
+          <div
+            style={{
+              fontSize: 16,
+              fontWeight: 600,
+              color: "#374151",
+              marginBottom: 12,
+            }}
+          >
+            Chat History
+          </div>
+          <button
+            onClick={createNewThread}
+            style={{
+              width: "100%",
+              padding: 10,
+              fontSize: 16,
+              borderRadius: 8,
+              border: "1px solid #4f46e5",
+              background: "#4f46e5",
+              color: "#fff",
+              marginBottom: 12,
+            }}
+          >
+            New Chat
+          </button>
+          {threads.slice(0, 8).map((thread) => (
+            <div
+              key={thread.id}
+              onClick={() => handleSelectThread(thread.id)}
+              style={{
+                padding: 10,
+                fontSize: 16,
+                color: "#374151",
+                borderBottom: "1px solid #f3f4f6",
+                cursor: "pointer",
+                background:
+                  selectedThreadId === thread.id ? "#f3f4f6" : "transparent",
+              }}
+            >
+              {thread.title || "Untitled Chat"}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Toolbar */}
+      <div
+        style={{
+          width: "100%",
+          display: "flex",
+          gap: 12,
+          marginBottom: 20,
+        }}
+      >
+        <button
+          className="settings-btn"
+          onClick={toggleSettings}
+          style={{
+            flex: 1,
+            minHeight: 48,
+            fontSize: 18,
+            borderRadius: 8,
+            border: "2px solid #6366f1",
+            background: "#fff",
+            color: "#6366f1",
+            fontWeight: 600,
+          }}
+        >
+          Settings
+        </button>
+        {isFeatureEnabled("data_export") && (
+          <ExportButton
+            messages={currentMessages}
+            analysisResult={analysisResult}
+            style={{
+              flex: 1,
+              minHeight: 48,
+              fontSize: 18,
+              borderRadius: 8,
+              border: "2px solid #10b981",
+              background: "#fff",
+              color: "#10b981",
+              fontWeight: 600,
+            }}
+          />
+        )}
+      </div>
+
+      {/* Messages */}
+      <div
+        style={{
+          flex: 1,
+          width: "100%",
+          minHeight: 400,
+          maxHeight: "60vh",
+          overflowY: "auto",
+          background: "#fff",
+          borderRadius: 12,
+          padding: 20,
+          marginBottom: 20,
+          border: "1px solid #e5e7eb",
+        }}
+      >
+        {currentMessages.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              color: "#4f46e5",
+              fontWeight: 700,
+              fontSize: 24,
+              margin: "3rem 0",
+            }}
+          >
+            Welcome to Tatt2Away AI
+          </div>
+        ) : (
+          currentMessages.map((message, index) => (
+            <div
+              key={index}
+              style={{
+                width: "100%",
+                marginBottom: 20,
+                padding: 16,
+                fontSize: 18,
+                borderRadius: 12,
+                background: message.sender === "user" ? "#e0e7ef" : "#f4f7fd",
+                color: "#222",
+                wordBreak: "break-word",
+              }}
+            >
+              {renderMessageContent(message)}
+              {message.created_at && chatSettings.showTimestamps && (
+                <div style={{ fontSize: 14, color: "#888", marginTop: 6 }}>
+                  {new Date(message.created_at).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </div>
+              )}
+            </div>
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input area */}
+      <div
+        style={{
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
+      >
+        <textarea
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder="Type your message here..."
+          disabled={isLoading}
+          rows={3}
+          style={{
+            width: "100%",
+            minHeight: 70,
+            fontSize: 18,
+            borderRadius: 8,
+            border: "1px solid #e5e7eb",
+            padding: 14,
+            boxSizing: "border-box",
+            resize: "none",
+          }}
+        />
+        <button
+          className="send-btn"
+          onClick={handleSendMessage}
+          disabled={isLoading || (!inputText.trim() && !file)}
+          style={{
+            width: "100%",
+            minHeight: 52,
+            fontSize: 20,
+            borderRadius: 8,
+            background: "#6366f1",
+            color: "#fff",
+            fontWeight: 700,
+            border: "none",
+          }}
+        >
+          {isLoading ? "Sending..." : "Send Message"}
+        </button>
+      </div>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              padding: 28,
+              width: "100%",
+              maxWidth: 500,
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 24,
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>
+                Chat Settings
+              </h3>
+              <button
+                onClick={toggleSettings}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: 28,
+                  cursor: "pointer",
+                  color: "#6b7280",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    fontSize: 18,
+                    marginBottom: 10,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={chatSettings.darkMode}
+                    onChange={(e) =>
+                      updateSetting("darkMode", e.target.checked)
+                    }
+                    style={{ width: 20, height: 20 }}
+                  />
+                  Dark Mode
+                </label>
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    fontSize: 18,
+                    marginBottom: 10,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={chatSettings.showTimestamps}
+                    onChange={(e) =>
+                      updateSetting("showTimestamps", e.target.checked)
+                    }
+                    style={{ width: 20, height: 20 }}
+                  />
+                  Show Timestamps
+                </label>
+              </div>
+
+              <div>
+                <label
+                  style={{ fontSize: 18, marginBottom: 10, display: "block" }}
+                >
+                  Message Size
+                </label>
+                <select
+                  value={chatSettings.messageSize}
+                  onChange={(e) => updateSetting("messageSize", e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: 10,
+                    fontSize: 18,
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                  }}
+                >
+                  <option value="small">Small</option>
+                  <option value="medium">Medium</option>
+                  <option value="large">Large</option>
+                </select>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Are you sure you want to clear all messages? This cannot be undone."
+                    )
+                  ) {
+                    setCurrentMessages([]);
+                    setSelectedThreadId(null);
+                  }
+                }}
+                style={{
+                  padding: 14,
+                  fontSize: 18,
+                  borderRadius: 8,
+                  border: "1px solid #ef4444",
+                  background: "#fff",
+                  color: "#ef4444",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Clear All Messages
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Other modals */}
+      {showClaudeModal && (
+        <ClaudeMCPModal
+          isOpen={showClaudeModal}
+          onClose={() => setShowClaudeModal(false)}
+        />
+      )}
+      {showSearchModal && (
+        <div className="modal-overlay">
+          <div className="modal-content search-modal">
+            {/* ... existing search modal content ... */}
+          </div>
+        </div>
+      )}
+    </div>
+  ) : (
+    // Desktop layout with Research button
+    <div className="chatbot-tab-content">
+      <div className="chatbot-container">
+        {/* Sidebar logic for desktop */}
+        <div
+          className={`chat-history-sidebar ${
+            !showChatHistory ? "collapsed" : ""
+          }`}
         >
           <div
             className="history-header"
@@ -2675,7 +3246,11 @@ ${
               borderBottom: "1px solid var(--color-border, #e5e7eb)",
             }}
           >
-            <h3>Chat History</h3>
+            {showChatHistory ? (
+              <h3>Chat History</h3>
+            ) : (
+              <span style={{ width: "0", overflow: "hidden" }}></span>
+            )}
             <button
               className="new-chat-btn"
               onClick={createNewThread}
@@ -2689,382 +3264,34 @@ ${
                 border: "none",
                 borderRadius: 4,
                 cursor: "pointer",
-                fontSize: 16,
-                fontWeight: 600,
+                fontSize: 14,
+                fontWeight: 500,
               }}
             >
               New Chat
             </button>
           </div>
-          <ChatHistory
-            onSelectThread={handleSelectThread}
-            selectedThreadId={selectedThreadId}
-          />
-        </div>
-      </div>
-      {/* Main chat area */}
-      <div
-        style={{
-          width: "100%",
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-        }}
-      >
-        {/* Toolbar */}
-        <div
-          style={{
-            width: "100%",
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-            marginBottom: 10,
-          }}
-        >
-          <div style={{ display: "flex", width: "100%", gap: 8 }}>
-            <button
-              className="settings-btn"
-              onClick={toggleSettings}
-              style={{
-                flex: 1,
-                minHeight: 48,
-                fontSize: 18,
-                borderRadius: 8,
-                border: "2px solid #6366f1",
-                background: "#fff",
-                color: "#6366f1",
-                fontWeight: 600,
-              }}
-            >
-              Settings
-            </button>
-            <button
-              className="claude-mcp-btn"
-              onClick={() => setShowClaudeModal(true)}
-              style={{
-                flex: 1,
-                minHeight: 48,
-                fontSize: 18,
-                borderRadius: 8,
-                border: "2px solid #10BFA6",
-                background: "#fff",
-                color: "#10BFA6",
-                fontWeight: 600,
-              }}
-            >
-              Research
-            </button>
-          </div>
-          {isFeatureEnabled("data_export") && (
-            <ExportButton
-              messages={currentMessages}
-              analysisResult={analysisResult}
-              style={{
-                width: "100%",
-                minHeight: 48,
-                fontSize: 18,
-                borderRadius: 8,
-                marginTop: 8,
-              }}
+          {showChatHistory && (
+            <ChatHistory
+              onSelectThread={handleSelectThread}
+              selectedThreadId={selectedThreadId}
             />
           )}
-        </div>
-        {/* Messages */}
-        <div
-          style={{
-            flex: 1,
-            width: "100%",
-            minHeight: 200,
-            maxHeight: "50vh",
-            overflowY: "auto",
-            background: "#fff",
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 12,
-          }}
-        >
-          {currentMessages.length === 0 ? (
-            <div
-              style={{
-                textAlign: "center",
-                color: "#4f46e5",
-                fontWeight: 700,
-                fontSize: 22,
-                margin: "2rem 0",
-              }}
-            >
-              Welcome to Tatt2Away AI
-            </div>
-          ) : (
-            currentMessages.map((message, index) => (
-              <div
-                key={index}
-                style={{
-                  width: "100%",
-                  marginBottom: 16,
-                  padding: 12,
-                  fontSize: 16,
-                  borderRadius: 12,
-                  background: message.sender === "user" ? "#e0e7ef" : "#f4f7fd",
-                  color: "#222",
-                }}
-              >
-                {renderMessageContent(message)}
-                {message.created_at && chatSettings.showTimestamps && (
-                  <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
-                    {new Date(message.created_at).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-        {/* Input area */}
-        <div
-          style={{
-            width: "100%",
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-          }}
-        >
-          <textarea
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="Type your message here..."
-            disabled={isLoading}
-            rows={2}
-            style={{
-              width: "100%",
-              minHeight: 48,
-              fontSize: 16,
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              padding: 10,
-              marginBottom: 8,
-              boxSizing: "border-box",
-            }}
-          />
           <button
-            className="send-btn"
-            onClick={handleSendMessage}
-            disabled={isLoading || (!inputText.trim() && !file)}
-            style={{
-              width: "100%",
-              minHeight: 48,
-              fontSize: 18,
-              borderRadius: 8,
-              background: "#6366f1",
-              color: "#fff",
-              fontWeight: 700,
-            }}
+            className="toggle-history-btn"
+            onClick={toggleChatHistory}
+            title={showChatHistory ? "Hide chat history" : "Show chat history"}
+            aria-label={
+              showChatHistory ? "Hide chat history" : "Show chat history"
+            }
           >
-            Send
+            {showChatHistory ? (
+              <ChevronLeft size={16} />
+            ) : (
+              <ChevronRight size={16} />
+            )}
           </button>
         </div>
-      </div>
-      {/* Settings panel/modal, modals, etc. */}
-      {showSettings && (
-        <div
-          className="settings-panel"
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
-            background: "rgba(0,0,0,0.3)",
-            zIndex: 1000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 12,
-              padding: 24,
-              width: "90vw",
-              maxWidth: 400,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 16,
-              }}
-            >
-              <h3 style={{ margin: 0 }}>Chat Settings</h3>
-              <button
-                onClick={toggleSettings}
-                style={{
-                  background: "none",
-                  border: "none",
-                  fontSize: 20,
-                  cursor: "pointer",
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            {/* Settings content here (reuse existing JSX) */}
-            {/* ... */}
-          </div>
-        </div>
-      )}
-      {showClaudeModal && (
-        <ClaudeMCPModal
-          isOpen={showClaudeModal}
-          onClose={() => setShowClaudeModal(false)}
-        />
-      )}
-      {showSearchModal && (
-        <div className="modal-overlay">
-          <div className="modal-content search-modal">{/* ... */}</div>
-        </div>
-      )}
-      {typeof window !== "undefined" && window.innerWidth <= 480 && (
-        <div
-          className="chatbot-mobile-message"
-          style={{
-            background: "#ffe",
-            color: "#222",
-            fontWeight: 700,
-            padding: 8,
-            marginTop: 12,
-          }}
-        >
-          For Deep Research Open this app on a desktop
-        </div>
-      )}
-    </div>
-  ) : (
-    // ... existing desktop layout ...
-    <div className="chatbot-tab-content">
-      <div className="chatbot-container">
-        {/* Sidebar logic for mobile/tablet */}
-        {isMobile ? null : isTablet ? (
-          <div style={{ width: "100%", marginBottom: 8 }}>
-            <div
-              className="chat-history-sidebar"
-              style={{
-                width: "100%",
-                maxWidth: "100vw",
-                minWidth: 0,
-                boxSizing: "border-box",
-                borderRight: "none",
-                borderBottom: "1px solid #e5e7eb",
-              }}
-            >
-              <div
-                className="history-header"
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "10px 16px",
-                  borderBottom: "1px solid var(--color-border, #e5e7eb)",
-                }}
-              >
-                <h3>Chat History</h3>
-                <button
-                  className="new-chat-btn"
-                  onClick={createNewThread}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "8px 12px",
-                    backgroundColor: "var(--primary, #4f46e5)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                  }}
-                >
-                  <PlusCircle size={14} /> New Chat
-                </button>
-              </div>
-              <ChatHistory
-                onSelectThread={handleSelectThread}
-                selectedThreadId={selectedThreadId}
-              />
-            </div>
-          </div>
-        ) : (
-          <div
-            className={`chat-history-sidebar ${
-              !showChatHistory ? "collapsed" : ""
-            }`}
-          >
-            <div
-              className="history-header"
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "10px 16px",
-                borderBottom: "1px solid var(--color-border, #e5e7eb)",
-              }}
-            >
-              {showChatHistory ? (
-                <h3>Chat History</h3>
-              ) : (
-                <span style={{ width: "0", overflow: "hidden" }}></span>
-              )}
-              <button
-                className="new-chat-btn"
-                onClick={createNewThread}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "8px 12px",
-                  backgroundColor: "var(--primary, #4f46e5)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "500",
-                }}
-              >
-                <PlusCircle size={14} /> New Chat
-              </button>
-            </div>
-            {showChatHistory && (
-              <ChatHistory
-                onSelectThread={handleSelectThread}
-                selectedThreadId={selectedThreadId}
-              />
-            )}
-            <button
-              className="toggle-history-btn"
-              onClick={toggleChatHistory}
-              title={
-                showChatHistory ? "Hide chat history" : "Show chat history"
-              }
-              aria-label={
-                showChatHistory ? "Hide chat history" : "Show chat history"
-              }
-            >
-              {showChatHistory ? (
-                <ChevronLeft size={16} />
-              ) : (
-                <ChevronRight size={16} />
-              )}
-            </button>
-          </div>
-        )}
 
         {/* Main chat area */}
         <div className="chat-main-area">
