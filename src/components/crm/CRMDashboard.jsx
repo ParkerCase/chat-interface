@@ -536,24 +536,42 @@ const CRMDashboard = ({
                       {contact.name}
                     </div>
                     <div style={{ fontSize: 14, color: "#6b7280" }}>
-                      {contact.status}
+                      {contact.center_code}
                     </div>
                   </div>
                   <div
-                    style={{ fontSize: 16, color: "#374151", marginBottom: 8 }}
+                    style={{ fontSize: 16, color: "#374151", marginBottom: 6 }}
                   >
-                    {contact.email}
+                    📧 {contact.email || "No email"}
                   </div>
                   <div
-                    style={{ fontSize: 16, color: "#374151", marginBottom: 8 }}
+                    style={{ fontSize: 16, color: "#374151", marginBottom: 6 }}
                   >
-                    {contact.phone}
+                    📞 {contact.phone || "No phone"}
                   </div>
                   <div style={{ fontSize: 14, color: "#6b7280" }}>
-                    Company: {contact.company}
+                    🏢 {contact.center_name}
                   </div>
+                  <div style={{ fontSize: 14, color: "#6b7280" }}>
+                    👤 Guest Code: {contact.guest_code || "N/A"}
+                  </div>
+                  <div style={{ fontSize: 14, color: "#6b7280" }}>
+                    📅 Created: {formatDate(contact.created_date)}
+                  </div>
+                  {contact.last_visit_date && (
+                    <div style={{ fontSize: 14, color: "#6b7280" }}>
+                      🕒 Last Visit: {formatDate(contact.last_visit_date)}
+                    </div>
+                  )}
                 </div>
               ))}
+              {contacts.length === 0 && !isLoading && (
+                <div
+                  style={{ textAlign: "center", padding: 40, color: "#6b7280" }}
+                >
+                  No contacts found
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ width: "100%" }}>
@@ -585,32 +603,49 @@ const CRMDashboard = ({
                         color: "#1f2937",
                       }}
                     >
-                      {appointment.title}
+                      {appointment.service_name}
                     </div>
                     <div style={{ fontSize: 14, color: "#6b7280" }}>
                       {appointment.status}
                     </div>
                   </div>
                   <div
-                    style={{ fontSize: 16, color: "#374151", marginBottom: 8 }}
+                    style={{ fontSize: 16, color: "#374151", marginBottom: 6 }}
                   >
-                    Client: {appointment.client}
+                    👤 {appointment.guest_name}
                   </div>
                   <div
-                    style={{ fontSize: 16, color: "#374151", marginBottom: 8 }}
+                    style={{ fontSize: 16, color: "#374151", marginBottom: 6 }}
                   >
-                    Date: {appointment.date}
+                    👨‍⚕️ {appointment.therapist_name}
                   </div>
                   <div
-                    style={{ fontSize: 16, color: "#374151", marginBottom: 8 }}
+                    style={{ fontSize: 16, color: "#374151", marginBottom: 6 }}
                   >
-                    Time: {appointment.time}
+                    📅 {formatDateTime(appointment.start_time)}
                   </div>
                   <div style={{ fontSize: 14, color: "#6b7280" }}>
-                    Notes: {appointment.notes}
+                    🏢 {appointment.center_name}
                   </div>
+                  {appointment.invoice_no && (
+                    <div style={{ fontSize: 14, color: "#6b7280" }}>
+                      🧾 Invoice: {appointment.invoice_no}
+                    </div>
+                  )}
+                  {appointment.appointment_notes && (
+                    <div style={{ fontSize: 14, color: "#6b7280" }}>
+                      📝 Notes: {appointment.appointment_notes}
+                    </div>
+                  )}
                 </div>
               ))}
+              {appointments.length === 0 && !isLoading && (
+                <div
+                  style={{ textAlign: "center", padding: 40, color: "#6b7280" }}
+                >
+                  No appointments found
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -753,7 +788,7 @@ const CRMDashboard = ({
                           {contact.phone}
                         </TableCell>
                         <TableCell style={{ fontSize: 16 }}>
-                          {contact.company}
+                          {contact.center_name}
                         </TableCell>
                         <TableCell style={{ fontSize: 16 }}>
                           {contact.status}
@@ -791,10 +826,10 @@ const CRMDashboard = ({
                     {appointments.map((appointment) => (
                       <TableRow key={appointment.id}>
                         <TableCell style={{ fontSize: 16 }}>
-                          {appointment.title}
+                          {appointment.service_name}
                         </TableCell>
                         <TableCell style={{ fontSize: 16 }}>
-                          {appointment.client}
+                          {appointment.guest_name}
                         </TableCell>
                         <TableCell style={{ fontSize: 16 }}>
                           {appointment.date}

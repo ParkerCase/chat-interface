@@ -2403,6 +2403,8 @@ ${
         padding: 16,
         boxSizing: "border-box",
         background: "#f9fafb",
+        overflowX: "hidden",
+        maxWidth: "100vw",
       }}
     >
       {/* Header with Chat History Button */}
@@ -2413,6 +2415,7 @@ ${
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: 16,
+          boxSizing: "border-box",
         }}
       >
         <h2
@@ -2421,6 +2424,11 @@ ${
             fontWeight: 700,
             color: "#1f2937",
             margin: 0,
+            flex: 1,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
           Tatt2Away AI Chat
@@ -2435,9 +2443,11 @@ ${
             background: "#fff",
             color: "#374151",
             fontWeight: 500,
+            flexShrink: 0,
+            marginLeft: 8,
           }}
         >
-          {showChatHistory ? "Hide History" : "Show History"}
+          {showChatHistory ? "Hide" : "History"}
         </button>
       </div>
 
@@ -2453,6 +2463,7 @@ ${
             border: "1px solid #e5e7eb",
             maxHeight: 200,
             overflowY: "auto",
+            boxSizing: "border-box",
           }}
         >
           <div
@@ -2476,6 +2487,7 @@ ${
               background: "#4f46e5",
               color: "#fff",
               marginBottom: 8,
+              boxSizing: "border-box",
             }}
           >
             New Chat
@@ -2492,6 +2504,9 @@ ${
                 cursor: "pointer",
                 background:
                   selectedThreadId === thread.id ? "#f3f4f6" : "transparent",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
               }}
             >
               {thread.title || "Untitled Chat"}
@@ -2507,6 +2522,7 @@ ${
           display: "flex",
           gap: 8,
           marginBottom: 16,
+          boxSizing: "border-box",
         }}
       >
         <button
@@ -2521,6 +2537,7 @@ ${
             background: "#fff",
             color: "#6366f1",
             fontWeight: 600,
+            boxSizing: "border-box",
           }}
         >
           Settings
@@ -2538,6 +2555,7 @@ ${
               background: "#fff",
               color: "#10b981",
               fontWeight: 600,
+              boxSizing: "border-box",
             }}
           />
         )}
@@ -2556,6 +2574,8 @@ ${
           padding: 16,
           marginBottom: 16,
           border: "1px solid #e5e7eb",
+          boxSizing: "border-box",
+          overflowX: "hidden",
         }}
       >
         {currentMessages.length === 0 ? (
@@ -2583,6 +2603,8 @@ ${
                 background: message.sender === "user" ? "#e0e7ef" : "#f4f7fd",
                 color: "#222",
                 wordBreak: "break-word",
+                overflowWrap: "break-word",
+                boxSizing: "border-box",
               }}
             >
               {renderMessageContent(message)}
@@ -2607,6 +2629,7 @@ ${
           display: "flex",
           flexDirection: "column",
           gap: 8,
+          boxSizing: "border-box",
         }}
       >
         <textarea
@@ -2624,6 +2647,7 @@ ${
             padding: 12,
             boxSizing: "border-box",
             resize: "none",
+            maxWidth: "100%",
           }}
         />
         <button
@@ -2639,6 +2663,7 @@ ${
             color: "#fff",
             fontWeight: 700,
             border: "none",
+            boxSizing: "border-box",
           }}
         >
           {isLoading ? "Sending..." : "Send Message"}
@@ -2660,6 +2685,7 @@ ${
             alignItems: "center",
             justifyContent: "center",
             padding: 16,
+            boxSizing: "border-box",
           }}
         >
           <div
@@ -2671,6 +2697,7 @@ ${
               maxWidth: 400,
               maxHeight: "80vh",
               overflowY: "auto",
+              boxSizing: "border-box",
             }}
           >
             <div
@@ -2758,6 +2785,7 @@ ${
                     fontSize: 16,
                     borderRadius: 6,
                     border: "1px solid #d1d5db",
+                    boxSizing: "border-box",
                   }}
                 >
                   <option value="small">Small</option>
@@ -2819,6 +2847,8 @@ ${
         padding: 20,
         boxSizing: "border-box",
         background: "#f9fafb",
+        overflowX: "hidden",
+        maxWidth: "100vw",
       }}
     >
       {/* Header with Chat History Button */}
@@ -2829,6 +2859,7 @@ ${
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: 20,
+          boxSizing: "border-box",
         }}
       >
         <h2
@@ -2837,6 +2868,11 @@ ${
             fontWeight: 700,
             color: "#1f2937",
             margin: 0,
+            flex: 1,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
           Tatt2Away AI Chat
@@ -2851,9 +2887,11 @@ ${
             background: "#fff",
             color: "#374151",
             fontWeight: 500,
+            flexShrink: 0,
+            marginLeft: 12,
           }}
         >
-          {showChatHistory ? "Hide History" : "Show History"}
+          {showChatHistory ? "Hide" : "History"}
         </button>
       </div>
 
@@ -2869,6 +2907,7 @@ ${
             border: "1px solid #e5e7eb",
             maxHeight: 250,
             overflowY: "auto",
+            boxSizing: "border-box",
           }}
         >
           <div
@@ -2892,6 +2931,7 @@ ${
               background: "#4f46e5",
               color: "#fff",
               marginBottom: 12,
+              boxSizing: "border-box",
             }}
           >
             New Chat
@@ -2908,6 +2948,9 @@ ${
                 cursor: "pointer",
                 background:
                   selectedThreadId === thread.id ? "#f3f4f6" : "transparent",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
               }}
             >
               {thread.title || "Untitled Chat"}
@@ -2923,6 +2966,7 @@ ${
           display: "flex",
           gap: 12,
           marginBottom: 20,
+          boxSizing: "border-box",
         }}
       >
         <button
@@ -2937,6 +2981,7 @@ ${
             background: "#fff",
             color: "#6366f1",
             fontWeight: 600,
+            boxSizing: "border-box",
           }}
         >
           Settings
@@ -2954,6 +2999,7 @@ ${
               background: "#fff",
               color: "#10b981",
               fontWeight: 600,
+              boxSizing: "border-box",
             }}
           />
         )}
@@ -2972,6 +3018,8 @@ ${
           padding: 20,
           marginBottom: 20,
           border: "1px solid #e5e7eb",
+          boxSizing: "border-box",
+          overflowX: "hidden",
         }}
       >
         {currentMessages.length === 0 ? (
@@ -2999,6 +3047,8 @@ ${
                 background: message.sender === "user" ? "#e0e7ef" : "#f4f7fd",
                 color: "#222",
                 wordBreak: "break-word",
+                overflowWrap: "break-word",
+                boxSizing: "border-box",
               }}
             >
               {renderMessageContent(message)}
@@ -3023,6 +3073,7 @@ ${
           display: "flex",
           flexDirection: "column",
           gap: 12,
+          boxSizing: "border-box",
         }}
       >
         <textarea
@@ -3040,6 +3091,7 @@ ${
             padding: 14,
             boxSizing: "border-box",
             resize: "none",
+            maxWidth: "100%",
           }}
         />
         <button
@@ -3055,6 +3107,7 @@ ${
             color: "#fff",
             fontWeight: 700,
             border: "none",
+            boxSizing: "border-box",
           }}
         >
           {isLoading ? "Sending..." : "Send Message"}
@@ -3076,6 +3129,7 @@ ${
             alignItems: "center",
             justifyContent: "center",
             padding: 20,
+            boxSizing: "border-box",
           }}
         >
           <div
@@ -3087,6 +3141,7 @@ ${
               maxWidth: 500,
               maxHeight: "80vh",
               overflowY: "auto",
+              boxSizing: "border-box",
             }}
           >
             <div
@@ -3174,6 +3229,7 @@ ${
                     fontSize: 18,
                     borderRadius: 8,
                     border: "1px solid #d1d5db",
+                    boxSizing: "border-box",
                   }}
                 >
                   <option value="small">Small</option>
