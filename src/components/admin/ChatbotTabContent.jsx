@@ -2482,80 +2482,41 @@ ${
           <button
             onClick={createNewThread}
             style={{
-              width: "calc(100% - 32px)", // Adjust for padding
-              margin: "0 16px",
-              padding: "12px",
-              fontSize: 16,
-              borderRadius: 8,
-              border: "none",
-              background: "#6366f1",
+              width: "100%",
+              padding: 8,
+              fontSize: 14,
+              borderRadius: 6,
+              border: "1px solid #4f46e5",
+              background: "#4f46e5",
               color: "#fff",
+              marginBottom: 8,
               boxSizing: "border-box",
             }}
           >
             New Chat
           </button>
-
-          {/* Settings Button Container */}
-          <div
-            style={{
-              width: "calc(100% - 32px)", // Adjust for padding
-              margin: "16px",
-              boxSizing: "border-box",
-            }}
-          >
-            <button
-              onClick={toggleSettings}
+          {threads.slice(0, 5).map((thread) => (
+            <div
+              key={thread.id}
+              onClick={() => handleSelectThread(thread.id)}
               style={{
+                padding: 8,
+                fontSize: 14,
+                color: "#374151",
+                borderBottom: "1px solid #f3f4f6",
+                cursor: "pointer",
+                background:
+                  selectedThreadId === thread.id ? "#f3f4f6" : "transparent",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
                 width: "100%",
-                padding: "12px",
-                fontSize: 16,
-                borderRadius: 8,
-                border: "1px solid #6366f1",
-                background: "#fff",
-                color: "#6366f1",
                 boxSizing: "border-box",
               }}
             >
-              Settings
-            </button>
-          </div>
-
-          {/* User Management Card */}
-          <div
-            style={{
-              width: "calc(100% - 32px)", // Adjust for padding
-              margin: "16px",
-              padding: "16px",
-              background: "#fff",
-              borderRadius: 12,
-              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-              boxSizing: "border-box",
-            }}
-          >
-            {threads.slice(0, 5).map((thread) => (
-              <div
-                key={thread.id}
-                onClick={() => handleSelectThread(thread.id)}
-                style={{
-                  padding: 8,
-                  fontSize: 14,
-                  color: "#374151",
-                  borderBottom: "1px solid #f3f4f6",
-                  cursor: "pointer",
-                  background:
-                    selectedThreadId === thread.id ? "#f3f4f6" : "transparent",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  width: "100%",
-                  boxSizing: "border-box",
-                }}
-              >
-                {thread.title || "Untitled Chat"}
-              </div>
-            ))}
-          </div>
+              {thread.title || "Untitled Chat"}
+            </div>
+          ))}
         </div>
       )}
 
@@ -2570,13 +2531,45 @@ ${
           overflow: "hidden",
         }}
       >
+        <button
+          className="settings-btn"
+          onClick={toggleSettings}
+          style={{
+            flex: 1,
+            minHeight: 44,
+            fontSize: 16,
+            borderRadius: 8,
+            border: "2px solid #6366f1",
+            background: "#fff",
+            color: "#6366f1",
+            fontWeight: 600,
+            boxSizing: "border-box",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          Settings
+        </button>
         {isFeatureEnabled("data_export") && (
-          <div className="export-button-container">
-            <ExportButton
-              messages={currentMessages}
-              analysisResult={analysisResult}
-            />
-          </div>
+          <ExportButton
+            messages={currentMessages}
+            analysisResult={analysisResult}
+            style={{
+              flex: 1,
+              minHeight: 44,
+              fontSize: 16,
+              borderRadius: 8,
+              border: "2px solid #10b981",
+              background: "#fff",
+              color: "#10b981",
+              fontWeight: 600,
+              boxSizing: "border-box",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          />
         )}
       </div>
 
@@ -2953,80 +2946,41 @@ ${
           <button
             onClick={createNewThread}
             style={{
-              width: "calc(100% - 32px)", // Adjust for padding
-              margin: "0 16px",
-              padding: "12px",
+              width: "100%",
+              padding: 10,
               fontSize: 16,
               borderRadius: 8,
-              border: "none",
-              background: "#6366f1",
+              border: "1px solid #4f46e5",
+              background: "#4f46e5",
               color: "#fff",
+              marginBottom: 12,
               boxSizing: "border-box",
             }}
           >
             New Chat
           </button>
-
-          {/* Settings Button Container */}
-          <div
-            style={{
-              width: "calc(100% - 32px)", // Adjust for padding
-              margin: "16px",
-              boxSizing: "border-box",
-            }}
-          >
-            <button
-              onClick={toggleSettings}
+          {threads.slice(0, 8).map((thread) => (
+            <div
+              key={thread.id}
+              onClick={() => handleSelectThread(thread.id)}
               style={{
-                width: "100%",
-                padding: "12px",
+                padding: 10,
                 fontSize: 16,
-                borderRadius: 8,
-                border: "1px solid #6366f1",
-                background: "#fff",
-                color: "#6366f1",
+                color: "#374151",
+                borderBottom: "1px solid #f3f4f6",
+                cursor: "pointer",
+                background:
+                  selectedThreadId === thread.id ? "#f3f4f6" : "transparent",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                width: "100%",
                 boxSizing: "border-box",
               }}
             >
-              Settings
-            </button>
-          </div>
-
-          {/* User Management Card */}
-          <div
-            style={{
-              width: "calc(100% - 32px)", // Adjust for padding
-              margin: "16px",
-              padding: "16px",
-              background: "#fff",
-              borderRadius: 12,
-              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-              boxSizing: "border-box",
-            }}
-          >
-            {threads.slice(0, 8).map((thread) => (
-              <div
-                key={thread.id}
-                onClick={() => handleSelectThread(thread.id)}
-                style={{
-                  padding: 10,
-                  fontSize: 16,
-                  color: "#374151",
-                  borderBottom: "1px solid #f3f4f6",
-                  cursor: "pointer",
-                  background:
-                    selectedThreadId === thread.id ? "#f3f4f6" : "transparent",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  width: "100%",
-                  boxSizing: "border-box",
-                }}
-              >
-                {thread.title || "Untitled Chat"}
-              </div>
-            ))}
-          </div>
+              {thread.title || "Untitled Chat"}
+            </div>
+          ))}
         </div>
       )}
 
@@ -3041,13 +2995,45 @@ ${
           overflow: "hidden",
         }}
       >
+        <button
+          className="settings-btn"
+          onClick={toggleSettings}
+          style={{
+            flex: 1,
+            minHeight: 48,
+            fontSize: 18,
+            borderRadius: 8,
+            border: "2px solid #6366f1",
+            background: "#fff",
+            color: "#6366f1",
+            fontWeight: 600,
+            boxSizing: "border-box",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          Settings
+        </button>
         {isFeatureEnabled("data_export") && (
-          <div className="export-button-container">
-            <ExportButton
-              messages={currentMessages}
-              analysisResult={analysisResult}
-            />
-          </div>
+          <ExportButton
+            messages={currentMessages}
+            analysisResult={analysisResult}
+            style={{
+              flex: 1,
+              minHeight: 48,
+              fontSize: 18,
+              borderRadius: 8,
+              border: "2px solid #10b981",
+              background: "#fff",
+              color: "#10b981",
+              fontWeight: 600,
+              boxSizing: "border-box",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          />
         )}
       </div>
 

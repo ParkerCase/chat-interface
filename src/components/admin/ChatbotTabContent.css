@@ -706,20 +706,11 @@
 
 /* Export button container - Fixed */
 .export-button-container {
-  width: calc(100% - 32px);
-  margin: 0 16px;
-  box-sizing: border-box;
-}
-
-.export-button-container button {
-  width: 100%;
-  padding: 12px;
-  font-size: 16px;
-  border-radius: 8px;
-  border: 1px solid #10b981;
-  background: #fff;
-  color: #10b981;
-  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  position: relative;
 }
 
 /* Settings panel */
@@ -1466,13 +1457,6 @@ button svg {
   .chat-input-area textarea {
     font-size: 14px !important;
     padding: 0.25rem !important;
-  }
-  .chatbot-mobile button,
-  .chatbot-mobile .button-container,
-  .chatbot-mobile .settings-container {
-    width: calc(100% - 32px) !important;
-    margin: 0 16px !important;
-    box-sizing: border-box !important;
   }
 }
 @media (max-width: 540px) {
