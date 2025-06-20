@@ -3511,53 +3511,30 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "auto 1fr",
-                      gap: "4px 16px",
-                      alignItems: "center",
+                      gridTemplateColumns: "1fr",
+                      gap: 2,
                     }}
                   >
-                    <Typography variant="body1">
-                      <strong>Name:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedContact.name}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Email:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedContact.email || "N/A"}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Phone:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedContact.phone || "N/A"}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Center:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedContact.center_code} -{" "}
+                    <Box>
+                      <strong>Name:</strong> {selectedContact.name}
+                    </Box>
+                    <Box>
+                      <strong>Email:</strong> {selectedContact.email || "N/A"}
+                    </Box>
+                    <Box>
+                      <strong>Phone:</strong> {selectedContact.phone || "N/A"}
+                    </Box>
+                    <Box>
+                      <strong>Center:</strong> {selectedContact.center_code} -{" "}
                       {selectedContact.center_name}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Guest Code:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    </Box>
+                    <Box>
+                      <strong>Guest Code:</strong>{" "}
                       {selectedContact.guest_code || "N/A"}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Gender:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedContact.gender}
-                    </Typography>
+                    </Box>
+                    <Box>
+                      <strong>Gender:</strong> {selectedContact.gender}
+                    </Box>
                   </Box>
                   <Box>
                     <Typography variant="h6" sx={{ mb: 1 }}>
@@ -3599,71 +3576,44 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "auto 1fr",
-                      gap: "4px 16px",
-                      alignItems: "center",
+                      gridTemplateColumns: "1fr",
+                      gap: 2,
                     }}
                   >
-                    <Typography variant="body1">
-                      <strong>Guest:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedAppointment.guest_name}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Service:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    <Box>
+                      <strong>Guest:</strong> {selectedAppointment.guest_name}
+                    </Box>
+                    <Box>
+                      <strong>Service:</strong>{" "}
                       {selectedAppointment.service_name}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Therapist:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    </Box>
+                    <Box>
+                      <strong>Therapist:</strong>{" "}
                       {selectedAppointment.therapist_name}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Start Time:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    </Box>
+                    <Box>
+                      <strong>Start Time:</strong>{" "}
                       {formatDateTime(selectedAppointment.start_time)}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>End Time:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    </Box>
+                    <Box>
+                      <strong>End Time:</strong>{" "}
                       {formatDateTime(selectedAppointment.end_time)}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Status:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedAppointment.status}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Center:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedAppointment.center_code} -{" "}
-                      {selectedAppointment.center_name}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Invoice:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    </Box>
+                    <Box>
+                      <strong>Status:</strong> {selectedAppointment.status}
+                    </Box>
+                    <Box>
+                      <strong>Center:</strong> {selectedAppointment.center_code}{" "}
+                      - {selectedAppointment.center_name}
+                    </Box>
+                    <Box>
+                      <strong>Invoice:</strong>{" "}
                       {selectedAppointment.invoice_no || "N/A"}
-                    </Typography>
+                    </Box>
                   </Box>
                   {selectedAppointment.appointment_notes && (
                     <Box>
-                      <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
                         Notes
                       </Typography>
                       <Typography>
@@ -3713,78 +3663,57 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "auto 1fr",
-                      gap: "4px 16px",
-                      alignItems: "center",
+                      gridTemplateColumns: "1fr",
+                      gap: 2,
                     }}
                   >
-                    <Typography variant="body1">
-                      <strong>Name:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedService.name}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Code:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedService.code}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Category:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedService.category}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Duration:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    <Box>
+                      <strong>Name:</strong> {selectedService.name}
+                    </Box>
+                    <Box>
+                      <strong>Code:</strong> {selectedService.code}
+                    </Box>
+                    <Box>
+                      <strong>Category:</strong> {selectedService.category}
+                    </Box>
+                    <Box>
+                      <strong>Duration:</strong>{" "}
                       {formatDuration(selectedService.duration)}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Price:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    </Box>
+                    <Box>
+                      <strong>Price:</strong>{" "}
                       {formatCurrency(selectedService.price)}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Recovery Time:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    </Box>
+                    <Box>
+                      <strong>Recovery Time:</strong>{" "}
                       {selectedService.recovery_time} days
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Status:</strong>
-                    </Typography>
-                    <Chip
-                      label={selectedService.is_active ? "Active" : "Inactive"}
-                      color={selectedService.is_active ? "success" : "error"}
-                      size="small"
-                    />
-
-                    <Typography variant="body1">
-                      <strong>Couple Service:</strong>
-                    </Typography>
-                    <Chip
-                      label={selectedService.is_couple_service ? "Yes" : "No"}
-                      color={
-                        selectedService.is_couple_service
-                          ? "primary"
-                          : "default"
-                      }
-                      size="small"
-                    />
+                    </Box>
+                    <Box>
+                      <strong>Status:</strong>{" "}
+                      <Chip
+                        label={
+                          selectedService.is_active ? "Active" : "Inactive"
+                        }
+                        color={selectedService.is_active ? "success" : "error"}
+                        size="small"
+                      />
+                    </Box>
+                    <Box>
+                      <strong>Couple Service:</strong>{" "}
+                      <Chip
+                        label={selectedService.is_couple_service ? "Yes" : "No"}
+                        color={
+                          selectedService.is_couple_service
+                            ? "primary"
+                            : "default"
+                        }
+                        size="small"
+                      />
+                    </Box>
                   </Box>
                   {selectedService.description && (
                     <Box>
-                      <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
                         Description
                       </Typography>
                       <Typography>{selectedService.description}</Typography>
@@ -3812,81 +3741,55 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "auto 1fr",
-                      gap: "4px 16px",
-                      alignItems: "center",
+                      gridTemplateColumns: "1fr",
+                      gap: 2,
                     }}
                   >
-                    <Typography variant="body1">
-                      <strong>Name:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedPackage.name}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Code:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedPackage.code}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Type:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedPackage.type_label}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Duration:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    <Box>
+                      <strong>Name:</strong> {selectedPackage.name}
+                    </Box>
+                    <Box>
+                      <strong>Code:</strong> {selectedPackage.code}
+                    </Box>
+                    <Box>
+                      <strong>Type:</strong> {selectedPackage.type_label}
+                    </Box>
+                    <Box>
+                      <strong>Duration:</strong>{" "}
                       {formatDuration(selectedPackage.time)}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Price:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    </Box>
+                    <Box>
+                      <strong>Price:</strong>{" "}
                       {formatCurrency(selectedPackage.price)}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Installments:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    </Box>
+                    <Box>
+                      <strong>Installments:</strong>{" "}
                       {selectedPackage.instalments}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Payment Frequency:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    </Box>
+                    <Box>
+                      <strong>Payment Frequency:</strong>{" "}
                       {selectedPackage.payment_frequency} days
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Validity:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    </Box>
+                    <Box>
+                      <strong>Validity:</strong>{" "}
                       {selectedPackage.validity_expiry > 0
                         ? `${selectedPackage.validity_expiry} days`
                         : "No expiry"}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Status:</strong>
-                    </Typography>
-                    <Chip
-                      label={selectedPackage.is_active ? "Active" : "Inactive"}
-                      color={selectedPackage.is_active ? "success" : "error"}
-                      size="small"
-                    />
+                    </Box>
+                    <Box>
+                      <strong>Status:</strong>{" "}
+                      <Chip
+                        label={
+                          selectedPackage.is_active ? "Active" : "Inactive"
+                        }
+                        color={selectedPackage.is_active ? "success" : "error"}
+                        size="small"
+                      />
+                    </Box>
                   </Box>
                   {selectedPackage.description && (
                     <Box>
-                      <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
                         Description
                       </Typography>
                       <Typography>{selectedPackage.description}</Typography>
@@ -3894,7 +3797,7 @@ const CRMDashboard = ({
                   )}
                   {selectedPackage.terms_and_conditions && (
                     <Box>
-                      <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
                         Terms & Conditions
                       </Typography>
                       <Typography>
@@ -4494,78 +4397,57 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "auto 1fr",
-                      gap: "4px 16px",
-                      alignItems: "center",
+                      gridTemplateColumns: "1fr",
+                      gap: 2,
                     }}
                   >
-                    <Typography variant="body1">
-                      <strong>Name:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedService.name}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Code:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedService.code}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Category:</strong>
-                    </Typography>
-                    <Typography variant="body1">
-                      {selectedService.category}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Duration:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    <Box>
+                      <strong>Name:</strong> {selectedService.name}
+                    </Box>
+                    <Box>
+                      <strong>Code:</strong> {selectedService.code}
+                    </Box>
+                    <Box>
+                      <strong>Category:</strong> {selectedService.category}
+                    </Box>
+                    <Box>
+                      <strong>Duration:</strong>{" "}
                       {formatDuration(selectedService.duration)}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Price:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    </Box>
+                    <Box>
+                      <strong>Price:</strong>{" "}
                       {formatCurrency(selectedService.price)}
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Recovery Time:</strong>
-                    </Typography>
-                    <Typography variant="body1">
+                    </Box>
+                    <Box>
+                      <strong>Recovery Time:</strong>{" "}
                       {selectedService.recovery_time} days
-                    </Typography>
-
-                    <Typography variant="body1">
-                      <strong>Status:</strong>
-                    </Typography>
-                    <Chip
-                      label={selectedService.is_active ? "Active" : "Inactive"}
-                      color={selectedService.is_active ? "success" : "error"}
-                      size="small"
-                    />
-
-                    <Typography variant="body1">
-                      <strong>Couple Service:</strong>
-                    </Typography>
-                    <Chip
-                      label={selectedService.is_couple_service ? "Yes" : "No"}
-                      color={
-                        selectedService.is_couple_service
-                          ? "primary"
-                          : "default"
-                      }
-                      size="small"
-                    />
+                    </Box>
+                    <Box>
+                      <strong>Status:</strong>{" "}
+                      <Chip
+                        label={
+                          selectedService.is_active ? "Active" : "Inactive"
+                        }
+                        color={selectedService.is_active ? "success" : "error"}
+                        size="small"
+                      />
+                    </Box>
+                    <Box>
+                      <strong>Couple Service:</strong>{" "}
+                      <Chip
+                        label={selectedService.is_couple_service ? "Yes" : "No"}
+                        color={
+                          selectedService.is_couple_service
+                            ? "primary"
+                            : "default"
+                        }
+                        size="small"
+                      />
+                    </Box>
                   </Box>
                   {selectedService.description && (
                     <Box>
-                      <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
                         Description
                       </Typography>
                       <Typography>{selectedService.description}</Typography>
