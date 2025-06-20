@@ -311,6 +311,35 @@
     box-sizing: border-box !important;
   }
 
+  /* Close button styling for mobile */
+  .MuiDialogTitle-root .MuiIconButton-root {
+    position: absolute !important;
+    right: 16px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 40px !important;
+    height: 40px !important;
+    background-color: rgba(0, 0, 0, 0.04) !important;
+    border-radius: 50% !important;
+    color: #6b7280 !important;
+    transition: all 0.2s ease !important;
+  }
+
+  .MuiDialogTitle-root .MuiIconButton-root:hover {
+    background-color: rgba(0, 0, 0, 0.08) !important;
+    color: #374151 !important;
+  }
+
+  .MuiDialogTitle-root .MuiIconButton-root .MuiSvgIcon-root {
+    font-size: 20px !important;
+  }
+
+  /* Ensure title text doesn't overlap with close button */
+  .MuiDialogTitle-root > *:first-child {
+    padding-right: 60px !important;
+    margin: 0 !important;
+  }
+
   .MuiDialogContent-root {
     /* Better content area for mobile with proper constraints */
     padding: 20px !important;
@@ -592,6 +621,22 @@
   .MuiDialogTitle-root {
     padding: 8px 12px !important;
     font-size: 14px !important;
+  }
+
+  /* Close button for extra small devices */
+  .MuiDialogTitle-root .MuiIconButton-root {
+    right: 8px !important;
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .MuiDialogTitle-root .MuiIconButton-root .MuiSvgIcon-root {
+    font-size: 18px !important;
+  }
+
+  /* Ensure title text doesn't overlap with close button */
+  .MuiDialogTitle-root > *:first-child {
+    padding-right: 50px !important;
   }
 
   .MuiDialogContent-root {

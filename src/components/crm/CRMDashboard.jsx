@@ -3501,17 +3501,37 @@ const CRMDashboard = ({
           <Dialog
             open={!!selectedContact}
             onClose={() => setSelectedContact(null)}
-            maxWidth="sm"
+            maxWidth="md"
             fullWidth
           >
-            <DialogTitle>Contact Details</DialogTitle>
+            <DialogTitle
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              Contact Details
+              <IconButton
+                onClick={() => setSelectedContact(null)}
+                sx={{
+                  color: "grey.500",
+                  "&:hover": {
+                    color: "grey.700",
+                  },
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
             <DialogContent>
               {selectedContact && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "1fr",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(250px, 1fr))",
                       gap: 2,
                     }}
                   >
@@ -3557,26 +3577,43 @@ const CRMDashboard = ({
                 </Box>
               )}
             </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setSelectedContact(null)}>Close</Button>
-            </DialogActions>
           </Dialog>
 
           {/* Appointment Detail Modal */}
           <Dialog
             open={!!selectedAppointment}
             onClose={() => setSelectedAppointment(null)}
-            maxWidth="sm"
+            maxWidth="md"
             fullWidth
           >
-            <DialogTitle>Appointment Details</DialogTitle>
+            <DialogTitle
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              Appointment Details
+              <IconButton
+                onClick={() => setSelectedAppointment(null)}
+                sx={{
+                  color: "grey.500",
+                  "&:hover": {
+                    color: "grey.700",
+                  },
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
             <DialogContent>
               {selectedAppointment && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "1fr",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(250px, 1fr))",
                       gap: 2,
                     }}
                   >
@@ -3642,11 +3679,6 @@ const CRMDashboard = ({
                 </Box>
               )}
             </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setSelectedAppointment(null)}>
-                Close
-              </Button>
-            </DialogActions>
           </Dialog>
 
           {/* Service Detail Modal */}
@@ -3656,7 +3688,26 @@ const CRMDashboard = ({
             maxWidth="sm"
             fullWidth
           >
-            <DialogTitle>Service Details</DialogTitle>
+            <DialogTitle
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              Service Details
+              <IconButton
+                onClick={() => setSelectedService(null)}
+                sx={{
+                  color: "grey.500",
+                  "&:hover": {
+                    color: "grey.700",
+                  },
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
             <DialogContent>
               {selectedService && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -3722,9 +3773,6 @@ const CRMDashboard = ({
                 </Box>
               )}
             </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setSelectedService(null)}>Close</Button>
-            </DialogActions>
           </Dialog>
 
           {/* Package Detail Modal */}
@@ -4236,7 +4284,26 @@ const CRMDashboard = ({
             maxWidth="md"
             fullWidth
           >
-            <DialogTitle>Contact Details</DialogTitle>
+            <DialogTitle
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              Contact Details
+              <IconButton
+                onClick={() => setSelectedContact(null)}
+                sx={{
+                  color: "grey.500",
+                  "&:hover": {
+                    color: "grey.700",
+                  },
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
             <DialogContent>
               {selectedContact && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -4290,9 +4357,6 @@ const CRMDashboard = ({
                 </Box>
               )}
             </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setSelectedContact(null)}>Close</Button>
-            </DialogActions>
           </Dialog>
 
           {/* Appointment Detail Modal */}
@@ -4302,7 +4366,26 @@ const CRMDashboard = ({
             maxWidth="md"
             fullWidth
           >
-            <DialogTitle>Appointment Details</DialogTitle>
+            <DialogTitle
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              Appointment Details
+              <IconButton
+                onClick={() => setSelectedAppointment(null)}
+                sx={{
+                  color: "grey.500",
+                  "&:hover": {
+                    color: "grey.700",
+                  },
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
             <DialogContent>
               {selectedAppointment && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -4376,11 +4459,6 @@ const CRMDashboard = ({
                 </Box>
               )}
             </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setSelectedAppointment(null)}>
-                Close
-              </Button>
-            </DialogActions>
           </Dialog>
 
           {/* Service Detail Modal */}
@@ -4390,7 +4468,26 @@ const CRMDashboard = ({
             maxWidth="sm"
             fullWidth
           >
-            <DialogTitle>Service Details</DialogTitle>
+            <DialogTitle
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              Service Details
+              <IconButton
+                onClick={() => setSelectedService(null)}
+                sx={{
+                  color: "grey.500",
+                  "&:hover": {
+                    color: "grey.700",
+                  },
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
             <DialogContent>
               {selectedService && (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -4456,9 +4553,6 @@ const CRMDashboard = ({
                 </Box>
               )}
             </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setSelectedService(null)}>Close</Button>
-            </DialogActions>
           </Dialog>
         </Box>
       )}
