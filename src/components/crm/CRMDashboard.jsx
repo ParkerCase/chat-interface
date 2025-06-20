@@ -3511,33 +3511,34 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: 2,
+                      gridTemplateColumns: "auto 1fr",
+                      gap: "8px 16px",
+                      alignItems: "center",
                     }}
                   >
+                    <Box sx={{ fontWeight: "bold" }}>Name:</Box>
+                    <Box>{selectedContact.name}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Email:</Box>
+                    <Box>{selectedContact.email || "N/A"}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Phone:</Box>
+                    <Box>{selectedContact.phone || "N/A"}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Center:</Box>
                     <Box>
-                      <strong>Name:</strong> {selectedContact.name}
-                    </Box>
-                    <Box>
-                      <strong>Email:</strong> {selectedContact.email || "N/A"}
-                    </Box>
-                    <Box>
-                      <strong>Phone:</strong> {selectedContact.phone || "N/A"}
-                    </Box>
-                    <Box>
-                      <strong>Center:</strong> {selectedContact.center_code} -{" "}
+                      {selectedContact.center_code} -{" "}
                       {selectedContact.center_name}
                     </Box>
-                    <Box>
-                      <strong>Guest Code:</strong>{" "}
-                      {selectedContact.guest_code || "N/A"}
-                    </Box>
-                    <Box>
-                      <strong>Gender:</strong> {selectedContact.gender}
-                    </Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Guest Code:</Box>
+                    <Box>{selectedContact.guest_code || "N/A"}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Gender:</Box>
+                    <Box>{selectedContact.gender}</Box>
                   </Box>
                   <Box>
-                    <Typography variant="h6" sx={{ mb: 1 }}>
+                    <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
                       Raw Data
                     </Typography>
                     <Box
@@ -3576,44 +3577,41 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: 2,
+                      gridTemplateColumns: "auto 1fr",
+                      gap: "8px 16px",
+                      alignItems: "center",
                     }}
                   >
+                    <Box sx={{ fontWeight: "bold" }}>Guest:</Box>
+                    <Box>{selectedAppointment.guest_name}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Service:</Box>
+                    <Box>{selectedAppointment.service_name}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Therapist:</Box>
+                    <Box>{selectedAppointment.therapist_name}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Start Time:</Box>
+                    <Box>{formatDateTime(selectedAppointment.start_time)}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>End Time:</Box>
+                    <Box>{formatDateTime(selectedAppointment.end_time)}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Status:</Box>
+                    <Box>{selectedAppointment.status}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Center:</Box>
                     <Box>
-                      <strong>Guest:</strong> {selectedAppointment.guest_name}
+                      {selectedAppointment.center_code} -{" "}
+                      {selectedAppointment.center_name}
                     </Box>
-                    <Box>
-                      <strong>Service:</strong>{" "}
-                      {selectedAppointment.service_name}
-                    </Box>
-                    <Box>
-                      <strong>Therapist:</strong>{" "}
-                      {selectedAppointment.therapist_name}
-                    </Box>
-                    <Box>
-                      <strong>Start Time:</strong>{" "}
-                      {formatDateTime(selectedAppointment.start_time)}
-                    </Box>
-                    <Box>
-                      <strong>End Time:</strong>{" "}
-                      {formatDateTime(selectedAppointment.end_time)}
-                    </Box>
-                    <Box>
-                      <strong>Status:</strong> {selectedAppointment.status}
-                    </Box>
-                    <Box>
-                      <strong>Center:</strong> {selectedAppointment.center_code}{" "}
-                      - {selectedAppointment.center_name}
-                    </Box>
-                    <Box>
-                      <strong>Invoice:</strong>{" "}
-                      {selectedAppointment.invoice_no || "N/A"}
-                    </Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Invoice:</Box>
+                    <Box>{selectedAppointment.invoice_no || "N/A"}</Box>
                   </Box>
                   {selectedAppointment.appointment_notes && (
                     <Box>
-                      <Typography variant="h6" sx={{ mb: 1 }}>
+                      <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
                         Notes
                       </Typography>
                       <Typography>
@@ -3622,7 +3620,7 @@ const CRMDashboard = ({
                     </Box>
                   )}
                   <Box>
-                    <Typography variant="h6" sx={{ mb: 1 }}>
+                    <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
                       Raw Data
                     </Typography>
                     <Box
@@ -3663,33 +3661,31 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: 2,
+                      gridTemplateColumns: "auto 1fr",
+                      gap: "8px 16px",
+                      alignItems: "center",
                     }}
                   >
+                    <Box sx={{ fontWeight: "bold" }}>Name:</Box>
+                    <Box>{selectedService.name}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Code:</Box>
+                    <Box>{selectedService.code}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Category:</Box>
+                    <Box>{selectedService.category}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Duration:</Box>
+                    <Box>{formatDuration(selectedService.duration)}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Price:</Box>
+                    <Box>{formatCurrency(selectedService.price)}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Recovery Time:</Box>
+                    <Box>{selectedService.recovery_time} days</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Status:</Box>
                     <Box>
-                      <strong>Name:</strong> {selectedService.name}
-                    </Box>
-                    <Box>
-                      <strong>Code:</strong> {selectedService.code}
-                    </Box>
-                    <Box>
-                      <strong>Category:</strong> {selectedService.category}
-                    </Box>
-                    <Box>
-                      <strong>Duration:</strong>{" "}
-                      {formatDuration(selectedService.duration)}
-                    </Box>
-                    <Box>
-                      <strong>Price:</strong>{" "}
-                      {formatCurrency(selectedService.price)}
-                    </Box>
-                    <Box>
-                      <strong>Recovery Time:</strong>{" "}
-                      {selectedService.recovery_time} days
-                    </Box>
-                    <Box>
-                      <strong>Status:</strong>{" "}
                       <Chip
                         label={
                           selectedService.is_active ? "Active" : "Inactive"
@@ -3698,8 +3694,9 @@ const CRMDashboard = ({
                         size="small"
                       />
                     </Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Couple Service:</Box>
                     <Box>
-                      <strong>Couple Service:</strong>{" "}
                       <Chip
                         label={selectedService.is_couple_service ? "Yes" : "No"}
                         color={
@@ -3713,7 +3710,7 @@ const CRMDashboard = ({
                   </Box>
                   {selectedService.description && (
                     <Box>
-                      <Typography variant="h6" sx={{ mb: 1 }}>
+                      <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
                         Description
                       </Typography>
                       <Typography>{selectedService.description}</Typography>
@@ -3741,43 +3738,41 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: 2,
+                      gridTemplateColumns: "auto 1fr",
+                      gap: "8px 16px",
+                      alignItems: "center",
                     }}
                   >
+                    <Box sx={{ fontWeight: "bold" }}>Name:</Box>
+                    <Box>{selectedPackage.name}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Code:</Box>
+                    <Box>{selectedPackage.code}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Type:</Box>
+                    <Box>{selectedPackage.type_label}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Duration:</Box>
+                    <Box>{formatDuration(selectedPackage.time)}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Price:</Box>
+                    <Box>{formatCurrency(selectedPackage.price)}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Installments:</Box>
+                    <Box>{selectedPackage.instalments}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Payment Frequency:</Box>
+                    <Box>{selectedPackage.payment_frequency} days</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Validity:</Box>
                     <Box>
-                      <strong>Name:</strong> {selectedPackage.name}
-                    </Box>
-                    <Box>
-                      <strong>Code:</strong> {selectedPackage.code}
-                    </Box>
-                    <Box>
-                      <strong>Type:</strong> {selectedPackage.type_label}
-                    </Box>
-                    <Box>
-                      <strong>Duration:</strong>{" "}
-                      {formatDuration(selectedPackage.time)}
-                    </Box>
-                    <Box>
-                      <strong>Price:</strong>{" "}
-                      {formatCurrency(selectedPackage.price)}
-                    </Box>
-                    <Box>
-                      <strong>Installments:</strong>{" "}
-                      {selectedPackage.instalments}
-                    </Box>
-                    <Box>
-                      <strong>Payment Frequency:</strong>{" "}
-                      {selectedPackage.payment_frequency} days
-                    </Box>
-                    <Box>
-                      <strong>Validity:</strong>{" "}
                       {selectedPackage.validity_expiry > 0
                         ? `${selectedPackage.validity_expiry} days`
                         : "No expiry"}
                     </Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Status:</Box>
                     <Box>
-                      <strong>Status:</strong>{" "}
                       <Chip
                         label={
                           selectedPackage.is_active ? "Active" : "Inactive"
@@ -3789,7 +3784,7 @@ const CRMDashboard = ({
                   </Box>
                   {selectedPackage.description && (
                     <Box>
-                      <Typography variant="h6" sx={{ mb: 1 }}>
+                      <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
                         Description
                       </Typography>
                       <Typography>{selectedPackage.description}</Typography>
@@ -3797,7 +3792,7 @@ const CRMDashboard = ({
                   )}
                   {selectedPackage.terms_and_conditions && (
                     <Box>
-                      <Typography variant="h6" sx={{ mb: 1 }}>
+                      <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
                         Terms & Conditions
                       </Typography>
                       <Typography>
@@ -4397,33 +4392,31 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: 2,
+                      gridTemplateColumns: "auto 1fr",
+                      gap: "8px 16px",
+                      alignItems: "center",
                     }}
                   >
+                    <Box sx={{ fontWeight: "bold" }}>Name:</Box>
+                    <Box>{selectedService.name}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Code:</Box>
+                    <Box>{selectedService.code}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Category:</Box>
+                    <Box>{selectedService.category}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Duration:</Box>
+                    <Box>{formatDuration(selectedService.duration)}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Price:</Box>
+                    <Box>{formatCurrency(selectedService.price)}</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Recovery Time:</Box>
+                    <Box>{selectedService.recovery_time} days</Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Status:</Box>
                     <Box>
-                      <strong>Name:</strong> {selectedService.name}
-                    </Box>
-                    <Box>
-                      <strong>Code:</strong> {selectedService.code}
-                    </Box>
-                    <Box>
-                      <strong>Category:</strong> {selectedService.category}
-                    </Box>
-                    <Box>
-                      <strong>Duration:</strong>{" "}
-                      {formatDuration(selectedService.duration)}
-                    </Box>
-                    <Box>
-                      <strong>Price:</strong>{" "}
-                      {formatCurrency(selectedService.price)}
-                    </Box>
-                    <Box>
-                      <strong>Recovery Time:</strong>{" "}
-                      {selectedService.recovery_time} days
-                    </Box>
-                    <Box>
-                      <strong>Status:</strong>{" "}
                       <Chip
                         label={
                           selectedService.is_active ? "Active" : "Inactive"
@@ -4432,8 +4425,9 @@ const CRMDashboard = ({
                         size="small"
                       />
                     </Box>
+
+                    <Box sx={{ fontWeight: "bold" }}>Couple Service:</Box>
                     <Box>
-                      <strong>Couple Service:</strong>{" "}
                       <Chip
                         label={selectedService.is_couple_service ? "Yes" : "No"}
                         color={
@@ -4447,7 +4441,7 @@ const CRMDashboard = ({
                   </Box>
                   {selectedService.description && (
                     <Box>
-                      <Typography variant="h6" sx={{ mb: 1 }}>
+                      <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
                         Description
                       </Typography>
                       <Typography>{selectedService.description}</Typography>

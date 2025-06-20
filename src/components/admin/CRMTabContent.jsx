@@ -479,80 +479,23 @@ const CRMTabContent = () => {
 
       {/* CRM Dashboard Modal */}
       {showCRMDashboard && (
-        <div
-          className="crm-dashboard-overlay"
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            zIndex: 1000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            className="crm-dashboard-container"
-            style={{
-              backgroundColor: "#fff",
-              borderRadius: "8px",
-              width: "98vw",
-              height: "98vh",
-              // maxWidth: "1400px",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              margin: "auto",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              className="crm-dashboard-header"
-              style={{
-                display: "flex",
-                width: "100%",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "16px 24px",
-                backgroundColor: "transparent",
-                color: "black",
-                border: "none",
+        <div className="crm-dashboard-modal">
+          <div className="crm-dashboard-modal-content">
+            <CRMDashboard
+              onClose={handleCloseCRM}
+              onRefresh={() => {
+                fetchRecentContacts();
+                fetchCenters();
               }}
-            >
-              <h3 style={{ margin: 0 }}> </h3>
-              <button
-                className="close-crm-button"
-                onClick={handleCloseCRM}
-                style={{
-                  padding: "8px 16px",
-                  backgroundColor: "#f44336",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                }}
-              >
-                Close
-              </button>
-            </div>
-            <div
-              className="crm-dashboard-content"
-              style={{ flex: 1, overflow: "hidden" }}
-            >
-              <CRMDashboard
-                centers={centers}
-                onRefresh={initializeTab}
-                centerMapping={centerMapping}
-                onClose={handleCloseCRM}
-              />
-            </div>
+              centers={centers}
+              centerMapping={centerMapping}
+            />
           </div>
         </div>
       )}
+
+      {/* Main Content Area */}
+      <div style={{ display: "flex", gap: "24px" }}></div>
     </div>
   );
 };
