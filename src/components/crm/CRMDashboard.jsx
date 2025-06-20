@@ -3575,40 +3575,32 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: 2,
+                      gridTemplateColumns: "auto 1fr",
+                      gap: "8px 16px",
+                      alignItems: "center",
                     }}
                   >
-                    <Box>
-                      <strong>Guest:</strong> {selectedAppointment.guest_name}
-                    </Box>
-                    <Box>
-                      <strong>Service:</strong>{" "}
-                      {selectedAppointment.service_name}
-                    </Box>
-                    <Box>
-                      <strong>Therapist:</strong>{" "}
-                      {selectedAppointment.therapist_name}
-                    </Box>
-                    <Box>
-                      <strong>Start Time:</strong>{" "}
+                    <strong>Guest:</strong>
+                    <span>{selectedAppointment.guest_name}</span>
+                    <strong>Service:</strong>
+                    <span>{selectedAppointment.service_name}</span>
+                    <strong>Therapist:</strong>
+                    <span>{selectedAppointment.therapist_name}</span>
+                    <strong>Start Time:</strong>
+                    <span>
                       {formatDateTime(selectedAppointment.start_time)}
-                    </Box>
-                    <Box>
-                      <strong>End Time:</strong>{" "}
-                      {formatDateTime(selectedAppointment.end_time)}
-                    </Box>
-                    <Box>
-                      <strong>Status:</strong> {selectedAppointment.status}
-                    </Box>
-                    <Box>
-                      <strong>Center:</strong> {selectedAppointment.center_code}{" "}
-                      - {selectedAppointment.center_name}
-                    </Box>
-                    <Box>
-                      <strong>Invoice:</strong>{" "}
-                      {selectedAppointment.invoice_no || "N/A"}
-                    </Box>
+                    </span>
+                    <strong>End Time:</strong>
+                    <span>{formatDateTime(selectedAppointment.end_time)}</span>
+                    <strong>Status:</strong>
+                    <span>{selectedAppointment.status}</span>
+                    <strong>Center:</strong>
+                    <span>
+                      {selectedAppointment.center_code} -{" "}
+                      {selectedAppointment.center_name}
+                    </span>
+                    <strong>Invoice:</strong>
+                    <span>{selectedAppointment.invoice_no || "N/A"}</span>
                   </Box>
                   {selectedAppointment.appointment_notes && (
                     <Box>
@@ -3621,7 +3613,10 @@ const CRMDashboard = ({
                     </Box>
                   )}
                   <Box>
-                    <Typography variant="h6" sx={{ mb: 1 }}>
+                    <Typography
+                      variant="h6"
+                      sx={{ mb: 1, fontSize: "1rem", fontWeight: "bold" }}
+                    >
                       Raw Data
                     </Typography>
                     <Box
@@ -3662,53 +3657,41 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: 2,
+                      gridTemplateColumns: "auto 1fr",
+                      gap: "8px 16px",
+                      alignItems: "center",
                     }}
                   >
-                    <Box>
-                      <strong>Name:</strong> {selectedService.name}
-                    </Box>
-                    <Box>
-                      <strong>Code:</strong> {selectedService.code}
-                    </Box>
-                    <Box>
-                      <strong>Category:</strong> {selectedService.category}
-                    </Box>
-                    <Box>
-                      <strong>Duration:</strong>{" "}
-                      {formatDuration(selectedService.duration)}
-                    </Box>
-                    <Box>
-                      <strong>Price:</strong>{" "}
-                      {formatCurrency(selectedService.price)}
-                    </Box>
-                    <Box>
-                      <strong>Recovery Time:</strong>{" "}
-                      {selectedService.recovery_time} days
-                    </Box>
-                    <Box>
-                      <strong>Status:</strong>{" "}
-                      <Chip
-                        label={
-                          selectedService.is_active ? "Active" : "Inactive"
-                        }
-                        color={selectedService.is_active ? "success" : "error"}
-                        size="small"
-                      />
-                    </Box>
-                    <Box>
-                      <strong>Couple Service:</strong>{" "}
-                      <Chip
-                        label={selectedService.is_couple_service ? "Yes" : "No"}
-                        color={
-                          selectedService.is_couple_service
-                            ? "primary"
-                            : "default"
-                        }
-                        size="small"
-                      />
-                    </Box>
+                    <strong>Name:</strong>
+                    <span>{selectedService.name}</span>
+                    <strong>Code:</strong>
+                    <span>{selectedService.code}</span>
+                    <strong>Category:</strong>
+                    <span>{selectedService.category}</span>
+                    <strong>Duration:</strong>
+                    <span>{formatDuration(selectedService.duration)}</span>
+                    <strong>Price:</strong>
+                    <span>{formatCurrency(selectedService.price)}</span>
+                    <strong>Recovery Time:</strong>
+                    <span>{selectedService.recovery_time} days</span>
+                    <strong>Status:</strong>
+                    <Chip
+                      label={selectedService.is_active ? "Active" : "Inactive"}
+                      color={selectedService.is_active ? "success" : "error"}
+                      size="small"
+                      sx={{ justifySelf: "start" }}
+                    />
+                    <strong>Couple Service:</strong>
+                    <Chip
+                      label={selectedService.is_couple_service ? "Yes" : "No"}
+                      color={
+                        selectedService.is_couple_service
+                          ? "primary"
+                          : "default"
+                      }
+                      size="small"
+                      sx={{ justifySelf: "start" }}
+                    />
                   </Box>
                   {selectedService.description && (
                     <Box>
@@ -3740,51 +3723,38 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: 2,
+                      gridTemplateColumns: "auto 1fr",
+                      gap: "8px 16px",
+                      alignItems: "center",
                     }}
                   >
-                    <Box>
-                      <strong>Name:</strong> {selectedPackage.name}
-                    </Box>
-                    <Box>
-                      <strong>Code:</strong> {selectedPackage.code}
-                    </Box>
-                    <Box>
-                      <strong>Type:</strong> {selectedPackage.type_label}
-                    </Box>
-                    <Box>
-                      <strong>Duration:</strong>{" "}
-                      {formatDuration(selectedPackage.time)}
-                    </Box>
-                    <Box>
-                      <strong>Price:</strong>{" "}
-                      {formatCurrency(selectedPackage.price)}
-                    </Box>
-                    <Box>
-                      <strong>Installments:</strong>{" "}
-                      {selectedPackage.instalments}
-                    </Box>
-                    <Box>
-                      <strong>Payment Frequency:</strong>{" "}
-                      {selectedPackage.payment_frequency} days
-                    </Box>
-                    <Box>
-                      <strong>Validity:</strong>{" "}
+                    <strong>Name:</strong>
+                    <span>{selectedPackage.name}</span>
+                    <strong>Code:</strong>
+                    <span>{selectedPackage.code}</span>
+                    <strong>Type:</strong>
+                    <span>{selectedPackage.type_label}</span>
+                    <strong>Duration:</strong>
+                    <span>{formatDuration(selectedPackage.time)}</span>
+                    <strong>Price:</strong>
+                    <span>{formatCurrency(selectedPackage.price)}</span>
+                    <strong>Installments:</strong>
+                    <span>{selectedPackage.instalments}</span>
+                    <strong>Payment Frequency:</strong>
+                    <span>{selectedPackage.payment_frequency} days</span>
+                    <strong>Validity:</strong>
+                    <span>
                       {selectedPackage.validity_expiry > 0
                         ? `${selectedPackage.validity_expiry} days`
                         : "No expiry"}
-                    </Box>
-                    <Box>
-                      <strong>Status:</strong>{" "}
-                      <Chip
-                        label={
-                          selectedPackage.is_active ? "Active" : "Inactive"
-                        }
-                        color={selectedPackage.is_active ? "success" : "error"}
-                        size="small"
-                      />
-                    </Box>
+                    </span>
+                    <strong>Status:</strong>
+                    <Chip
+                      label={selectedPackage.is_active ? "Active" : "Inactive"}
+                      color={selectedPackage.is_active ? "success" : "error"}
+                      size="small"
+                      sx={{ justifySelf: "start" }}
+                    />
                   </Box>
                   {selectedPackage.description && (
                     <Box>
@@ -4396,53 +4366,41 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: 2,
+                      gridTemplateColumns: "auto 1fr",
+                      gap: "8px 16px",
+                      alignItems: "center",
                     }}
                   >
-                    <Box>
-                      <strong>Name:</strong> {selectedService.name}
-                    </Box>
-                    <Box>
-                      <strong>Code:</strong> {selectedService.code}
-                    </Box>
-                    <Box>
-                      <strong>Category:</strong> {selectedService.category}
-                    </Box>
-                    <Box>
-                      <strong>Duration:</strong>{" "}
-                      {formatDuration(selectedService.duration)}
-                    </Box>
-                    <Box>
-                      <strong>Price:</strong>{" "}
-                      {formatCurrency(selectedService.price)}
-                    </Box>
-                    <Box>
-                      <strong>Recovery Time:</strong>{" "}
-                      {selectedService.recovery_time} days
-                    </Box>
-                    <Box>
-                      <strong>Status:</strong>{" "}
-                      <Chip
-                        label={
-                          selectedService.is_active ? "Active" : "Inactive"
-                        }
-                        color={selectedService.is_active ? "success" : "error"}
-                        size="small"
-                      />
-                    </Box>
-                    <Box>
-                      <strong>Couple Service:</strong>{" "}
-                      <Chip
-                        label={selectedService.is_couple_service ? "Yes" : "No"}
-                        color={
-                          selectedService.is_couple_service
-                            ? "primary"
-                            : "default"
-                        }
-                        size="small"
-                      />
-                    </Box>
+                    <strong>Name:</strong>
+                    <span>{selectedService.name}</span>
+                    <strong>Code:</strong>
+                    <span>{selectedService.code}</span>
+                    <strong>Category:</strong>
+                    <span>{selectedService.category}</span>
+                    <strong>Duration:</strong>
+                    <span>{formatDuration(selectedService.duration)}</span>
+                    <strong>Price:</strong>
+                    <span>{formatCurrency(selectedService.price)}</span>
+                    <strong>Recovery Time:</strong>
+                    <span>{selectedService.recovery_time} days</span>
+                    <strong>Status:</strong>
+                    <Chip
+                      label={selectedService.is_active ? "Active" : "Inactive"}
+                      color={selectedService.is_active ? "success" : "error"}
+                      size="small"
+                      sx={{ justifySelf: "start" }}
+                    />
+                    <strong>Couple Service:</strong>
+                    <Chip
+                      label={selectedService.is_couple_service ? "Yes" : "No"}
+                      color={
+                        selectedService.is_couple_service
+                          ? "primary"
+                          : "default"
+                      }
+                      size="small"
+                      sx={{ justifySelf: "start" }}
+                    />
                   </Box>
                   {selectedService.description && (
                     <Box>
