@@ -3511,33 +3511,32 @@ const CRMDashboard = ({
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: 2,
+                      gridTemplateColumns: "auto 1fr",
+                      gap: "8px 16px",
+                      alignItems: "center",
                     }}
                   >
-                    <Box>
-                      <strong>Name:</strong> {selectedContact.name}
-                    </Box>
-                    <Box>
-                      <strong>Email:</strong> {selectedContact.email || "N/A"}
-                    </Box>
-                    <Box>
-                      <strong>Phone:</strong> {selectedContact.phone || "N/A"}
-                    </Box>
-                    <Box>
-                      <strong>Center:</strong> {selectedContact.center_code} -{" "}
+                    <strong>Name:</strong>
+                    <span>{selectedContact.name}</span>
+                    <strong>Email:</strong>
+                    <span>{selectedContact.email || "N/A"}</span>
+                    <strong>Phone:</strong>
+                    <span>{selectedContact.phone || "N/A"}</span>
+                    <strong>Center:</strong>
+                    <span>
+                      {selectedContact.center_code} -{" "}
                       {selectedContact.center_name}
-                    </Box>
-                    <Box>
-                      <strong>Guest Code:</strong>{" "}
-                      {selectedContact.guest_code || "N/A"}
-                    </Box>
-                    <Box>
-                      <strong>Gender:</strong> {selectedContact.gender}
-                    </Box>
+                    </span>
+                    <strong>Guest Code:</strong>
+                    <span>{selectedContact.guest_code || "N/A"}</span>
+                    <strong>Gender:</strong>
+                    <span>{selectedContact.gender}</span>
                   </Box>
                   <Box>
-                    <Typography variant="h6" sx={{ mb: 1 }}>
+                    <Typography
+                      variant="h6"
+                      sx={{ mb: 1, fontSize: "1rem", fontWeight: "bold" }}
+                    >
                       Raw Data
                     </Typography>
                     <Box
