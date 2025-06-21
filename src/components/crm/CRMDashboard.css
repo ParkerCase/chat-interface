@@ -319,10 +319,16 @@
     transform: translateY(-50%) !important;
     width: 40px !important;
     height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
     background-color: rgba(0, 0, 0, 0.04) !important;
     border-radius: 50% !important;
     color: #6b7280 !important;
     transition: all 0.2s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
   }
 
   .MuiDialogTitle-root .MuiIconButton-root:hover {
@@ -332,6 +338,8 @@
 
   .MuiDialogTitle-root .MuiIconButton-root .MuiSvgIcon-root {
     font-size: 20px !important;
+    width: 20px !important;
+    height: 20px !important;
   }
 
   /* Ensure title text doesn't overlap with close button */
@@ -628,10 +636,14 @@
     right: 8px !important;
     width: 36px !important;
     height: 36px !important;
+    min-width: 36px !important;
+    min-height: 36px !important;
   }
 
   .MuiDialogTitle-root .MuiIconButton-root .MuiSvgIcon-root {
     font-size: 18px !important;
+    width: 18px !important;
+    height: 18px !important;
   }
 
   /* Ensure title text doesn't overlap with close button */
