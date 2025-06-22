@@ -1280,30 +1280,7 @@ const CRMDashboard = ({
               zIndex: 10,
             }}
           >
-            {onClose && (
-              <button
-                onClick={onClose}
-                style={{
-                  position: "absolute",
-                  top: 16,
-                  right: 16,
-                  width: 40,
-                  height: 40,
-                  borderRadius: "50%",
-                  background: "#ef4444",
-                  color: "#fff",
-                  border: "none",
-                  fontSize: 18,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: 600,
-                }}
-              >
-                ×
-              </button>
-            )}
-            <div style={{ paddingRight: onClose ? "60px" : "0" }}>
+            <div>
               <h1
                 style={{
                   fontSize: isMobile ? "20px" : "24px",

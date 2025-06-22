@@ -1251,7 +1251,7 @@ const CRMAnalyticsDashboard = ({
                   Visual Analysis
                 </Typography>
                 <Divider sx={{ mb: 3 }} />
-                <Box sx={{ height: 300 }}>{renderChart()}</Box>
+                <Box sx={{ height: 300, minHeight: 250 }}>{renderChart()}</Box>
               </Paper>
             </Box>
 
