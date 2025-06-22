@@ -510,46 +510,12 @@ const CRMTabContent = () => {
               overflow: "hidden",
             }}
           >
-            <div
-              className="crm-dashboard-header"
-              style={{
-                display: "flex",
-                width: "100%",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "16px 24px",
-                backgroundColor: "transparent",
-                color: "black",
-                border: "none",
-              }}
-            >
-              <h3 style={{ margin: 0 }}> </h3>
-              <button
-                className="close-crm-button"
-                onClick={handleCloseCRM}
-                style={{
-                  padding: "8px 16px",
-                  backgroundColor: "#f44336",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                }}
-              >
-                Close
-              </button>
-            </div>
-            <div
-              className="crm-dashboard-content"
-              style={{ flex: 1, overflow: "hidden" }}
-            >
-              <CRMDashboard
-                centers={centers}
-                onRefresh={initializeTab}
-                centerMapping={centerMapping}
-                onClose={handleCloseCRM}
-              />
-            </div>
+            <CRMDashboard
+              onClose={() => setShowCRMDashboard(false)}
+              centers={centers}
+              centerMapping={centerMapping}
+              onRefresh={initializeTab}
+            />
           </div>
         </div>
       )}

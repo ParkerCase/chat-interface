@@ -62,14 +62,23 @@ import {
   MonetizationOn,
   Package,
   LocalOffer,
-  BarChart,
-  PieChart,
-  Timeline,
   GetApp,
   FilterList,
   MoreVert,
   Mail,
 } from "@mui/icons-material";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  PieChart,
+  Timeline,
+} from "recharts";
 
 // Add CSS for loading animation
 const loadingStyles = `
@@ -3178,44 +3187,84 @@ const CRMDashboard = ({
                     </div>
                   )}
 
-                  {/* Chart Placeholder */}
-                  {!analyticsLoading && !analyticsError && (
+                  {/* Chart */}
+                  {analyticsData.chartData.length > 0 && (
                     <div
                       style={{
-                        background: "#f8fafc",
-                        border: "2px dashed #d1d5db",
+                        height: "300px",
+                        marginTop: "24px",
+                        background: "#ffffff",
                         borderRadius: "8px",
-                        padding: "40px 20px",
-                        textAlign: "center",
-                        marginBottom: "16px",
+                        padding: "16px",
+                        border: "1px solid #e5e7eb",
                       }}
                     >
-                      <div style={{ fontSize: "48px", marginBottom: "16px" }}>
-                        <TrendingUp style={{ fontSize: "48px" }} />
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "16px",
-                          fontWeight: 600,
-                          color: "#374151",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        {analyticsReportType === "appointments"
-                          ? "Appointment Analytics"
-                          : "Sales Analytics"}
-                      </div>
-                      <div style={{ fontSize: "14px", color: "#6b7280" }}>
-                        {analyticsData.chartData.length > 0
-                          ? `${analyticsData.chartData.length} data points available`
-                          : "No chart data available for selected period"}
-                      </div>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={analyticsData.chartData}>
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            vertical={false}
+                          />
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fontSize: 12, fill: "#6b7280" }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 12, fill: "#6b7280" }}
+                            axisLine={false}
+                            tickLine={false}
+                            tickFormatter={(value) =>
+                              `$${(value / 1000).toFixed(0)}k`
+                            }
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              background: "#ffffff",
+                              border: "1px solid #e5e7eb",
+                              borderRadius: "8px",
+                              fontSize: "14px",
+                            }}
+                          />
+                          <Legend
+                            wrapperStyle={{
+                              fontSize: "14px",
+                              paddingTop: "16px",
+                            }}
+                          />
+                          {analyticsReportType === "accrual" && (
+                            <Bar
+                              dataKey="sales"
+                              fill="#4f46e5"
+                              name="Total Sales"
+                              radius={[4, 4, 0, 0]}
+                            />
+                          )}
+                          {analyticsReportType === "cash_basis" && (
+                            <Bar
+                              dataKey="collected"
+                              fill="#10b981"
+                              name="Cash Collected"
+                              radius={[4, 4, 0, 0]}
+                            />
+                          )}
+                          {analyticsReportType === "appointments" && (
+                            <Bar
+                              dataKey="appointments"
+                              fill="#f59e0b"
+                              name="Total Appointments"
+                              radius={[4, 4, 0, 0]}
+                            />
+                          )}
+                        </BarChart>
+                      </ResponsiveContainer>
                     </div>
                   )}
 
-                  {/* Quick Stats */}
-                  {!analyticsLoading && !analyticsError && (
-                    <div style={{ marginBottom: "16px" }}>
+                  {/* Data Table */}
+                  {analyticsData.rawReportData.length > 0 && (
+                    <div style={{ marginTop: "24px" }}>
                       <h4
                         style={{
                           fontSize: "16px",
@@ -3226,13 +3275,7 @@ const CRMDashboard = ({
                       >
                         Report Summary
                       </h4>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "8px",
-                        }}
-                      >
+                      <div style={{ fontSize: "14px", color: "#6b7280" }}>
                         {analyticsReportType === "appointments" ? (
                           <>
                             <div
