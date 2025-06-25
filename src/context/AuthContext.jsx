@@ -670,6 +670,8 @@ export function AuthProvider({ children }) {
             }
           } catch (e) {
             logAuth("Error parsing stored user:", e.message);
+            setIsInitialized(true);
+            setLoading(false);
           }
         }
 
@@ -793,16 +795,19 @@ export function AuthProvider({ children }) {
               localStorage.setItem("isAuthenticated", "true");
             } catch (profileError) {
               logAuth("Error processing profile:", profileError.message);
+            } finally {
+              setIsInitialized(true);
+              setLoading(false);
             }
           }
         } else {
           logAuth("No active session found");
           setCurrentUser(null);
+          setIsInitialized(true);
+          setLoading(false);
         }
       } catch (err) {
         logAuth("Auth initialization error:", err.message);
-      } finally {
-        // Always ensure we set these flags to avoid UI hanging
         setIsInitialized(true);
         setLoading(false);
       }
