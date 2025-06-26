@@ -754,11 +754,39 @@ export function AuthProvider({ children }) {
             logAuth("Getting profile data for user:", userEmail);
 
             try {
-              // Get user profile
-              const profileData = await safeGetUserProfile(
+              let profileData = await safeGetUserProfile(
                 userData.user.id,
                 userEmail
               );
+
+              if (!profileData || !profileData.id) {
+                // Profile does not exist, create it
+                const { error: createError } = await supabase.rpc(
+                  "create_admin_profile",
+                  {
+                    profile_id: userData.user.id,
+                    profile_email: userEmail,
+                    profile_name: userEmail.split("@")[0],
+                    profile_roles: ["user"],
+                  }
+                );
+                if (createError) {
+                  logAuth(
+                    "Error creating profile for new user:",
+                    createError.message
+                  );
+                } else {
+                  logAuth(
+                    "Created new profile for first-time user:",
+                    userEmail
+                  );
+                  // Try fetching the profile again
+                  profileData = await safeGetUserProfile(
+                    userData.user.id,
+                    userEmail
+                  );
+                }
+              }
 
               // Check MFA status
               const mfaVerified =
@@ -873,10 +901,36 @@ export function AuthProvider({ children }) {
         } else {
           try {
             // Get or create profile
-            const profileData = await safeGetUserProfile(
+            let profileData = await safeGetUserProfile(
               session.user.id,
               userEmail
             );
+
+            if (!profileData || !profileData.id) {
+              // Profile does not exist, create it
+              const { error: createError } = await supabase.rpc(
+                "create_admin_profile",
+                {
+                  profile_id: session.user.id,
+                  profile_email: userEmail,
+                  profile_name: userEmail.split("@")[0],
+                  profile_roles: ["user"],
+                }
+              );
+              if (createError) {
+                logAuth(
+                  "Error creating profile for new user:",
+                  createError.message
+                );
+              } else {
+                logAuth("Created new profile for first-time user:", userEmail);
+                // Try fetching the profile again
+                profileData = await safeGetUserProfile(
+                  session.user.id,
+                  userEmail
+                );
+              }
+            }
 
             // MFA handling
             let requiresMfa = true;

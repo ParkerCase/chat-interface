@@ -12,6 +12,7 @@ import {
   X,
   Folder,
   Search,
+  Terminal,
 } from "lucide-react";
 
 // Mac Setup Screenshot Component
@@ -711,100 +712,20 @@ const ClaudeMCPModal = ({ isOpen, onClose, autoSignIn = true }) => {
   const [configDownloaded, setConfigDownloaded] = useState(false);
   const [showScreenshot, setShowScreenshot] = useState(false);
 
-  // Your MCP backend configuration
-  const MCP_BACKEND_URL = "http://147.182.247.128:3000";
-
+  // Updated MCP configuration using SSE format
   const mcpConfig = {
     mcpServers: {
       "tatt2away-dropbox": {
-        command: "node",
-        args: [
-          "-p",
-          `
-const { Server } = require('@modelcontextprotocol/sdk/server/index.js');
-const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
-
-// Proxy to your remote MCP server
-const proxyServer = new Server({
-  name: 'tatt2away-dropbox-proxy',
-  version: '1.0.0'
-}, { capabilities: { tools: {} } });
-
-// Forward all requests to your remote server
-proxyServer.setRequestHandler('tools/list', async () => {
-  const response = await fetch('${MCP_BACKEND_URL}/mcp/dropbox/sse', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
-  });
-  const data = await response.json();
-  return data.result;
-});
-
-proxyServer.setRequestHandler('tools/call', async (request) => {
-  const response = await fetch('${MCP_BACKEND_URL}/mcp/dropbox/sse', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: request.id || 1,
-      method: 'tools/call',
-      params: request.params
-    })
-  });
-  const data = await response.json();
-  return data.result;
-});
-
-const transport = new StdioServerTransport();
-proxyServer.connect(transport);
-`,
-        ],
+        transport: {
+          type: "sse",
+          url: "http://147.182.247.128:3000/mcp/dropbox/sse",
+        },
       },
       "tatt2away-zenoti": {
-        command: "node",
-        args: [
-          "-p",
-          `
-const { Server } = require('@modelcontextprotocol/sdk/server/index.js');
-const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
-
-// Proxy to your remote MCP server
-const proxyServer = new Server({
-  name: 'tatt2away-zenoti-proxy',
-  version: '1.0.0'
-}, { capabilities: { tools: {} } });
-
-// Forward all requests to your remote server
-proxyServer.setRequestHandler('tools/list', async () => {
-  const response = await fetch('${MCP_BACKEND_URL}/mcp/zenoti/sse', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
-  });
-  const data = await response.json();
-  return data.result;
-});
-
-proxyServer.setRequestHandler('tools/call', async (request) => {
-  const response = await fetch('${MCP_BACKEND_URL}/mcp/zenoti/sse', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: request.id || 1,
-      method: 'tools/call',
-      params: request.params
-    })
-  });
-  const data = await response.json();
-  return data.result;
-});
-
-const transport = new StdioServerTransport();
-proxyServer.connect(transport);
-`,
-        ],
+        transport: {
+          type: "sse",
+          url: "http://147.182.247.128:3000/mcp/zenoti/sse",
+        },
       },
     },
   };
@@ -840,7 +761,11 @@ proxyServer.connect(transport);
   const launchClaude = () => {
     // Try to launch Claude Desktop with proper protocol
     try {
-      if (selectedPlatform === "mac" || selectedPlatform === "windows") {
+      if (
+        selectedPlatform === "mac" ||
+        selectedPlatform === "windows" ||
+        selectedPlatform === "linux"
+      ) {
         // Create a hidden link element to trigger Claude Desktop
         const link = document.createElement("a");
         link.href = "claude://";
@@ -851,7 +776,7 @@ proxyServer.connect(transport);
 
         // Show success message
         alert(
-          "Claude Desktop should now be opening! If it doesn't open automatically, please launch Claude Desktop manually from your Applications folder (Mac) or Start Menu (Windows)."
+          "Claude Desktop should now be opening! If it doesn't open automatically, please launch Claude Desktop manually from your Applications folder (Mac), Start Menu (Windows), or applications menu (Linux)."
         );
       } else {
         // For "Already Configured" option, also try to launch desktop
@@ -869,7 +794,7 @@ proxyServer.connect(transport);
     } catch (error) {
       // If desktop launch fails, provide manual instructions
       alert(
-        "Please manually open Claude Desktop from your Applications folder (Mac) or Start Menu (Windows). Your MCP tools are now configured and ready to use!"
+        "Please manually open Claude Desktop from your Applications folder (Mac), Start Menu (Windows), or applications menu (Linux). Your MCP tools are now configured and ready to use!"
       );
     }
   };
@@ -1191,6 +1116,43 @@ proxyServer.connect(transport);
 
                 <button
                   onClick={() => {
+                    setSelectedPlatform("linux");
+                    setCurrentStep(2);
+                  }}
+                  style={{
+                    background: "linear-gradient(135deg, #FF6B35, #F7931E)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "20px",
+                    padding: "30px 40px",
+                    fontSize: "28px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "20px",
+                    transition: "all 0.3s ease",
+                    boxShadow: "0 8px 30px rgba(255, 107, 53, 0.3)",
+                    transform: "scale(1)",
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.transform = "scale(1.05)";
+                    e.target.style.boxShadow =
+                      "0 12px 40px rgba(255, 107, 53, 0.5)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.transform = "scale(1)";
+                    e.target.style.boxShadow =
+                      "0 8px 30px rgba(255, 107, 53, 0.3)";
+                  }}
+                >
+                  <Terminal size={48} />
+                  <span>Linux Computer</span>
+                </button>
+
+                <button
+                  onClick={() => {
                     setSelectedPlatform("configured");
                     setCurrentStep(4);
                   }}
@@ -1381,12 +1343,12 @@ proxyServer.connect(transport);
                                   fontWeight: "bold",
                                 }}
                               >
-                                Cmd + Shift + G
+                                Cmd + Space
                               </kbd>{" "}
-                              at the same time
+                              to open Spotlight search
                             </li>
                             <li style={{ marginBottom: "15px" }}>
-                              Type:{" "}
+                              Type{" "}
                               <code
                                 style={{
                                   backgroundColor: "#f0f0f0",
@@ -1396,13 +1358,77 @@ proxyServer.connect(transport);
                                   fontSize: "16px",
                                 }}
                               >
-                                ~/Library/Application Support/Claude/
-                              </code>
+                                Terminal
+                              </code>{" "}
+                              and press Enter
                             </li>
                             <li style={{ marginBottom: "15px" }}>
-                              Press Enter
+                              Copy and paste this command exactly:
+                              <div
+                                style={{
+                                  backgroundColor: "#f8f9fa",
+                                  padding: "12px",
+                                  borderRadius: "8px",
+                                  fontFamily: "monospace",
+                                  fontSize: "14px",
+                                  marginTop: "8px",
+                                  border: "1px solid #dee2e6",
+                                }}
+                              >
+                                nano ~/Library/Application\
+                                Support/Claude/claude_desktop_config.json
+                              </div>
                             </li>
-                            <li>Drag the downloaded file into this folder</li>
+                            <li style={{ marginBottom: "15px" }}>
+                              Press Enter, then paste the downloaded
+                              configuration
+                            </li>
+                            <li style={{ marginBottom: "15px" }}>
+                              Press{" "}
+                              <kbd
+                                style={{
+                                  backgroundColor: "#f0f0f0",
+                                  padding: "8px 12px",
+                                  borderRadius: "8px",
+                                  fontFamily: "monospace",
+                                  fontSize: "18px",
+                                  fontWeight: "bold",
+                                }}
+                              >
+                                Control + O
+                              </kbd>{" "}
+                              then Enter to save
+                            </li>
+                            <li style={{ marginBottom: "15px" }}>
+                              Press{" "}
+                              <kbd
+                                style={{
+                                  backgroundColor: "#f0f0f0",
+                                  padding: "8px 12px",
+                                  borderRadius: "8px",
+                                  fontFamily: "monospace",
+                                  fontSize: "18px",
+                                  fontWeight: "bold",
+                                }}
+                              >
+                                Control + X
+                              </kbd>{" "}
+                              to exit
+                            </li>
+                            <li>
+                              Type{" "}
+                              <code
+                                style={{
+                                  backgroundColor: "#f0f0f0",
+                                  padding: "4px 8px",
+                                  borderRadius: "4px",
+                                  fontFamily: "monospace",
+                                }}
+                              >
+                                exit
+                              </code>{" "}
+                              and press Enter to close Terminal
+                            </li>
                           </ol>
                         </div>
                       )}
@@ -1437,12 +1463,12 @@ proxyServer.connect(transport);
                                   fontWeight: "bold",
                                 }}
                               >
-                                Windows + R
+                                Windows Key + R
                               </kbd>{" "}
                               at the same time
                             </li>
                             <li style={{ marginBottom: "15px" }}>
-                              Type:{" "}
+                              Type{" "}
                               <code
                                 style={{
                                   backgroundColor: "#f0f0f0",
@@ -1452,13 +1478,180 @@ proxyServer.connect(transport);
                                   fontSize: "16px",
                                 }}
                               >
-                                %APPDATA%\Claude
-                              </code>
+                                notepad
+                              </code>{" "}
+                              and press Enter
                             </li>
                             <li style={{ marginBottom: "15px" }}>
-                              Press Enter
+                              Copy the downloaded configuration and paste it
+                              into Notepad
                             </li>
-                            <li>Drag the downloaded file into this folder</li>
+                            <li style={{ marginBottom: "15px" }}>
+                              Click <strong>File → Save As</strong>
+                            </li>
+                            <li style={{ marginBottom: "15px" }}>
+                              In the <strong>"Save as type"</strong> dropdown,
+                              select <strong>"All Files"</strong>
+                            </li>
+                            <li style={{ marginBottom: "15px" }}>
+                              In the file name box, type exactly:
+                              <div
+                                style={{
+                                  backgroundColor: "#f8f9fa",
+                                  padding: "12px",
+                                  borderRadius: "8px",
+                                  fontFamily: "monospace",
+                                  fontSize: "14px",
+                                  marginTop: "8px",
+                                  border: "1px solid #dee2e6",
+                                }}
+                              >
+                                claude_desktop_config.json
+                              </div>
+                            </li>
+                            <li style={{ marginBottom: "15px" }}>
+                              In the address bar at the top, type:
+                              <div
+                                style={{
+                                  backgroundColor: "#f8f9fa",
+                                  padding: "12px",
+                                  borderRadius: "8px",
+                                  fontFamily: "monospace",
+                                  fontSize: "14px",
+                                  marginTop: "8px",
+                                  border: "1px solid #dee2e6",
+                                }}
+                              >
+                                %APPDATA%\Claude
+                              </div>
+                              and press Enter
+                            </li>
+                            <li style={{ marginBottom: "15px" }}>
+                              If you get an error that the folder doesn't exist:
+                              <ul
+                                style={{
+                                  paddingLeft: "20px",
+                                  marginTop: "8px",
+                                }}
+                              >
+                                <li>
+                                  Navigate to{" "}
+                                  <code
+                                    style={{
+                                      backgroundColor: "#f0f0f0",
+                                      padding: "4px 8px",
+                                      borderRadius: "4px",
+                                      fontFamily: "monospace",
+                                    }}
+                                  >
+                                    C:\Users\[YourUsername]\AppData\Roaming
+                                  </code>
+                                </li>
+                                <li>
+                                  Create a new folder called{" "}
+                                  <strong>"Claude"</strong>
+                                </li>
+                                <li>Go into that folder</li>
+                              </ul>
+                            </li>
+                            <li>
+                              Click <strong>Save</strong> and close Notepad
+                            </li>
+                          </ol>
+                        </div>
+                      )}
+
+                      {selectedPlatform === "linux" && (
+                        <div
+                          style={{
+                            textAlign: "left",
+                            fontSize: "20px",
+                            lineHeight: "1.8",
+                          }}
+                        >
+                          <p
+                            style={{
+                              fontWeight: "bold",
+                              fontSize: "24px",
+                              marginBottom: "20px",
+                            }}
+                          >
+                            On your Linux computer:
+                          </p>
+                          <ol style={{ paddingLeft: "30px", color: "#333" }}>
+                            <li style={{ marginBottom: "15px" }}>
+                              Open Terminal (Ctrl + Alt + T)
+                            </li>
+                            <li style={{ marginBottom: "15px" }}>
+                              Create the Claude config directory:
+                              <div
+                                style={{
+                                  backgroundColor: "#f8f9fa",
+                                  padding: "12px",
+                                  borderRadius: "8px",
+                                  fontFamily: "monospace",
+                                  fontSize: "14px",
+                                  marginTop: "8px",
+                                  border: "1px solid #dee2e6",
+                                }}
+                              >
+                                mkdir -p ~/.config/claude
+                              </div>
+                            </li>
+                            <li style={{ marginBottom: "15px" }}>
+                              Open the config file in a text editor:
+                              <div
+                                style={{
+                                  backgroundColor: "#f8f9fa",
+                                  padding: "12px",
+                                  borderRadius: "8px",
+                                  fontFamily: "monospace",
+                                  fontSize: "14px",
+                                  marginTop: "8px",
+                                  border: "1px solid #dee2e6",
+                                }}
+                              >
+                                nano ~/.config/claude/claude_desktop_config.json
+                              </div>
+                            </li>
+                            <li style={{ marginBottom: "15px" }}>
+                              Copy and paste the downloaded configuration
+                            </li>
+                            <li style={{ marginBottom: "15px" }}>
+                              Press{" "}
+                              <kbd
+                                style={{
+                                  backgroundColor: "#f0f0f0",
+                                  padding: "8px 12px",
+                                  borderRadius: "8px",
+                                  fontFamily: "monospace",
+                                  fontSize: "18px",
+                                  fontWeight: "bold",
+                                }}
+                              >
+                                Ctrl + O
+                              </kbd>{" "}
+                              to save
+                            </li>
+                            <li style={{ marginBottom: "15px" }}>
+                              Press Enter to confirm
+                            </li>
+                            <li>
+                              Press{" "}
+                              <kbd
+                                style={{
+                                  backgroundColor: "#f0f0f0",
+                                  padding: "8px 12px",
+                                  borderRadius: "8px",
+                                  fontFamily: "monospace",
+                                  fontSize: "18px",
+                                  fontWeight: "bold",
+                                }}
+                              >
+                                Ctrl + X
+                              </kbd>{" "}
+                              to exit
+                            </li>
                           </ol>
                         </div>
                       )}
@@ -1672,25 +1865,175 @@ proxyServer.connect(transport);
                     color: "#1976D2",
                   }}
                 >
-                  What to do next:
+                  Installation Instructions:
                 </h3>
-                <ol
-                  style={{
-                    fontSize: "22px",
-                    textAlign: "left",
-                    lineHeight: "1.8",
-                    maxWidth: "500px",
-                    margin: "0 auto",
-                    paddingLeft: "30px",
-                    color: "#333",
-                  }}
-                >
-                  <li style={{ marginBottom: "15px" }}>
-                    Install Claude Desktop from the download
-                  </li>
-                  <li style={{ marginBottom: "15px" }}>Open Claude Desktop</li>
-                  <li>Your advanced tools will be ready to use! 🎉</li>
-                </ol>
+
+                {selectedPlatform === "mac" && (
+                  <div
+                    style={{
+                      textAlign: "left",
+                      fontSize: "20px",
+                      lineHeight: "1.8",
+                    }}
+                  >
+                    <ol style={{ paddingLeft: "30px", color: "#333" }}>
+                      <li style={{ marginBottom: "15px" }}>
+                        Wait for the <strong>.dmg</strong> file to download to
+                        your Downloads folder
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        Double-click the Claude <strong>.dmg</strong> file
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        Drag the <strong>Claude</strong> app into your{" "}
+                        <strong>Applications</strong> folder
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        Open <strong>Launchpad</strong> or{" "}
+                        <strong>Finder → Applications</strong>
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        Click on <strong>Claude</strong> to launch it for the
+                        first time
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        <strong>Important:</strong> Sign in with your Claude
+                        account and complete the initial setup
+                      </li>
+                      <li>
+                        <strong>Close Claude completely</strong> (right-click
+                        the Claude icon in dock → Quit)
+                      </li>
+                    </ol>
+                  </div>
+                )}
+
+                {selectedPlatform === "windows" && (
+                  <div
+                    style={{
+                      textAlign: "left",
+                      fontSize: "20px",
+                      lineHeight: "1.8",
+                    }}
+                  >
+                    <ol style={{ paddingLeft: "30px", color: "#333" }}>
+                      <li style={{ marginBottom: "15px" }}>
+                        Wait for the <strong>.exe</strong> file to download
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        Open your <strong>Downloads</strong> folder
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        Double-click the <strong>Claude installer file</strong>
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        Follow the installation wizard (click Next, Accept,
+                        Install)
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        Check <strong>"Launch Claude"</strong> at the end and
+                        click <strong>Finish</strong>
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        Sign in with your Claude account and complete setup
+                      </li>
+                      <li>
+                        <strong>Close Claude completely</strong> (right-click
+                        the Claude icon in system tray → Exit)
+                      </li>
+                    </ol>
+                  </div>
+                )}
+
+                {selectedPlatform === "linux" && (
+                  <div
+                    style={{
+                      textAlign: "left",
+                      fontSize: "20px",
+                      lineHeight: "1.8",
+                    }}
+                  >
+                    <ol style={{ paddingLeft: "30px", color: "#333" }}>
+                      <li style={{ marginBottom: "15px" }}>
+                        Choose the appropriate package for your distribution:
+                        <ul style={{ paddingLeft: "20px", marginTop: "8px" }}>
+                          <li>
+                            <strong>Ubuntu/Debian:</strong> Download the{" "}
+                            <strong>.deb</strong> file
+                          </li>
+                          <li>
+                            <strong>Red Hat/Fedora:</strong> Download the{" "}
+                            <strong>.rpm</strong> file
+                          </li>
+                          <li>
+                            <strong>Other:</strong> Download the{" "}
+                            <strong>.AppImage</strong> file
+                          </li>
+                        </ul>
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        Open Terminal (Ctrl + Alt + T)
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        Navigate to your Downloads folder:
+                        <div
+                          style={{
+                            backgroundColor: "#f8f9fa",
+                            padding: "8px",
+                            borderRadius: "4px",
+                            fontFamily: "monospace",
+                            fontSize: "16px",
+                            marginTop: "4px",
+                          }}
+                        >
+                          cd ~/Downloads
+                        </div>
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        Install based on your package type:
+                        <div
+                          style={{
+                            backgroundColor: "#f8f9fa",
+                            padding: "8px",
+                            borderRadius: "4px",
+                            fontFamily: "monospace",
+                            fontSize: "14px",
+                            marginTop: "4px",
+                          }}
+                        >
+                          <strong>For .deb:</strong> sudo dpkg -i
+                          claude-desktop-*.deb && sudo apt-get install -f
+                          <br />
+                          <strong>For .rpm:</strong> sudo rpm -i
+                          claude-desktop-*.rpm
+                          <br />
+                          <strong>For .AppImage:</strong> chmod +x
+                          Claude-*.AppImage && ./Claude-*.AppImage
+                        </div>
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        Launch Claude (type{" "}
+                        <code
+                          style={{
+                            backgroundColor: "#f0f0f0",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            fontFamily: "monospace",
+                          }}
+                        >
+                          claude
+                        </code>{" "}
+                        in terminal or find it in your applications menu)
+                      </li>
+                      <li style={{ marginBottom: "15px" }}>
+                        Sign in and complete initial setup
+                      </li>
+                      <li>
+                        <strong>Close Claude completely</strong>
+                      </li>
+                    </ol>
+                  </div>
+                )}
               </div>
 
               <div
@@ -1901,6 +2244,155 @@ proxyServer.connect(transport);
                 <Monitor size={36} />
                 <span>Open Claude Desktop</span>
               </button>
+
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #e8f5e8, #d4edda)",
+                  borderRadius: "20px",
+                  padding: "30px",
+                  marginBottom: "30px",
+                  border: "2px solid #28a745",
+                }}
+              >
+                <h3
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: "bold",
+                    marginBottom: "20px",
+                    color: "#155724",
+                  }}
+                >
+                  🧪 Test Your Setup
+                </h3>
+                <p
+                  style={{
+                    fontSize: "18px",
+                    color: "#333",
+                    marginBottom: "20px",
+                  }}
+                >
+                  Once Claude Desktop opens, try these test queries:
+                </p>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr",
+                    gap: "15px",
+                    textAlign: "left",
+                    maxWidth: "600px",
+                    margin: "0 auto",
+                  }}
+                >
+                  <div
+                    style={{
+                      background: "white",
+                      borderRadius: "10px",
+                      padding: "15px",
+                      border: "1px solid #dee2e6",
+                    }}
+                  >
+                    <strong>1. "Test my Dropbox connection"</strong> - Verify
+                    basic connectivity
+                  </div>
+                  <div
+                    style={{
+                      background: "white",
+                      borderRadius: "10px",
+                      padding: "15px",
+                      border: "1px solid #dee2e6",
+                    }}
+                  >
+                    <strong>
+                      2. "Search for images of flowers in my Dropbox"
+                    </strong>{" "}
+                    - Test filename search
+                  </div>
+                  <div
+                    style={{
+                      background: "white",
+                      borderRadius: "10px",
+                      padding: "15px",
+                      border: "1px solid #dee2e6",
+                    }}
+                  >
+                    <strong>
+                      3. "Find images that look like stage 2 tattoo removal"
+                    </strong>{" "}
+                    - Test visual analysis
+                  </div>
+                  <div
+                    style={{
+                      background: "white",
+                      borderRadius: "10px",
+                      padding: "15px",
+                      border: "1px solid #dee2e6",
+                    }}
+                  >
+                    <strong>4. "Test Zenoti authentication"</strong> - Verify
+                    business system access
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #fff3cd, #ffeaa7)",
+                  borderRadius: "20px",
+                  padding: "30px",
+                  marginBottom: "30px",
+                  border: "2px solid #ffc107",
+                }}
+              >
+                <h3
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: "bold",
+                    marginBottom: "20px",
+                    color: "#856404",
+                  }}
+                >
+                  🔧 Troubleshooting
+                </h3>
+                <div
+                  style={{
+                    textAlign: "left",
+                    fontSize: "16px",
+                    lineHeight: "1.6",
+                  }}
+                >
+                  <p style={{ marginBottom: "15px" }}>
+                    <strong>If you see red errors:</strong>
+                  </p>
+                  <ul style={{ paddingLeft: "20px", marginBottom: "20px" }}>
+                    <li>Check that you copied the configuration exactly</li>
+                    <li>Verify the file is in the correct directory</li>
+                    <li>Restart Claude Desktop completely</li>
+                  </ul>
+                  <p style={{ marginBottom: "15px" }}>
+                    <strong>If image analysis doesn't work:</strong>
+                  </p>
+                  <ul style={{ paddingLeft: "20px", marginBottom: "20px" }}>
+                    <li>Start with "Test my Dropbox connection" first</li>
+                    <li>
+                      Check server status at:{" "}
+                      <code
+                        style={{
+                          backgroundColor: "#f0f0f0",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        http://147.182.247.128:3000/health
+                      </code>
+                    </li>
+                  </ul>
+                  <p style={{ marginBottom: "15px" }}>
+                    <strong>Need help?</strong> Check the server health link
+                    above or restart Claude Desktop.
+                  </p>
+                </div>
+              </div>
 
               <button
                 onClick={resetSetup}
