@@ -14,6 +14,7 @@ import {
   FileText,
 } from "lucide-react";
 import "./DocumentUploader.css";
+import documentEmbeddingProcessor from "../../utils/documentEmbeddingProcessor";
 
 const DocumentUploader = () => {
   const [storageSettings, setStorageSettings] = useState(null);
@@ -106,6 +107,39 @@ const DocumentUploader = () => {
   // Handle upload complete
   const handleUploadComplete = async (files) => {
     setSuccess(`Successfully processed ${files.length} document(s)`);
+    
+    // Process embeddings for uploaded documents
+    try {
+      // Get the newly uploaded documents from the database
+      const { data: newDocuments, error } = await supabase
+        .from("documents")
+        .select("id, content, name")
+        .eq("source_type", "upload")
+        .gte("created_at", new Date(Date.now() - 60000).toISOString()) // Last minute
+        .order("created_at", { ascending: false })
+        .limit(files.length);
+
+      if (!error && newDocuments && newDocuments.length > 0) {
+        console.log(`Triggering embedding generation for ${newDocuments.length} uploaded documents`);
+        
+        // Queue each document for embedding processing
+        newDocuments.forEach(doc => {
+          if (doc.content) {
+            documentEmbeddingProcessor.onDocumentUploaded({
+              id: doc.id,
+              content: doc.content,
+              name: doc.name
+            });
+          }
+        });
+        
+        setSuccess(`Successfully processed ${files.length} document(s) and queued for AI knowledge base integration`);
+      }
+    } catch (embeddingError) {
+      console.error("Error processing embeddings for uploaded documents:", embeddingError);
+      // Don't fail the upload, just log the error
+    }
+    
     // Refresh recent uploads
     await fetchRecentUploads();
   };

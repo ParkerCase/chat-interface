@@ -40,6 +40,17 @@ import ChatImageResults from "../../components/ChatImageResults";
 import "./ChatbotTabContent.css";
 import ClaudeMCPModal from "../ClaudeMCPModal";
 import { SupabaseAnalytics } from "../../utils/SupabaseAnalyticsIntegration";
+import ragService from "../../utils/ragService";
+import documentEmbeddingProcessor from "../../utils/documentEmbeddingProcessor";
+import RAGStatusIndicator from "../RAGStatusIndicator";
+import "../../utils/ragMonitor"; // Load RAG monitoring tools
+import "../../utils/embeddingStatusChecker"; // Load embedding status checker
+
+// Make ragService globally available for testing
+if (typeof window !== 'undefined') {
+  window.ragService = ragService;
+  window.supabase = supabase;
+}
 
 // Add at the top, after imports
 function useWindowSize() {
@@ -934,6 +945,51 @@ ${
       }
 
       setUploadProgress(100);
+
+      // Process embeddings for the uploaded document content
+      try {
+        if (documentContent && !documentContent.startsWith('[File:') && !documentContent.startsWith('[Document:')) {
+          // Generate a unique document ID for this chat upload
+          const chatDocId = `chat_upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
+          // Store document content in the documents table for future RAG retrieval
+          const { data: docInsert, error: docError } = await supabase
+            .from("documents")
+            .insert({
+              id: chatDocId,
+              content: documentContent,
+              metadata: {
+                source_type: 'chat_upload',
+                file_name: file.name,
+                file_type: file.type,
+                uploaded_by: currentUser?.id || "default-user",
+                thread_id: selectedThreadId || threadId,
+                upload_timestamp: new Date().toISOString()
+              },
+              document_type: 'chat_document',
+              source_type: 'chat_upload',
+              status: 'active',
+              created_by: currentUser?.id || null,
+              name: `Chat Upload: ${file.name}`
+            });
+
+          if (!docError) {
+            console.log(`Stored chat document ${chatDocId} for RAG retrieval`);
+            
+            // Queue for embedding generation
+            documentEmbeddingProcessor.onDocumentUploaded({
+              id: chatDocId,
+              content: documentContent,
+              name: file.name
+            });
+          } else {
+            console.warn("Failed to store chat document for RAG:", docError);
+          }
+        }
+      } catch (ragStoreError) {
+        console.warn("Error storing document for RAG:", ragStoreError);
+        // Don't fail the upload process
+      }
 
       // Clear input and file after sending
       setInputText("");
@@ -1928,6 +1984,7 @@ ${
     setIsLoading(true);
     setError(null);
 
+    const originalQuery = inputText.trim();
     let threadId = selectedThreadId;
 
     // Only create a thread if needed
@@ -1935,7 +1992,7 @@ ${
       const { data: thread, error: threadError } = await supabase
         .from("chat_threads")
         .insert([
-          { user_id: currentUser.id, title: inputText.substring(0, 30) },
+          { user_id: currentUser.id, title: originalQuery.substring(0, 30) },
         ])
         .select("id")
         .single();
@@ -1957,7 +2014,7 @@ ${
       .insert([
         {
           user_id: currentUser.id,
-          content: inputText,
+          content: originalQuery,
           sender: "user",
           message_type: "user",
           created_at: new Date().toISOString(),
@@ -1971,8 +2028,29 @@ ${
       return;
     }
 
-    // OpenAI API call (add detailed logging)
+    // **RAG ENHANCEMENT** - Search for relevant documents
+    let enhancedPrompt = originalQuery;
+    let ragInfo = null;
+    
+    try {
+      console.log("RAG: Enhancing query with knowledge base...");
+      ragInfo = await ragService.enhanceQuery(originalQuery);
+      
+      if (ragInfo.hasContext) {
+        enhancedPrompt = ragInfo.enhancedPrompt;
+        console.log(`RAG: Enhanced prompt with ${ragInfo.documentsFound} documents`);
+      } else {
+        console.log("RAG: No relevant documents found, using original query");
+      }
+    } catch (ragError) {
+      console.warn("RAG enhancement failed, proceeding with original query:", ragError);
+      // Continue with original query if RAG fails
+    }
+
+    // OpenAI API call with enhanced prompt
     let assistantMessage = "";
+    let responseMetadata = {};
+    
     try {
       const openaiResponse = await fetch(
         "https://api.openai.com/v1/chat/completions",
@@ -1984,15 +2062,33 @@ ${
           },
           body: JSON.stringify({
             model: "gpt-3.5-turbo",
-            messages: [{ role: "user", content: inputText }],
+            messages: [{ role: "user", content: enhancedPrompt }],
+            max_tokens: 2000, // Allow for longer responses with context
+            temperature: 0.7,
           }),
         }
       );
+      
       console.log("OpenAI raw response:", openaiResponse);
       const openaiData = await openaiResponse.json();
       console.log("OpenAI API response JSON:", openaiData);
-      assistantMessage =
-        openaiData.choices?.[0]?.message?.content || "No response from OpenAI.";
+      
+      assistantMessage = openaiData.choices?.[0]?.message?.content || "No response from OpenAI.";
+      
+      // Add metadata about RAG usage
+      responseMetadata = {
+        ragUsed: ragInfo?.hasContext || false,
+        documentsFound: ragInfo?.documentsFound || 0,
+        enhancementError: ragInfo?.error || null,
+        originalQuery: originalQuery,
+        usedEnhancedPrompt: ragInfo?.hasContext || false
+      };
+      
+      // Add a subtle indicator when RAG was used
+      if (ragInfo?.hasContext && ragInfo.documentsFound > 0) {
+        assistantMessage += `\n\n*[Response generated using ${ragInfo.documentsFound} document${ragInfo.documentsFound > 1 ? 's' : ''} from knowledge base]*`;
+      }
+      
     } catch (err) {
       console.log("OpenAI request failed:", err);
       setError("OpenAI request failed.");
@@ -2000,7 +2096,7 @@ ${
       return;
     }
 
-    // Insert assistant message
+    // Insert assistant message with metadata
     const { data: assistantMsg, error: assistantMsgError } = await supabase
       .from("chat_history")
       .insert([
@@ -2011,6 +2107,7 @@ ${
           message_type: "assistant",
           created_at: new Date().toISOString(),
           thread_id: threadId,
+          metadata: responseMetadata, // Store RAG metadata
         },
       ]);
     console.log("Assistant message insert:", {
