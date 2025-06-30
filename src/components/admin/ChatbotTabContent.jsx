@@ -43,8 +43,6 @@ import { SupabaseAnalytics } from "../../utils/SupabaseAnalyticsIntegration";
 import ragService from "../../utils/ragService";
 import documentEmbeddingProcessor from "../../utils/documentEmbeddingProcessor";
 import RAGStatusIndicator from "../RAGStatusIndicator";
-import "../../utils/ragMonitor"; // Load RAG monitoring tools
-import "../../utils/embeddingStatusChecker"; // Load embedding status checker
 
 // Make ragService globally available for testing
 if (typeof window !== 'undefined') {
@@ -2732,6 +2730,9 @@ ${
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* RAG Status Indicator */}
+      <RAGStatusIndicator />
 
       {/* Input area */}
       <div
