@@ -1380,11 +1380,11 @@ const ClaudeMCPModal = ({ isOpen, onClose, autoSignIn = true }) => {
                               </div>
                             </li>
                             <li style={{ marginBottom: "15px" }}>
-                              Press Enter, then paste the downloaded
-                              configuration
+                              Press Enter, then copy and paste the downloaded
+                              configuration into your terminal
                             </li>
                             <li style={{ marginBottom: "15px" }}>
-                              Press{" "}
+                              In terminal, press{" "}
                               <kbd
                                 style={{
                                   backgroundColor: "#f0f0f0",
