@@ -13,6 +13,7 @@ import EnhancedAnalyticsDashboard from "../analytics/EnhancedAnalyticsDashboard"
 import ThemeSettings from "./ThemeSettings";
 import SlackMessaging from "../../utils/SlackMessaging";
 import { useTheme } from "../../context/ThemeContext";
+import AuthDebug from "../AuthDebug"; // Add this import
 
 import { supabase } from "../../lib/supabase";
 import "./Admin.css";
@@ -148,12 +149,22 @@ const AdminPanel = () => {
       const isAdminUser =
         currentUser?.roles?.includes("admin") ||
         currentUser?.roles?.includes("super_admin");
+
       if (isAdminUser) {
         debugAdminPanel("User confirmed as admin, fetching profiles");
-        // Fetch all profiles directly
-        const { data: profiles, error: profilesError } = await supabase
-          .from("profiles")
-          .select("*");
+
+        // Fetch profiles with a join to get auth data for last sign in
+        const { data: profiles, error: profilesError } = await supabase.from(
+          "profiles"
+        ).select(`
+            *,
+            auth_users:user_id(
+              last_sign_in_at,
+              created_at,
+              email_confirmed_at
+            )
+          `);
+
         if (!profilesError && profiles) {
           debugAdminPanel("Successfully fetched profiles", {
             count: profiles.length,
@@ -164,61 +175,14 @@ const AdminPanel = () => {
           debugAdminPanel("Error fetching profiles:", profilesError.message);
         }
       }
-      // FALLBACK: Return hardcoded admin users if all else fails
-      debugAdminPanel("Using fallback hardcoded admin users");
-      const currentTime = new Date().toISOString();
-      return [
-        {
-          id: "admin-id-tatt2away",
-          email: "itsus@tatt2away.com",
-          full_name: "Tatt2Away Admin",
-          roles: ["super_admin", "admin", "user"],
-          tier: "enterprise",
-          created_at: currentTime,
-          last_active: currentTime,
-          status: "Active",
-          lastActive: currentTime,
-        },
-        {
-          id: "admin-id-parker",
-          email: "parker@tatt2away.com",
-          full_name: "Parker Admin",
-          roles: ["super_admin", "admin", "user"],
-          tier: "enterprise",
-          created_at: currentTime,
-          last_active: currentTime,
-          status: "Active",
-          lastActive: currentTime,
-        },
-      ];
+
+      // If we can't fetch profiles, return empty array instead of hardcoded data
+      debugAdminPanel("Could not fetch profiles, returning empty array");
+      return [];
     } catch (error) {
       debugAdminPanel("Fatal error in safelyFetchProfiles:", error.message);
-      // Always return at least the admin users as fallback
-      const currentTime = new Date().toISOString();
-      return [
-        {
-          id: "admin-id-tatt2away",
-          email: "itsus@tatt2away.com",
-          full_name: "Tatt2Away Admin",
-          roles: ["super_admin", "admin", "user"],
-          tier: "enterprise",
-          created_at: currentTime,
-          last_active: currentTime,
-          status: "Active",
-          lastActive: currentTime,
-        },
-        {
-          id: "admin-id-parker",
-          email: "parker@tatt2away.com",
-          full_name: "Parker Admin",
-          roles: ["super_admin", "admin", "user"],
-          tier: "enterprise",
-          created_at: currentTime,
-          last_active: currentTime,
-          status: "Active",
-          lastActive: currentTime,
-        },
-      ];
+      // Return empty array instead of hardcoded fallback
+      return [];
     }
   };
 
@@ -292,220 +256,6 @@ const AdminPanel = () => {
     }
   };
 
-  // Ensure admin user exists in Supabase
-  const ensureAdminUser = async () => {
-    try {
-      debugAdminPanel("Checking for admin user in database");
-      // First check if admins already exist in our state
-      if (
-        recentUsers.some(
-          (user) =>
-            user.email === "itsus@tatt2away.com" ||
-            user.email === "parker@tatt2away.com"
-        )
-      ) {
-        debugAdminPanel("Admin users already exist in state");
-        return true;
-      }
-      // Get admin emails to check for
-      const adminEmails = ["itsus@tatt2away.com", "parker@tatt2away.com"];
-      // Try to fetch admin profiles one by one
-      for (const email of adminEmails) {
-        try {
-          // Check if profile exists
-          const { data: profileData, error: profileError } = await supabase
-            .from("profiles")
-            .select("id")
-            .eq("email", email)
-            .single();
-          if (!profileError && profileData) {
-            debugAdminPanel(`Found admin profile for ${email}`);
-            // Ensure admin has super_admin role
-            const { error: updateError } = await supabase
-              .from("profiles")
-              .update({
-                roles: ["super_admin", "admin", "user"],
-                full_name:
-                  email === "itsus@tatt2away.com"
-                    ? "Tatt2Away Admin"
-                    : "Parker Admin",
-              })
-              .eq("id", profileData.id);
-            if (updateError) {
-              debugAdminPanel(
-                "Error updating admin roles:",
-                updateError.message
-              );
-            } else {
-              debugAdminPanel("Admin roles updated successfully");
-            }
-          } else {
-            debugAdminPanel(
-              `Admin profile for ${email} not found, creating one`
-            );
-            // Generate a UUID for this admin
-            const adminUUID = window.crypto.randomUUID
-              ? window.crypto.randomUUID()
-              : `admin-${Date.now()}-${Math.random()
-                  .toString(36)
-                  .substring(2, 15)}`;
-            // Create profile directly
-            const { error: insertError } = await supabase
-              .from("profiles")
-              .insert([
-                {
-                  id: adminUUID,
-                  email,
-                  full_name:
-                    email === "itsus@tatt2away.com"
-                      ? "Tatt2Away Admin"
-                      : "Parker Admin",
-                  roles: ["super_admin", "admin", "user"],
-                  status: "Active",
-                },
-              ]);
-            if (insertError) {
-              debugAdminPanel(
-                "Error creating admin profile:",
-                insertError.message
-              );
-            } else {
-              debugAdminPanel("Admin profile created successfully");
-            }
-          }
-        } catch (profileErr) {
-          debugAdminPanel(
-            `Error checking/creating profile for ${email}:`,
-            profileErr.message
-          );
-        }
-      }
-      // Add admin users to state even if we couldn't create them in the database
-      const currentTime = new Date().toISOString();
-      setRecentUsers((prev) => {
-        if (
-          prev.some(
-            (user) =>
-              user.email === "itsus@tatt2away.com" ||
-              user.email === "parker@tatt2away.com"
-          )
-        ) {
-          return prev;
-        }
-        return [
-          {
-            id: "admin-id-tatt2away",
-            email: "itsus@tatt2away.com",
-            name: "Tatt2Away Admin",
-            full_name: "Tatt2Away Admin",
-            role: "super_admin",
-            roleArray: ["super_admin", "admin", "user"],
-            status: "Active",
-            lastActive: currentTime,
-            mfaEnabled: true,
-            isVirtualUser: true,
-          },
-          {
-            id: "admin-id-parker",
-            email: "parker@tatt2away.com",
-            name: "Parker Admin",
-            full_name: "Parker Admin",
-            role: "super_admin",
-            roleArray: ["super_admin", "admin", "user"],
-            status: "Active",
-            lastActive: currentTime,
-            mfaEnabled: true,
-            isVirtualUser: true,
-          },
-          ...prev,
-        ];
-      });
-      return true;
-    } catch (error) {
-      debugAdminPanel("Error in ensureAdminUser:", error.message);
-      return false;
-    }
-  };
-
-  // Handle registering a new user
-  const handleRegisterUser = async (e) => {
-    e.preventDefault();
-    try {
-      setIsLoading(true);
-      if (
-        !newUserForm.email ||
-        !newUserForm.password ||
-        !newUserForm.firstName
-      ) {
-        setError("Please fill out all required fields");
-        return;
-      }
-      // Create the user in Supabase Auth
-      const { data, error } = await supabase.auth.signUp({
-        email: newUserForm.email,
-        password: newUserForm.password,
-        options: {
-          data: {
-            full_name:
-              `${newUserForm.firstName} ${newUserForm.lastName}`.trim(),
-            first_name: newUserForm.firstName,
-            last_name: newUserForm.lastName,
-          },
-        },
-      });
-      if (error) throw error;
-      if (data?.user) {
-        // Determine roles based on selected role
-        let roles = ["user"];
-        if (newUserForm.role === "admin") {
-          roles = ["admin", "user"];
-        } else if (newUserForm.role === "super_admin") {
-          roles = ["super_admin", "admin", "user"];
-        }
-        // Create profile directly
-        const { error: profileError } = await supabase.from("profiles").insert([
-          {
-            id: data.user.id,
-            email: newUserForm.email,
-            full_name:
-              `${newUserForm.firstName} ${newUserForm.lastName}`.trim(),
-            roles,
-            status: "Active",
-          },
-        ]);
-        if (profileError) throw profileError;
-        // Refresh the user list
-        await fetchUsers();
-        setShowRegisterModal(false);
-        setNewUserForm({
-          email: "",
-          password: "",
-          firstName: "",
-          lastName: "",
-          role: "user",
-        });
-      }
-    } catch (err) {
-      console.error("Error registering new user:", err);
-      setError(`Failed to register user: ${err.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // useEffect(() => {
-  //   const fetchUnreadCount = async () => {
-  //     const count = await SlackMessaging.getUnreadCount();
-  //     setUnreadCount(count);
-  //   };
-
-  //   fetchUnreadCount();
-
-  //   // Set up polling every minute
-  //   const interval = setInterval(fetchUnreadCount, 60000);
-  //   return () => clearInterval(interval);
-  // }, []);
-
   // Load admin data
   useEffect(() => {
     const loadAdminData = async () => {
@@ -529,69 +279,11 @@ const AdminPanel = () => {
         roles: currentUser?.roles || [],
       });
 
-      // Special handling for test admin accounts
-      const isTestAdmin =
-        currentUser?.email === "itsus@tatt2away.com" ||
-        currentUser?.email === "parker@tatt2away.com";
-
-      // For test admin accounts, ensure all auth flags are set properly
-      if (isTestAdmin) {
-        debugAdminPanel("Test admin detected, ensuring access");
-
-        // Ensure auth flags are set
-        localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("mfa_verified", "true");
-        sessionStorage.setItem("mfa_verified", "true");
-        localStorage.setItem("authStage", "post-mfa");
-
-        // Ensure admin role is assigned if not already
-        if (
-          currentUser &&
-          (!currentUser.roles || !currentUser.roles.includes("super_admin"))
-        ) {
-          debugAdminPanel("Fixing admin roles for test account");
-          try {
-            // Create updated user with correct roles
-            const updatedUser = {
-              ...currentUser,
-              roles: ["super_admin", "admin", "user"],
-            };
-            localStorage.setItem("currentUser", JSON.stringify(updatedUser));
-          } catch (e) {
-            console.error("Error updating admin user:", e);
-          }
-        }
-      } else {
-        // For regular users, verify admin access
-        if (!isAdmin) {
-          debugAdminPanel(
-            "User is not admin according to auth context, checking localStorage"
-          );
-
-          // Check localStorage as a fallback
-          const storedUserJson = localStorage.getItem("currentUser");
-          let hasAdminRole = false;
-
-          if (storedUserJson) {
-            try {
-              const storedUser = JSON.parse(storedUserJson);
-              hasAdminRole =
-                storedUser.roles?.includes("admin") ||
-                storedUser.roles?.includes("super_admin");
-
-              debugAdminPanel("Admin check from localStorage:", hasAdminRole);
-            } catch (e) {
-              console.warn("Error parsing stored user:", e);
-            }
-          }
-
-          // Only redirect if not admin in any form
-          if (!hasAdminRole) {
-            debugAdminPanel("Not an admin user, redirecting to home");
-            navigate("/");
-            return;
-          }
-        }
+      // Verify admin access
+      if (!isAdmin) {
+        debugAdminPanel("User is not admin, redirecting to home");
+        navigate("/");
+        return;
       }
 
       // At this point, we've confirmed admin access, so proceed with loading data
@@ -602,14 +294,6 @@ const AdminPanel = () => {
         // Set current user profile
         setUserProfile(currentUser);
         debugAdminPanel("User profile set", currentUser);
-
-        // Ensure admin user exists in database
-        try {
-          await ensureAdminUser();
-        } catch (adminError) {
-          console.warn("Admin user check failed, continuing:", adminError);
-          // Non-critical error, continue loading
-        }
 
         // Only fetch users if we haven't done so yet
         if (!usersFetchedRef.current) {
@@ -635,20 +319,13 @@ const AdminPanel = () => {
               primaryRole = "admin";
             }
 
-            // Special case for admin user - ALWAYS super_admin
-            if (
-              profile.email === "itsus@tatt2away.com" ||
-              profile.email === "parker@tatt2away.com"
-            ) {
-              primaryRole = "super_admin";
-            }
-
-            // Format last activity time
+            // Format last activity time - use real data from database
             const lastActivity =
-              profile.last_login ||
-              profile.last_active ||
-              profile.created_at ||
-              new Date().toISOString();
+              profile.auth_users?.last_sign_in_at || // From auth.users table
+              profile.last_login || // From profiles table
+              profile.updated_at || // From profiles table
+              profile.created_at || // From profiles table
+              new Date().toISOString(); // Fallback to current time
 
             // Process MFA methods
             const hasMfa =
@@ -657,7 +334,7 @@ const AdminPanel = () => {
 
             return {
               id: profile.id,
-              name: profile.full_name || profile.email,
+              name: profile.full_name || profile.display_name || profile.email,
               email: profile.email,
               role: primaryRole, // For display
               roleArray: rolesArray, // Complete role array for editing
@@ -665,45 +342,14 @@ const AdminPanel = () => {
               lastActive: lastActivity,
               mfaEnabled: hasMfa,
               mfaMethods: profile.mfa_methods || [],
+              // Add real timestamps
+              createdAt: profile.created_at,
+              updatedAt: profile.updated_at,
+              lastSignIn: profile.auth_users?.last_sign_in_at,
+              emailConfirmed: profile.auth_users?.email_confirmed_at,
             };
           });
 
-          // Helper function to generate valid UUID v4
-          const generateDeterministicUUID = (email) => {
-            // Convert email to a predictable sequence of bytes
-            let hash = 0;
-            for (let i = 0; i < email.length; i++) {
-              hash = (hash << 5) - hash + email.charCodeAt(i);
-              hash |= 0; // Convert to 32bit integer
-            }
-
-            // Format as UUID v4 (with certain bits set according to the standard)
-            let hexStr = Math.abs(hash).toString(16).padStart(8, "0");
-            while (hexStr.length < 32) {
-              hexStr += Math.floor(Math.random() * 16).toString(16);
-            }
-
-            // Insert dashes and ensure version 4 UUID format
-            return `${hexStr.slice(0, 8)}-${hexStr.slice(
-              8,
-              12
-            )}-4${hexStr.slice(13, 16)}-${(
-              (parseInt(hexStr.slice(16, 17), 16) & 0x3) |
-              0x8
-            ).toString(16)}${hexStr.slice(17, 20)}-${hexStr.slice(20, 32)}`;
-          };
-
-          // Check for required admin accounts
-          // const adminEmails = ["itsus@tatt2away.com", "parker@tatt2away.com"];
-          // const existingAdminEmails = enrichedUsers.map((user) => user.email);
-          // let finalUserList = [...enrichedUsers];
-          // adminEmails.forEach((adminEmail) => {
-          //   if (!existingAdminEmails.includes(adminEmail)) {
-          //     ... (virtual user creation code) ...
-          //   }
-          // });
-          // debugAdminPanel("Final processed user list:", { count: finalUserList.length });
-          // setRecentUsers(finalUserList);
           setRecentUsers(enrichedUsers);
           usersFetchedRef.current = true;
 
@@ -821,20 +467,13 @@ const AdminPanel = () => {
             primaryRole = "admin";
           }
 
-          // Special case for admin user - ALWAYS super_admin
-          if (
-            profile.email === "itsus@tatt2away.com" ||
-            profile.email === "parker@tatt2away.com"
-          ) {
-            primaryRole = "super_admin";
-          }
-
-          // Format last activity time
+          // Format last activity time - use real data from database
           const lastActivity =
-            profile.last_login ||
-            profile.last_active ||
-            profile.created_at ||
-            new Date().toISOString();
+            profile.auth_users?.last_sign_in_at || // From auth.users table
+            profile.last_login || // From profiles table
+            profile.updated_at || // From profiles table
+            profile.created_at || // From profiles table
+            new Date().toISOString(); // Fallback to current time
 
           // Process MFA methods
           const hasMfa =
@@ -843,7 +482,7 @@ const AdminPanel = () => {
 
           return {
             id: profile.id,
-            name: profile.full_name || profile.email,
+            name: profile.full_name || profile.display_name || profile.email,
             email: profile.email,
             role: primaryRole, // For display
             roleArray: rolesArray, // Complete role array for editing
@@ -851,6 +490,11 @@ const AdminPanel = () => {
             lastActive: lastActivity,
             mfaEnabled: hasMfa,
             mfaMethods: profile.mfa_methods || [],
+            // Add real timestamps
+            createdAt: profile.created_at,
+            updatedAt: profile.updated_at,
+            lastSignIn: profile.auth_users?.last_sign_in_at,
+            emailConfirmed: profile.auth_users?.email_confirmed_at,
           };
         });
 
@@ -908,6 +552,72 @@ const AdminPanel = () => {
     // Close dropdown if focus leaves the menu
     if (!e.currentTarget.contains(e.relatedTarget)) {
       setProfileDropdownOpen(false);
+    }
+  };
+
+  // Handle registering a new user
+  const handleRegisterUser = async (e) => {
+    e.preventDefault();
+    try {
+      setIsLoading(true);
+      if (
+        !newUserForm.email ||
+        !newUserForm.password ||
+        !newUserForm.firstName
+      ) {
+        setError("Please fill out all required fields");
+        return;
+      }
+      // Create the user in Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email: newUserForm.email,
+        password: newUserForm.password,
+        options: {
+          data: {
+            full_name:
+              `${newUserForm.firstName} ${newUserForm.lastName}`.trim(),
+            first_name: newUserForm.firstName,
+            last_name: newUserForm.lastName,
+          },
+        },
+      });
+      if (error) throw error;
+      if (data?.user) {
+        // Determine roles based on selected role
+        let roles = ["user"];
+        if (newUserForm.role === "admin") {
+          roles = ["admin", "user"];
+        } else if (newUserForm.role === "super_admin") {
+          roles = ["super_admin", "admin", "user"];
+        }
+        // Create profile directly
+        const { error: profileError } = await supabase.from("profiles").insert([
+          {
+            id: data.user.id,
+            email: newUserForm.email,
+            full_name:
+              `${newUserForm.firstName} ${newUserForm.lastName}`.trim(),
+            roles,
+            status: "Active",
+          },
+        ]);
+        if (profileError) throw profileError;
+        // Refresh the user list
+        await fetchUsers();
+        setShowRegisterModal(false);
+        setNewUserForm({
+          email: "",
+          password: "",
+          firstName: "",
+          lastName: "",
+          role: "user",
+        });
+      }
+    } catch (err) {
+      console.error("Error registering new user:", err);
+      setError(`Failed to register user: ${err.message}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -1610,6 +1320,11 @@ const AdminPanel = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Auth Debug Component - Remove this in production */}
+      {process.env.NODE_ENV === "development" && (
+        <AuthDebug showByDefault={false} />
       )}
     </div>
   );

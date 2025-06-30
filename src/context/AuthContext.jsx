@@ -51,6 +51,7 @@ export function AuthProvider({ children }) {
   const initAttemptedRef = useRef(false);
   const isAdminRef = useRef(false);
   const isSuperAdminRef = useRef(false);
+  const initTimeoutRef = useRef(null);
 
   // Enhanced logging function
   const logAuth = (message, data = null) => {
@@ -80,6 +81,47 @@ export function AuthProvider({ children }) {
       console.error("Error saving auth log:", e);
     }
   };
+
+  // Force initialization completion with timeout protection
+  const forceInitComplete = useCallback(() => {
+    logAuth("Force completing initialization");
+
+    // Clear any pending timeout
+    if (initTimeoutRef.current) {
+      clearTimeout(initTimeoutRef.current);
+      initTimeoutRef.current = null;
+    }
+
+    // Ensure we're not stuck in loading state
+    setLoading(false);
+    setIsInitialized(true);
+
+    // Set a fallback user if we have localStorage data but no currentUser
+    if (!currentUser) {
+      const storedUser = localStorage.getItem("currentUser");
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          setCurrentUser(parsedUser);
+
+          // Set admin refs
+          isAdminRef.current =
+            parsedUser.roles?.includes("admin") ||
+            parsedUser.roles?.includes("super_admin") ||
+            false;
+          isSuperAdminRef.current =
+            parsedUser.roles?.includes("super_admin") || false;
+
+          logAuth(
+            "Restored user from localStorage after force init",
+            parsedUser.email
+          );
+        } catch (e) {
+          logAuth("Error parsing stored user during force init:", e.message);
+        }
+      }
+    }
+  }, [currentUser]);
 
   // Safely fetch a user profile with fallbacks for admin accounts
   const safeGetUserProfile = async (userId, email) => {
@@ -598,6 +640,12 @@ export function AuthProvider({ children }) {
       if (initAttemptedRef.current) return;
       initAttemptedRef.current = true;
 
+      // Set a timeout to force completion if initialization hangs
+      initTimeoutRef.current = setTimeout(() => {
+        logAuth("Auth initialization timeout - forcing completion");
+        forceInitComplete();
+      }, 10000); // 10 second timeout
+
       try {
         logAuth("Initializing auth state");
 
@@ -641,6 +689,12 @@ export function AuthProvider({ children }) {
               // Don't make unnecessary Supabase calls for admin users
               setIsInitialized(true);
               setLoading(false);
+
+              // Clear timeout since we completed successfully
+              if (initTimeoutRef.current) {
+                clearTimeout(initTimeoutRef.current);
+                initTimeoutRef.current = null;
+              }
               return; // Exit early as we've handled the admin user
             }
 
@@ -667,11 +721,23 @@ export function AuthProvider({ children }) {
               // then check with Supabase in the background
               setIsInitialized(true);
               setLoading(false);
+
+              // Clear timeout since we completed successfully
+              if (initTimeoutRef.current) {
+                clearTimeout(initTimeoutRef.current);
+                initTimeoutRef.current = null;
+              }
             }
           } catch (e) {
             logAuth("Error parsing stored user:", e.message);
             setIsInitialized(true);
             setLoading(false);
+
+            // Clear timeout since we completed (even with error)
+            if (initTimeoutRef.current) {
+              clearTimeout(initTimeoutRef.current);
+              initTimeoutRef.current = null;
+            }
           }
         }
 
@@ -686,6 +752,12 @@ export function AuthProvider({ children }) {
           if (!isInitialized) {
             setIsInitialized(true);
             setLoading(false);
+
+            // Clear timeout since we completed
+            if (initTimeoutRef.current) {
+              clearTimeout(initTimeoutRef.current);
+              initTimeoutRef.current = null;
+            }
           }
           return;
         }
@@ -707,6 +779,12 @@ export function AuthProvider({ children }) {
             if (!isInitialized) {
               setIsInitialized(true);
               setLoading(false);
+
+              // Clear timeout since we completed
+              if (initTimeoutRef.current) {
+                clearTimeout(initTimeoutRef.current);
+                initTimeoutRef.current = null;
+              }
             }
             return;
           }
@@ -826,6 +904,12 @@ export function AuthProvider({ children }) {
             } finally {
               setIsInitialized(true);
               setLoading(false);
+
+              // Clear timeout since we completed
+              if (initTimeoutRef.current) {
+                clearTimeout(initTimeoutRef.current);
+                initTimeoutRef.current = null;
+              }
             }
           }
         } else {
@@ -833,11 +917,23 @@ export function AuthProvider({ children }) {
           setCurrentUser(null);
           setIsInitialized(true);
           setLoading(false);
+
+          // Clear timeout since we completed
+          if (initTimeoutRef.current) {
+            clearTimeout(initTimeoutRef.current);
+            initTimeoutRef.current = null;
+          }
         }
       } catch (err) {
         logAuth("Auth initialization error:", err.message);
         setIsInitialized(true);
         setLoading(false);
+
+        // Clear timeout since we completed (even with error)
+        if (initTimeoutRef.current) {
+          clearTimeout(initTimeoutRef.current);
+          initTimeoutRef.current = null;
+        }
       }
     };
 
@@ -1031,9 +1127,12 @@ export function AuthProvider({ children }) {
       if (authListenerRef.current) {
         authListenerRef.current.unsubscribe();
       }
+      if (initTimeoutRef.current) {
+        clearTimeout(initTimeoutRef.current);
+      }
       window.removeEventListener("storage", handleStorageChange);
     };
-  }, []);
+  }, [forceInitComplete]);
 
   // Get active sessions
   const getActiveSessions = async () => {
@@ -1129,6 +1228,7 @@ export function AuthProvider({ children }) {
     terminateAllSessions,
     setError,
     getUserTier,
+    forceInitComplete, // Expose this for emergency use
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

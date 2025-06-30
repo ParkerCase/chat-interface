@@ -48,17 +48,14 @@ import "./App.css";
 import "./styles/theme.css";
 import { useSessionTracker } from "./utils/api-utils";
 
-// Add at the beginning of your App.jsx file, before calling ensureAuthState:
+// Anti reload-loop protection
 if (typeof window !== "undefined") {
-  // Anti reload-loop protection
   const lastReload = sessionStorage.getItem("lastReloadTime");
   const now = Date.now();
 
   if (lastReload && now - parseInt(lastReload) < 3000) {
     console.warn("Reload loop detected - breaking the cycle");
-    // Set a flag to prevent further auto-reloads
     sessionStorage.setItem("breakReloadLoop", "true");
-    // Clear any flags that might be causing reloads
     sessionStorage.removeItem("authRefreshInProgress");
     localStorage.removeItem("authRefreshCount");
   } else {
@@ -66,20 +63,15 @@ if (typeof window !== "undefined") {
   }
 
   if (sessionStorage.getItem("breakReloadLoop") === "true") {
-    // Allow the app to function normally but log potential reload triggers
     console.log("Reload loop protection active - monitoring navigation events");
 
-    // Create a safe navigation object we can use throughout the app
     window.safeNavigation = {
-      // Safe version of reload that uses history API instead
       reload: function () {
         console.warn("Reload attempted during reload-loop protection");
         console.trace("Reload call stack:");
-        // Don't actually reload
         return false;
       },
 
-      // Log navigation attempts without blocking them
       navigateTo: function (url) {
         if (typeof url === "string" && url.includes("/admin")) {
           console.warn(`Admin navigation attempted: ${url}`);
@@ -89,15 +81,12 @@ if (typeof window !== "undefined") {
       },
     };
 
-    // Add a way to safely monitor navigation events
     window.addEventListener("beforeunload", function (e) {
       if (sessionStorage.getItem("breakReloadLoop") === "true") {
         console.log("Navigation/reload attempted during protection");
-        // We don't prevent navigation, just log it
       }
     });
 
-    // Apply protection for 15 seconds, then restore normal behavior
     setTimeout(() => {
       console.log("Reload protection removed - normal navigation restored");
       sessionStorage.removeItem("breakReloadLoop");
@@ -106,177 +95,13 @@ if (typeof window !== "undefined") {
   }
 }
 
-// NOW, MODIFIED ensureAuthState FUNCTION WITH ADDITIONAL SAFEGUARDS:
-
-// This replaces the ensureAuthState function in your App.jsx
-
-const ensureAuthState = () => {
-  console.log("Running enhanced auth state verification");
-
-  // CRITICAL: Prevent multiple refreshes in a short time period
-  const lastRefreshTime = sessionStorage.getItem("lastAuthRefreshTime");
-  const currentTime = Date.now();
-
-  // Skip if we refreshed within the last 30 seconds (increased from 10)
-  if (lastRefreshTime && currentTime - parseInt(lastRefreshTime) < 30000) {
-    console.log("Skipping auth state verification (ran recently)");
-    return;
-  }
-
-  // Track this verification attempt
-  sessionStorage.setItem("lastAuthRefreshTime", currentTime.toString());
-
-  const isAdminPage = window.location.pathname.startsWith("/admin");
-  const currentUserJson = localStorage.getItem("currentUser");
-
-  // Step 1: Test for admin accounts in localStorage without needing to reload
-  if (currentUserJson) {
-    try {
-      const currentUser = JSON.parse(currentUserJson);
-      console.log("Found user in localStorage:", currentUser.email);
-
-      if (
-        currentUser.email === "itsus@tatt2away.com" ||
-        currentUser.email === "parker@tatt2away.com"
-      ) {
-        console.log("Admin account detected:", currentUser.email);
-
-        // Ensure all auth flags are set
-        if (
-          localStorage.getItem("isAuthenticated") !== "true" ||
-          localStorage.getItem("mfa_verified") !== "true" ||
-          sessionStorage.getItem("mfa_verified") !== "true" ||
-          localStorage.getItem("authStage") !== "post-mfa"
-        ) {
-          console.log("Setting required auth flags for admin account");
-          localStorage.setItem("isAuthenticated", "true");
-          localStorage.setItem("mfa_verified", "true");
-          sessionStorage.setItem("mfa_verified", "true");
-          localStorage.setItem("authStage", "post-mfa");
-        }
-
-        const hasCorrectRoles =
-          Array.isArray(currentUser.roles) &&
-          currentUser.roles.includes("super_admin") &&
-          currentUser.roles.includes("admin") &&
-          currentUser.roles.includes("user");
-
-        if (!hasCorrectRoles) {
-          console.log("Fixing admin roles");
-          currentUser.roles = ["super_admin", "admin", "user"];
-          localStorage.setItem("currentUser", JSON.stringify(currentUser));
-        }
-      }
-    } catch (e) {
-      console.warn("Error parsing currentUser:", e);
-      // Clear corrupted data
-      localStorage.removeItem("currentUser");
-    }
-  }
-
-  // Step 2: Check Supabase session - without triggering reloads
-  const checkSupabaseSession = async () => {
-    try {
-      const { data, error } = await supabase.auth.getSession();
-
-      if (error) {
-        console.error("Session check error:", error);
-        return;
-      }
-
-      if (data?.session) {
-        const email = data.session.user.email;
-        console.log("Active session found for:", email);
-
-        // Special handling for admin accounts
-        if (
-          email === "itsus@tatt2away.com" ||
-          email === "parker@tatt2away.com"
-        ) {
-          console.log("Admin account session detected");
-
-          // Create or update admin user in localStorage
-          if (!currentUserJson) {
-            console.log("Creating admin user in localStorage");
-
-            const adminUser = {
-              id: data.session.user.id,
-              email: email,
-              name:
-                email === "itsus@tatt2away.com"
-                  ? "Tatt2Away Admin"
-                  : "Parker Admin",
-              roles: ["super_admin", "admin", "user"],
-              tier: "enterprise",
-            };
-
-            localStorage.setItem("currentUser", JSON.stringify(adminUser));
-            localStorage.setItem("isAuthenticated", "true");
-            localStorage.setItem("mfa_verified", "true");
-            sessionStorage.setItem("mfa_verified", "true");
-            localStorage.setItem("authStage", "post-mfa");
-          }
-        } else {
-          // For regular users, make sure isAuthenticated is set
-          if (localStorage.getItem("isAuthenticated") !== "true") {
-            localStorage.setItem("isAuthenticated", "true");
-
-            // For logged in users without profile, set a basic one
-            if (!currentUserJson) {
-              const basicUser = {
-                id: data.session.user.id,
-                email: email,
-                name: email,
-                roles: ["user"],
-                tier: "basic",
-              };
-              localStorage.setItem("currentUser", JSON.stringify(basicUser));
-            }
-          }
-        }
-      } else {
-        console.log("No active session found");
-
-        // If no active session but we have localStorage data, clear it
-        if (
-          currentUserJson &&
-          localStorage.getItem("isAuthenticated") === "true"
-        ) {
-          console.log("Clearing stale auth data");
-          localStorage.removeItem("currentUser");
-          localStorage.removeItem("isAuthenticated");
-          localStorage.removeItem("mfa_verified");
-          sessionStorage.removeItem("mfa_verified");
-          localStorage.removeItem("authStage");
-
-          // Instead of reload, notify auth context to update
-          window.dispatchEvent(new Event("storage"));
-        }
-      }
-    } catch (err) {
-      console.error("Error checking Supabase session:", err);
-    }
-  };
-
-  // Run session check
-  checkSupabaseSession();
-};
-
-if (typeof window !== "undefined") {
-  ensureAuthState();
-}
-
 function AppContent() {
-  const { isInitialized, loading, currentUser } = useAuth();
+  const { isInitialized, loading, currentUser, forceInitComplete } = useAuth();
   const [outOfMemory, setOutOfMemory] = useState(false);
+  const [initTimeout, setInitTimeout] = useState(null);
 
-  // In App.js (or wherever you import components):
+  // Handle out of memory errors
   useEffect(() => {
-    console.log("App mounted - ThemeProvider should be available");
-  }, []);
-
-  useEffect(() => {
-    // Handle out of memory errors
     const handleOutOfMemory = (e) => {
       if (
         e.message?.includes("allocation failed") ||
@@ -296,31 +121,43 @@ function AppContent() {
 
     window.addEventListener("error", handleOutOfMemory);
 
-    // Run auth verification once after initialization
-    if (isInitialized && !loading) {
-      ensureAuthState();
-
-      // Dispatch custom event that other components can listen for
-      window.dispatchEvent(
-        new CustomEvent("authInitialized", {
-          detail: {
-            success: true,
-            timestamp: Date.now(),
-            userId: currentUser?.id,
-          },
-        })
-      );
-    }
-
     return () => {
       window.removeEventListener("error", handleOutOfMemory);
     };
-  }, [isInitialized, loading, currentUser]);
+  }, []);
+
+  // Emergency timeout protection for auth initialization
+  useEffect(() => {
+    if (!isInitialized && !loading) {
+      // If we're not initialized but not loading, something is wrong
+      console.warn("Auth stuck in uninitialized state - forcing completion");
+      forceInitComplete();
+    }
+
+    // Set a backup timeout to force completion if auth hangs
+    if (!isInitialized) {
+      const timeout = setTimeout(() => {
+        console.warn("App auth initialization timeout - forcing completion");
+        forceInitComplete();
+      }, 15000); // 15 second timeout
+
+      setInitTimeout(timeout);
+
+      return () => {
+        if (timeout) clearTimeout(timeout);
+      };
+    } else {
+      // Clear timeout if we initialized successfully
+      if (initTimeout) {
+        clearTimeout(initTimeout);
+        setInitTimeout(null);
+      }
+    }
+  }, [isInitialized, loading, forceInitComplete, initTimeout]);
 
   // Handle storage events to detect auth changes from other tabs
   useEffect(() => {
     const handleStorageChange = (e) => {
-      // Only process auth-related storage changes
       if (
         e.key === "currentUser" ||
         e.key === "isAuthenticated" ||
@@ -328,7 +165,6 @@ function AppContent() {
         e.key === "mfa_verified"
       ) {
         console.log("Auth storage changed, updating app state");
-        // No need to force reload - React will handle this
       }
     };
 
@@ -360,8 +196,15 @@ function AppContent() {
             height: "100vh",
             margin: "25%",
           }}
-        ></div>
-        <p>Initializing authentication...</p>
+        >
+          <div className="spinner" style={{ marginBottom: "20px" }}></div>
+          <p>Initializing authentication...</p>
+          {initTimeout && (
+            <p style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
+              This may take a moment...
+            </p>
+          )}
+        </div>
       </div>
     );
   }

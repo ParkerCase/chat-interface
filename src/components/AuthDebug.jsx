@@ -90,223 +90,217 @@ function AuthDebug({ showByDefault = false }) {
   // Fix common auth issues
   const fixAuthIssues = async () => {
     setLoading(true);
-    setStatusMessage("Attempting to fix auth issues...");
+    setStatusMessage("Fixing auth issues...");
 
     try {
-      // Check if we have a valid session
-      const { data } = await supabase.auth.getSession();
+      // Clear any corrupted data
+      if (storageState.localStorage?.parsedUserError) {
+        localStorage.removeItem("currentUser");
+        setStatusMessage("Cleared corrupted user data");
+      }
 
-      if (data?.session) {
-        // Valid session exists - fix localStorage state
+      // Ensure admin accounts have proper roles
+      if (
+        auth.currentUser?.email === "itsus@tatt2away.com" ||
+        auth.currentUser?.email === "parker@tatt2away.com"
+      ) {
+        const adminUser = {
+          ...auth.currentUser,
+          roles: ["super_admin", "admin", "user"],
+        };
+        localStorage.setItem("currentUser", JSON.stringify(adminUser));
+        setStatusMessage("Fixed admin roles");
+      }
+
+      // Ensure auth flags are set
+      if (auth.currentUser) {
         localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("authStage", "post-mfa");
         localStorage.setItem("mfa_verified", "true");
         sessionStorage.setItem("mfa_verified", "true");
-
-        // Check if user email matches one of the admins
-        const isAdmin =
-          data.session.user.email === "itsus@tatt2away.com" ||
-          data.session.user.email === "parker@tatt2away.com";
-
-        // Current user checks
-        let currentUserJson = localStorage.getItem("currentUser");
-        let currentUser = null;
-
-        if (currentUserJson) {
-          try {
-            currentUser = JSON.parse(currentUserJson);
-          } catch (e) {
-            currentUser = null;
-          }
-        }
-
-        // If missing/invalid currentUser, create a new one
-        if (!currentUser || !currentUser.email) {
-          currentUser = {
-            id: data.session.user.id,
-            email: data.session.user.email,
-            name: data.session.user.email.split("@")[0],
-            roles: isAdmin ? ["super_admin", "admin", "user"] : ["user"],
-          };
-        } else if (
-          isAdmin &&
-          (!currentUser.roles || !currentUser.roles.includes("super_admin"))
-        ) {
-          // Ensure admin roles for admin users
-          currentUser.roles = ["super_admin", "admin", "user"];
-        }
-
-        // Save the fixed user
-        localStorage.setItem("currentUser", JSON.stringify(currentUser));
-
-        setStatusMessage("Auth state fixed! Reload the page to apply changes.");
-      } else {
-        // No valid session - clear invalid auth state
-        localStorage.removeItem("isAuthenticated");
-        localStorage.removeItem("authToken");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("mfa_verified");
-        sessionStorage.removeItem("mfa_verified");
-
-        setStatusMessage("No valid session found. Auth state cleared.");
+        localStorage.setItem("authStage", "post-mfa");
+        setStatusMessage("Fixed auth flags");
       }
 
       // Reload auth state
       await loadAuthState();
+      setStatusMessage("Auth issues fixed successfully");
     } catch (error) {
-      console.error("Error fixing auth state:", error);
-      setStatusMessage(`Error: ${error.message}`);
+      setStatusMessage(`Error fixing auth: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Force reload the page
+  // Reset auth state completely
+  const resetAuthState = async () => {
+    if (
+      !window.confirm(
+        "This will log you out and clear all auth data. Continue?"
+      )
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    setStatusMessage("Resetting auth state...");
+
+    try {
+      await auth.logout();
+      setStatusMessage("Auth state reset successfully");
+      await loadAuthState();
+    } catch (error) {
+      setStatusMessage(`Error resetting auth: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reload page
   const reloadPage = () => {
     window.location.reload();
   };
 
-  // Completely reset auth state
-  const resetAuthState = () => {
-    localStorage.removeItem("isAuthenticated");
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("mfa_verified");
-    localStorage.removeItem("authStage");
-    localStorage.removeItem("currentUser");
-    sessionStorage.removeItem("mfa_verified");
-
-    setStatusMessage("Auth state completely reset. Reload to apply changes.");
-    loadAuthState();
+  // Force init completion
+  const forceInit = () => {
+    if (auth.forceInitComplete) {
+      auth.forceInitComplete();
+      setStatusMessage("Forced initialization completion");
+    } else {
+      setStatusMessage("Force init function not available");
+    }
   };
 
-  // Inline styles
   const styles = {
-    debugButton: {
-      position: "fixed",
-      bottom: "10px",
-      left: "10px",
-      backgroundColor: "#4f46e5",
-      color: "white",
-      border: "none",
-      borderRadius: "4px",
-      padding: "5px 10px",
-      fontSize: "12px",
-      cursor: "pointer",
-      zIndex: 9999,
-    },
     container: {
       position: "fixed",
-      bottom: isVisible ? "50px" : "-100%",
-      left: "10px",
-      width: "90%",
-      maxWidth: "600px",
-      height: "500px",
-      backgroundColor: "white",
+      top: "20px",
+      right: "20px",
+      width: "400px",
+      maxHeight: "80vh",
+      backgroundColor: "#fff",
       border: "1px solid #e2e8f0",
       borderRadius: "8px",
-      boxShadow: "0 0 20px rgba(0, 0, 0, 0.1)",
-      transition: "bottom 0.3s ease-in-out",
-      zIndex: 9999,
+      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+      zIndex: 1000,
       overflow: "hidden",
-      display: "flex",
-      flexDirection: "column",
     },
     header: {
-      padding: "10px",
+      backgroundColor: "#f8fafc",
+      padding: "12px 16px",
       borderBottom: "1px solid #e2e8f0",
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
-      backgroundColor: "#f8fafc",
     },
     title: {
       margin: 0,
       fontSize: "14px",
-      fontWeight: "bold",
+      fontWeight: "600",
+      color: "#374151",
     },
-    closeButton: {
+    toggleButton: {
       background: "none",
       border: "none",
+      fontSize: "20px",
       cursor: "pointer",
-      color: "#64748b",
-      fontSize: "18px",
+      color: "#6b7280",
     },
     content: {
-      padding: "10px",
+      padding: "16px",
+      maxHeight: "60vh",
       overflowY: "auto",
-      flex: 1,
     },
     section: {
-      marginBottom: "15px",
+      marginBottom: "20px",
     },
     sectionTitle: {
-      fontSize: "14px",
-      fontWeight: "bold",
-      marginBottom: "5px",
-      color: "#334155",
+      fontSize: "12px",
+      fontWeight: "600",
+      color: "#374151",
+      marginBottom: "8px",
+      textTransform: "uppercase",
+      letterSpacing: "0.5px",
     },
     infoItem: {
       display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "4px 0",
       fontSize: "12px",
-      marginBottom: "3px",
+      borderBottom: "1px solid #f3f4f6",
     },
     key: {
-      width: "150px",
-      fontWeight: "bold",
-      color: "#334155",
+      color: "#6b7280",
+      fontWeight: "500",
     },
     value: {
-      flex: 1,
-      fontFamily: "monospace",
-      wordBreak: "break-all",
+      color: "#111827",
+      fontWeight: "400",
+      maxWidth: "200px",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
     },
     actions: {
-      display: "flex",
-      gap: "5px",
-      padding: "10px",
+      padding: "16px",
       borderTop: "1px solid #e2e8f0",
       backgroundColor: "#f8fafc",
     },
     button: {
-      padding: "5px 10px",
-      fontSize: "12px",
-      backgroundColor: "#4f46e5",
+      backgroundColor: "#3b82f6",
       color: "white",
       border: "none",
+      padding: "6px 12px",
       borderRadius: "4px",
+      fontSize: "12px",
       cursor: "pointer",
+      marginRight: "8px",
+      marginBottom: "8px",
     },
     dangerButton: {
       backgroundColor: "#ef4444",
     },
     statusMessage: {
-      padding: "5px 10px",
       fontSize: "12px",
-      color: "#64748b",
+      color: "#6b7280",
+      marginTop: "8px",
       fontStyle: "italic",
-      flex: 1,
-      textAlign: "right",
     },
   };
 
+  if (!isVisible) {
+    return (
+      <button
+        onClick={() => setIsVisible(true)}
+        style={{
+          position: "fixed",
+          top: "20px",
+          right: "20px",
+          backgroundColor: "#3b82f6",
+          color: "white",
+          border: "none",
+          padding: "8px 12px",
+          borderRadius: "4px",
+          fontSize: "12px",
+          cursor: "pointer",
+          zIndex: 999,
+        }}
+      >
+        Debug Auth
+      </button>
+    );
+  }
+
   return (
     <>
-      <button
-        style={styles.debugButton}
-        onClick={() => setIsVisible(!isVisible)}
-      >
-        {isVisible ? "Hide Auth Debug" : "Show Auth Debug"}
-      </button>
-
       <div style={styles.container}>
         <div style={styles.header}>
-          <h3 style={styles.title}>Auth Debug</h3>
+          <h3 style={styles.title}>Auth Debug Panel</h3>
           <button
-            style={styles.closeButton}
             onClick={() => setIsVisible(false)}
+            style={styles.toggleButton}
           >
-            &times;
+            ×
           </button>
         </div>
 
@@ -352,6 +346,12 @@ function AuthDebug({ showByDefault = false }) {
               <span style={styles.key}>Loading</span>
               <span style={styles.value}>{auth.loading ? "Yes" : "No"}</span>
             </div>
+            <div style={styles.infoItem}>
+              <span style={styles.key}>Initialized</span>
+              <span style={styles.value}>
+                {auth.isInitialized ? "Yes" : "No"}
+              </span>
+            </div>
           </div>
 
           {/* Supabase Session */}
@@ -377,69 +377,61 @@ function AuthDebug({ showByDefault = false }) {
             )}
           </div>
 
-          {/* LocalStorage */}
+          {/* Local Storage */}
           <div style={styles.section}>
-            <h4 style={styles.sectionTitle}>LocalStorage</h4>
+            <h4 style={styles.sectionTitle}>Local Storage</h4>
             <div style={styles.infoItem}>
-              <span style={styles.key}>isAuthenticated</span>
+              <span style={styles.key}>Is Authenticated</span>
               <span style={styles.value}>
-                {storageState.localStorage?.isAuthenticated ? "true" : "false"}
+                {storageState.localStorage?.isAuthenticated ? "Yes" : "No"}
               </span>
             </div>
             <div style={styles.infoItem}>
-              <span style={styles.key}>mfa_verified</span>
+              <span style={styles.key}>MFA Verified</span>
               <span style={styles.value}>
-                {storageState.localStorage?.mfa_verified ? "true" : "false"}
+                {storageState.localStorage?.mfa_verified ? "Yes" : "No"}
               </span>
             </div>
             <div style={styles.infoItem}>
-              <span style={styles.key}>authStage</span>
+              <span style={styles.key}>Auth Stage</span>
               <span style={styles.value}>
-                {storageState.localStorage?.authStage || "Not set"}
+                {storageState.localStorage?.authStage || "None"}
               </span>
             </div>
             <div style={styles.infoItem}>
-              <span style={styles.key}>Has Auth Token</span>
+              <span style={styles.key}>User Email</span>
               <span style={styles.value}>
-                {storageState.localStorage?.authToken ? "Yes" : "No"}
+                {storageState.localStorage?.parsedUser?.email || "None"}
               </span>
             </div>
             <div style={styles.infoItem}>
-              <span style={styles.key}>Has Refresh Token</span>
+              <span style={styles.key}>User Roles</span>
               <span style={styles.value}>
-                {storageState.localStorage?.refreshToken ? "Yes" : "No"}
+                {storageState.localStorage?.parsedUser?.roles?.join(", ") ||
+                  "None"}
               </span>
             </div>
-            {storageState.localStorage?.parsedUser && (
-              <>
-                <div style={styles.infoItem}>
-                  <span style={styles.key}>User Email</span>
-                  <span style={styles.value}>
-                    {storageState.localStorage.parsedUser.email}
-                  </span>
-                </div>
-                <div style={styles.infoItem}>
-                  <span style={styles.key}>User Roles</span>
-                  <span style={styles.value}>
-                    {storageState.localStorage.parsedUser.roles?.join(", ") ||
-                      "None"}
-                  </span>
-                </div>
-              </>
+            {storageState.localStorage?.parsedUserError && (
+              <div style={styles.infoItem}>
+                <span style={styles.key}>Parse Error</span>
+                <span style={styles.value}>
+                  {storageState.localStorage.parsedUserError}
+                </span>
+              </div>
             )}
           </div>
 
           {/* Session Storage */}
           <div style={styles.section}>
-            <h4 style={styles.sectionTitle}>SessionStorage</h4>
+            <h4 style={styles.sectionTitle}>Session Storage</h4>
             <div style={styles.infoItem}>
-              <span style={styles.key}>mfa_verified</span>
+              <span style={styles.key}>MFA Verified</span>
               <span style={styles.value}>
-                {storageState.sessionStorage?.mfa_verified ? "true" : "false"}
+                {storageState.sessionStorage?.mfa_verified ? "Yes" : "No"}
               </span>
             </div>
             <div style={styles.infoItem}>
-              <span style={styles.key}>Has lastMfaCodeSent</span>
+              <span style={styles.key}>MFA Code Sent</span>
               <span style={styles.value}>
                 {storageState.sessionStorage?.lastMfaCodeSent ? "Yes" : "No"}
               </span>
@@ -461,6 +453,9 @@ function AuthDebug({ showByDefault = false }) {
             disabled={loading}
           >
             Fix Auth Issues
+          </button>
+          <button style={styles.button} onClick={forceInit} disabled={loading}>
+            Force Init
           </button>
           <button style={styles.button} onClick={reloadPage} disabled={loading}>
             Reload Page
