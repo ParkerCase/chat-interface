@@ -45,7 +45,7 @@ import documentEmbeddingProcessor from "../../utils/documentEmbeddingProcessor";
 import RAGStatusIndicator from "../RAGStatusIndicator";
 
 // Make ragService globally available for testing
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   window.ragService = ragService;
   window.supabase = supabase;
 }
@@ -946,10 +946,16 @@ ${
 
       // Process embeddings for the uploaded document content
       try {
-        if (documentContent && !documentContent.startsWith('[File:') && !documentContent.startsWith('[Document:')) {
+        if (
+          documentContent &&
+          !documentContent.startsWith("[File:") &&
+          !documentContent.startsWith("[Document:")
+        ) {
           // Generate a unique document ID for this chat upload
-          const chatDocId = `chat_upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          
+          const chatDocId = `chat_upload_${Date.now()}_${Math.random()
+            .toString(36)
+            .substr(2, 9)}`;
+
           // Store document content in the documents table for future RAG retrieval
           const { data: docInsert, error: docError } = await supabase
             .from("documents")
@@ -957,28 +963,28 @@ ${
               id: chatDocId,
               content: documentContent,
               metadata: {
-                source_type: 'chat_upload',
+                source_type: "chat_upload",
                 file_name: file.name,
                 file_type: file.type,
                 uploaded_by: currentUser?.id || "default-user",
-                thread_id: selectedThreadId || 'temp_' + Date.now(),
-                upload_timestamp: new Date().toISOString()
+                thread_id: selectedThreadId || "temp_" + Date.now(),
+                upload_timestamp: new Date().toISOString(),
               },
-              document_type: 'chat_document',
-              source_type: 'chat_upload',
-              status: 'active',
+              document_type: "chat_document",
+              source_type: "chat_upload",
+              status: "active",
               created_by: currentUser?.id || null,
-              name: `Chat Upload: ${file.name}`
+              name: `Chat Upload: ${file.name}`,
             });
 
           if (!docError) {
             console.log(`Stored chat document ${chatDocId} for RAG retrieval`);
-            
+
             // Queue for embedding generation
             documentEmbeddingProcessor.onDocumentUploaded({
               id: chatDocId,
               content: documentContent,
-              name: file.name
+              name: file.name,
             });
           } else {
             console.warn("Failed to store chat document for RAG:", docError);
@@ -2029,26 +2035,31 @@ ${
     // **RAG ENHANCEMENT** - Search for relevant documents
     let enhancedPrompt = originalQuery;
     let ragInfo = null;
-    
+
     try {
       console.log("RAG: Enhancing query with knowledge base...");
       ragInfo = await ragService.enhanceQuery(originalQuery);
-      
+
       if (ragInfo.hasContext) {
         enhancedPrompt = ragInfo.enhancedPrompt;
-        console.log(`RAG: Enhanced prompt with ${ragInfo.documentsFound} documents`);
+        console.log(
+          `RAG: Enhanced prompt with ${ragInfo.documentsFound} documents`
+        );
       } else {
         console.log("RAG: No relevant documents found, using original query");
       }
     } catch (ragError) {
-      console.warn("RAG enhancement failed, proceeding with original query:", ragError);
+      console.warn(
+        "RAG enhancement failed, proceeding with original query:",
+        ragError
+      );
       // Continue with original query if RAG fails
     }
 
     // OpenAI API call with enhanced prompt
     let assistantMessage = "";
     let responseMetadata = {};
-    
+
     try {
       const openaiResponse = await fetch(
         "https://api.openai.com/v1/chat/completions",
@@ -2066,27 +2077,31 @@ ${
           }),
         }
       );
-      
+
       console.log("OpenAI raw response:", openaiResponse);
       const openaiData = await openaiResponse.json();
       console.log("OpenAI API response JSON:", openaiData);
-      
-      assistantMessage = openaiData.choices?.[0]?.message?.content || "No response from OpenAI.";
-      
+
+      assistantMessage =
+        openaiData.choices?.[0]?.message?.content || "No response from OpenAI.";
+
       // Add metadata about RAG usage
       responseMetadata = {
         ragUsed: ragInfo?.hasContext || false,
         documentsFound: ragInfo?.documentsFound || 0,
         enhancementError: ragInfo?.error || null,
         originalQuery: originalQuery,
-        usedEnhancedPrompt: ragInfo?.hasContext || false
+        usedEnhancedPrompt: ragInfo?.hasContext || false,
       };
-      
+
       // Add a subtle indicator when RAG was used
       if (ragInfo?.hasContext && ragInfo.documentsFound > 0) {
-        assistantMessage += `\n\n*[Response generated using ${ragInfo.documentsFound} document${ragInfo.documentsFound > 1 ? 's' : ''} from knowledge base]*`;
+        assistantMessage += `\n\n*[Response generated using ${
+          ragInfo.documentsFound
+        } document${
+          ragInfo.documentsFound > 1 ? "s" : ""
+        } from knowledge base]*`;
       }
-      
     } catch (err) {
       console.log("OpenAI request failed:", err);
       setError("OpenAI request failed.");
@@ -2766,25 +2781,16 @@ ${
           }}
         />
         <button
-          className="send-btn"
+          className={`send-btn round-send-btn${isLoading ? " loading" : ""}`}
           onClick={handleSendMessage}
           disabled={isLoading || (!inputText.trim() && !file)}
-          style={{
-            width: "80vw",
-            minHeight: 48,
-            fontSize: 18,
-            borderRadius: 8,
-            background: "#6366f1",
-            color: "#fff",
-            fontWeight: 700,
-            border: "none",
-            boxSizing: "border-box",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
+          style={{}}
         >
-          {isLoading ? "Sending..." : "Send Message"}
+          {isLoading ? (
+            <Loader className="spinner" size={24} />
+          ) : (
+            <MessageSquare size={24} />
+          )}
         </button>
       </div>
 
@@ -3230,25 +3236,16 @@ ${
           }}
         />
         <button
-          className="send-btn"
+          className={`send-btn round-send-btn${isLoading ? " loading" : ""}`}
           onClick={handleSendMessage}
           disabled={isLoading || (!inputText.trim() && !file)}
-          style={{
-            width: "100%",
-            minHeight: 52,
-            fontSize: 20,
-            borderRadius: 8,
-            background: "#6366f1",
-            color: "#fff",
-            fontWeight: 700,
-            border: "none",
-            boxSizing: "border-box",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
+          style={{}}
         >
-          {isLoading ? "Sending..." : "Send Message"}
+          {isLoading ? (
+            <Loader className="spinner" size={24} />
+          ) : (
+            <MessageSquare size={24} />
+          )}
         </button>
       </div>
 
@@ -3833,24 +3830,17 @@ ${
 
             {/* Send button */}
             <button
-              className={`send-btn ${isLoading ? "loading" : ""}`}
+              className={`send-btn round-send-btn${
+                isLoading ? " loading" : ""
+              }`}
               onClick={handleSendMessage}
-              style={{
-                backgroundColor: "var(--color-surface, #fafafa)",
-                color: "#6366f1",
-                border: "2px solid #6366f1",
-                cursor: "pointer",
-                transform: "none",
-                borderRadius: "55%",
-                width: "7%",
-                height: "91%",
-              }}
               disabled={isLoading || (!inputText.trim() && !file)}
+              style={{}}
             >
               {isLoading ? (
-                <Loader className="spinner" size={20} />
+                <Loader className="spinner" size={24} />
               ) : (
-                <MessageSquare size={20} />
+                <MessageSquare size={24} />
               )}
             </button>
           </div>

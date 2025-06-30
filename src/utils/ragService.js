@@ -44,12 +44,11 @@ class RAGService {
    */
   async searchDocuments(queryEmbedding, maxResults = this.maxDocuments) {
     try {
-      // Use the existing match_documents function from your schema
-      const { data: documents, error } = await supabase.rpc("match_documents", {
+      // Use the new rag_search_documents function we created
+      const { data: documents, error } = await supabase.rpc("rag_search_documents", {
         query_embedding: queryEmbedding,
         match_threshold: this.similarityThreshold,
         match_count: maxResults,
-        filter_criteria: { status: "active" }, // Only active documents
       });
 
       if (error) {
