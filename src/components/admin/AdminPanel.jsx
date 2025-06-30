@@ -153,17 +153,10 @@ const AdminPanel = () => {
       if (isAdminUser) {
         debugAdminPanel("User confirmed as admin, fetching profiles");
 
-        // Fetch profiles with a join to get auth data for last sign in
-        const { data: profiles, error: profilesError } = await supabase.from(
-          "profiles"
-        ).select(`
-            *,
-            auth_users:user_id(
-              last_sign_in_at,
-              created_at,
-              email_confirmed_at
-            )
-          `);
+        // Fetch profiles directly without complex joins
+        const { data: profiles, error: profilesError } = await supabase
+          .from("profiles")
+          .select("*");
 
         if (!profilesError && profiles) {
           debugAdminPanel("Successfully fetched profiles", {
@@ -321,7 +314,6 @@ const AdminPanel = () => {
 
             // Format last activity time - use real data from database
             const lastActivity =
-              profile.auth_users?.last_sign_in_at || // From auth.users table
               profile.last_login || // From profiles table
               profile.updated_at || // From profiles table
               profile.created_at || // From profiles table
@@ -345,8 +337,8 @@ const AdminPanel = () => {
               // Add real timestamps
               createdAt: profile.created_at,
               updatedAt: profile.updated_at,
-              lastSignIn: profile.auth_users?.last_sign_in_at,
-              emailConfirmed: profile.auth_users?.email_confirmed_at,
+              lastSignIn: profile.last_login,
+              emailConfirmed: profile.email_confirmed_at,
             };
           });
 
@@ -469,7 +461,6 @@ const AdminPanel = () => {
 
           // Format last activity time - use real data from database
           const lastActivity =
-            profile.auth_users?.last_sign_in_at || // From auth.users table
             profile.last_login || // From profiles table
             profile.updated_at || // From profiles table
             profile.created_at || // From profiles table
@@ -493,8 +484,8 @@ const AdminPanel = () => {
             // Add real timestamps
             createdAt: profile.created_at,
             updatedAt: profile.updated_at,
-            lastSignIn: profile.auth_users?.last_sign_in_at,
-            emailConfirmed: profile.auth_users?.email_confirmed_at,
+            lastSignIn: profile.last_login,
+            emailConfirmed: profile.email_confirmed_at,
           };
         });
 
