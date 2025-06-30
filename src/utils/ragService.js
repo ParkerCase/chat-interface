@@ -4,10 +4,10 @@ import { supabase } from "../lib/supabase";
 class RAGService {
   constructor() {
     this.openaiApiKey = process.env.REACT_APP_OPENAI_API_KEY;
-    this.embeddingModel = "text-embedding-3-small";
+    this.embeddingModel = "text-embedding-ada-002"; // Match the model used for existing embeddings
     this.maxContextLength = 8000; // Leave room for the user query and response
     this.maxDocuments = 10; // Max documents to retrieve
-    this.similarityThreshold = 0.5; // Minimum similarity score
+    this.similarityThreshold = 0.3; // Lower threshold to find more documents
   }
 
   /**
