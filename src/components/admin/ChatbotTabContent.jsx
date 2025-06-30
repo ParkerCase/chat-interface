@@ -961,7 +961,7 @@ ${
                 file_name: file.name,
                 file_type: file.type,
                 uploaded_by: currentUser?.id || "default-user",
-                thread_id: selectedThreadId || threadId,
+                thread_id: selectedThreadId || 'temp_' + Date.now(),
                 upload_timestamp: new Date().toISOString()
               },
               document_type: 'chat_document',
