@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -99,7 +99,10 @@ function AppContent() {
   const { isInitialized, loading, currentUser, forceInitComplete } = useAuth();
   const [outOfMemory, setOutOfMemory] = useState(false);
   const [initTimeout, setInitTimeout] = useState(null);
-  const [countdown, setCountdown] = useState(5);
+  const [countdown, setCountdown] = useState(3);
+  const [showRefreshButton, setShowRefreshButton] = useState(false);
+  const refreshTimeoutRef = useRef(null);
+  const hasRefreshedRef = useRef(false);
 
   // Handle out of memory errors
   useEffect(() => {
@@ -152,22 +155,29 @@ function AppContent() {
         console.warn("App auth initialization timeout - forcing completion");
         forceInitComplete();
         clearInterval(countdownInterval);
+        setShowRefreshButton(true); // Show manual refresh button
 
-        // Auto-refresh the page after 5 seconds if still not initialized
-        setTimeout(() => {
-          if (!isInitialized) {
+        // Auto-refresh the page after 2 seconds if still not initialized
+        refreshTimeoutRef.current = setTimeout(() => {
+          if (!hasRefreshedRef.current) {
             console.log(
               "Auto-refreshing page due to auth initialization timeout"
             );
-            window.location.reload();
+            hasRefreshedRef.current = true;
+            // Force a hard refresh with cache busting
+            const currentUrl = window.location.href;
+            const separator = currentUrl.includes("?") ? "&" : "?";
+            const cacheBuster = `_t=${Date.now()}`;
+            window.location.href = currentUrl + separator + cacheBuster;
           }
-        }, 5000); // 5 second delay before refresh
-      }, 5000); // 5 second timeout (reduced from 15)
+        }, 1000); // 1 second delay before refresh
+      }, 3000); // 3 second timeout (reduced from 5)
 
       setInitTimeout(timeout);
 
       return () => {
         if (timeout) clearTimeout(timeout);
+        if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
         clearInterval(countdownInterval);
       };
     } else {
@@ -176,7 +186,13 @@ function AppContent() {
         clearTimeout(initTimeout);
         setInitTimeout(null);
       }
-      setCountdown(5); // Reset countdown
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
+      hasRefreshedRef.current = false; // Reset refresh flag
+      setShowRefreshButton(false); // Hide refresh button
+      setCountdown(3); // Reset countdown
     }
   }, [isInitialized, loading, forceInitComplete, initTimeout]);
 
@@ -228,6 +244,29 @@ function AppContent() {
             <p style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
               This may take a moment... (Auto-refresh in {countdown}s if needed)
             </p>
+          )}
+          {showRefreshButton && (
+            <button
+              onClick={() => {
+                console.log("Manual refresh triggered");
+                const currentUrl = window.location.href;
+                const separator = currentUrl.includes("?") ? "&" : "?";
+                const cacheBuster = `_t=${Date.now()}`;
+                window.location.href = currentUrl + separator + cacheBuster;
+              }}
+              style={{
+                marginTop: "20px",
+                padding: "10px 20px",
+                backgroundColor: "#007bff",
+                color: "white",
+                border: "none",
+                borderRadius: "5px",
+                cursor: "pointer",
+                fontSize: "14px",
+              }}
+            >
+              Refresh Now
+            </button>
           )}
         </div>
       </div>
