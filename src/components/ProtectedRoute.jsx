@@ -13,6 +13,7 @@ function ProtectedRoute() {
   const location = useLocation();
   const [isVerifying, setIsVerifying] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [verificationTimeout, setVerificationTimeout] = useState(null);
 
   // Use the auth context
   const { currentUser, loading, isInitialized } = useAuth();
@@ -79,8 +80,31 @@ function ProtectedRoute() {
       }
     };
 
+    // Set a timeout to force completion if verification hangs
+    const timeout = setTimeout(() => {
+      console.warn("ProtectedRoute: Verification timeout - forcing completion");
+      setIsVerifying(false);
+
+      // Auto-refresh the page after 3 seconds if still verifying
+      setTimeout(() => {
+        if (isVerifying) {
+          console.log(
+            "ProtectedRoute: Auto-refreshing page due to verification timeout"
+          );
+          window.location.reload();
+        }
+      }, 3000); // 3 second delay before refresh
+    }, 5000); // 5 second timeout
+
+    setVerificationTimeout(timeout);
+
     verifyAuth();
-  }, []);
+
+    // Cleanup timeout
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [isVerifying]);
 
   // Show loading during initialization
   if (loading || !isInitialized || isVerifying) {
@@ -98,6 +122,11 @@ function ProtectedRoute() {
       >
         <Loader className="spinner" size={24} />
         <p>Verifying authentication...</p>
+        {verificationTimeout && (
+          <p style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
+            This may take a moment... (Auto-refresh in 5s if needed)
+          </p>
+        )}
       </div>
     );
   }

@@ -99,6 +99,7 @@ function AppContent() {
   const { isInitialized, loading, currentUser, forceInitComplete } = useAuth();
   const [outOfMemory, setOutOfMemory] = useState(false);
   const [initTimeout, setInitTimeout] = useState(null);
+  const [countdown, setCountdown] = useState(5);
 
   // Handle out of memory errors
   useEffect(() => {
@@ -136,15 +137,38 @@ function AppContent() {
 
     // Set a backup timeout to force completion if auth hangs
     if (!isInitialized) {
+      // Start countdown
+      const countdownInterval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
       const timeout = setTimeout(() => {
         console.warn("App auth initialization timeout - forcing completion");
         forceInitComplete();
-      }, 15000); // 15 second timeout
+        clearInterval(countdownInterval);
+
+        // Auto-refresh the page after 5 seconds if still not initialized
+        setTimeout(() => {
+          if (!isInitialized) {
+            console.log(
+              "Auto-refreshing page due to auth initialization timeout"
+            );
+            window.location.reload();
+          }
+        }, 5000); // 5 second delay before refresh
+      }, 5000); // 5 second timeout (reduced from 15)
 
       setInitTimeout(timeout);
 
       return () => {
         if (timeout) clearTimeout(timeout);
+        clearInterval(countdownInterval);
       };
     } else {
       // Clear timeout if we initialized successfully
@@ -152,6 +176,7 @@ function AppContent() {
         clearTimeout(initTimeout);
         setInitTimeout(null);
       }
+      setCountdown(5); // Reset countdown
     }
   }, [isInitialized, loading, forceInitComplete, initTimeout]);
 
@@ -201,7 +226,7 @@ function AppContent() {
           <p>Initializing authentication...</p>
           {initTimeout && (
             <p style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
-              This may take a moment...
+              This may take a moment... (Auto-refresh in {countdown}s if needed)
             </p>
           )}
         </div>

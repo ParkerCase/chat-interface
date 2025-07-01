@@ -644,7 +644,15 @@ export function AuthProvider({ children }) {
       initTimeoutRef.current = setTimeout(() => {
         logAuth("Auth initialization timeout - forcing completion");
         forceInitComplete();
-      }, 10000); // 10 second timeout
+
+        // Auto-refresh the page after 3 seconds if still not initialized
+        setTimeout(() => {
+          if (!isInitialized) {
+            logAuth("Auto-refreshing page due to auth initialization timeout");
+            window.location.reload();
+          }
+        }, 3000); // 3 second delay before refresh
+      }, 5000); // 5 second timeout (reduced from 10)
 
       try {
         logAuth("Initializing auth state");
