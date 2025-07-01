@@ -132,6 +132,8 @@ function AppContent() {
 
   // Emergency timeout protection for auth initialization
   useEffect(() => {
+    console.log("Auth timeout effect triggered:", { isInitialized, loading });
+
     if (!isInitialized && !loading) {
       // If we're not initialized but not loading, something is wrong
       console.warn("Auth stuck in uninitialized state - forcing completion");
@@ -153,31 +155,37 @@ function AppContent() {
 
       const timeout = setTimeout(() => {
         console.warn("App auth initialization timeout - forcing completion");
+        console.log("Current auth state:", {
+          isInitialized,
+          loading,
+          hasRefreshed: hasRefreshedRef.current,
+        });
         forceInitComplete();
         clearInterval(countdownInterval);
         setShowRefreshButton(true); // Show manual refresh button
 
-        // Auto-refresh the page after 2 seconds if still not initialized
-        refreshTimeoutRef.current = setTimeout(() => {
-          if (!hasRefreshedRef.current) {
-            console.log(
-              "Auto-refreshing page due to auth initialization timeout"
-            );
-            hasRefreshedRef.current = true;
-            // Force a hard refresh with cache busting
-            const currentUrl = window.location.href;
-            const separator = currentUrl.includes("?") ? "&" : "?";
-            const cacheBuster = `_t=${Date.now()}`;
-            window.location.href = currentUrl + separator + cacheBuster;
-          }
-        }, 1000); // 1 second delay before refresh
-      }, 3000); // 3 second timeout (reduced from 5)
+        // Auto-refresh the page immediately after timeout
+        if (!hasRefreshedRef.current) {
+          console.log(
+            "Auto-refreshing page due to auth initialization timeout"
+          );
+          hasRefreshedRef.current = true;
+          // Force a hard refresh with cache busting
+          const currentUrl = window.location.href;
+          const separator = currentUrl.includes("?") ? "&" : "?";
+          const cacheBuster = `_t=${Date.now()}`;
+          const refreshUrl = currentUrl + separator + cacheBuster;
+          console.log("Refreshing to:", refreshUrl);
+          window.location.href = refreshUrl;
+        } else {
+          console.log("Refresh already triggered, skipping");
+        }
+      }, 3000); // 3 second timeout
 
       setInitTimeout(timeout);
 
       return () => {
         if (timeout) clearTimeout(timeout);
-        if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
         clearInterval(countdownInterval);
       };
     } else {
@@ -186,15 +194,35 @@ function AppContent() {
         clearTimeout(initTimeout);
         setInitTimeout(null);
       }
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-        refreshTimeoutRef.current = null;
-      }
       hasRefreshedRef.current = false; // Reset refresh flag
       setShowRefreshButton(false); // Hide refresh button
       setCountdown(3); // Reset countdown
     }
   }, [isInitialized, loading, forceInitComplete, initTimeout]);
+
+  // Guaranteed refresh after 4 seconds if still loading
+  useEffect(() => {
+    if (!isInitialized || loading) {
+      console.log("Setting up guaranteed refresh timer");
+      const guaranteedRefresh = setTimeout(() => {
+        console.log("Guaranteed refresh triggered after 4 seconds");
+        if (!hasRefreshedRef.current) {
+          hasRefreshedRef.current = true;
+          const currentUrl = window.location.href;
+          const separator = currentUrl.includes("?") ? "&" : "?";
+          const cacheBuster = `_t=${Date.now()}`;
+          const refreshUrl = currentUrl + separator + cacheBuster;
+          console.log("Guaranteed refresh to:", refreshUrl);
+          window.location.href = refreshUrl;
+        }
+      }, 4000);
+
+      return () => {
+        console.log("Clearing guaranteed refresh timer");
+        clearTimeout(guaranteedRefresh);
+      };
+    }
+  }, [isInitialized, loading]);
 
   // Handle storage events to detect auth changes from other tabs
   useEffect(() => {
